@@ -1,5 +1,6 @@
 import "server-only";
 import type { PickSport } from "@prisma/client";
+import { getTeamLogoUrl } from "@/lib/team-logos";
 
 // The Odds API (the-odds-api.com) client.
 //
@@ -7,14 +8,19 @@ import type { PickSport } from "@prisma/client";
 // odds request costs (markets × regions) = 3 credits. This is called from both
 // the public homepage (high, unauthenticated traffic) and the gated handicapper
 // pick form — Next dedupes/caches by fetch URL, so both consumers share one
-// cached entry per sport, and REVALIDATE_SECONDS is sized for the public
-// homepage's traffic (worst case: one revalidation per window regardless of
-// visit volume). At 3h and 4 sports on the homepage that's ~4 sports x 8
-// windows/day x 3 credits = 96 credits/day, ~960/month — still above the free
-// 500/month if all 4 sports get steady traffic, so the homepage only renders
-// one sport by default and the rest are opt-in via tabs. Missing
-// THE_ODDS_API_KEY degrades to { configured: false } everywhere it's used.
-const REVALIDATE_SECONDS = 3 * 60 * 60;
+// cached entry per sport. Only the homepage's currently-selected tab fetches
+// eagerly (one sport per page load); the rest are opt-in via tabs, so real
+// usage tracks whichever sports actually get clicked, not a flat "all sports"
+// cost. Still, worst case matters: with all 8 sports on the homepage getting
+// steady traffic, REVALIDATE_SECONDS needs to be long enough that
+// 8 sports x (30 days / (REVALIDATE_SECONDS/24h)) x 3 credits stays near
+// 500/month. At 12h that worst case is 8 x 60 x 3 = 1,440 credits/month —
+// above the free tier if every sport is hit constantly, but real traffic
+// concentrates on a few popular sports, so actual usage should land well
+// under that ceiling. If it doesn't, either widen this further or upgrade
+// the-odds-api.com plan. Missing THE_ODDS_API_KEY degrades to
+// { configured: false } everywhere it's used, regardless of this value.
+const REVALIDATE_SECONDS = 12 * 60 * 60;
 
 // Overridable so tests can point at a local mock of the upstream API.
 const API_BASE = process.env.ODDS_API_BASE ?? "https://api.the-odds-api.com/v4";
@@ -33,9 +39,18 @@ const SPORT_KEYS: Partial<Record<PickSport, string>> = {
 
 const PREFERRED_BOOKMAKERS = ["draftkings", "fanduel", "betmgm", "caesars"];
 
-// Curated subset shown as tabs on the public homepage — kept small for quota
-// safety (see REVALIDATE_SECONDS above). Order doubles as tab order.
-export const HOMEPAGE_SPORTS: PickSport[] = ["NFL", "NBA", "MLB", "NHL"];
+// All sports with odds-feed coverage, shown as homepage tabs. Order doubles
+// as tab order (major-4 first).
+export const HOMEPAGE_SPORTS: PickSport[] = [
+  "NFL",
+  "NBA",
+  "MLB",
+  "NHL",
+  "NCAAF",
+  "NCAAB",
+  "SOCCER",
+  "UFC_MMA",
+];
 
 interface OddsApiOutcome {
   name: string;
@@ -73,6 +88,8 @@ export interface UpcomingEvent {
   matchup: string;
   homeTeam: string;
   awayTeam: string;
+  homeTeamLogo: string | null;
+  awayTeamLogo: string | null;
   commenceTime: string;
   bookmaker: string | null;
   markets: MarketOption[];
@@ -109,12 +126,12 @@ export async function getUpcomingEvents(sport: PickSport): Promise<OddsFeedResul
   const events = data
     .filter((e) => new Date(e.commence_time) > new Date())
     .slice(0, 25)
-    .map(normalizeEvent);
+    .map((event) => normalizeEvent(event, sport));
 
   return { configured: true, supported: true, events };
 }
 
-function normalizeEvent(event: OddsApiEvent): UpcomingEvent {
+function normalizeEvent(event: OddsApiEvent, sport: PickSport): UpcomingEvent {
   const bookmaker =
     PREFERRED_BOOKMAKERS.map((key) => event.bookmakers.find((b) => b.key === key)).find(Boolean) ??
     event.bookmakers[0] ??
@@ -151,6 +168,8 @@ function normalizeEvent(event: OddsApiEvent): UpcomingEvent {
     matchup: `${event.away_team} @ ${event.home_team}`,
     homeTeam: event.home_team,
     awayTeam: event.away_team,
+    homeTeamLogo: getTeamLogoUrl(sport, event.home_team),
+    awayTeamLogo: getTeamLogoUrl(sport, event.away_team),
     commenceTime: event.commence_time,
     bookmaker: bookmaker?.title ?? null,
     markets,

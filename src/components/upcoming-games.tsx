@@ -4,6 +4,8 @@ import { CalendarClock } from "lucide-react";
 import { formatOdds } from "@/lib/odds";
 import { SPORT_LABELS, cn } from "@/lib/utils";
 import { HOMEPAGE_SPORTS, type OddsFeedResult } from "@/lib/odds-api";
+import { SportIcon } from "@/components/sport-icon";
+import { TeamLogo } from "@/components/team-logo";
 import type { PickSport } from "@prisma/client";
 
 export function UpcomingGames({ sport, feed }: { sport: PickSport; feed: OddsFeedResult }) {
@@ -24,12 +26,13 @@ export function UpcomingGames({ sport, feed }: { sport: PickSport; feed: OddsFee
                 href={`/?sport=${s}#lines`}
                 scroll={false}
                 className={cn(
-                  "rounded-full border px-3 py-1.5 text-sm font-medium",
+                  "flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm font-medium",
                   s === sport
                     ? "border-accent bg-accent/10 text-accent"
                     : "border-border text-muted hover:text-foreground"
                 )}
               >
+                <SportIcon sport={s} className="h-3.5 w-3.5" />
                 {SPORT_LABELS[s]}
               </Link>
             ))}
@@ -48,11 +51,19 @@ export function UpcomingGames({ sport, feed }: { sport: PickSport; feed: OddsFee
                   <CalendarClock className="h-3.5 w-3.5" />
                   {format(new Date(event.commenceTime), "EEE, MMM d · h:mm a")}
                 </div>
-                <p className="mt-2 font-semibold leading-snug">{event.matchup}</p>
+
+                <div className="mt-3 flex items-center gap-2">
+                  <TeamLogo sport={sport} logoUrl={event.awayTeamLogo} className="h-7 w-7 shrink-0" />
+                  <p className="min-w-0 truncate text-sm font-semibold">{event.awayTeam}</p>
+                </div>
+                <div className="mt-1.5 flex items-center gap-2">
+                  <TeamLogo sport={sport} logoUrl={event.homeTeamLogo} className="h-7 w-7 shrink-0" />
+                  <p className="min-w-0 truncate text-sm font-semibold">{event.homeTeam}</p>
+                </div>
 
                 {event.markets.length > 0 && (
                   <div className="mt-3 flex flex-wrap gap-1.5">
-                    {event.markets.slice(0, 4).map((market, i) => (
+                    {event.markets.map((market, i) => (
                       <span
                         key={i}
                         className="rounded-full bg-surface-raised px-2 py-0.5 text-xs font-medium tabular-nums"
