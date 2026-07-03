@@ -3,7 +3,7 @@ import { ShieldCheck, LineChart, Users, ArrowRight } from "lucide-react";
 import { listHandicapperSummaries } from "@/lib/handicappers";
 import { HandicapperCard } from "@/components/handicapper-card";
 import { UpcomingGames } from "@/components/upcoming-games";
-import { getUpcomingEvents, HOMEPAGE_SPORTS } from "@/lib/odds-api";
+import { getUpcomingEvents, getAvailableHomepageSports } from "@/lib/odds-api";
 import type { PickSport } from "@prisma/client";
 
 export const dynamic = "force-dynamic";
@@ -14,14 +14,19 @@ export default async function Home({
   searchParams: Promise<{ sport?: string }>;
 }) {
   const params = await searchParams;
-  const sport: PickSport = HOMEPAGE_SPORTS.includes(params.sport as PickSport)
-    ? (params.sport as PickSport)
-    : HOMEPAGE_SPORTS[0];
-
-  const [handicappers, oddsFeed] = await Promise.all([
+  const [handicappers, availableSports] = await Promise.all([
     listHandicapperSummaries(),
-    getUpcomingEvents(sport),
+    getAvailableHomepageSports(),
   ]);
+
+  // availableSports is only empty when THE_ODDS_API_KEY is unset, in which
+  // case UpcomingGames bails out before this value is ever used — the "NFL"
+  // fallback just satisfies the type.
+  const sport: PickSport = availableSports.includes(params.sport as PickSport)
+    ? (params.sport as PickSport)
+    : (availableSports[0] ?? "NFL");
+
+  const oddsFeed = await getUpcomingEvents(sport);
   const featured = [...handicappers]
     .sort((a, b) => b.stats.unitsNet - a.stats.unitsNet)
     .slice(0, 3);
@@ -79,7 +84,7 @@ export default async function Home({
       </section>
 
       <div id="lines" />
-      <UpcomingGames sport={sport} feed={oddsFeed} />
+      <UpcomingGames sport={sport} feed={oddsFeed} availableSports={availableSports} />
 
       <section className="container-page py-16">
         <div className="mb-8 flex items-end justify-between">

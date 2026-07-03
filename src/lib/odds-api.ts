@@ -22,6 +22,16 @@ import { getTeamLogoUrl } from "@/lib/team-logos";
 // { configured: false } everywhere it's used, regardless of this value.
 const REVALIDATE_SECONDS = 12 * 60 * 60;
 
+// Live scores are only fetched when a game already in view has started (see
+// getUpcomingEvents), so this can afford to be much shorter than
+// REVALIDATE_SECONDS without materially affecting the monthly quota.
+const SCORES_REVALIDATE_SECONDS = 5 * 60;
+
+// How far back a started game stays eligible for a live/final score before
+// it's dropped from the feed entirely — long enough to cover a full game in
+// any supported sport plus some delay margin.
+const GAME_IN_PROGRESS_WINDOW_MS = 4 * 60 * 60 * 1000;
+
 // Overridable so tests can point at a local mock of the upstream API.
 const API_BASE = process.env.ODDS_API_BASE ?? "https://api.the-odds-api.com/v4";
 
@@ -39,8 +49,9 @@ const SPORT_KEYS: Partial<Record<PickSport, string>> = {
 
 const PREFERRED_BOOKMAKERS = ["draftkings", "fanduel", "betmgm", "caesars"];
 
-// All sports with odds-feed coverage, shown as homepage tabs. Order doubles
-// as tab order (major-4 first).
+// All sports with odds-feed coverage. Preferred display order (major-4 first)
+// when a sport is available; getAvailableHomepageSports() filters this down
+// to whichever currently have upcoming games.
 export const HOMEPAGE_SPORTS: PickSport[] = [
   "NFL",
   "NBA",
@@ -51,6 +62,40 @@ export const HOMEPAGE_SPORTS: PickSport[] = [
   "SOCCER",
   "UFC_MMA",
 ];
+
+// Cheap existence check for the homepage tab bar: The Odds API's bare
+// /events endpoint (no regions/markets) lists upcoming events without odds,
+// which the-odds-api.com bills far below the full odds+markets call used by
+// getUpcomingEvents. This still means one request per sport per cache
+// window instead of "only the clicked sport" — 8 sports x REVALIDATE_SECONDS
+// windows adds up, so this shares the same long cache window rather than
+// its own. If this endpoint's actual per-call cost turns out to be
+// non-trivial on your plan, either drop back to a static tab list
+// (HOMEPAGE_SPORTS) or raise REVALIDATE_SECONDS further.
+export async function getAvailableHomepageSports(): Promise<PickSport[]> {
+  const apiKey = process.env.THE_ODDS_API_KEY;
+  if (!apiKey) return [];
+
+  const results = await Promise.all(
+    HOMEPAGE_SPORTS.map(async (sport) => {
+      const sportKey = SPORT_KEYS[sport];
+      if (!sportKey) return null;
+
+      const url = `${API_BASE}/sports/${sportKey}/events?apiKey=${apiKey}`;
+      const res = await fetch(url, { next: { revalidate: REVALIDATE_SECONDS } });
+      if (!res.ok) return null;
+
+      const events = (await res.json()) as { commence_time: string }[];
+      const hasUpcoming = events.some((e) => new Date(e.commence_time) > new Date());
+      return hasUpcoming ? sport : null;
+    })
+  );
+
+  const available = results.filter((s): s is PickSport => s !== null);
+  // Never show an empty tab bar (e.g. every league between seasons at once,
+  // or a transient upstream hiccup) — fall back to the full static list.
+  return available.length > 0 ? available : HOMEPAGE_SPORTS;
+}
 
 interface OddsApiOutcome {
   name: string;
@@ -81,6 +126,13 @@ export interface MarketOption {
   betType: "MONEYLINE" | "SPREAD" | "TOTAL";
   selection: string;
   odds: number;
+  point?: number;
+}
+
+export interface LiveScore {
+  homeScore: number;
+  awayScore: number;
+  completed: boolean;
 }
 
 export interface UpcomingEvent {
@@ -93,6 +145,7 @@ export interface UpcomingEvent {
   commenceTime: string;
   bookmaker: string | null;
   markets: MarketOption[];
+  liveScore: LiveScore | null;
 }
 
 export type OddsFeedResult =
@@ -123,12 +176,63 @@ export async function getUpcomingEvents(sport: PickSport): Promise<OddsFeedResul
   }
 
   const data = (await res.json()) as OddsApiEvent[];
+  // Keep upcoming games plus anything that started recently (still live or
+  // just wrapped up) so scores have something to attach to; a stale event
+  // from hours ago rolls off on its own since it's excluded here.
+  const recentCutoff = new Date(Date.now() - GAME_IN_PROGRESS_WINDOW_MS);
   const events = data
-    .filter((e) => new Date(e.commence_time) > new Date())
+    .filter((e) => new Date(e.commence_time) > recentCutoff)
     .slice(0, 25)
     .map((event) => normalizeEvent(event, sport));
 
+  const hasStarted = events.some((e) => new Date(e.commenceTime) <= new Date());
+  if (hasStarted) {
+    const scores = await getScores(sportKey, apiKey);
+    for (const event of events) {
+      event.liveScore = scores.get(event.id) ?? null;
+    }
+  }
+
   return { configured: true, supported: true, events };
+}
+
+interface OddsApiScoreEntry {
+  id: string;
+  completed: boolean;
+  home_team: string;
+  away_team: string;
+  scores: { name: string; score: string }[] | null;
+}
+
+async function getScores(sportKey: string, apiKey: string): Promise<Map<string, LiveScore>> {
+  const url = `${API_BASE}/sports/${sportKey}/scores/?apiKey=${apiKey}&daysFrom=1`;
+
+  // Live scores need to be fresher than odds, but this is a second billed
+  // request only made when a game in view has actually started (see
+  // hasStarted above) — most page loads never trigger it, so a short window
+  // here doesn't meaningfully add to the monthly quota.
+  const res = await fetch(url, { next: { revalidate: SCORES_REVALIDATE_SECONDS } });
+  if (!res.ok) {
+    console.error(`Odds API scores request failed for ${sportKey}: ${res.status}`);
+    return new Map();
+  }
+
+  const data = (await res.json()) as OddsApiScoreEntry[];
+  const map = new Map<string, LiveScore>();
+
+  for (const entry of data) {
+    if (!entry.scores) continue;
+    const home = entry.scores.find((s) => s.name === entry.home_team);
+    const away = entry.scores.find((s) => s.name === entry.away_team);
+    if (!home || !away) continue;
+    map.set(entry.id, {
+      homeScore: Number(home.score),
+      awayScore: Number(away.score),
+      completed: entry.completed,
+    });
+  }
+
+  return map;
 }
 
 function normalizeEvent(event: OddsApiEvent, sport: PickSport): UpcomingEvent {
@@ -152,12 +256,14 @@ function normalizeEvent(event: OddsApiEvent, sport: PickSport): UpcomingEvent {
           betType: "SPREAD",
           selection: `${outcome.name} ${outcome.point > 0 ? "+" : ""}${outcome.point}`,
           odds: outcome.price,
+          point: outcome.point,
         });
       } else if (market.key === "totals" && outcome.point !== undefined) {
         markets.push({
           betType: "TOTAL",
           selection: `${outcome.name} ${outcome.point}`,
           odds: outcome.price,
+          point: outcome.point,
         });
       }
     }
@@ -173,5 +279,6 @@ function normalizeEvent(event: OddsApiEvent, sport: PickSport): UpcomingEvent {
     commenceTime: event.commence_time,
     bookmaker: bookmaker?.title ?? null,
     markets,
+    liveScore: null,
   };
 }
