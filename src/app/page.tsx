@@ -17,11 +17,12 @@ export default async function Home() {
     <div>
       <section className="relative overflow-hidden border-b border-border">
         <div
-          className="pointer-events-none absolute inset-0 opacity-40"
-          style={{
-            background:
-              "radial-gradient(circle at 20% -10%, rgba(22,163,74,0.10), transparent 45%), radial-gradient(circle at 90% 10%, rgba(180,83,9,0.07), transparent 40%)",
-          }}
+          aria-hidden
+          className="pointer-events-none absolute inset-0 bg-[url('/hero-bg.svg')] bg-cover bg-bottom"
+        />
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-0 bg-gradient-to-r from-background via-background/55 to-transparent"
         />
         <div className="container-page relative py-20 md:py-28">
           <div className="max-w-2xl">
