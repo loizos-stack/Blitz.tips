@@ -41,7 +41,14 @@ Copy `.env.example` to `.env` and fill in the values:
 cp .env.example .env
 ```
 
-- `DATABASE_URL` — a Postgres connection string.
+- `DATABASE_URL` / `DIRECT_URL` — Postgres connection strings. Locally these can be identical.
+  On a pooled host (Neon, Supabase, RDS Proxy, etc.), **`DATABASE_URL` must be the pooled
+  connection** (what the running app uses — serverless functions open many concurrent
+  connections, and without pooling you exhaust Postgres's connection limit and requests hang
+  instead of failing) and **`DIRECT_URL` must be the direct/non-pooled connection** (used only
+  by `prisma migrate deploy`). On Neon specifically: the "pooled connection" toggle in the
+  connection string box gives you the `DATABASE_URL` value (host has a `-pooler` suffix); turn
+  it off for the `DIRECT_URL` value.
 - `AUTH_SECRET` — generate with `npx auth secret`.
 - `AUTH_GOOGLE_ID` / `AUTH_GOOGLE_SECRET` — from the
   [Google Cloud Console](https://console.cloud.google.com/apis/credentials) (optional; email/password

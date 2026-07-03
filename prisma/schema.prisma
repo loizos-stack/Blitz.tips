@@ -3,8 +3,13 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  // Pooled connection (e.g. Neon's `-pooler` host) — used by the running app.
+  // Serverless functions open many concurrent connections; without pooling
+  // they exhaust Postgres's connection limit and requests hang instead of failing.
+  url       = env("DATABASE_URL")
+  // Direct (non-pooled) connection — used only for `prisma migrate deploy`.
+  directUrl = env("DIRECT_URL")
 }
 
 enum Role {
