@@ -1,17 +1,17 @@
 @import "tailwindcss";
 
 :root {
-  --background: #0a0e14;
-  --surface: #10151d;
-  --surface-raised: #161d28;
-  --border: #232b38;
-  --foreground: #eef1f6;
-  --muted: #8b96a8;
-  --accent: #22c55e;
-  --accent-foreground: #04160b;
-  --gold: #f5b942;
-  --danger: #f0475a;
-  --push: #8b96a8;
+  --background: #f7f8fa;
+  --surface: #ffffff;
+  --surface-raised: #f1f3f6;
+  --border: #e3e6eb;
+  --foreground: #13161c;
+  --muted: #626b7a;
+  --accent: #16a34a;
+  --accent-foreground: #ffffff;
+  --gold: #b45309;
+  --danger: #dc2626;
+  --push: #626b7a;
 }
 
 @theme inline {
@@ -51,6 +51,7 @@ body {
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 0.875rem;
+  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.04);
 }
 
 .result-pill {

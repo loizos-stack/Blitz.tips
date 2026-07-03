@@ -20,7 +20,7 @@ export default async function Home() {
           className="pointer-events-none absolute inset-0 opacity-40"
           style={{
             background:
-              "radial-gradient(circle at 20% -10%, rgba(34,197,94,0.25), transparent 45%), radial-gradient(circle at 90% 10%, rgba(245,185,66,0.15), transparent 40%)",
+              "radial-gradient(circle at 20% -10%, rgba(22,163,74,0.10), transparent 45%), radial-gradient(circle at 90% 10%, rgba(180,83,9,0.07), transparent 40%)",
           }}
         />
         <div className="container-page relative py-20 md:py-28">
