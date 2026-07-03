@@ -2,11 +2,26 @@ import Link from "next/link";
 import { ShieldCheck, LineChart, Users, ArrowRight } from "lucide-react";
 import { listHandicapperSummaries } from "@/lib/handicappers";
 import { HandicapperCard } from "@/components/handicapper-card";
+import { UpcomingGames } from "@/components/upcoming-games";
+import { getUpcomingEvents, HOMEPAGE_SPORTS } from "@/lib/odds-api";
+import type { PickSport } from "@prisma/client";
 
 export const dynamic = "force-dynamic";
 
-export default async function Home() {
-  const handicappers = await listHandicapperSummaries();
+export default async function Home({
+  searchParams,
+}: {
+  searchParams: Promise<{ sport?: string }>;
+}) {
+  const params = await searchParams;
+  const sport: PickSport = HOMEPAGE_SPORTS.includes(params.sport as PickSport)
+    ? (params.sport as PickSport)
+    : HOMEPAGE_SPORTS[0];
+
+  const [handicappers, oddsFeed] = await Promise.all([
+    listHandicapperSummaries(),
+    getUpcomingEvents(sport),
+  ]);
   const featured = [...handicappers]
     .sort((a, b) => b.stats.unitsNet - a.stats.unitsNet)
     .slice(0, 3);
@@ -62,6 +77,9 @@ export default async function Home() {
           </div>
         </div>
       </section>
+
+      <div id="lines" />
+      <UpcomingGames sport={sport} feed={oddsFeed} />
 
       <section className="container-page py-16">
         <div className="mb-8 flex items-end justify-between">

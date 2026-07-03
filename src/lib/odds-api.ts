@@ -4,10 +4,17 @@ import type { PickSport } from "@prisma/client";
 // The Odds API (the-odds-api.com) client.
 //
 // Quota economics drive the design: the free tier is 500 credits/month and one
-// odds request costs (markets × regions) = 3 credits, so responses are cached
-// via Next's data cache for an hour and fetches only happen on demand (when a
-// handicapper opens the pick form). Missing THE_ODDS_API_KEY degrades to
-// { configured: false } so the manual pick form keeps working without it.
+// odds request costs (markets × regions) = 3 credits. This is called from both
+// the public homepage (high, unauthenticated traffic) and the gated handicapper
+// pick form — Next dedupes/caches by fetch URL, so both consumers share one
+// cached entry per sport, and REVALIDATE_SECONDS is sized for the public
+// homepage's traffic (worst case: one revalidation per window regardless of
+// visit volume). At 3h and 4 sports on the homepage that's ~4 sports x 8
+// windows/day x 3 credits = 96 credits/day, ~960/month — still above the free
+// 500/month if all 4 sports get steady traffic, so the homepage only renders
+// one sport by default and the rest are opt-in via tabs. Missing
+// THE_ODDS_API_KEY degrades to { configured: false } everywhere it's used.
+const REVALIDATE_SECONDS = 3 * 60 * 60;
 
 // Overridable so tests can point at a local mock of the upstream API.
 const API_BASE = process.env.ODDS_API_BASE ?? "https://api.the-odds-api.com/v4";
@@ -25,6 +32,10 @@ const SPORT_KEYS: Partial<Record<PickSport, string>> = {
 };
 
 const PREFERRED_BOOKMAKERS = ["draftkings", "fanduel", "betmgm", "caesars"];
+
+// Curated subset shown as tabs on the public homepage — kept small for quota
+// safety (see REVALIDATE_SECONDS above). Order doubles as tab order.
+export const HOMEPAGE_SPORTS: PickSport[] = ["NFL", "NBA", "MLB", "NHL"];
 
 interface OddsApiOutcome {
   name: string;
@@ -87,7 +98,7 @@ export async function getUpcomingEvents(sport: PickSport): Promise<OddsFeedResul
     `${API_BASE}/sports/${sportKey}/odds` +
     `?apiKey=${apiKey}&regions=us&markets=h2h,spreads,totals&oddsFormat=american`;
 
-  const res = await fetch(url, { next: { revalidate: 3600 } });
+  const res = await fetch(url, { next: { revalidate: REVALIDATE_SECONDS } });
   if (!res.ok) {
     // 401 bad key / 422 out of season / 429 quota — all degrade to an empty feed.
     console.error(`Odds API request failed for ${sportKey}: ${res.status}`);
