@@ -1,0 +1,126 @@
+import type { Metadata } from "next";
+import { notFound } from "next/navigation";
+import { BadgeCheck } from "lucide-react";
+import { auth } from "@/auth";
+import { prisma } from "@/lib/prisma";
+import { getHandicapperByHandle } from "@/lib/handicappers";
+import { StatCard } from "@/components/stat-card";
+import { PickCard } from "@/components/pick-card";
+import { SubscribeButton } from "@/components/subscribe-button";
+import { SPORT_LABELS } from "@/lib/utils";
+
+export const dynamic = "force-dynamic";
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ handle: string }>;
+}): Promise<Metadata> {
+  const { handle } = await params;
+  const handicapper = await getHandicapperByHandle(handle);
+  if (!handicapper) return {};
+  return {
+    title: handicapper.displayName,
+    description: `${handicapper.displayName}'s verified sports betting record on Blitz.tips: ${handicapper.stats.record}, ${handicapper.stats.unitsNet >= 0 ? "+" : ""}${handicapper.stats.unitsNet.toFixed(1)} units.`,
+  };
+}
+
+export default async function HandicapperProfilePage({
+  params,
+}: {
+  params: Promise<{ handle: string }>;
+}) {
+  const { handle } = await params;
+  const handicapper = await getHandicapperByHandle(handle);
+  if (!handicapper) notFound();
+
+  const session = await auth();
+  const isOwner = session?.user.id && handicapper.userId === session.user.id;
+
+  let isSubscribed = false;
+  if (session?.user.id && !isOwner) {
+    const sub = await prisma.subscription.findUnique({
+      where: {
+        subscriberId_handicapperId: { subscriberId: session.user.id, handicapperId: handicapper.id },
+      },
+    });
+    isSubscribed = sub?.status === "ACTIVE";
+  }
+
+  const unlocked = isOwner || isSubscribed;
+  const picks = handicapper.picksList;
+
+  return (
+    <div className="container-page py-12">
+      <div className="flex flex-col gap-6 md:flex-row md:items-start md:justify-between">
+        <div className="flex items-start gap-4">
+          <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full bg-surface-raised text-xl font-bold uppercase">
+            {handicapper.displayName.slice(0, 2)}
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <h1 className="text-2xl font-bold">{handicapper.displayName}</h1>
+              {handicapper.isVerified && <BadgeCheck className="h-5 w-5 text-accent" />}
+            </div>
+            <p className="text-muted">@{handicapper.handle}</p>
+            <div className="mt-3 flex flex-wrap gap-1.5">
+              {handicapper.sports.map((sport) => (
+                <span key={sport} className="rounded-full bg-surface-raised px-2.5 py-1 text-xs text-muted">
+                  {SPORT_LABELS[sport]}
+                </span>
+              ))}
+            </div>
+            {handicapper.bio && <p className="mt-4 max-w-xl text-sm text-muted">{handicapper.bio}</p>}
+          </div>
+        </div>
+
+        {!isOwner && (
+          <div className="w-full md:w-64">
+            {unlocked ? (
+              <div className="card p-4 text-center text-sm text-accent">You&apos;re subscribed</div>
+            ) : (
+              <SubscribeButton
+                handicapperId={handicapper.id}
+                priceCents={handicapper.monthlyPriceCents}
+                isSignedIn={Boolean(session)}
+                isReady={handicapper.stripeAccountReady}
+              />
+            )}
+          </div>
+        )}
+      </div>
+
+      <div className="mt-8 grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <StatCard label="Record" value={handicapper.stats.record} />
+        <StatCard
+          label="Win rate"
+          value={handicapper.stats.winRate ? `${handicapper.stats.winRate.toFixed(1)}%` : "—"}
+        />
+        <StatCard
+          label="Net units"
+          value={`${handicapper.stats.unitsNet >= 0 ? "+" : ""}${handicapper.stats.unitsNet.toFixed(1)}`}
+          tone={handicapper.stats.unitsNet >= 0 ? "accent" : "danger"}
+        />
+        <StatCard label="ROI" value={handicapper.stats.roi !== null ? `${handicapper.stats.roi.toFixed(1)}%` : "—"} />
+      </div>
+
+      <p className="mt-3 text-xs text-muted">
+        Last 30 days: {handicapper.last30Stats.record} · {handicapper.last30Stats.unitsNet >= 0 ? "+" : ""}
+        {handicapper.last30Stats.unitsNet.toFixed(1)}u
+      </p>
+
+      <div className="mt-10">
+        <h2 className="mb-4 text-xl font-bold">Picks</h2>
+        {picks.length === 0 ? (
+          <p className="text-muted">No picks posted yet.</p>
+        ) : (
+          <div className="grid gap-4 sm:grid-cols-2">
+            {picks.map((pick) => (
+              <PickCard key={pick.id} pick={pick} locked={pick.isPremium && !unlocked} />
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
