@@ -1,16 +1,38 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import { useRouter } from "next/navigation";
-import { SPORT_LABELS, BET_TYPE_LABELS } from "@/lib/utils";
+import { format } from "date-fns";
+import { CalendarSearch, PencilLine } from "lucide-react";
+import { SPORT_LABELS, BET_TYPE_LABELS, cn } from "@/lib/utils";
+import { formatOdds } from "@/lib/odds";
+import type { MarketOption, UpcomingEvent } from "@/lib/odds-api";
 
 const sportKeys = Object.keys(SPORT_LABELS);
 const betTypeKeys = Object.keys(BET_TYPE_LABELS);
 
+type FeedState =
+  | { status: "idle" | "loading" }
+  | { status: "unavailable"; reason: string }
+  | { status: "ready"; events: UpcomingEvent[] };
+
+interface FeedResponse {
+  configured?: boolean;
+  supported?: boolean;
+  events?: UpcomingEvent[];
+  error?: string;
+}
+
 export function CreatePickForm({ handicapperSports }: { handicapperSports: string[] }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
+  const [mode, setMode] = useState<"schedule" | "manual">("schedule");
+
   const [sport, setSport] = useState(handicapperSports[0] ?? sportKeys[0]);
+  const [feed, setFeed] = useState<FeedState>({ status: "idle" });
+  const [selectedEvent, setSelectedEvent] = useState<UpcomingEvent | null>(null);
+  const [selectedMarket, setSelectedMarket] = useState<MarketOption | null>(null);
+
   const [league, setLeague] = useState("");
   const [matchup, setMatchup] = useState("");
   const [betType, setBetType] = useState(betTypeKeys[0]);
@@ -23,10 +45,68 @@ export function CreatePickForm({ handicapperSports }: { handicapperSports: strin
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
+  const loadFeed = useCallback(async (forSport: string) => {
+    setFeed({ status: "loading" });
+    setSelectedEvent(null);
+    setSelectedMarket(null);
+
+    const res = await fetch(`/api/odds/events?sport=${forSport}`).catch(() => null);
+    const body: FeedResponse | null = res ? await res.json().catch(() => null) : null;
+
+    if (!res?.ok || !body) {
+      setFeed({ status: "unavailable", reason: body?.error ?? "Could not load the schedule" });
+      return;
+    }
+    if (!body.configured) {
+      setFeed({ status: "unavailable", reason: "Live odds are not configured on this server" });
+      return;
+    }
+    if (!body.supported) {
+      setFeed({ status: "unavailable", reason: `${SPORT_LABELS[forSport]} isn't covered by the odds feed` });
+      return;
+    }
+    if (!body.events || body.events.length === 0) {
+      setFeed({ status: "unavailable", reason: "No upcoming games found for this sport right now" });
+      return;
+    }
+    setFeed({ status: "ready", events: body.events });
+  }, []);
+
+  function openForm() {
+    setOpen(true);
+    if (mode === "schedule") void loadFeed(sport);
+  }
+
+  function switchMode(next: "schedule" | "manual") {
+    setMode(next);
+    if (next === "schedule" && feed.status === "idle") void loadFeed(sport);
+  }
+
+  function changeSport(next: string) {
+    setSport(next);
+    if (mode === "schedule") void loadFeed(next);
+  }
+
+  function chooseMarket(event: UpcomingEvent, market: MarketOption) {
+    setSelectedEvent(event);
+    setSelectedMarket(market);
+    setMatchup(event.matchup);
+    setBetType(market.betType);
+    setSelection(market.selection);
+    setOdds(String(market.odds));
+    setEventStartsAt(event.commenceTime);
+    setLeague("");
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
     setLoading(true);
+
+    const startsAt =
+      mode === "schedule" && selectedEvent
+        ? selectedEvent.commenceTime
+        : new Date(eventStartsAt).toISOString();
 
     const res = await fetch("/api/picks", {
       method: "POST",
@@ -41,7 +121,7 @@ export function CreatePickForm({ handicapperSports }: { handicapperSports: strin
         units: Number(units),
         analysis: analysis || undefined,
         isPremium,
-        eventStartsAt: new Date(eventStartsAt).toISOString(),
+        eventStartsAt: startsAt,
       }),
     });
 
@@ -57,6 +137,8 @@ export function CreatePickForm({ handicapperSports }: { handicapperSports: strin
     setSelection("");
     setAnalysis("");
     setEventStartsAt("");
+    setSelectedEvent(null);
+    setSelectedMarket(null);
     setOpen(false);
     router.refresh();
   }
@@ -64,7 +146,7 @@ export function CreatePickForm({ handicapperSports }: { handicapperSports: strin
   if (!open) {
     return (
       <button
-        onClick={() => setOpen(true)}
+        onClick={openForm}
         className="w-full rounded-lg bg-accent py-3 text-sm font-semibold text-accent-foreground hover:opacity-90"
       >
         + Post a new pick
@@ -72,82 +154,197 @@ export function CreatePickForm({ handicapperSports }: { handicapperSports: strin
     );
   }
 
+  const readyToSubmit = mode === "manual" || (selectedEvent && selectedMarket);
+
   return (
     <form onSubmit={handleSubmit} className="card flex flex-col gap-4 p-5">
-      <div className="grid grid-cols-2 gap-3">
-        <div>
-          <label className="text-xs font-medium text-muted">Sport</label>
-          <select
-            value={sport}
-            onChange={(e) => setSport(e.target.value)}
-            className="mt-1 w-full rounded-lg border border-border bg-surface-raised px-3 py-2 text-sm outline-none focus:border-accent"
-          >
-            {sportKeys.map((s) => (
-              <option key={s} value={s}>
-                {SPORT_LABELS[s]}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div>
-          <label className="text-xs font-medium text-muted">League (optional)</label>
-          <input
-            value={league}
-            onChange={(e) => setLeague(e.target.value)}
-            className="mt-1 w-full rounded-lg border border-border bg-surface-raised px-3 py-2 text-sm outline-none focus:border-accent"
-          />
-        </div>
+      <div className="grid grid-cols-2 gap-2 rounded-lg bg-surface-raised p-1 text-sm font-medium">
+        <button
+          type="button"
+          onClick={() => switchMode("schedule")}
+          className={cn(
+            "flex items-center justify-center gap-1.5 rounded-md py-1.5",
+            mode === "schedule" ? "bg-surface shadow-sm" : "text-muted hover:text-foreground"
+          )}
+        >
+          <CalendarSearch className="h-4 w-4" /> From schedule
+        </button>
+        <button
+          type="button"
+          onClick={() => switchMode("manual")}
+          className={cn(
+            "flex items-center justify-center gap-1.5 rounded-md py-1.5",
+            mode === "manual" ? "bg-surface shadow-sm" : "text-muted hover:text-foreground"
+          )}
+        >
+          <PencilLine className="h-4 w-4" /> Manual
+        </button>
       </div>
 
       <div>
-        <label className="text-xs font-medium text-muted">Matchup</label>
-        <input
-          required
-          value={matchup}
-          onChange={(e) => setMatchup(e.target.value)}
-          placeholder="Chiefs @ Bills"
+        <label className="text-xs font-medium text-muted">Sport</label>
+        <select
+          value={sport}
+          onChange={(e) => changeSport(e.target.value)}
           className="mt-1 w-full rounded-lg border border-border bg-surface-raised px-3 py-2 text-sm outline-none focus:border-accent"
-        />
+        >
+          {sportKeys.map((s) => (
+            <option key={s} value={s}>
+              {SPORT_LABELS[s]}
+            </option>
+          ))}
+        </select>
       </div>
+
+      {mode === "schedule" ? (
+        <div className="flex flex-col gap-3">
+          {feed.status === "loading" && <p className="text-sm text-muted">Loading upcoming games…</p>}
+
+          {feed.status === "unavailable" && (
+            <div className="rounded-lg border border-border bg-surface-raised p-3 text-sm text-muted">
+              {feed.reason}.{" "}
+              <button type="button" onClick={() => setMode("manual")} className="font-medium text-accent hover:underline">
+                Enter the pick manually
+              </button>
+            </div>
+          )}
+
+          {feed.status === "ready" && (
+            <div className="flex max-h-72 flex-col gap-2 overflow-y-auto pr-1">
+              {feed.events.map((event) => (
+                <div key={event.id} className="rounded-lg border border-border">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedEvent(selectedEvent?.id === event.id ? null : event);
+                      setSelectedMarket(null);
+                    }}
+                    className="flex w-full items-center justify-between px-3 py-2.5 text-left text-sm"
+                  >
+                    <span className="font-medium">{event.matchup}</span>
+                    <span className="ml-2 shrink-0 text-xs text-muted">
+                      {format(new Date(event.commenceTime), "MMM d, h:mm a")}
+                    </span>
+                  </button>
+
+                  {selectedEvent?.id === event.id && (
+                    <div className="border-t border-border p-3">
+                      {event.markets.length === 0 ? (
+                        <p className="text-sm text-muted">No odds posted for this game yet.</p>
+                      ) : (
+                        <div className="flex flex-wrap gap-1.5">
+                          {event.markets.map((market, i) => (
+                            <button
+                              key={i}
+                              type="button"
+                              onClick={() => chooseMarket(event, market)}
+                              className={cn(
+                                "rounded-full border px-2.5 py-1 text-xs font-medium tabular-nums",
+                                selectedMarket === market
+                                  ? "border-accent bg-accent/10 text-accent"
+                                  : "border-border text-muted hover:text-foreground"
+                              )}
+                            >
+                              {market.selection} {formatOdds(market.odds)}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                      {event.bookmaker && (
+                        <p className="mt-2 text-[11px] text-muted">Odds via {event.bookmaker}</p>
+                      )}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+
+          {selectedEvent && selectedMarket && (
+            <div className="rounded-lg bg-surface-raised p-3 text-sm">
+              <p className="font-semibold">{selectedEvent.matchup}</p>
+              <p className="mt-0.5 text-muted">
+                {BET_TYPE_LABELS[selectedMarket.betType]} · {selectedMarket.selection} ·{" "}
+                <span className="tabular-nums">{formatOdds(selectedMarket.odds)}</span>
+              </p>
+            </div>
+          )}
+        </div>
+      ) : (
+        <>
+          <div>
+            <label className="text-xs font-medium text-muted">League (optional)</label>
+            <input
+              value={league}
+              onChange={(e) => setLeague(e.target.value)}
+              className="mt-1 w-full rounded-lg border border-border bg-surface-raised px-3 py-2 text-sm outline-none focus:border-accent"
+            />
+          </div>
+
+          <div>
+            <label className="text-xs font-medium text-muted">Matchup</label>
+            <input
+              required
+              value={matchup}
+              onChange={(e) => setMatchup(e.target.value)}
+              placeholder="Chiefs @ Bills"
+              className="mt-1 w-full rounded-lg border border-border bg-surface-raised px-3 py-2 text-sm outline-none focus:border-accent"
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-xs font-medium text-muted">Bet type</label>
+              <select
+                value={betType}
+                onChange={(e) => setBetType(e.target.value)}
+                className="mt-1 w-full rounded-lg border border-border bg-surface-raised px-3 py-2 text-sm outline-none focus:border-accent"
+              >
+                {betTypeKeys.map((b) => (
+                  <option key={b} value={b}>
+                    {BET_TYPE_LABELS[b]}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="text-xs font-medium text-muted">Selection</label>
+              <input
+                required
+                value={selection}
+                onChange={(e) => setSelection(e.target.value)}
+                placeholder="Bills -2.5"
+                className="mt-1 w-full rounded-lg border border-border bg-surface-raised px-3 py-2 text-sm outline-none focus:border-accent"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-xs font-medium text-muted">Odds</label>
+              <input
+                required
+                type="number"
+                value={odds}
+                onChange={(e) => setOdds(e.target.value)}
+                className="mt-1 w-full rounded-lg border border-border bg-surface-raised px-3 py-2 text-sm outline-none focus:border-accent"
+              />
+            </div>
+            <div>
+              <label className="text-xs font-medium text-muted">Event starts</label>
+              <input
+                required
+                type="datetime-local"
+                value={eventStartsAt}
+                onChange={(e) => setEventStartsAt(e.target.value)}
+                className="mt-1 w-full rounded-lg border border-border bg-surface-raised px-3 py-2 text-sm outline-none focus:border-accent"
+              />
+            </div>
+          </div>
+        </>
+      )}
 
       <div className="grid grid-cols-2 gap-3">
-        <div>
-          <label className="text-xs font-medium text-muted">Bet type</label>
-          <select
-            value={betType}
-            onChange={(e) => setBetType(e.target.value)}
-            className="mt-1 w-full rounded-lg border border-border bg-surface-raised px-3 py-2 text-sm outline-none focus:border-accent"
-          >
-            {betTypeKeys.map((b) => (
-              <option key={b} value={b}>
-                {BET_TYPE_LABELS[b]}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div>
-          <label className="text-xs font-medium text-muted">Selection</label>
-          <input
-            required
-            value={selection}
-            onChange={(e) => setSelection(e.target.value)}
-            placeholder="Bills -2.5"
-            className="mt-1 w-full rounded-lg border border-border bg-surface-raised px-3 py-2 text-sm outline-none focus:border-accent"
-          />
-        </div>
-      </div>
-
-      <div className="grid grid-cols-3 gap-3">
-        <div>
-          <label className="text-xs font-medium text-muted">Odds</label>
-          <input
-            required
-            type="number"
-            value={odds}
-            onChange={(e) => setOdds(e.target.value)}
-            className="mt-1 w-full rounded-lg border border-border bg-surface-raised px-3 py-2 text-sm outline-none focus:border-accent"
-          />
-        </div>
         <div>
           <label className="text-xs font-medium text-muted">Units</label>
           <input
@@ -161,16 +358,18 @@ export function CreatePickForm({ handicapperSports }: { handicapperSports: strin
             className="mt-1 w-full rounded-lg border border-border bg-surface-raised px-3 py-2 text-sm outline-none focus:border-accent"
           />
         </div>
-        <div>
-          <label className="text-xs font-medium text-muted">Event starts</label>
-          <input
-            required
-            type="datetime-local"
-            value={eventStartsAt}
-            onChange={(e) => setEventStartsAt(e.target.value)}
-            className="mt-1 w-full rounded-lg border border-border bg-surface-raised px-3 py-2 text-sm outline-none focus:border-accent"
-          />
-        </div>
+        {mode === "schedule" && (
+          <div>
+            <label className="text-xs font-medium text-muted">Odds (editable)</label>
+            <input
+              required
+              type="number"
+              value={odds}
+              onChange={(e) => setOdds(e.target.value)}
+              className="mt-1 w-full rounded-lg border border-border bg-surface-raised px-3 py-2 text-sm outline-none focus:border-accent"
+            />
+          </div>
+        )}
       </div>
 
       <div>
@@ -200,7 +399,7 @@ export function CreatePickForm({ handicapperSports }: { handicapperSports: strin
         </button>
         <button
           type="submit"
-          disabled={loading}
+          disabled={loading || !readyToSubmit}
           className="flex-1 rounded-lg bg-accent py-2 text-sm font-semibold text-accent-foreground hover:opacity-90 disabled:opacity-60"
         >
           {loading ? "Posting…" : "Post pick"}

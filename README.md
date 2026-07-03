@@ -56,6 +56,11 @@ cp .env.example .env
 - `STRIPE_SECRET_KEY` / `STRIPE_WEBHOOK_SECRET` / `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` — from the
   [Stripe Dashboard](https://dashboard.stripe.com/test/apikeys). Use test-mode keys locally.
   Stripe Connect must be enabled on your Stripe account for the payout/onboarding flow.
+- `THE_ODDS_API_KEY` — from [the-odds-api.com](https://the-odds-api.com) (optional). Powers the
+  "From schedule" tab in the handicapper pick form: upcoming games with live moneyline/spread/total
+  odds that autofill the pick. Without a key the form falls back to manual entry. Responses are
+  cached for an hour per sport to stay inside the free tier's 500 credits/month (a request costs
+  3 credits: `h2h,spreads,totals` × 1 region).
 
 ### 3. Set up the database
 
