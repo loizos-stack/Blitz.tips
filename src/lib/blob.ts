@@ -36,12 +36,25 @@ export async function saveProfileImage(
     return "/" + path.posix.join(publicPrefix, key);
   }
 
-  if (!process.env.BLOB_READ_WRITE_TOKEN) {
+  // Vercel injects the store token as BLOB_READ_WRITE_TOKEN by default, but a
+  // custom env-prefix chosen when connecting the store yields e.g.
+  // MYSTORE_READ_WRITE_TOKEN — accept any of them.
+  const token =
+    process.env.BLOB_READ_WRITE_TOKEN ??
+    Object.entries(process.env).find(
+      ([k, v]) => k.endsWith("_READ_WRITE_TOKEN") && v
+    )?.[1];
+
+  if (!token) {
+    const candidates = Object.keys(process.env)
+      .filter((k) => k.includes("BLOB") || k.includes("READ_WRITE"))
+      .join(", ");
     throw new Error(
-      "Image uploads aren't configured yet. Create a Vercel Blob store so BLOB_READ_WRITE_TOKEN is available."
+      "Image uploads aren't configured yet. Connect a Vercel Blob store to this project and redeploy." +
+        (candidates ? ` (Blob-related env vars found: ${candidates})` : " (No Blob-related env vars found in this deployment.)")
     );
   }
 
-  const blob = await put(key, bytes, { access: "public", contentType });
+  const blob = await put(key, bytes, { access: "public", contentType, token });
   return blob.url;
 }
