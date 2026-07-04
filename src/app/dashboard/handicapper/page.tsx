@@ -12,6 +12,7 @@ import { ConnectOnboardingBanner } from "@/components/connect-onboarding-banner"
 import { CreatePickForm } from "@/components/create-pick-form";
 import { HandicapperPickRow } from "@/components/handicapper-pick-row";
 import { ManagePlanCard } from "@/components/manage-plan-card";
+import { ProfileImagesForm } from "@/components/profile-images-form";
 
 export const metadata: Metadata = { title: "Handicapper dashboard" };
 export const dynamic = "force-dynamic";
@@ -55,6 +56,14 @@ export default async function HandicapperDashboardPage() {
             </Link>
           </p>
         </div>
+      </div>
+
+      <div className="mt-6">
+        <ProfileImagesForm
+          avatarUrl={handicapper.avatarUrl}
+          coverUrl={handicapper.coverUrl}
+          displayName={handicapper.displayName}
+        />
       </div>
 
       {!handicapper.stripeAccountReady && (

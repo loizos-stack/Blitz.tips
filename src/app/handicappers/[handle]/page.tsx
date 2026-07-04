@@ -7,6 +7,7 @@ import { getHandicapperByHandle } from "@/lib/handicappers";
 import { StatCard } from "@/components/stat-card";
 import { PickCard } from "@/components/pick-card";
 import { SubscribeButton } from "@/components/subscribe-button";
+import { Avatar } from "@/components/avatar";
 import { SPORT_LABELS } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
@@ -51,13 +52,22 @@ export default async function HandicapperProfilePage({
   const picks = handicapper.picksList;
 
   return (
-    <div className="container-page py-12">
+    <div>
+      <div className="h-40 w-full overflow-hidden bg-gradient-to-r from-accent/20 via-surface-raised to-gold/15 sm:h-56">
+        {handicapper.coverUrl && (
+          // eslint-disable-next-line @next/next/no-img-element -- user-uploaded cover (Vercel Blob URL)
+          <img src={handicapper.coverUrl} alt="" className="h-full w-full object-cover" />
+        )}
+      </div>
+      <div className="container-page pb-12">
       <div className="flex flex-col gap-6 md:flex-row md:items-start md:justify-between">
         <div className="flex items-start gap-4">
-          <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full bg-surface-raised text-xl font-bold uppercase">
-            {handicapper.displayName.slice(0, 2)}
-          </div>
-          <div>
+          <Avatar
+            src={handicapper.avatarUrl}
+            name={handicapper.displayName}
+            className="-mt-12 h-24 w-24 shrink-0 rounded-full border-4 border-surface text-2xl sm:-mt-16"
+          />
+          <div className="pt-2">
             <div className="flex items-center gap-2">
               <h1 className="text-2xl font-bold">{handicapper.displayName}</h1>
               {handicapper.isVerified && <BadgeCheck className="h-5 w-5 text-accent" />}
@@ -120,6 +130,7 @@ export default async function HandicapperProfilePage({
             ))}
           </div>
         )}
+      </div>
       </div>
     </div>
   );

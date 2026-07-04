@@ -1,0 +1,29 @@
+import { cn } from "@/lib/utils";
+
+// A handicapper's profile picture, falling back to their initials when no
+// avatar has been uploaded.
+export function Avatar({
+  src,
+  name,
+  className,
+}: {
+  src?: string | null;
+  name: string;
+  className?: string;
+}) {
+  if (src) {
+    // eslint-disable-next-line @next/next/no-img-element -- user-uploaded avatar (Vercel Blob URL); next/image would need remotePatterns for no real benefit here
+    return <img src={src} alt={name} className={cn("object-cover", className)} />;
+  }
+
+  return (
+    <div
+      className={cn(
+        "flex items-center justify-center bg-surface-raised font-bold uppercase text-muted",
+        className
+      )}
+    >
+      {name.slice(0, 2)}
+    </div>
+  );
+}

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { BadgeCheck } from "lucide-react";
 import { formatCents } from "@/lib/utils";
+import { Avatar } from "@/components/avatar";
 import type { HandicapperSummary } from "@/lib/handicappers";
 
 export function HandicapperCard({ handicapper, rank }: { handicapper: HandicapperSummary; rank?: number }) {
@@ -17,9 +18,11 @@ export function HandicapperCard({ handicapper, rank }: { handicapper: Handicappe
         {rank !== undefined && (
           <span className="w-6 shrink-0 text-center text-sm font-bold text-muted">#{rank}</span>
         )}
-        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-surface-raised text-base font-bold uppercase">
-          {handicapper.displayName.slice(0, 2)}
-        </div>
+        <Avatar
+          src={handicapper.avatarUrl}
+          name={handicapper.displayName}
+          className="h-11 w-11 shrink-0 rounded-full text-base"
+        />
         <div className="min-w-0">
           <div className="flex items-center gap-1.5">
             <p className="truncate font-semibold group-hover:text-accent">{handicapper.displayName}</p>
