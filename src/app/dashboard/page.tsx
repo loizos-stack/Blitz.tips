@@ -14,10 +14,16 @@ export default async function DashboardPage() {
   const session = await auth();
   if (!session) redirect("/signin?callbackUrl=/dashboard");
 
-  const currentUser = await prisma.user.findUnique({
-    where: { id: session.user.id },
-    select: { emailVerified: true },
-  });
+  const [currentUser, handicapperProfile] = await Promise.all([
+    prisma.user.findUnique({
+      where: { id: session.user.id },
+      select: { emailVerified: true },
+    }),
+    prisma.handicapperProfile.findUnique({
+      where: { userId: session.user.id },
+      select: { id: true },
+    }),
+  ]);
 
   const subscriptions = await prisma.subscription.findMany({
     where: { subscriberId: session.user.id, status: "ACTIVE" },
@@ -103,6 +109,22 @@ export default async function DashboardPage() {
               </div>
             )}
           </div>
+
+          {!handicapperProfile && (
+            <div className="card mt-4 border-accent/40 bg-accent/5 p-5">
+              <h2 className="font-semibold">Start selling your own picks</h2>
+              <p className="mt-2 text-sm text-muted">
+                Got a winning record? Build a public track record and get paid by subscribers — keep
+                using this account, no need to sign up again.
+              </p>
+              <Link
+                href="/dashboard/handicapper"
+                className="mt-4 inline-block rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-accent-foreground hover:opacity-90"
+              >
+                Become a handicapper
+              </Link>
+            </div>
+          )}
         </aside>
       </div>
     </div>
