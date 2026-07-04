@@ -27,16 +27,29 @@ export async function POST(request: Request) {
 
   const { handle, displayName, bio, sports, monthlyPriceCents } = parsed.data;
 
-  const product = await stripe.products.create({
-    name: `Blitz.tips — ${displayName}`,
-    metadata: { handle },
-  });
-  const price = await stripe.prices.create({
-    product: product.id,
-    unit_amount: monthlyPriceCents,
-    currency: "usd",
-    recurring: { interval: "month" },
-  });
+  // Set up the handicapper's subscriber Product/Price up front, but don't let a
+  // Stripe hiccup block them from creating a profile and posting picks. If this
+  // fails, the profile is still created and the Price is (re)created lazily when
+  // they connect payouts (see /api/stripe/connect); the subscribe button stays
+  // disabled until stripePriceId + stripeAccountReady are both set.
+  let stripeProductId: string | undefined;
+  let stripePriceId: string | undefined;
+  try {
+    const product = await stripe.products.create({
+      name: `Blitz.tips — ${displayName}`,
+      metadata: { handle },
+    });
+    const price = await stripe.prices.create({
+      product: product.id,
+      unit_amount: monthlyPriceCents,
+      currency: "usd",
+      recurring: { interval: "month" },
+    });
+    stripeProductId = product.id;
+    stripePriceId = price.id;
+  } catch (error) {
+    console.error("Stripe product/price setup failed during handicapper signup; deferring to Connect setup:", error);
+  }
 
   const handicapper = await prisma.$transaction(async (tx) => {
     await tx.user.update({ where: { id: session.user.id }, data: { role: "HANDICAPPER" } });
@@ -48,8 +61,8 @@ export async function POST(request: Request) {
         bio,
         sports: sports as PickSport[],
         monthlyPriceCents,
-        stripeProductId: product.id,
-        stripePriceId: price.id,
+        stripeProductId,
+        stripePriceId,
       },
     });
   });
