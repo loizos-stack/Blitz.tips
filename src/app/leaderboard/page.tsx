@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { Metadata } from "next";
 import { listHandicapperSummaries, sortFeaturedFirst, type HandicapperSummary } from "@/lib/handicappers";
+import { Avatar } from "@/components/avatar";
 import { SPORT_LABELS } from "@/lib/utils";
 import { cn } from "@/lib/utils";
 import type { PickSport } from "@prisma/client";
@@ -97,16 +98,23 @@ export default async function LeaderboardPage({
               className="grid grid-cols-[2rem_1fr_auto] items-center gap-3 border-b border-border px-5 py-4 last:border-b-0 hover:bg-surface-raised/60 md:grid-cols-[3rem_1fr_6rem_6rem_6rem_6rem] md:gap-4"
             >
               <span className="text-sm font-bold text-muted">#{i + 1}</span>
-              <div className="min-w-0">
-                <div className="flex items-center gap-1.5">
-                  <p className="truncate font-semibold">{h.displayName}</p>
-                  {h.isFeatured && (
-                    <span className="shrink-0 rounded-full bg-gold/15 px-1.5 py-0.5 text-[10px] font-semibold text-gold">
-                      FEATURED
-                    </span>
-                  )}
+              <div className="flex min-w-0 items-center gap-3">
+                <Avatar
+                  src={h.avatarUrl}
+                  name={h.displayName}
+                  className="h-10 w-10 shrink-0 rounded-full text-sm"
+                />
+                <div className="min-w-0">
+                  <div className="flex items-center gap-1.5">
+                    <p className="truncate font-semibold">{h.displayName}</p>
+                    {h.isFeatured && (
+                      <span className="shrink-0 rounded-full bg-gold/15 px-1.5 py-0.5 text-[10px] font-semibold text-gold">
+                        FEATURED
+                      </span>
+                    )}
+                  </div>
+                  <p className="truncate text-sm text-muted">@{h.handle}</p>
                 </div>
-                <p className="truncate text-sm text-muted">@{h.handle}</p>
               </div>
               <span className="hidden text-right tabular-nums md:block">{h.stats.record}</span>
               <span className="hidden text-right tabular-nums md:block">

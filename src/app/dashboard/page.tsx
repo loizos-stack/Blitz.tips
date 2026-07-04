@@ -6,6 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { PickCard } from "@/components/pick-card";
 import { ManageBillingButton } from "@/components/manage-billing-button";
 import { VerifyEmailBanner } from "@/components/verify-email-banner";
+import { Avatar } from "@/components/avatar";
 
 export const metadata: Metadata = { title: "Dashboard" };
 export const dynamic = "force-dynamic";
@@ -71,8 +72,13 @@ export default async function DashboardPage() {
                 <div key={pick.id}>
                   <Link
                     href={`/handicappers/${pick.handicapper.handle}`}
-                    className="mb-1.5 inline-block text-sm font-medium text-muted hover:text-accent"
+                    className="mb-1.5 inline-flex items-center gap-1.5 text-sm font-medium text-muted hover:text-accent"
                   >
+                    <Avatar
+                      src={pick.handicapper.avatarUrl}
+                      name={pick.handicapper.displayName}
+                      className="h-5 w-5 rounded-full text-[9px]"
+                    />
                     @{pick.handicapper.handle}
                   </Link>
                   <PickCard pick={pick} />
@@ -90,11 +96,19 @@ export default async function DashboardPage() {
             ) : (
               <ul className="mt-3 flex flex-col gap-3">
                 {subscriptions.map((sub) => (
-                  <li key={sub.id} className="flex items-center justify-between text-sm">
-                    <Link href={`/handicappers/${sub.handicapper.handle}`} className="hover:text-accent">
-                      @{sub.handicapper.handle}
+                  <li key={sub.id} className="flex items-center justify-between gap-2 text-sm">
+                    <Link
+                      href={`/handicappers/${sub.handicapper.handle}`}
+                      className="flex min-w-0 items-center gap-2 hover:text-accent"
+                    >
+                      <Avatar
+                        src={sub.handicapper.avatarUrl}
+                        name={sub.handicapper.displayName}
+                        className="h-6 w-6 shrink-0 rounded-full text-[10px]"
+                      />
+                      <span className="truncate">@{sub.handicapper.handle}</span>
                     </Link>
-                    <span className="text-muted">
+                    <span className="shrink-0 text-muted">
                       {sub.currentPeriodEnd
                         ? `renews ${sub.currentPeriodEnd.toLocaleDateString()}`
                         : ""}
