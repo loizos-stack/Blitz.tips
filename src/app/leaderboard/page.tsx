@@ -40,7 +40,12 @@ export default async function LeaderboardPage({
   const sportOptions = ["all", ...Object.keys(SPORT_LABELS)];
 
   return (
-    <div className="container-page py-12">
+    <div className="relative overflow-hidden">
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-0 bg-[url('/auth-bg.svg')] bg-cover bg-center"
+      />
+      <div className="container-page relative py-12">
       <div className="mb-8">
         <h1 className="text-3xl font-bold">Leaderboard</h1>
         <p className="mt-2 text-muted">
@@ -137,6 +142,7 @@ export default async function LeaderboardPage({
             </Link>
           ))
         )}
+      </div>
       </div>
     </div>
   );
