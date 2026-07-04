@@ -20,6 +20,25 @@ export const becomeHandicapperSchema = z.object({
     .int()
     .min(499, "Minimum price is $4.99")
     .max(99999, "Max price is $999.99"),
+  weeklyPriceCents: z
+    .number()
+    .int()
+    .min(199, "Minimum weekly price is $1.99")
+    .max(99999, "Max price is $999.99")
+    .nullish(),
+  annualPriceCents: z
+    .number()
+    .int()
+    .min(999, "Minimum annual price is $9.99")
+    .max(999999, "Max annual price is $9,999.99")
+    .nullish(),
+});
+
+// Dashboard price updates share the same package constraints.
+export const updatePricingSchema = becomeHandicapperSchema.pick({
+  monthlyPriceCents: true,
+  weeklyPriceCents: true,
+  annualPriceCents: true,
 });
 
 export const createPickSchema = z.object({

@@ -90,13 +90,17 @@ export default async function HandicapperProfilePage({
         </div>
 
         {!isOwner && (
-          <div className="w-full md:w-64">
+          <div className="w-full md:w-80">
             {unlocked ? (
               <div className="card p-4 text-center text-sm text-accent">You&apos;re subscribed</div>
             ) : (
               <SubscribeButton
                 handicapperId={handicapper.id}
-                priceCents={handicapper.monthlyPriceCents}
+                packages={{
+                  WEEKLY: handicapper.weeklyPriceCents,
+                  MONTHLY: handicapper.monthlyPriceCents,
+                  ANNUAL: handicapper.annualPriceCents,
+                }}
                 isSignedIn={Boolean(session)}
                 isReady={handicapper.stripeAccountReady}
               />

@@ -81,7 +81,15 @@ export function HandicapperCard({ handicapper, rank }: { handicapper: Handicappe
         </div>
       </div>
 
-      <p className="text-sm text-muted">{formatCents(handicapper.monthlyPriceCents)}/mo</p>
+      <p className="text-sm text-muted">
+        {[
+          handicapper.weeklyPriceCents != null && `${formatCents(handicapper.weeklyPriceCents)}/wk`,
+          `${formatCents(handicapper.monthlyPriceCents)}/mo`,
+          handicapper.annualPriceCents != null && `${formatCents(handicapper.annualPriceCents)}/yr`,
+        ]
+          .filter(Boolean)
+          .join(" · ")}
+      </p>
       </div>
     </Link>
   );

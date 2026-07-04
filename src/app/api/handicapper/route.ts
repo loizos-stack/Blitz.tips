@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
-import { stripe } from "@/lib/stripe";
+import { ensureSubscriberPrices } from "@/lib/subscriber-pricing";
 import { becomeHandicapperSchema } from "@/lib/validations";
 import type { PickSport } from "@prisma/client";
 
@@ -25,33 +25,10 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "That handle is already taken" }, { status: 409 });
   }
 
-  const { handle, displayName, bio, sports, monthlyPriceCents } = parsed.data;
+  const { handle, displayName, bio, sports, monthlyPriceCents, weeklyPriceCents, annualPriceCents } =
+    parsed.data;
 
-  // Set up the handicapper's subscriber Product/Price up front, but don't let a
-  // Stripe hiccup block them from creating a profile and posting picks. If this
-  // fails, the profile is still created and the Price is (re)created lazily when
-  // they connect payouts (see /api/stripe/connect); the subscribe button stays
-  // disabled until stripePriceId + stripeAccountReady are both set.
-  let stripeProductId: string | undefined;
-  let stripePriceId: string | undefined;
-  try {
-    const product = await stripe.products.create({
-      name: `Blitz.tips — ${displayName}`,
-      metadata: { handle },
-    });
-    const price = await stripe.prices.create({
-      product: product.id,
-      unit_amount: monthlyPriceCents,
-      currency: "usd",
-      recurring: { interval: "month" },
-    });
-    stripeProductId = product.id;
-    stripePriceId = price.id;
-  } catch (error) {
-    console.error("Stripe product/price setup failed during handicapper signup; deferring to Connect setup:", error);
-  }
-
-  const handicapper = await prisma.$transaction(async (tx) => {
+  let handicapper = await prisma.$transaction(async (tx) => {
     await tx.user.update({ where: { id: session.user.id }, data: { role: "HANDICAPPER" } });
     return tx.handicapperProfile.create({
       data: {
@@ -61,11 +38,21 @@ export async function POST(request: Request) {
         bio,
         sports: sports as PickSport[],
         monthlyPriceCents,
-        stripeProductId,
-        stripePriceId,
+        weeklyPriceCents: weeklyPriceCents ?? null,
+        annualPriceCents: annualPriceCents ?? null,
       },
     });
   });
+
+  // Best-effort Stripe Product/Price setup — a Stripe hiccup must not block
+  // profile creation (they can still post picks). Prices are (re)created
+  // lazily at Connect setup or checkout; the subscribe button stays disabled
+  // until prices + stripeAccountReady exist.
+  try {
+    handicapper = await ensureSubscriberPrices(handicapper);
+  } catch (error) {
+    console.error("Stripe price setup failed during handicapper signup; deferring:", error);
+  }
 
   return NextResponse.json({ handicapper }, { status: 201 });
 }

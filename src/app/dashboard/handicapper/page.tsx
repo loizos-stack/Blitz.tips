@@ -13,6 +13,7 @@ import { CreatePickForm } from "@/components/create-pick-form";
 import { HandicapperPickRow } from "@/components/handicapper-pick-row";
 import { ManagePlanCard } from "@/components/manage-plan-card";
 import { ProfileImagesForm } from "@/components/profile-images-form";
+import { PricingPackagesCard } from "@/components/pricing-packages-card";
 import { VerifyEmailBanner } from "@/components/verify-email-banner";
 
 export const metadata: Metadata = { title: "Handicapper dashboard" };
@@ -101,6 +102,14 @@ export default async function HandicapperDashboardPage() {
           planStatus={handicapper.planStatus}
           planInterval={handicapper.planInterval}
           planCurrentPeriodEnd={handicapper.planCurrentPeriodEnd}
+        />
+      </div>
+
+      <div className="mt-6">
+        <PricingPackagesCard
+          weeklyPriceCents={handicapper.weeklyPriceCents}
+          monthlyPriceCents={handicapper.monthlyPriceCents}
+          annualPriceCents={handicapper.annualPriceCents}
         />
       </div>
 

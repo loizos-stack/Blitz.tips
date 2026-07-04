@@ -16,8 +16,9 @@ Subscribers pay a handicapper's own monthly price (via Stripe) to unlock their p
 ## Core concepts
 
 - `User` — has a `role` of `SUBSCRIBER`, `HANDICAPPER`, or `ADMIN`.
-- `HandicapperProfile` — a handicapper's public page: handle, bio, sports, monthly price, and
-  their Stripe Connect account/product/price. Also carries their own **plan** with the
+- `HandicapperProfile` — a handicapper's public page: handle, bio, sports, subscription
+  packages (a required monthly price plus optional weekly/annual packages, editable from the
+  dashboard), and their Stripe Connect account/product/prices. Also carries their own **plan** with the
   platform (`plan` / `planInterval` / `planStatus`, billed directly via Stripe — no Connect
   involved, since it's platform revenue, not a payout). See `src/lib/plans.ts`:
   - **Free** — 20% commission, no monthly cost

@@ -16,6 +16,8 @@ export function BecomeHandicapperForm() {
   const [bio, setBio] = useState("");
   const [sports, setSports] = useState<string[]>([]);
   const [price, setPrice] = useState("29.99");
+  const [weeklyPrice, setWeeklyPrice] = useState("");
+  const [annualPrice, setAnnualPrice] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -41,6 +43,8 @@ export function BecomeHandicapperForm() {
         bio,
         sports,
         monthlyPriceCents: Math.round(parseFloat(price || "0") * 100),
+        weeklyPriceCents: weeklyPrice ? Math.round(parseFloat(weeklyPrice) * 100) : null,
+        annualPriceCents: annualPrice ? Math.round(parseFloat(annualPrice) * 100) : null,
       }),
     });
 
@@ -163,16 +167,48 @@ export function BecomeHandicapperForm() {
         </div>
 
         <div>
-          <label className="text-sm font-medium">Monthly subscription price (USD)</label>
-          <input
-            required
-            type="number"
-            min="4.99"
-            step="0.01"
-            value={price}
-            onChange={(e) => setPrice(e.target.value)}
-            className="mt-1 w-full rounded-lg border border-border bg-surface-raised px-3 py-2 text-sm outline-none focus:border-accent"
-          />
+          <label className="text-sm font-medium">Subscription packages (USD)</label>
+          <p className="mt-0.5 text-xs text-muted">
+            Monthly is required; add weekly and annual packages if you want to offer them.
+          </p>
+          <div className="mt-2 grid grid-cols-3 gap-2">
+            <div>
+              <span className="text-xs text-muted">Weekly (optional)</span>
+              <input
+                type="number"
+                min="1.99"
+                step="0.01"
+                placeholder="—"
+                value={weeklyPrice}
+                onChange={(e) => setWeeklyPrice(e.target.value)}
+                className="mt-1 w-full rounded-lg border border-border bg-surface-raised px-3 py-2 text-sm outline-none focus:border-accent"
+              />
+            </div>
+            <div>
+              <span className="text-xs text-muted">Monthly</span>
+              <input
+                required
+                type="number"
+                min="4.99"
+                step="0.01"
+                value={price}
+                onChange={(e) => setPrice(e.target.value)}
+                className="mt-1 w-full rounded-lg border border-border bg-surface-raised px-3 py-2 text-sm outline-none focus:border-accent"
+              />
+            </div>
+            <div>
+              <span className="text-xs text-muted">Annual (optional)</span>
+              <input
+                type="number"
+                min="9.99"
+                step="0.01"
+                placeholder="—"
+                value={annualPrice}
+                onChange={(e) => setAnnualPrice(e.target.value)}
+                className="mt-1 w-full rounded-lg border border-border bg-surface-raised px-3 py-2 text-sm outline-none focus:border-accent"
+              />
+            </div>
+          </div>
         </div>
 
         {error && <p className="text-sm text-danger">{error}</p>}

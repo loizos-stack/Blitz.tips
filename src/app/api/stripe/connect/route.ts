@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { stripe } from "@/lib/stripe";
+import { ensureSubscriberPrices } from "@/lib/subscriber-pricing";
 import { siteUrl } from "@/lib/site";
 
 const appUrl = siteUrl();
@@ -42,32 +43,14 @@ export async function POST() {
     return NextResponse.json({ error: message }, { status: 500 });
   }
 
-  // Ensure the subscriber Product/Price exist — they may be missing if Stripe
-  // was unavailable when the profile was first created. Doing it here means
-  // that by the time onboarding completes, subscriptions can be enabled.
-  if (!handicapper.stripePriceId) {
-    try {
-      const productId =
-        handicapper.stripeProductId ??
-        (
-          await stripe.products.create({
-            name: `Blitz.tips — ${handicapper.displayName}`,
-            metadata: { handle: handicapper.handle },
-          })
-        ).id;
-      const price = await stripe.prices.create({
-        product: productId,
-        unit_amount: handicapper.monthlyPriceCents,
-        currency: "usd",
-        recurring: { interval: "month" },
-      });
-      await prisma.handicapperProfile.update({
-        where: { id: handicapper.id },
-        data: { stripeProductId: productId, stripePriceId: price.id },
-      });
-    } catch (error) {
-      console.error("Failed to ensure subscriber price during Connect setup:", error);
-    }
+  // Ensure Stripe Prices exist for every offered package — they may be
+  // missing if Stripe was unavailable at profile creation or a package was
+  // just added/changed. Doing it here means that by the time onboarding
+  // completes, subscriptions can be enabled.
+  try {
+    await ensureSubscriberPrices(handicapper);
+  } catch (error) {
+    console.error("Failed to ensure subscriber prices during Connect setup:", error);
   }
 
   try {

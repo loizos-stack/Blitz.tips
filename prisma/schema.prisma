@@ -141,12 +141,18 @@ model HandicapperProfile {
   sports      PickSport[] @default([])
   isVerified  Boolean  @default(false)
 
+  // Subscriber pricing packages. Monthly is the required anchor; weekly and
+  // annual are optional add-ons (null = the handicapper doesn't offer them).
   monthlyPriceCents Int   @default(2999)
+  weeklyPriceCents  Int?
+  annualPriceCents  Int?
 
   stripeAccountId      String?  @unique
   stripeAccountReady   Boolean  @default(false)
   stripeProductId      String?
-  stripePriceId        String?
+  stripePriceId        String?  // monthly package
+  stripeWeeklyPriceId  String?
+  stripeAnnualPriceId  String?
 
   // The handicapper's plan with the platform — controls commission rate
   // (see commissionPercentForPlan in src/lib/plans.ts) and, for GOLD,
