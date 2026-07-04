@@ -63,6 +63,14 @@ export const HOMEPAGE_SPORTS: PickSport[] = [
   "UFC_MMA",
 ];
 
+function isSameUTCDate(a: Date, b: Date): boolean {
+  return (
+    a.getUTCFullYear() === b.getUTCFullYear() &&
+    a.getUTCMonth() === b.getUTCMonth() &&
+    a.getUTCDate() === b.getUTCDate()
+  );
+}
+
 // Cheap existence check for the homepage tab bar: The Odds API's bare
 // /events endpoint (no regions/markets) lists upcoming events without odds,
 // which the-odds-api.com bills far below the full odds+markets call used by
@@ -76,25 +84,31 @@ export async function getAvailableHomepageSports(): Promise<PickSport[]> {
   const apiKey = process.env.THE_ODDS_API_KEY;
   if (!apiKey) return [];
 
+  const now = new Date();
   const results = await Promise.all(
     HOMEPAGE_SPORTS.map(async (sport) => {
       const sportKey = SPORT_KEYS[sport];
-      if (!sportKey) return null;
+      if (!sportKey) return { sport, hasToday: false, hasUpcoming: false };
 
       const url = `${API_BASE}/sports/${sportKey}/events?apiKey=${apiKey}`;
       const res = await fetch(url, { next: { revalidate: REVALIDATE_SECONDS } });
-      if (!res.ok) return null;
+      if (!res.ok) return { sport, hasToday: false, hasUpcoming: false };
 
       const events = (await res.json()) as { commence_time: string }[];
-      const hasUpcoming = events.some((e) => new Date(e.commence_time) > new Date());
-      return hasUpcoming ? sport : null;
+      const hasToday = events.some((e) => isSameUTCDate(new Date(e.commence_time), now));
+      const hasUpcoming = events.some((e) => new Date(e.commence_time) > now);
+      return { sport, hasToday, hasUpcoming };
     })
   );
 
-  const available = results.filter((s): s is PickSport => s !== null);
-  // Never show an empty tab bar (e.g. every league between seasons at once,
-  // or a transient upstream hiccup) — fall back to the full static list.
-  return available.length > 0 ? available : HOMEPAGE_SPORTS;
+  // Prefer sports with a game today; if none, fall back to sports with any
+  // upcoming game rather than leave the tab bar empty; if truly nothing
+  // anywhere, fall back to the full static list.
+  const todaySports = results.filter((r) => r.hasToday).map((r) => r.sport);
+  if (todaySports.length > 0) return todaySports;
+
+  const upcomingSports = results.filter((r) => r.hasUpcoming).map((r) => r.sport);
+  return upcomingSports.length > 0 ? upcomingSports : HOMEPAGE_SPORTS;
 }
 
 interface OddsApiOutcome {
@@ -185,7 +199,8 @@ export async function getUpcomingEvents(sport: PickSport): Promise<OddsFeedResul
     .slice(0, 25)
     .map((event) => normalizeEvent(event, sport));
 
-  const hasStarted = events.some((e) => new Date(e.commenceTime) <= new Date());
+  const now = new Date();
+  const hasStarted = events.some((e) => new Date(e.commenceTime) <= now);
   if (hasStarted) {
     const scores = await getScores(sportKey, apiKey);
     for (const event of events) {
@@ -193,7 +208,13 @@ export async function getUpcomingEvents(sport: PickSport): Promise<OddsFeedResul
     }
   }
 
-  return { configured: true, supported: true, events };
+  // Prefer today's games (matching the "Today's lines" section they're shown
+  // in); if this sport has nothing today, fall back to its next upcoming
+  // games rather than showing nothing.
+  const todayEvents = events.filter((e) => isSameUTCDate(new Date(e.commenceTime), now) || e.liveScore);
+  const finalEvents = todayEvents.length > 0 ? todayEvents : events;
+
+  return { configured: true, supported: true, events: finalEvents };
 }
 
 interface OddsApiScoreEntry {

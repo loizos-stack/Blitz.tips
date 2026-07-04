@@ -57,8 +57,12 @@ export function UpcomingGames({
   if (!feed.configured) return null;
 
   return (
-    <section className="border-b border-border bg-surface/60 py-14">
-      <div className="container-page">
+    <section className="relative overflow-hidden border-b border-border bg-surface/60 py-14">
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-0 bg-[url('/lines-bg.svg')] bg-cover bg-center"
+      />
+      <div className="container-page relative">
         <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
           <div>
             <h2 className="text-2xl font-bold">Today&apos;s lines</h2>
@@ -115,15 +119,11 @@ export function UpcomingGames({
                   <div className="mt-3 grid grid-cols-[auto_1fr_auto] items-center gap-x-2 gap-y-1.5">
                     <TeamLogo sport={sport} logoUrl={event.awayTeamLogo} className="h-7 w-7 shrink-0" />
                     <p className="min-w-0 truncate text-sm font-semibold">{event.awayTeam}</p>
-                    {event.liveScore && (
-                      <p className="text-sm font-bold tabular-nums">{event.liveScore.awayScore}</p>
-                    )}
+                    <p className="text-sm font-bold tabular-nums">{event.liveScore?.awayScore ?? ""}</p>
 
                     <TeamLogo sport={sport} logoUrl={event.homeTeamLogo} className="h-7 w-7 shrink-0" />
                     <p className="min-w-0 truncate text-sm font-semibold">{event.homeTeam}</p>
-                    {event.liveScore && (
-                      <p className="text-sm font-bold tabular-nums">{event.liveScore.homeScore}</p>
-                    )}
+                    <p className="text-sm font-bold tabular-nums">{event.liveScore?.homeScore ?? ""}</p>
                   </div>
 
                   {event.markets.length > 0 && (
