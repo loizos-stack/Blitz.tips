@@ -85,7 +85,14 @@ const SOCCER_LEAGUE_PRIORITY = [
 // are both free endpoints, so only this odds fan-out costs anything.
 const MAX_SOCCER_LEAGUES = 5;
 
-const PREFERRED_BOOKMAKERS = ["draftkings", "fanduel", "betmgm", "caesars"];
+// Books we request and the order we display them, Pinnacle first (the sharp
+// reference book, with full spreads/totals incl. soccer). Requested via The
+// Odds API's `bookmakers` param (not a region) so Pinnacle — which lives in
+// the eu region — is included alongside the US books; up to 10 books count as
+// a single region, so this stays at the same 3-credit cost as one region. Keys
+// must be valid Odds API bookmaker keys or the whole request is rejected.
+const PREFERRED_BOOKMAKERS = ["pinnacle", "draftkings", "fanduel", "betmgm"];
+const BOOKMAKERS_PARAM = PREFERRED_BOOKMAKERS.join(",");
 
 // All sports with odds-feed coverage. Preferred display order (major-4 first)
 // when a sport is available; getAvailableHomepageSports() filters this down
@@ -270,11 +277,22 @@ async function fetchLeagueEvents(
   sport: PickSport,
   apiKey: string
 ): Promise<UpcomingEvent[]> {
-  const url =
+  const base =
     `${API_BASE}/sports/${sportKey}/odds` +
-    `?apiKey=${apiKey}&regions=us&markets=h2h,spreads,totals&oddsFormat=american`;
+    `?apiKey=${apiKey}&markets=h2h,spreads,totals&oddsFormat=american`;
 
-  const res = await fetch(url, { next: { revalidate: REVALIDATE_SECONDS } });
+  // Prefer specific books (Pinnacle first). If the bookmakers list is rejected
+  // for any reason, fall back to the plain US region so a bad key never blanks
+  // the board.
+  let res = await fetch(`${base}&bookmakers=${BOOKMAKERS_PARAM}`, {
+    next: { revalidate: REVALIDATE_SECONDS },
+  });
+  if (!res.ok) {
+    console.error(
+      `Odds API bookmakers request failed for ${sportKey}: ${res.status}; retrying with regions=us`
+    );
+    res = await fetch(`${base}&regions=us`, { next: { revalidate: REVALIDATE_SECONDS } });
+  }
   if (!res.ok) {
     console.error(`Odds API request failed for ${sportKey}: ${res.status}`);
     return [];

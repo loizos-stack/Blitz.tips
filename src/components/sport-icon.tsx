@@ -64,35 +64,36 @@ function HockeyPuck({ className }: { className?: string }) {
   );
 }
 
-function SoccerBall({ className }: { className?: string }) {
+// Whistle — reads clearly at small sizes and stands out on the light theme,
+// unlike a white ball.
+function Whistle({ className }: { className?: string }) {
   return (
     <svg viewBox="0 0 24 24" className={className}>
-      <circle cx="12" cy="12" r="9.5" fill="#fdfdfd" stroke="#d0d0d0" strokeWidth={1} />
       <path
-        d="M12 7l3.4 2.5-1.3 4H9.9l-1.3-4L12 7z"
-        fill="#1a1a1a"
+        d="M11.5 8H20a1.5 1.5 0 0 1 1.5 1.5c0 4.4-3.6 8-8 8a6.5 6.5 0 0 1-6.4-5.4L6 8.5A1.5 1.5 0 0 1 7.5 7h.6"
+        fill="#0ea5a0"
+        stroke="#0b6b67"
+        strokeWidth={0.8}
+        strokeLinejoin="round"
       />
-      <path
-        d="M12 3.2V7M4.5 8.6l3.9 1.1M6.1 19l3.7-4.5M17.9 19l-3.7-4.5M19.5 8.6l-3.9 1.1"
-        fill="none"
-        stroke="#1a1a1a"
-        strokeWidth={1}
-        strokeLinecap="round"
-      />
+      <circle cx="13" cy="12.2" r="2.6" fill="#e6fffb" />
+      <path d="M9 4.6l1.8 3.1" stroke="#0b6b67" strokeWidth={1.6} strokeLinecap="round" />
     </svg>
   );
 }
 
-function CombatGlove({ className }: { className?: string }) {
+// Octagon cage — an unmistakable MMA mark, distinct from a boxing glove.
+function Octagon({ className }: { className?: string }) {
   return (
     <svg viewBox="0 0 24 24" className={className}>
+      <path d="M8.2 3h7.6L21 8.2v7.6L15.8 21H8.2L3 15.8V8.2z" fill="#b91c1c" />
       <path
-        d="M6 10.5c0-3 2-5.3 5-5.3s5 2.3 5 5.3v2.7c2 .3 3.4 1.6 3.4 3.6 0 2.5-2.4 4.2-5.4 4.2H9.4c-2.7 0-4.4-1.5-4.4-3.8v-3.7c0-1 .5-1.8 1-2.5V10.5z"
-        fill="#c0392b"
-        stroke="#7f1f16"
-        strokeWidth={0.8}
+        d="M9.4 6.4h5.2L17.6 9.4v5.2L14.6 17.6H9.4L6.4 14.6V9.4z"
+        fill="none"
+        stroke="#fee2e2"
+        strokeWidth={1.1}
+        strokeLinejoin="round"
       />
-      <path d="M6 13c1.4-.5 2.6-.5 4 0M6 15.4c1.4-.5 2.6-.5 4 0" stroke="#7f1f16" strokeWidth={0.8} fill="none" />
     </svg>
   );
 }
@@ -105,8 +106,8 @@ const ICONS: Partial<Record<PickSport, React.ComponentType<{ className?: string 
   NCAAB: Basketball,
   MLB: Baseball,
   NHL: HockeyPuck,
-  SOCCER: SoccerBall,
-  UFC_MMA: CombatGlove,
+  SOCCER: Whistle,
+  UFC_MMA: Octagon,
 };
 
 export function SportIcon({ sport, className }: { sport: PickSport; className?: string }) {
