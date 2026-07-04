@@ -1,11 +1,11 @@
 import Link from "next/link";
-import { format } from "date-fns";
 import { CalendarClock, Radio } from "lucide-react";
 import { formatOdds } from "@/lib/odds";
 import { SPORT_LABELS, cn } from "@/lib/utils";
 import type { OddsFeedResult, UpcomingEvent, MarketOption } from "@/lib/odds-api";
 import { SportIcon } from "@/components/sport-icon";
 import { TeamLogo } from "@/components/team-logo";
+import { LocalTime } from "@/components/local-time";
 import type { PickSport } from "@prisma/client";
 
 interface OddsBoard {
@@ -111,7 +111,7 @@ export function UpcomingGames({
                     ) : (
                       <span className="flex items-center gap-1.5 text-muted">
                         <CalendarClock className="h-3.5 w-3.5" />
-                        {format(new Date(event.commenceTime), "EEE, MMM d · h:mm a")}
+                        <LocalTime iso={event.commenceTime} />
                       </span>
                     )}
                   </div>

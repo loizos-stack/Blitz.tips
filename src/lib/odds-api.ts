@@ -139,12 +139,14 @@ async function resolveSportKeys(sport: PickSport, apiKey: string): Promise<strin
   return key ? [key] : [];
 }
 
-function isSameUTCDate(a: Date, b: Date): boolean {
-  return (
-    a.getUTCFullYear() === b.getUTCFullYear() &&
-    a.getUTCMonth() === b.getUTCMonth() &&
-    a.getUTCDate() === b.getUTCDate()
-  );
+// How far ahead the "Today's lines" board looks. Kept as a wall-clock window
+// (next 48h) rather than a calendar-day check so it behaves consistently for
+// every visitor regardless of their timezone.
+const UPCOMING_WINDOW_MS = 48 * 60 * 60 * 1000;
+
+function isWithinUpcomingWindow(commenceTime: Date, now: Date): boolean {
+  const ms = commenceTime.getTime() - now.getTime();
+  return ms >= 0 && ms <= UPCOMING_WINDOW_MS;
 }
 
 // Cheap existence check for the homepage tab bar: The Odds API's bare
@@ -164,18 +166,18 @@ export async function getAvailableHomepageSports(): Promise<PickSport[]> {
   const results = await Promise.all(
     HOMEPAGE_SPORTS.map(async (sport) => {
       const sportKeys = await resolveSportKeys(sport, apiKey);
-      if (sportKeys.length === 0) return { sport, hasToday: false, hasUpcoming: false };
+      if (sportKeys.length === 0) return { sport, hasSoon: false, hasUpcoming: false };
 
       // Check each backing league (usually one) via the free /events endpoint.
       const perKey = await Promise.all(
         sportKeys.map(async (sportKey) => {
           const url = `${API_BASE}/sports/${sportKey}/events?apiKey=${apiKey}`;
           const res = await fetch(url, { next: { revalidate: REVALIDATE_SECONDS } });
-          if (!res.ok) return { hasToday: false, hasUpcoming: false };
+          if (!res.ok) return { hasSoon: false, hasUpcoming: false };
 
           const events = (await res.json()) as { commence_time: string }[];
           return {
-            hasToday: events.some((e) => isSameUTCDate(new Date(e.commence_time), now)),
+            hasSoon: events.some((e) => isWithinUpcomingWindow(new Date(e.commence_time), now)),
             hasUpcoming: events.some((e) => new Date(e.commence_time) > now),
           };
         })
@@ -183,17 +185,17 @@ export async function getAvailableHomepageSports(): Promise<PickSport[]> {
 
       return {
         sport,
-        hasToday: perKey.some((r) => r.hasToday),
+        hasSoon: perKey.some((r) => r.hasSoon),
         hasUpcoming: perKey.some((r) => r.hasUpcoming),
       };
     })
   );
 
-  // Prefer sports with a game today; if none, fall back to sports with any
-  // upcoming game rather than leave the tab bar empty; if truly nothing
-  // anywhere, fall back to the full static list.
-  const todaySports = results.filter((r) => r.hasToday).map((r) => r.sport);
-  if (todaySports.length > 0) return todaySports;
+  // Prefer sports with a game in the next 48h; if none, fall back to sports
+  // with any upcoming game rather than leave the tab bar empty; if truly
+  // nothing anywhere, fall back to the full static list.
+  const soonSports = results.filter((r) => r.hasSoon).map((r) => r.sport);
+  if (soonSports.length > 0) return soonSports;
 
   const upcomingSports = results.filter((r) => r.hasUpcoming).map((r) => r.sport);
   return upcomingSports.length > 0 ? upcomingSports : HOMEPAGE_SPORTS;
@@ -319,12 +321,14 @@ export async function getUpcomingEvents(sport: PickSport): Promise<OddsFeedResul
     .sort((a, b) => new Date(a.commenceTime).getTime() - new Date(b.commenceTime).getTime())
     .slice(0, 25);
 
-  // Prefer today's games (matching the "Today's lines" section they're shown
-  // in); if this sport has nothing today, fall back to its next upcoming
-  // games rather than showing nothing.
+  // Prefer games in the next 48h (plus anything live or just-finished); if this
+  // sport has nothing in that window, fall back to its next upcoming games
+  // rather than showing nothing.
   const now = new Date();
-  const todayEvents = events.filter((e) => isSameUTCDate(new Date(e.commenceTime), now) || e.liveScore);
-  const finalEvents = todayEvents.length > 0 ? todayEvents : events;
+  const windowEvents = events.filter(
+    (e) => isWithinUpcomingWindow(new Date(e.commenceTime), now) || e.liveScore
+  );
+  const finalEvents = windowEvents.length > 0 ? windowEvents : events;
 
   return { configured: true, supported: true, events: finalEvents };
 }
