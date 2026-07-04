@@ -9,9 +9,16 @@ const resend = apiKey ? new Resend(apiKey) : null;
 /**
  * Send a transactional email. When RESEND_API_KEY isn't configured (e.g. local
  * dev) this logs instead of sending so flows that trigger email don't break —
- * the caller's action still succeeds.
+ * the caller's action still succeeds. Always pass `text` alongside `html`:
+ * multipart emails with a plain-text alternative score materially better with
+ * spam filters than HTML-only mail.
  */
-export async function sendEmail(opts: { to: string; subject: string; html: string }): Promise<void> {
+export async function sendEmail(opts: {
+  to: string;
+  subject: string;
+  html: string;
+  text: string;
+}): Promise<void> {
   if (!resend) {
     console.warn(`[email] RESEND_API_KEY not set — would send "${opts.subject}" to ${opts.to}`);
     return;
@@ -21,8 +28,20 @@ export async function sendEmail(opts: { to: string; subject: string; html: strin
     to: opts.to,
     subject: opts.subject,
     html: opts.html,
+    text: opts.text,
   });
   if (error) throw new Error(error.message);
+}
+
+export function verificationEmailText(url: string): string {
+  return [
+    "Welcome to Blitz.tips!",
+    "",
+    "Confirm your email address to finish setting up your account by opening this link:",
+    url,
+    "",
+    "This link expires in 24 hours. If you didn't create a Blitz.tips account, you can ignore this email.",
+  ].join("\n");
 }
 
 export function verificationEmailHtml(url: string): string {

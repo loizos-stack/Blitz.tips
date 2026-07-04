@@ -1,7 +1,7 @@
 import "server-only";
 import { randomBytes } from "node:crypto";
 import { prisma } from "@/lib/prisma";
-import { sendEmail, verificationEmailHtml } from "@/lib/email";
+import { sendEmail, verificationEmailHtml, verificationEmailText } from "@/lib/email";
 import { siteUrl } from "@/lib/site";
 
 const TOKEN_TTL_MS = 24 * 60 * 60 * 1000;
@@ -31,6 +31,7 @@ export async function sendVerificationEmail(email: string): Promise<void> {
     to: identifier,
     subject: "Verify your email · Blitz.tips",
     html: verificationEmailHtml(url),
+    text: verificationEmailText(url),
   });
 }
 
