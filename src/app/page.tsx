@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { ShieldCheck, LineChart, Users, ArrowRight } from "lucide-react";
-import { listHandicapperSummaries } from "@/lib/handicappers";
+import { listHandicapperSummaries, sortFeaturedFirst } from "@/lib/handicappers";
 import { HandicapperCard } from "@/components/handicapper-card";
 import { UpcomingGames } from "@/components/upcoming-games";
 import { getUpcomingEvents, getAvailableHomepageSports } from "@/lib/odds-api";
@@ -27,9 +27,7 @@ export default async function Home({
     : (availableSports[0] ?? "NFL");
 
   const oddsFeed = await getUpcomingEvents(sport);
-  const featured = [...handicappers]
-    .sort((a, b) => b.stats.unitsNet - a.stats.unitsNet)
-    .slice(0, 3);
+  const featured = sortFeaturedFirst(handicappers, (a, b) => b.stats.unitsNet - a.stats.unitsNet).slice(0, 3);
 
   const totalPicks = handicappers.reduce((sum, h) => sum + h.stats.totalPicks, 0);
 

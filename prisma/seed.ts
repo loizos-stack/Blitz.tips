@@ -1,4 +1,4 @@
-import { PrismaClient, type BetType, type PickResult, type PickSport } from "@prisma/client";
+import { PrismaClient, type BetType, type HandicapperPlan, type PickResult, type PickSport } from "@prisma/client";
 import bcrypt from "bcryptjs";
 
 const prisma = new PrismaClient();
@@ -27,6 +27,7 @@ interface SeedHandicapper {
   sports: PickSport[];
   monthlyPriceCents: number;
   isVerified?: boolean;
+  plan?: HandicapperPlan;
   picks: SeedPick[];
 }
 
@@ -60,6 +61,7 @@ const handicappers: SeedHandicapper[] = [
     sports: ["NHL"],
     monthlyPriceCents: 3499,
     isVerified: true,
+    plan: "GOLD",
     picks: [
       { sport: "NHL", league: "NHL", matchup: "Oilers @ Avalanche", betType: "MONEYLINE", selection: "Avalanche ML", odds: -135, units: 2, result: "WIN", daysAgo: 22 },
       { sport: "NHL", league: "NHL", matchup: "Rangers @ Bruins", betType: "TOTAL", selection: "Over 5.5", odds: -115, units: 1, result: "LOSS", daysAgo: 19 },
@@ -77,6 +79,7 @@ const handicappers: SeedHandicapper[] = [
     bio: "MLB run lines, totals, and first-five props. Grinding every day of the season.",
     sports: ["MLB"],
     monthlyPriceCents: 2999,
+    plan: "SILVER",
     picks: [
       { sport: "MLB", league: "MLB", matchup: "Yankees @ Red Sox", betType: "MONEYLINE", selection: "Yankees ML", odds: -150, units: 3, result: "LOSS", daysAgo: 25 },
       { sport: "MLB", league: "MLB", matchup: "Dodgers @ Giants", betType: "SPREAD", selection: "Dodgers -1.5", odds: 135, units: 1, result: "WIN", daysAgo: 21 },
@@ -128,8 +131,12 @@ async function main() {
         sports: h.sports,
         monthlyPriceCents: h.monthlyPriceCents,
         isVerified: h.isVerified ?? false,
+        plan: h.plan ?? "FREE",
       },
     });
+
+    const existingPickCount = await prisma.pick.count({ where: { handicapperId: profile.id } });
+    if (existingPickCount > 0) continue; // already seeded — re-running would just duplicate picks
 
     for (const p of h.picks) {
       const eventStartsAt = new Date();

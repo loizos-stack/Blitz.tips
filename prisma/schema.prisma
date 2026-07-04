@@ -56,6 +56,20 @@ enum SubscriptionStatus {
   INCOMPLETE
 }
 
+// The handicapper's own plan with the platform (what THEY pay US, and at
+// what commission rate) — distinct from Subscription, which is a fan
+// paying a handicapper for picks.
+enum HandicapperPlan {
+  FREE
+  SILVER
+  GOLD
+}
+
+enum BillingInterval {
+  MONTHLY
+  ANNUAL
+}
+
 model User {
   id             String    @id @default(cuid())
   name           String?
@@ -132,6 +146,19 @@ model HandicapperProfile {
   stripeAccountReady   Boolean  @default(false)
   stripeProductId      String?
   stripePriceId        String?
+
+  // The handicapper's plan with the platform — controls commission rate
+  // (see commissionPercentForPlan in src/lib/plans.ts) and, for GOLD,
+  // homepage/leaderboard featuring. Billing here runs on the platform's own
+  // Stripe account (no Connect), separate from the stripeAccount* fields
+  // above which are for receiving subscriber payments.
+  plan                    HandicapperPlan    @default(FREE)
+  planInterval            BillingInterval?
+  planStatus              SubscriptionStatus @default(ACTIVE)
+  planStripeCustomerId    String?            @unique
+  planStripeSubscriptionId String?           @unique
+  planCurrentPeriodEnd    DateTime?
+  planCancelAtPeriodEnd   Boolean            @default(false)
 
   picks         Pick[]
   subscriptions Subscription[] @relation("HandicapperSubscriptions")

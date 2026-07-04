@@ -9,7 +9,9 @@ export function HandicapperCard({ handicapper, rank }: { handicapper: Handicappe
   return (
     <Link
       href={`/handicappers/${handicapper.handle}`}
-      className="card group flex flex-col gap-4 p-5 transition-colors hover:border-accent/60"
+      className={`card group flex flex-col gap-4 p-5 transition-colors hover:border-accent/60 ${
+        handicapper.isFeatured ? "border-gold/50 bg-gold/5" : ""
+      }`}
     >
       <div className="flex items-center gap-3">
         {rank !== undefined && (
@@ -22,6 +24,11 @@ export function HandicapperCard({ handicapper, rank }: { handicapper: Handicappe
           <div className="flex items-center gap-1.5">
             <p className="truncate font-semibold group-hover:text-accent">{handicapper.displayName}</p>
             {handicapper.isVerified && <BadgeCheck className="h-4 w-4 shrink-0 text-accent" />}
+            {handicapper.isFeatured && (
+              <span className="shrink-0 rounded-full bg-gold/15 px-1.5 py-0.5 text-[10px] font-semibold text-gold">
+                FEATURED
+              </span>
+            )}
           </div>
           <p className="truncate text-sm text-muted">@{handicapper.handle}</p>
         </div>

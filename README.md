@@ -17,13 +17,25 @@ Subscribers pay a handicapper's own monthly price (via Stripe) to unlock their p
 
 - `User` — has a `role` of `SUBSCRIBER`, `HANDICAPPER`, or `ADMIN`.
 - `HandicapperProfile` — a handicapper's public page: handle, bio, sports, monthly price, and
-  their Stripe Connect account/product/price.
+  their Stripe Connect account/product/price. Also carries their own **plan** with the
+  platform (`plan` / `planInterval` / `planStatus`, billed directly via Stripe — no Connect
+  involved, since it's platform revenue, not a payout). See `src/lib/plans.ts`:
+  - **Free** — 20% commission, no monthly cost
+  - **Silver** — 15% commission, $9.99/mo or $99.99/yr
+  - **Gold** — 10% commission, $49.99/mo or $499.99/yr, pinned to the top of the homepage and
+    leaderboard (`isFeaturedHandicapper()` / `sortFeaturedFirst()` in `src/lib/handicappers.ts`)
+  Handicappers can change plans anytime from their dashboard; commission on subscriber payments
+  (`application_fee_percent` in `/api/stripe/checkout`) is computed live from their current plan.
 - `Pick` — a single wager: sport, matchup, bet type, selection, American odds, units risked,
   and a `result` that starts `PENDING` and is settled to `WIN` / `LOSS` / `PUSH` / `VOID`.
-- `Subscription` — links a subscriber to a handicapper via a Stripe subscription.
+- `Subscription` — links a subscriber to a handicapper via a Stripe subscription. (Distinct from
+  a handicapper's own plan subscription above — two separate billing relationships.)
 
 Win rate, net units, and ROI are derived on the fly from every `Pick` (see `src/lib/odds.ts`) —
 there's no separate "stats" table to keep in sync.
+
+New visitors choose a path at `/signup` — "follow picks" (subscriber) or "post picks"
+(handicapper) — which routes them to the right onboarding flow after account creation.
 
 ## Getting started
 

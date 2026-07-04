@@ -1,11 +1,24 @@
 import { prisma } from "@/lib/prisma";
 import { computeStats, type HandicapperStats } from "@/lib/odds";
+import { isFeaturedHandicapper } from "@/lib/plans";
 import type { HandicapperProfile, Pick as PickModel } from "@prisma/client";
 
 export type HandicapperSummary = HandicapperProfile & {
   stats: HandicapperStats;
   last30Stats: HandicapperStats;
+  isFeatured: boolean;
 };
+
+/** Gold handicappers are pinned to the top, per their plan's promised placement; ties broken by the given stat. */
+export function sortFeaturedFirst<T extends { isFeatured: boolean }>(
+  items: T[],
+  compareFn: (a: T, b: T) => number
+): T[] {
+  return [...items].sort((a, b) => {
+    if (a.isFeatured !== b.isFeatured) return a.isFeatured ? -1 : 1;
+    return compareFn(a, b);
+  });
+}
 
 const STATS_LOOKBACK_DAYS = 30;
 
@@ -41,5 +54,6 @@ function toSummary(handicapper: HandicapperProfile & { picks: PickModel[] }): Ha
     ...handicapper,
     stats: computeStats(handicapper.picks),
     last30Stats: computeStats(recentPicks),
+    isFeatured: isFeaturedHandicapper(handicapper.plan, handicapper.planStatus),
   };
 }

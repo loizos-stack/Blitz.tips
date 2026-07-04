@@ -1,17 +1,72 @@
 "use client";
 
-import { useState } from "react";
+import { Suspense, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { signIn } from "next-auth/react";
+import { TrendingUp, Megaphone } from "lucide-react";
 
-export default function SignUpPage() {
+function RoleChooser() {
+  return (
+    <div className="container-page flex min-h-[calc(100vh-4rem)] items-center justify-center py-16">
+      <div className="w-full max-w-2xl">
+        <div className="text-center">
+          <h1 className="text-2xl font-bold">Join Blitz.tips</h1>
+          <p className="mt-2 text-muted">How are you looking to use the site?</p>
+        </div>
+
+        <div className="mt-8 grid gap-4 sm:grid-cols-2">
+          <Link
+            href="/signup?as=subscriber"
+            className="card flex flex-col items-start gap-3 p-6 transition-colors hover:border-accent/60"
+          >
+            <div className="flex h-11 w-11 items-center justify-center rounded-lg bg-accent/15 text-accent">
+              <TrendingUp className="h-5 w-5" />
+            </div>
+            <div>
+              <p className="font-semibold">I want to follow picks</p>
+              <p className="mt-1 text-sm text-muted">
+                Browse the leaderboard and subscribe to handicappers with a verified track record.
+              </p>
+            </div>
+          </Link>
+
+          <Link
+            href="/signup?as=handicapper"
+            className="card flex flex-col items-start gap-3 p-6 transition-colors hover:border-accent/60"
+          >
+            <div className="flex h-11 w-11 items-center justify-center rounded-lg bg-gold/15 text-gold">
+              <Megaphone className="h-5 w-5" />
+            </div>
+            <div>
+              <p className="font-semibold">I want to post picks</p>
+              <p className="mt-1 text-sm text-muted">
+                Build a public track record and get paid by subscribers. Free to start.
+              </p>
+            </div>
+          </Link>
+        </div>
+
+        <p className="mt-6 text-center text-sm text-muted">
+          Already have an account?{" "}
+          <Link href="/signin" className="font-medium text-accent hover:underline">
+            Sign in
+          </Link>
+        </p>
+      </div>
+    </div>
+  );
+}
+
+function SignUpForm({ as }: { as: "subscriber" | "handicapper" }) {
   const router = useRouter();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+
+  const destination = as === "handicapper" ? "/dashboard/handicapper" : "/dashboard";
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -39,18 +94,27 @@ export default function SignUpPage() {
       return;
     }
 
-    router.push("/dashboard");
+    router.push(destination);
     router.refresh();
   }
 
   return (
     <div className="container-page flex min-h-[calc(100vh-4rem)] items-center justify-center py-16">
       <div className="card w-full max-w-sm p-8">
-        <h1 className="text-xl font-bold">Create your account</h1>
-        <p className="mt-1 text-sm text-muted">Start following winning handicappers.</p>
+        <Link href="/signup" className="text-xs font-medium text-muted hover:text-foreground">
+          ← Choose a different path
+        </Link>
+        <h1 className="mt-3 text-xl font-bold">
+          {as === "handicapper" ? "Become a handicapper" : "Create your account"}
+        </h1>
+        <p className="mt-1 text-sm text-muted">
+          {as === "handicapper"
+            ? "Set up your account, then build your public profile."
+            : "Start following winning handicappers."}
+        </p>
 
         <button
-          onClick={() => signIn("google", { callbackUrl: "/dashboard" })}
+          onClick={() => signIn("google", { callbackUrl: destination })}
           className="mt-6 w-full rounded-lg border border-border py-2.5 text-sm font-medium hover:border-muted"
         >
           Continue with Google
@@ -113,5 +177,23 @@ export default function SignUpPage() {
         </p>
       </div>
     </div>
+  );
+}
+
+function SignUpRouter() {
+  const searchParams = useSearchParams();
+  const as = searchParams.get("as");
+
+  if (as === "subscriber" || as === "handicapper") {
+    return <SignUpForm as={as} />;
+  }
+  return <RoleChooser />;
+}
+
+export default function SignUpPage() {
+  return (
+    <Suspense fallback={null}>
+      <SignUpRouter />
+    </Suspense>
   );
 }

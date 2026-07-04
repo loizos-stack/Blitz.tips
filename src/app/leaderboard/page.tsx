@@ -1,6 +1,6 @@
 import Link from "next/link";
 import type { Metadata } from "next";
-import { listHandicapperSummaries, type HandicapperSummary } from "@/lib/handicappers";
+import { listHandicapperSummaries, sortFeaturedFirst, type HandicapperSummary } from "@/lib/handicappers";
 import { SPORT_LABELS } from "@/lib/utils";
 import { cn } from "@/lib/utils";
 import type { PickSport } from "@prisma/client";
@@ -33,7 +33,7 @@ export default async function LeaderboardPage({
     ? handicappers.filter((h) => h.sports.includes(sportFilter))
     : handicappers;
 
-  const sorted = [...filtered].sort((a, b) => SORTS[sortKey].fn(b) - SORTS[sortKey].fn(a));
+  const sorted = sortFeaturedFirst(filtered, (a, b) => SORTS[sortKey].fn(b) - SORTS[sortKey].fn(a));
 
   const sportOptions = ["all", ...Object.keys(SPORT_LABELS)];
 
@@ -98,7 +98,14 @@ export default async function LeaderboardPage({
             >
               <span className="text-sm font-bold text-muted">#{i + 1}</span>
               <div className="min-w-0">
-                <p className="truncate font-semibold">{h.displayName}</p>
+                <div className="flex items-center gap-1.5">
+                  <p className="truncate font-semibold">{h.displayName}</p>
+                  {h.isFeatured && (
+                    <span className="shrink-0 rounded-full bg-gold/15 px-1.5 py-0.5 text-[10px] font-semibold text-gold">
+                      FEATURED
+                    </span>
+                  )}
+                </div>
                 <p className="truncate text-sm text-muted">@{h.handle}</p>
               </div>
               <span className="hidden text-right tabular-nums md:block">{h.stats.record}</span>

@@ -3,9 +3,13 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { SPORT_LABELS } from "@/lib/utils";
+import { PlanPicker } from "@/components/plan-picker";
+import type { BillingInterval, HandicapperPlan } from "@prisma/client";
 
 export function BecomeHandicapperForm() {
   const router = useRouter();
+  const [step, setStep] = useState<"details" | "plan">("details");
+
   const [handle, setHandle] = useState("");
   const [displayName, setDisplayName] = useState("");
   const [bio, setBio] = useState("");
@@ -18,8 +22,12 @@ export function BecomeHandicapperForm() {
     setSports((prev) => (prev.includes(sport) ? prev.filter((s) => s !== sport) : [...prev, sport]));
   }
 
-  async function handleSubmit(e: React.FormEvent) {
+  function handleDetailsSubmit(e: React.FormEvent) {
     e.preventDefault();
+    setStep("plan");
+  }
+
+  async function handlePlanSelect(plan: HandicapperPlan, interval: BillingInterval) {
     setError(null);
     setLoading(true);
 
@@ -36,14 +44,57 @@ export function BecomeHandicapperForm() {
     });
 
     const body = await res.json().catch(() => ({}));
-    setLoading(false);
 
     if (!res.ok) {
+      setLoading(false);
       setError(body.error ?? "Something went wrong");
+      setStep("details");
       return;
     }
 
-    router.refresh();
+    if (plan === "FREE") {
+      setLoading(false);
+      router.refresh();
+      return;
+    }
+
+    const checkoutRes = await fetch("/api/handicapper/plan/checkout", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ plan, interval }),
+    });
+    const checkoutBody = await checkoutRes.json().catch(() => ({}));
+    setLoading(false);
+
+    if (!checkoutRes.ok) {
+      setError(checkoutBody.error ?? "Profile created, but plan checkout failed — you can upgrade later from your dashboard.");
+      router.refresh();
+      return;
+    }
+
+    if (checkoutBody.url) window.location.href = checkoutBody.url;
+  }
+
+  if (step === "plan") {
+    return (
+      <div className="mx-auto max-w-3xl">
+        <div className="text-center">
+          <h1 className="text-xl font-bold">Choose your plan</h1>
+          <p className="mt-1 text-sm text-muted">You can change this anytime from your dashboard.</p>
+        </div>
+        <div className="mt-6">
+          <PlanPicker onSelect={handlePlanSelect} disabled={loading} />
+        </div>
+        {error && <p className="mt-4 text-center text-sm text-danger">{error}</p>}
+        <button
+          type="button"
+          onClick={() => setStep("details")}
+          className="mx-auto mt-6 block text-sm font-medium text-muted hover:text-foreground"
+        >
+          ← Back to profile details
+        </button>
+      </div>
+    );
   }
 
   return (
@@ -53,7 +104,7 @@ export function BecomeHandicapperForm() {
         Set up your public profile. Every pick you post from here on builds your permanent track record.
       </p>
 
-      <form onSubmit={handleSubmit} className="mt-6 flex flex-col gap-4">
+      <form onSubmit={handleDetailsSubmit} className="mt-6 flex flex-col gap-4">
         <div>
           <label className="text-sm font-medium">Handle</label>
           <div className="mt-1 flex items-center rounded-lg border border-border bg-surface-raised px-3 focus-within:border-accent">
@@ -126,10 +177,10 @@ export function BecomeHandicapperForm() {
 
         <button
           type="submit"
-          disabled={loading}
-          className="mt-2 w-full rounded-lg bg-accent py-2.5 text-sm font-semibold text-accent-foreground hover:opacity-90 disabled:opacity-60"
+          disabled={sports.length === 0}
+          className="mt-2 w-full rounded-lg bg-accent py-2.5 text-sm font-semibold text-accent-foreground hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
         >
-          {loading ? "Creating profile…" : "Create my profile"}
+          Continue to plan selection
         </button>
       </form>
     </div>

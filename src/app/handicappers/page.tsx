@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { listHandicapperSummaries } from "@/lib/handicappers";
+import { listHandicapperSummaries, sortFeaturedFirst } from "@/lib/handicappers";
 import { HandicapperCard } from "@/components/handicapper-card";
 
 export const metadata: Metadata = { title: "Handicappers" };
@@ -7,7 +7,7 @@ export const dynamic = "force-dynamic";
 
 export default async function HandicappersPage() {
   const handicappers = await listHandicapperSummaries();
-  const sorted = [...handicappers].sort((a, b) => b.stats.unitsNet - a.stats.unitsNet);
+  const sorted = sortFeaturedFirst(handicappers, (a, b) => b.stats.unitsNet - a.stats.unitsNet);
 
   return (
     <div className="container-page py-12">

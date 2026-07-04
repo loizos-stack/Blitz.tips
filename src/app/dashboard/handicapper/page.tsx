@@ -5,12 +5,13 @@ import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { computeStats } from "@/lib/odds";
 import { formatCents } from "@/lib/utils";
-import { PLATFORM_FEE_PERCENT } from "@/lib/stripe";
+import { commissionPercentForPlan } from "@/lib/plans";
 import { StatCard } from "@/components/stat-card";
 import { BecomeHandicapperForm } from "@/components/become-handicapper-form";
 import { ConnectOnboardingBanner } from "@/components/connect-onboarding-banner";
 import { CreatePickForm } from "@/components/create-pick-form";
 import { HandicapperPickRow } from "@/components/handicapper-pick-row";
+import { ManagePlanCard } from "@/components/manage-plan-card";
 
 export const metadata: Metadata = { title: "Handicapper dashboard" };
 export const dynamic = "force-dynamic";
@@ -38,7 +39,9 @@ export default async function HandicapperDashboardPage() {
 
   const stats = computeStats(handicapper.picks);
   const grossMonthlyCents = subscriberCount * handicapper.monthlyPriceCents;
-  const netMonthlyCents = Math.round(grossMonthlyCents * (1 - PLATFORM_FEE_PERCENT / 100));
+  const netMonthlyCents = Math.round(
+    grossMonthlyCents * (1 - commissionPercentForPlan(handicapper.plan) / 100)
+  );
 
   return (
     <div className="container-page py-12">
@@ -65,6 +68,15 @@ export default async function HandicapperDashboardPage() {
         <StatCard label="Win rate" value={stats.winRate ? `${stats.winRate.toFixed(1)}%` : "—"} />
         <StatCard label="Subscribers" value={subscriberCount.toString()} />
         <StatCard label="Est. earnings/mo" value={formatCents(netMonthlyCents)} tone="accent" />
+      </div>
+
+      <div className="mt-6">
+        <ManagePlanCard
+          plan={handicapper.plan}
+          planStatus={handicapper.planStatus}
+          planInterval={handicapper.planInterval}
+          planCurrentPeriodEnd={handicapper.planCurrentPeriodEnd}
+        />
       </div>
 
       <div className="mt-10 grid gap-8 lg:grid-cols-[22rem_1fr]">

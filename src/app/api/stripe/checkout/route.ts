@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
-import { stripe, PLATFORM_FEE_PERCENT } from "@/lib/stripe";
+import { stripe } from "@/lib/stripe";
+import { commissionPercentForPlan } from "@/lib/plans";
 
 const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
 
@@ -49,7 +50,7 @@ export async function POST(request: Request) {
     customer: customerId,
     line_items: [{ price: handicapper.stripePriceId, quantity: 1 }],
     subscription_data: {
-      application_fee_percent: PLATFORM_FEE_PERCENT,
+      application_fee_percent: commissionPercentForPlan(handicapper.plan),
       transfer_data: { destination: handicapper.stripeAccountId },
       metadata: { subscriberId: session.user.id, handicapperId: handicapper.id },
     },
