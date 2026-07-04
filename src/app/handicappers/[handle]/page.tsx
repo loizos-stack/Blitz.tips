@@ -9,7 +9,7 @@ import { PickCard } from "@/components/pick-card";
 import { SubscribeButton } from "@/components/subscribe-button";
 import { Avatar } from "@/components/avatar";
 import { SportIcon } from "@/components/sport-icon";
-import { SPORT_LABELS } from "@/lib/utils";
+import { SPORT_LABELS, formatCents } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
 
@@ -85,6 +85,21 @@ export default async function HandicapperProfilePage({
                 </span>
               ))}
             </div>
+            {/* Pricing is always visible here — including to the owner and
+                before Stripe payouts are connected — so the offered packages
+                are never hidden behind the subscribe button's state. */}
+            <p className="mt-3 text-sm font-medium">
+              {[
+                handicapper.weeklyPriceCents != null &&
+                  `${formatCents(handicapper.weeklyPriceCents)}/wk`,
+                `${formatCents(handicapper.monthlyPriceCents)}/mo`,
+                handicapper.annualPriceCents != null &&
+                  `${formatCents(handicapper.annualPriceCents)}/yr`,
+              ]
+                .filter(Boolean)
+                .join(" · ")}
+              <span className="font-normal text-muted"> for premium picks</span>
+            </p>
             {handicapper.bio && <p className="mt-4 max-w-xl text-sm text-muted">{handicapper.bio}</p>}
           </div>
         </div>
