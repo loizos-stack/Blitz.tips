@@ -2,6 +2,7 @@ import { Lock } from "lucide-react";
 import { format } from "date-fns";
 import type { Pick as PickModel } from "@prisma/client";
 import { ResultPill } from "@/components/result-pill";
+import { SportIcon } from "@/components/sport-icon";
 import { formatOdds } from "@/lib/odds";
 import { SPORT_LABELS, BET_TYPE_LABELS } from "@/lib/utils";
 
@@ -10,7 +11,10 @@ export function PickCard({ pick, locked = false }: { pick: PickModel; locked?: b
     return (
       <div className="card relative overflow-hidden p-5">
         <div className="flex items-center justify-between text-sm text-muted">
-          <span>{SPORT_LABELS[pick.sport]}</span>
+          <span className="flex items-center gap-1.5">
+            <SportIcon sport={pick.sport} className="h-4 w-4" />
+            {SPORT_LABELS[pick.sport]}
+          </span>
           <span>{format(pick.eventStartsAt, "MMM d, h:mm a")}</span>
         </div>
         <div className="mt-3 flex items-center gap-2 blur-sm select-none">
@@ -32,7 +36,8 @@ export function PickCard({ pick, locked = false }: { pick: PickModel; locked?: b
   return (
     <div className="card p-5">
       <div className="flex items-center justify-between text-sm text-muted">
-        <span>
+        <span className="flex items-center gap-1.5">
+          <SportIcon sport={pick.sport} className="h-4 w-4" />
           {SPORT_LABELS[pick.sport]}
           {pick.league ? ` · ${pick.league}` : ""}
         </span>

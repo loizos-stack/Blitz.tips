@@ -3,8 +3,9 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { SPORT_LABELS } from "@/lib/utils";
+import { SportIcon } from "@/components/sport-icon";
 import { PlanPicker } from "@/components/plan-picker";
-import type { BillingInterval, HandicapperPlan } from "@prisma/client";
+import type { BillingInterval, HandicapperPlan, PickSport } from "@prisma/client";
 
 export function BecomeHandicapperForm() {
   const router = useRouter();
@@ -148,12 +149,13 @@ export function BecomeHandicapperForm() {
                 type="button"
                 key={value}
                 onClick={() => toggleSport(value)}
-                className={`rounded-full border px-3 py-1 text-xs font-medium ${
+                className={`flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium ${
                   sports.includes(value)
                     ? "border-accent bg-accent/10 text-accent"
                     : "border-border text-muted hover:text-foreground"
                 }`}
               >
+                <SportIcon sport={value as PickSport} className="h-3.5 w-3.5" />
                 {label}
               </button>
             ))}

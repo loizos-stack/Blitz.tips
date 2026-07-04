@@ -8,6 +8,7 @@ import { StatCard } from "@/components/stat-card";
 import { PickCard } from "@/components/pick-card";
 import { SubscribeButton } from "@/components/subscribe-button";
 import { Avatar } from "@/components/avatar";
+import { SportIcon } from "@/components/sport-icon";
 import { SPORT_LABELS } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
@@ -75,7 +76,11 @@ export default async function HandicapperProfilePage({
             <p className="text-muted">@{handicapper.handle}</p>
             <div className="mt-3 flex flex-wrap gap-1.5">
               {handicapper.sports.map((sport) => (
-                <span key={sport} className="rounded-full bg-surface-raised px-2.5 py-1 text-xs text-muted">
+                <span
+                  key={sport}
+                  className="flex items-center gap-1.5 rounded-full bg-surface-raised px-2.5 py-1 text-xs text-muted"
+                >
+                  <SportIcon sport={sport} className="h-3.5 w-3.5" />
                   {SPORT_LABELS[sport]}
                 </span>
               ))}

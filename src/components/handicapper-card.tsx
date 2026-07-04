@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { BadgeCheck } from "lucide-react";
-import { formatCents } from "@/lib/utils";
+import { formatCents, SPORT_LABELS } from "@/lib/utils";
 import { Avatar } from "@/components/avatar";
+import { SportIcon } from "@/components/sport-icon";
 import type { HandicapperSummary } from "@/lib/handicappers";
 
 export function HandicapperCard({ handicapper, rank }: { handicapper: HandicapperSummary; rank?: number }) {
@@ -49,8 +50,12 @@ export function HandicapperCard({ handicapper, rank }: { handicapper: Handicappe
 
       <div className="flex flex-wrap gap-1.5">
         {handicapper.sports.slice(0, 4).map((sport) => (
-          <span key={sport} className="rounded-full bg-surface-raised px-2 py-0.5 text-xs text-muted">
-            {sport}
+          <span
+            key={sport}
+            className="flex items-center gap-1 rounded-full bg-surface-raised px-2 py-0.5 text-xs text-muted"
+          >
+            <SportIcon sport={sport} className="h-3.5 w-3.5" />
+            {SPORT_LABELS[sport] ?? sport}
           </span>
         ))}
       </div>
