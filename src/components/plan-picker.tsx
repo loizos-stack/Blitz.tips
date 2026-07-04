@@ -8,6 +8,15 @@ import type { BillingInterval, HandicapperPlan } from "@prisma/client";
 
 const PLAN_ORDER: HandicapperPlan[] = ["FREE", "SILVER", "GOLD"];
 
+// Metallic button treatments so Silver reads as silver and Gold as gold,
+// rather than both using the default green accent.
+const PLAN_BUTTON_STYLES: Record<HandicapperPlan, string> = {
+  FREE: "bg-accent text-accent-foreground hover:opacity-90",
+  SILVER:
+    "bg-gradient-to-b from-slate-100 to-slate-400 text-slate-900 ring-1 ring-inset ring-slate-300/70 shadow-sm hover:brightness-[1.03]",
+  GOLD: "bg-gradient-to-b from-amber-300 to-amber-500 text-[#3a2600] ring-1 ring-inset ring-amber-400/70 shadow-sm hover:brightness-[1.03]",
+};
+
 export function PlanPicker({
   currentPlan,
   onSelect,
@@ -40,7 +49,7 @@ export function PlanPicker({
         </div>
       </div>
 
-      <div className="mt-5 grid gap-4 sm:grid-cols-3">
+      <div className="mt-6 grid gap-5 sm:grid-cols-3">
         {PLAN_ORDER.map((plan) => {
           const def = PLAN_DEFINITIONS[plan];
           const priceCents = interval === "ANNUAL" ? def.annualPriceCents : def.monthlyPriceCents;
@@ -50,28 +59,28 @@ export function PlanPicker({
             <div
               key={plan}
               className={cn(
-                "card flex flex-col gap-3 p-5",
+                "card flex flex-col gap-5 p-7",
                 plan === "GOLD" && "border-gold/50 bg-gold/5"
               )}
             >
               <div>
-                <p className="flex items-center gap-1.5 font-semibold">
+                <p className="flex items-center gap-1.5 text-lg font-semibold">
                   {def.label}
                   {plan === "GOLD" && <span className="text-gold">★</span>}
                 </p>
-                <p className="mt-1 text-2xl font-bold">
+                <p className="mt-1 text-3xl font-bold">
                   {priceCents ? formatCents(priceCents) : "$0"}
-                  <span className="text-sm font-normal text-muted">
+                  <span className="text-base font-normal text-muted">
                     {priceCents ? `/${interval === "ANNUAL" ? "yr" : "mo"}` : ""}
                   </span>
                 </p>
                 <p className="text-sm text-muted">{def.commissionPercent}% commission</p>
               </div>
 
-              <ul className="flex flex-1 flex-col gap-1.5 text-sm">
+              <ul className="flex flex-1 flex-col gap-2.5 text-[15px] leading-snug text-foreground">
                 {def.perks.map((perk) => (
-                  <li key={perk} className="flex items-start gap-1.5 text-muted">
-                    <Check className="mt-0.5 h-3.5 w-3.5 shrink-0 text-accent" />
+                  <li key={perk} className="flex items-start gap-2">
+                    <Check className="mt-0.5 h-4 w-4 shrink-0 text-accent" />
                     {perk}
                   </li>
                 ))}
@@ -82,10 +91,8 @@ export function PlanPicker({
                 disabled={disabled || isCurrent}
                 onClick={() => onSelect(plan, interval)}
                 className={cn(
-                  "rounded-lg py-2 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-60",
-                  plan === "GOLD"
-                    ? "bg-gold text-[#1a1204] hover:opacity-90"
-                    : "bg-accent text-accent-foreground hover:opacity-90"
+                  "rounded-lg py-2.5 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-60",
+                  PLAN_BUTTON_STYLES[plan]
                 )}
               >
                 {isCurrent ? "Current plan" : plan === "FREE" ? "Choose Free" : `Choose ${def.label}`}

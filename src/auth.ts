@@ -15,6 +15,11 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     Google({
       clientId: process.env.AUTH_GOOGLE_ID,
       clientSecret: process.env.AUTH_GOOGLE_SECRET,
+      // Google verifies email ownership, so it's safe to link a Google sign-in
+      // to an existing account created with the same email via email/password.
+      // Without this, that flow fails with OAuthAccountNotLinked and the
+      // "Continue with Google" button appears to do nothing.
+      allowDangerousEmailAccountLinking: true,
     }),
     Credentials({
       name: "Email and password",

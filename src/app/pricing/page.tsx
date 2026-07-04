@@ -11,7 +11,12 @@ const PLAN_ORDER: HandicapperPlan[] = ["FREE", "SILVER", "GOLD"];
 
 export default function PricingPage() {
   return (
-    <div className="container-page py-16">
+    <div className="relative overflow-hidden">
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-0 bg-[url('/auth-bg.svg')] bg-cover bg-center"
+      />
+      <div className="container-page relative py-16">
       <div className="mx-auto max-w-2xl text-center">
         <h1 className="text-4xl font-bold">Turn your picks into income</h1>
         <p className="mt-4 text-muted">
@@ -43,9 +48,9 @@ export default function PricingPage() {
                 <p className="mt-4 text-sm font-medium text-accent">{def.commissionPercent}% commission</p>
               </div>
 
-              <ul className="mt-6 flex flex-1 flex-col gap-3">
+              <ul className="mt-6 flex flex-1 flex-col gap-3 text-[15px] leading-snug text-foreground">
                 {def.perks.map((perk) => (
-                  <li key={perk} className="flex items-start gap-2 text-sm text-muted">
+                  <li key={perk} className="flex items-start gap-2">
                     <Check className="mt-0.5 h-4 w-4 shrink-0 text-accent" />
                     {perk}
                   </li>
@@ -69,6 +74,7 @@ export default function PricingPage() {
       <p className="mx-auto mt-8 max-w-2xl text-center text-sm text-muted">
         No setup fees, no monthly minimums on Free. You can change plans any time from your dashboard.
       </p>
+      </div>
     </div>
   );
 }

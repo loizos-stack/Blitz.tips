@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { signIn } from "next-auth/react";
 import { TrendingUp, Megaphone } from "lucide-react";
+import { GoogleIcon } from "@/components/google-icon";
 
 function RoleChooser() {
   return (
@@ -115,8 +116,9 @@ function SignUpForm({ as }: { as: "subscriber" | "handicapper" }) {
 
         <button
           onClick={() => signIn("google", { callbackUrl: destination })}
-          className="mt-6 w-full rounded-lg border border-border py-2.5 text-sm font-medium hover:border-muted"
+          className="mt-6 flex w-full items-center justify-center gap-2.5 rounded-lg border border-border bg-white py-2.5 text-sm font-medium text-neutral-800 hover:bg-neutral-50"
         >
+          <GoogleIcon className="h-4 w-4" />
           Continue with Google
         </button>
 
@@ -192,8 +194,16 @@ function SignUpRouter() {
 
 export default function SignUpPage() {
   return (
-    <Suspense fallback={null}>
-      <SignUpRouter />
-    </Suspense>
+    <div className="relative overflow-hidden">
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-0 bg-[url('/auth-bg.svg')] bg-cover bg-center"
+      />
+      <div className="relative">
+        <Suspense fallback={null}>
+          <SignUpRouter />
+        </Suspense>
+      </div>
+    </div>
   );
 }
