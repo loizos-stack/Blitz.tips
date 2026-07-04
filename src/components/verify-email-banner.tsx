@@ -5,11 +5,19 @@ import { MailWarning } from "lucide-react";
 
 export function VerifyEmailBanner() {
   const [state, setState] = useState<"idle" | "sending" | "sent" | "error">("idle");
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   async function resend() {
     setState("sending");
+    setErrorMsg(null);
     const res = await fetch("/api/verify-email/resend", { method: "POST" });
-    setState(res.ok ? "sent" : "error");
+    if (res.ok) {
+      setState("sent");
+    } else {
+      const body = await res.json().catch(() => ({}));
+      setErrorMsg(body.error ?? null);
+      setState("error");
+    }
   }
 
   return (
@@ -21,14 +29,19 @@ export function VerifyEmailBanner() {
       {state === "sent" ? (
         <span className="font-medium text-accent">Verification email sent ✓</span>
       ) : (
-        <button
-          type="button"
-          onClick={resend}
-          disabled={state === "sending"}
-          className="shrink-0 font-semibold text-gold hover:underline disabled:opacity-60"
-        >
-          {state === "sending" ? "Sending…" : state === "error" ? "Retry" : "Resend email"}
-        </button>
+        <div className="flex shrink-0 flex-col items-end gap-0.5">
+          <button
+            type="button"
+            onClick={resend}
+            disabled={state === "sending"}
+            className="font-semibold text-gold hover:underline disabled:opacity-60"
+          >
+            {state === "sending" ? "Sending…" : state === "error" ? "Retry" : "Resend email"}
+          </button>
+          {state === "error" && errorMsg && (
+            <span className="max-w-[16rem] text-right text-xs text-danger">{errorMsg}</span>
+          )}
+        </div>
       )}
     </div>
   );

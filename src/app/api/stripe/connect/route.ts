@@ -15,22 +15,31 @@ export async function POST() {
 
   let accountId = handicapper.stripeAccountId;
 
-  if (!accountId) {
-    const account = await stripe.accounts.create({
-      type: "express",
-      email: session.user.email ?? undefined,
-      business_type: "individual",
-      capabilities: {
-        transfers: { requested: true },
-        card_payments: { requested: true },
-      },
-      metadata: { handicapperId: handicapper.id, handle: handicapper.handle },
-    });
-    accountId = account.id;
-    await prisma.handicapperProfile.update({
-      where: { id: handicapper.id },
-      data: { stripeAccountId: accountId },
-    });
+  try {
+    if (!accountId) {
+      const account = await stripe.accounts.create({
+        type: "express",
+        email: session.user.email ?? undefined,
+        business_type: "individual",
+        capabilities: {
+          transfers: { requested: true },
+          card_payments: { requested: true },
+        },
+        metadata: { handicapperId: handicapper.id, handle: handicapper.handle },
+      });
+      accountId = account.id;
+      await prisma.handicapperProfile.update({
+        where: { id: handicapper.id },
+        data: { stripeAccountId: accountId },
+      });
+    }
+  } catch (error) {
+    // Surface the real reason (e.g. "Connect is not enabled" or a missing key)
+    // so it's actionable rather than a generic failure.
+    console.error("Stripe Connect account creation failed:", error);
+    const message =
+      error instanceof Error ? error.message : "Couldn't start Stripe onboarding.";
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 
   // Ensure the subscriber Product/Price exist — they may be missing if Stripe
@@ -61,12 +70,18 @@ export async function POST() {
     }
   }
 
-  const accountLink = await stripe.accountLinks.create({
-    account: accountId,
-    refresh_url: `${appUrl}/dashboard/handicapper`,
-    return_url: `${appUrl}/dashboard/handicapper`,
-    type: "account_onboarding",
-  });
-
-  return NextResponse.json({ url: accountLink.url });
+  try {
+    const accountLink = await stripe.accountLinks.create({
+      account: accountId,
+      refresh_url: `${appUrl}/dashboard/handicapper`,
+      return_url: `${appUrl}/dashboard/handicapper`,
+      type: "account_onboarding",
+    });
+    return NextResponse.json({ url: accountLink.url });
+  } catch (error) {
+    console.error("Stripe account link creation failed:", error);
+    const message =
+      error instanceof Error ? error.message : "Couldn't start Stripe onboarding.";
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
 }
