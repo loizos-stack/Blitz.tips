@@ -101,6 +101,7 @@ const ICONS: Partial<Record<PickSport, React.ComponentType<{ className?: string 
   NFL: Football,
   NCAAF: Football,
   NBA: Basketball,
+  WNBA: Basketball,
   NCAAB: Basketball,
   MLB: Baseball,
   NHL: HockeyPuck,

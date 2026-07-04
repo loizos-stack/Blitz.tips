@@ -11,14 +11,17 @@ import { getTeamLogoUrl } from "@/lib/team-logos";
 // cached entry per sport. Only the homepage's currently-selected tab fetches
 // eagerly (one sport per page load); the rest are opt-in via tabs, so real
 // usage tracks whichever sports actually get clicked, not a flat "all sports"
-// cost. Still, worst case matters: with all 8 sports on the homepage getting
-// steady traffic, REVALIDATE_SECONDS needs to be long enough that
-// 8 sports x (30 days / (REVALIDATE_SECONDS/24h)) x 3 credits stays near
-// 500/month. At 12h that worst case is 8 x 60 x 3 = 1,440 credits/month —
-// above the free tier if every sport is hit constantly, but real traffic
-// concentrates on a few popular sports, so actual usage should land well
-// under that ceiling. If it doesn't, either widen this further or upgrade
-// the-odds-api.com plan. Missing THE_ODDS_API_KEY degrades to
+// cost. Still, worst case matters: with every homepage sport getting steady
+// traffic, REVALIDATE_SECONDS needs to be long enough that
+// sports x (30 days / (REVALIDATE_SECONDS/24h)) x 3 credits stays near
+// 500/month. Soccer counts as up to MAX_SOCCER_LEAGUES "sports" here since it
+// fans out to that many billed odds calls, so the effective sport count is
+// ~8 single-league sports + MAX_SOCCER_LEAGUES. At 12h and the current caps
+// that worst case is roughly (8 + 5) x 60 x 3 ≈ 2,340 credits/month — above
+// the free tier if every tab is hit constantly, but real traffic concentrates
+// on a few popular sports, so actual usage should land well under that
+// ceiling. If it doesn't, widen REVALIDATE_SECONDS, lower MAX_SOCCER_LEAGUES,
+// or upgrade the-odds-api.com plan. Missing THE_ODDS_API_KEY degrades to
 // { configured: false } everywhere it's used, regardless of this value.
 const REVALIDATE_SECONDS = 12 * 60 * 60;
 
@@ -36,9 +39,12 @@ const GAME_IN_PROGRESS_WINDOW_MS = 4 * 60 * 60 * 1000;
 const API_BASE = process.env.ODDS_API_BASE ?? "https://api.the-odds-api.com/v4";
 
 // Sports we can serve from the API; everything else falls back to manual entry.
+// SOCCER's value here is only a fallback single league — soccer is normally
+// resolved to whatever leagues our tier has in season (see getSoccerLeagueKeys).
 const SPORT_KEYS: Partial<Record<PickSport, string>> = {
   NFL: "americanfootball_nfl",
   NBA: "basketball_nba",
+  WNBA: "basketball_wnba",
   MLB: "baseball_mlb",
   NHL: "icehockey_nhl",
   NCAAF: "americanfootball_ncaaf",
@@ -46,6 +52,38 @@ const SPORT_KEYS: Partial<Record<PickSport, string>> = {
   SOCCER: "soccer_epl",
   UFC_MMA: "mma_mixed_martial_arts",
 };
+
+// Soccer is special. Rather than pin to a single league, we pull whichever
+// soccer competitions our API tier currently has in season, discovered live
+// from the free /sports endpoint. This priority list surfaces the marquee
+// competitions first (World Cup and its qualifiers, the continental cups, the
+// top-five European leagues, MLS, the Euros/Copa); any other active league the
+// tier exposes still appears after these, up to MAX_SOCCER_LEAGUES. Leagues a
+// lower tier can't access (e.g. the World Cup on the free plan) simply 401/422
+// on their odds call and are skipped — so "whatever the tier allows" falls out
+// without us having to know the plan.
+const SOCCER_LEAGUE_PRIORITY = [
+  "soccer_fifa_world_cup",
+  "soccer_fifa_world_cup_qualifiers_europe",
+  "soccer_fifa_world_cup_qualifiers_conmebol",
+  "soccer_uefa_champs_league",
+  "soccer_uefa_europa_league",
+  "soccer_epl",
+  "soccer_spain_la_liga",
+  "soccer_italy_serie_a",
+  "soccer_germany_bundesliga",
+  "soccer_france_ligue_one",
+  "soccer_usa_mls",
+  "soccer_uefa_european_championship",
+  "soccer_conmebol_copa_america",
+];
+
+// Cap on how many soccer leagues we pull odds for at once. Each league is a
+// separate billed odds call (markets × regions = 3 credits), so this is the
+// main quota knob for soccer — raise it for more breadth, lower it to save
+// credits. League discovery (/sports) and the tab-availability check (/events)
+// are both free endpoints, so only this odds fan-out costs anything.
+const MAX_SOCCER_LEAGUES = 5;
 
 const PREFERRED_BOOKMAKERS = ["draftkings", "fanduel", "betmgm", "caesars"];
 
@@ -55,6 +93,7 @@ const PREFERRED_BOOKMAKERS = ["draftkings", "fanduel", "betmgm", "caesars"];
 export const HOMEPAGE_SPORTS: PickSport[] = [
   "NFL",
   "NBA",
+  "WNBA",
   "MLB",
   "NHL",
   "NCAAF",
@@ -62,6 +101,43 @@ export const HOMEPAGE_SPORTS: PickSport[] = [
   "SOCCER",
   "UFC_MMA",
 ];
+
+interface OddsApiSportEntry {
+  key: string;
+  group: string;
+  active: boolean;
+}
+
+// Discover the soccer leagues our tier currently has in season. The /sports
+// list is a free endpoint (doesn't count against the usage quota), so this is
+// cheap; it's cached on the same long window as odds. On failure we degrade to
+// the single fallback league so soccer never goes completely dark.
+async function getSoccerLeagueKeys(apiKey: string): Promise<string[]> {
+  const url = `${API_BASE}/sports?apiKey=${apiKey}`;
+  const res = await fetch(url, { next: { revalidate: REVALIDATE_SECONDS } });
+  if (!res.ok) return [SPORT_KEYS.SOCCER!];
+
+  const sports = (await res.json()) as OddsApiSportEntry[];
+  const active = new Set(
+    sports.filter((s) => s.group === "Soccer" && s.active).map((s) => s.key)
+  );
+  if (active.size === 0) return [];
+
+  // Marquee competitions first, then any other active league the tier exposes.
+  const ranked = [
+    ...SOCCER_LEAGUE_PRIORITY.filter((k) => active.has(k)),
+    ...[...active].filter((k) => !SOCCER_LEAGUE_PRIORITY.includes(k)),
+  ];
+  return ranked.slice(0, MAX_SOCCER_LEAGUES);
+}
+
+// The upstream sport key(s) backing one of our PickSports. Usually one; soccer
+// fans out to several leagues.
+async function resolveSportKeys(sport: PickSport, apiKey: string): Promise<string[]> {
+  if (sport === "SOCCER") return getSoccerLeagueKeys(apiKey);
+  const key = SPORT_KEYS[sport];
+  return key ? [key] : [];
+}
 
 function isSameUTCDate(a: Date, b: Date): boolean {
   return (
@@ -87,17 +163,29 @@ export async function getAvailableHomepageSports(): Promise<PickSport[]> {
   const now = new Date();
   const results = await Promise.all(
     HOMEPAGE_SPORTS.map(async (sport) => {
-      const sportKey = SPORT_KEYS[sport];
-      if (!sportKey) return { sport, hasToday: false, hasUpcoming: false };
+      const sportKeys = await resolveSportKeys(sport, apiKey);
+      if (sportKeys.length === 0) return { sport, hasToday: false, hasUpcoming: false };
 
-      const url = `${API_BASE}/sports/${sportKey}/events?apiKey=${apiKey}`;
-      const res = await fetch(url, { next: { revalidate: REVALIDATE_SECONDS } });
-      if (!res.ok) return { sport, hasToday: false, hasUpcoming: false };
+      // Check each backing league (usually one) via the free /events endpoint.
+      const perKey = await Promise.all(
+        sportKeys.map(async (sportKey) => {
+          const url = `${API_BASE}/sports/${sportKey}/events?apiKey=${apiKey}`;
+          const res = await fetch(url, { next: { revalidate: REVALIDATE_SECONDS } });
+          if (!res.ok) return { hasToday: false, hasUpcoming: false };
 
-      const events = (await res.json()) as { commence_time: string }[];
-      const hasToday = events.some((e) => isSameUTCDate(new Date(e.commence_time), now));
-      const hasUpcoming = events.some((e) => new Date(e.commence_time) > now);
-      return { sport, hasToday, hasUpcoming };
+          const events = (await res.json()) as { commence_time: string }[];
+          return {
+            hasToday: events.some((e) => isSameUTCDate(new Date(e.commence_time), now)),
+            hasUpcoming: events.some((e) => new Date(e.commence_time) > now),
+          };
+        })
+      );
+
+      return {
+        sport,
+        hasToday: perKey.some((r) => r.hasToday),
+        hasUpcoming: perKey.some((r) => r.hasUpcoming),
+      };
     })
   );
 
@@ -171,22 +259,23 @@ export function isSportSupported(sport: PickSport): boolean {
   return sport in SPORT_KEYS;
 }
 
-export async function getUpcomingEvents(sport: PickSport): Promise<OddsFeedResult> {
-  const apiKey = process.env.THE_ODDS_API_KEY;
-  if (!apiKey) return { configured: false, supported: false, events: [] };
-
-  const sportKey = SPORT_KEYS[sport];
-  if (!sportKey) return { configured: true, supported: false, events: [] };
-
+// Fetch and normalize the odds feed for a single upstream league key,
+// attaching live/final scores when a game in view has already started. A
+// failed request (bad key / out of season / quota / tier-gated league)
+// degrades to an empty list so one bad league never sinks the whole feed.
+async function fetchLeagueEvents(
+  sportKey: string,
+  sport: PickSport,
+  apiKey: string
+): Promise<UpcomingEvent[]> {
   const url =
     `${API_BASE}/sports/${sportKey}/odds` +
     `?apiKey=${apiKey}&regions=us&markets=h2h,spreads,totals&oddsFormat=american`;
 
   const res = await fetch(url, { next: { revalidate: REVALIDATE_SECONDS } });
   if (!res.ok) {
-    // 401 bad key / 422 out of season / 429 quota — all degrade to an empty feed.
     console.error(`Odds API request failed for ${sportKey}: ${res.status}`);
-    return { configured: true, supported: true, events: [] };
+    return [];
   }
 
   const data = (await res.json()) as OddsApiEvent[];
@@ -199,18 +288,41 @@ export async function getUpcomingEvents(sport: PickSport): Promise<OddsFeedResul
     .slice(0, 25)
     .map((event) => normalizeEvent(event, sport));
 
+  // Scores are billed per league, so only fetch them for this league if one of
+  // its games has actually started.
   const now = new Date();
-  const hasStarted = events.some((e) => new Date(e.commenceTime) <= now);
-  if (hasStarted) {
+  if (events.some((e) => new Date(e.commenceTime) <= now)) {
     const scores = await getScores(sportKey, apiKey);
     for (const event of events) {
       event.liveScore = scores.get(event.id) ?? null;
     }
   }
 
+  return events;
+}
+
+export async function getUpcomingEvents(sport: PickSport): Promise<OddsFeedResult> {
+  const apiKey = process.env.THE_ODDS_API_KEY;
+  if (!apiKey) return { configured: false, supported: false, events: [] };
+
+  if (!isSportSupported(sport)) return { configured: true, supported: false, events: [] };
+
+  const sportKeys = await resolveSportKeys(sport, apiKey);
+  if (sportKeys.length === 0) return { configured: true, supported: true, events: [] };
+
+  // Usually one league; soccer merges several. Fetch in parallel and combine.
+  const perLeague = await Promise.all(
+    sportKeys.map((key) => fetchLeagueEvents(key, sport, apiKey))
+  );
+  const events = perLeague
+    .flat()
+    .sort((a, b) => new Date(a.commenceTime).getTime() - new Date(b.commenceTime).getTime())
+    .slice(0, 25);
+
   // Prefer today's games (matching the "Today's lines" section they're shown
   // in); if this sport has nothing today, fall back to its next upcoming
   // games rather than showing nothing.
+  const now = new Date();
   const todayEvents = events.filter((e) => isSameUTCDate(new Date(e.commenceTime), now) || e.liveScore);
   const finalEvents = todayEvents.length > 0 ? todayEvents : events;
 

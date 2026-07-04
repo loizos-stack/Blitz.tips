@@ -29,6 +29,7 @@ enum PickResult {
 enum PickSport {
   NFL
   NBA
+  WNBA
   MLB
   NHL
   NCAAF

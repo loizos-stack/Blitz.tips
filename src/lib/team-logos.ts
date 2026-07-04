@@ -20,6 +20,7 @@ const CDN_BASE = "https://a.espncdn.com/i/teamlogos";
 const LEAGUE_PATH: Partial<Record<PickSport, string>> = {
   NFL: "nfl",
   NBA: "nba",
+  WNBA: "wnba",
   MLB: "mlb",
   NHL: "nhl",
 };
@@ -168,9 +169,26 @@ const NHL_TEAMS: Record<string, string> = {
   "winnipeg jets": "wpg",
 };
 
+const WNBA_TEAMS: Record<string, string> = {
+  "atlanta dream": "atl",
+  "chicago sky": "chi",
+  "connecticut sun": "conn",
+  "dallas wings": "dal",
+  "golden state valkyries": "gs",
+  "indiana fever": "ind",
+  "las vegas aces": "lv",
+  "los angeles sparks": "la",
+  "minnesota lynx": "min",
+  "new york liberty": "ny",
+  "phoenix mercury": "phx",
+  "seattle storm": "sea",
+  "washington mystics": "wsh",
+};
+
 const LEAGUE_TEAMS: Partial<Record<PickSport, Record<string, string>>> = {
   NFL: NFL_TEAMS,
   NBA: NBA_TEAMS,
+  WNBA: WNBA_TEAMS,
   MLB: MLB_TEAMS,
   NHL: NHL_TEAMS,
 };

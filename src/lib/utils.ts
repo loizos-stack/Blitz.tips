@@ -15,6 +15,7 @@ export function formatCents(cents: number): string {
 export const SPORT_LABELS: Record<string, string> = {
   NFL: "NFL",
   NBA: "NBA",
+  WNBA: "WNBA",
   MLB: "MLB",
   NHL: "NHL",
   NCAAF: "NCAAF",
