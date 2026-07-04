@@ -19,14 +19,15 @@ export default async function Home({
     getAvailableHomepageSports(),
   ]);
 
-  // availableSports is only empty when THE_ODDS_API_KEY is unset, in which
-  // case UpcomingGames bails out before this value is ever used — the "NFL"
-  // fallback just satisfies the type.
-  const sport: PickSport = availableSports.includes(params.sport as PickSport)
+  // Odds are fetched on demand: only when a visitor explicitly picks a sport
+  // tab (?sport=...). The bare homepage renders the tab bar without spending
+  // any odds-API credits — with the free tier's small quota, idle homepage
+  // traffic shouldn't burn calls nobody asked for.
+  const sport: PickSport | null = availableSports.includes(params.sport as PickSport)
     ? (params.sport as PickSport)
-    : (availableSports[0] ?? "NFL");
+    : null;
 
-  const oddsFeed = await getUpcomingEvents(sport);
+  const oddsFeed = sport ? await getUpcomingEvents(sport) : null;
   const featured = sortFeaturedFirst(handicappers, (a, b) => b.stats.unitsNet - a.stats.unitsNet).slice(0, 3);
 
   const totalPicks = handicappers.reduce((sum, h) => sum + h.stats.totalPicks, 0);

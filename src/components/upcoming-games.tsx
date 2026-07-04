@@ -50,11 +50,16 @@ export function UpcomingGames({
   feed,
   availableSports,
 }: {
-  sport: PickSport;
-  feed: OddsFeedResult;
+  // Null until the visitor picks a tab — odds are fetched on demand to
+  // conserve API credits, so the initial homepage render shows the tab bar
+  // with a prompt instead of a pre-fetched board.
+  sport: PickSport | null;
+  feed: OddsFeedResult | null;
   availableSports: PickSport[];
 }) {
-  if (!feed.configured) return null;
+  // Empty only when THE_ODDS_API_KEY is unset — hide the section entirely.
+  if (availableSports.length === 0) return null;
+  if (feed && !feed.configured) return null;
 
   return (
     <section className="relative overflow-hidden border-b border-border bg-surface/60 py-14">
@@ -88,7 +93,9 @@ export function UpcomingGames({
           </div>
         </div>
 
-        {!feed.supported ? (
+        {!sport || !feed ? (
+          <p className="text-muted">Pick a sport above to see the latest lines.</p>
+        ) : !feed.supported ? (
           <p className="text-muted">Live odds for {SPORT_LABELS[sport]} aren&apos;t available.</p>
         ) : feed.events.length === 0 ? (
           <p className="text-muted">No upcoming {SPORT_LABELS[sport]} games on the board right now.</p>

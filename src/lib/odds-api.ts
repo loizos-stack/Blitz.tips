@@ -11,24 +11,25 @@ import { getTeamLogoUrl } from "@/lib/team-logos";
 // cached entry per sport. Only the homepage's currently-selected tab fetches
 // eagerly (one sport per page load); the rest are opt-in via tabs, so real
 // usage tracks whichever sports actually get clicked, not a flat "all sports"
-// cost. Still, worst case matters: with every homepage sport getting steady
-// traffic, REVALIDATE_SECONDS needs to be long enough that
-// sports x (30 days / (REVALIDATE_SECONDS/24h)) x 3 credits stays near
-// 500/month. Soccer counts as up to MAX_SOCCER_LEAGUES "sports" here since it
-// fans out to that many billed odds calls, so the effective sport count is
-// ~8 single-league sports + MAX_SOCCER_LEAGUES. At 12h and the current caps
-// that worst case is roughly (8 + 5) x 60 x 3 ≈ 2,340 credits/month — above
-// the free tier if every tab is hit constantly, but real traffic concentrates
-// on a few popular sports, so actual usage should land well under that
-// ceiling. If it doesn't, widen REVALIDATE_SECONDS, lower MAX_SOCCER_LEAGUES,
-// or upgrade the-odds-api.com plan. Missing THE_ODDS_API_KEY degrades to
-// { configured: false } everywhere it's used, regardless of this value.
-const REVALIDATE_SECONDS = 12 * 60 * 60;
+// cost — and the homepage no longer fetches odds until a visitor explicitly
+// picks a sport tab (see src/app/page.tsx), so idle homepage traffic costs
+// nothing. Worst case still matters: with every sport tab getting clicked
+// daily, spend is sports x (30 days / (REVALIDATE_SECONDS/24h)) x 3 credits.
+// Soccer counts as up to MAX_SOCCER_LEAGUES "sports" here since it fans out
+// to that many billed odds calls. At 24h and the current caps that worst case
+// is roughly (8 + 2) x 30 x 3 ≈ 900 credits/month if literally every tab is
+// viewed every single day; real traffic concentrating on a few sports lands
+// well under the free tier's 500/month. If credits still run out, widen this
+// further, lower MAX_SOCCER_LEAGUES, or upgrade the the-odds-api.com plan.
+// Missing THE_ODDS_API_KEY degrades to { configured: false } everywhere.
+const REVALIDATE_SECONDS = 24 * 60 * 60;
 
 // Live scores are only fetched when a game already in view has started (see
-// getUpcomingEvents), so this can afford to be much shorter than
-// REVALIDATE_SECONDS without materially affecting the monthly quota.
-const SCORES_REVALIDATE_SECONDS = 5 * 60;
+// getUpcomingEvents), but each refresh is a billed call, and short windows
+// compound fast on game days (a 5-minute window during a 4h slate is ~50
+// billed calls). 30 minutes keeps scores reasonably fresh at ~1/15th the
+// cost; shorten it only after moving off the free tier.
+const SCORES_REVALIDATE_SECONDS = 30 * 60;
 
 // How far back a started game stays eligible for a live/final score before
 // it's dropped from the feed entirely — long enough to cover a full game in
@@ -82,8 +83,10 @@ const SOCCER_LEAGUE_PRIORITY = [
 // separate billed odds call (markets × regions = 3 credits), so this is the
 // main quota knob for soccer — raise it for more breadth, lower it to save
 // credits. League discovery (/sports) and the tab-availability check (/events)
-// are both free endpoints, so only this odds fan-out costs anything.
-const MAX_SOCCER_LEAGUES = 5;
+// are both free endpoints, so only this odds fan-out costs anything. Held at
+// 2 while on the free tier; the priority list still puts the marquee
+// competitions first, so these are the two biggest active ones.
+const MAX_SOCCER_LEAGUES = 2;
 
 // Books we request and the order we display them, Pinnacle first (the sharp
 // reference book, with full spreads/totals incl. soccer). Requested via The

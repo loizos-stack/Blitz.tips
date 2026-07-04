@@ -2,6 +2,7 @@ import Link from "next/link";
 import type { Metadata } from "next";
 import { listHandicapperSummaries, sortFeaturedFirst, type HandicapperSummary } from "@/lib/handicappers";
 import { Avatar } from "@/components/avatar";
+import { SportIcon } from "@/components/sport-icon";
 import { SPORT_LABELS } from "@/lib/utils";
 import { cn } from "@/lib/utils";
 import type { PickSport } from "@prisma/client";
@@ -69,10 +70,11 @@ export default async function LeaderboardPage({
               key={sport}
               href={`/leaderboard?sort=${sortKey}${sport !== "all" ? `&sport=${sport}` : ""}`}
               className={cn(
-                "rounded-full px-3 py-1 text-xs font-medium",
+                "flex items-center gap-1 rounded-full px-3 py-1 text-xs font-medium",
                 (sportFilter ?? "all") === sport ? "bg-surface-raised text-foreground" : "text-muted hover:text-foreground"
               )}
             >
+              {sport !== "all" && <SportIcon sport={sport as PickSport} className="h-3.5 w-3.5" />}
               {sport === "all" ? "All sports" : SPORT_LABELS[sport]}
             </Link>
           ))}
