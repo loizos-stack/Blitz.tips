@@ -2,7 +2,7 @@ import Link from "next/link";
 import type { Metadata } from "next";
 import { listHandicapperSummaries, sortFeaturedFirst, type HandicapperSummary } from "@/lib/handicappers";
 import { Avatar } from "@/components/avatar";
-import { SportIcon } from "@/components/sport-icon";
+import { SportFilterSelect } from "@/components/sport-filter-select";
 import { SPORT_LABELS } from "@/lib/utils";
 import { cn } from "@/lib/utils";
 import type { PickSport } from "@prisma/client";
@@ -37,8 +37,6 @@ export default async function LeaderboardPage({
 
   const sorted = sortFeaturedFirst(filtered, (a, b) => SORTS[sortKey].fn(b) - SORTS[sortKey].fn(a));
 
-  const sportOptions = ["all", ...Object.keys(SPORT_LABELS)];
-
   return (
     <div className="relative overflow-hidden">
       <div
@@ -53,37 +51,20 @@ export default async function LeaderboardPage({
         </p>
       </div>
 
-      <div className="mb-6 flex flex-wrap items-center gap-3">
-        <div className="flex flex-wrap gap-2">
-          {(Object.keys(SORTS) as SortKey[]).map((key) => (
-            <Link
-              key={key}
-              href={`/leaderboard?sort=${key}${sportFilter ? `&sport=${sportFilter}` : ""}`}
-              className={cn(
-                "rounded-full border px-3 py-1.5 text-sm font-medium",
-                sortKey === key ? "border-accent bg-accent/10 text-accent" : "border-border text-muted hover:text-foreground"
-              )}
-            >
-              {SORTS[key].label}
-            </Link>
-          ))}
-        </div>
-
-        <div className="flex flex-wrap gap-2 md:ml-auto">
-          {sportOptions.map((sport) => (
-            <Link
-              key={sport}
-              href={`/leaderboard?sort=${sortKey}${sport !== "all" ? `&sport=${sport}` : ""}`}
-              className={cn(
-                "flex items-center gap-1 rounded-full px-3 py-1 text-xs font-medium",
-                (sportFilter ?? "all") === sport ? "bg-surface-raised text-foreground" : "text-muted hover:text-foreground"
-              )}
-            >
-              {sport !== "all" && <SportIcon sport={sport as PickSport} className="h-3.5 w-3.5" />}
-              {sport === "all" ? "All sports" : SPORT_LABELS[sport]}
-            </Link>
-          ))}
-        </div>
+      <div className="mb-6 flex flex-wrap items-center gap-2">
+        {(Object.keys(SORTS) as SortKey[]).map((key) => (
+          <Link
+            key={key}
+            href={`/leaderboard?sort=${key}${sportFilter ? `&sport=${sportFilter}` : ""}`}
+            className={cn(
+              "rounded-full border px-3 py-1.5 text-sm font-medium",
+              sortKey === key ? "border-accent bg-accent/10 text-accent" : "border-border text-muted hover:text-foreground"
+            )}
+          >
+            {SORTS[key].label}
+          </Link>
+        ))}
+        <SportFilterSelect sort={sortKey} sport={sportFilter} />
       </div>
 
       <div className="card overflow-hidden">
