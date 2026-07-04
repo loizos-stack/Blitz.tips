@@ -64,20 +64,65 @@ function HockeyPuck({ className }: { className?: string }) {
   );
 }
 
-// Whistle — reads clearly at small sizes and stands out on the light theme,
-// unlike a white ball.
-function Whistle({ className }: { className?: string }) {
+// Classic pentagon ball with a bold outline so it doesn't wash out on the
+// light theme.
+function SoccerBall({ className }: { className?: string }) {
   return (
     <svg viewBox="0 0 24 24" className={className}>
+      <circle cx="12" cy="12" r="9.5" fill="#f2f3f5" stroke="#79808b" strokeWidth={1.2} />
+      <path d="M12 7.6l3.8 2.8-1.5 4.4H9.7l-1.5-4.4L12 7.6z" fill="#1f2430" />
+      <g stroke="#1f2430" strokeWidth={1.4} strokeLinecap="round" fill="none">
+        <path d="M12 2.8v4.8" />
+        <path d="M3.6 9.2l4.9 1.2" />
+        <path d="M6.4 19.2l3.3-4.4" />
+        <path d="M17.6 19.2l-3.3-4.4" />
+        <path d="M20.4 9.2l-4.9 1.2" />
+      </g>
+    </svg>
+  );
+}
+
+// Flag in the cup on a green — reads as golf even at 14px.
+function GolfFlag({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" className={className}>
+      <ellipse cx="12" cy="19" rx="8.5" ry="3" fill="#4caf50" />
+      <path d="M10.5 4.5v13" stroke="#6b7280" strokeWidth={1.5} strokeLinecap="round" />
+      <path d="M10.5 4l7 2.3-7 2.4z" fill="#e53935" />
+      <circle cx="15.8" cy="18.2" r="1.7" fill="#ffffff" stroke="#c4c8cd" strokeWidth={0.7} />
+    </svg>
+  );
+}
+
+// Optic-yellow ball with white seams.
+function TennisBall({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" className={className}>
+      <circle cx="12" cy="12" r="9.5" fill="#cddc39" stroke="#9eb020" strokeWidth={0.8} />
       <path
-        d="M11.5 8H20a1.5 1.5 0 0 1 1.5 1.5c0 4.4-3.6 8-8 8a6.5 6.5 0 0 1-6.4-5.4L6 8.5A1.5 1.5 0 0 1 7.5 7h.6"
-        fill="#0ea5a0"
-        stroke="#0b6b67"
-        strokeWidth={0.8}
-        strokeLinejoin="round"
+        d="M4.4 6.4c3.7 1.8 3.7 9.4 0 11.2M19.6 6.4c-3.7 1.8-3.7 9.4 0 11.2"
+        stroke="#fdfdf5"
+        strokeWidth={1.7}
+        fill="none"
+        strokeLinecap="round"
       />
-      <circle cx="13" cy="12.2" r="2.6" fill="#e6fffb" />
-      <path d="M9 4.6l1.8 3.1" stroke="#0b6b67" strokeWidth={1.6} strokeLinecap="round" />
+    </svg>
+  );
+}
+
+// Gold trophy — the catch-all for "Other" and anything without its own mark.
+function Trophy({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" className={className}>
+      <path d="M7 3.5h10V9a5 5 0 0 1-10 0V3.5z" fill="#eab308" stroke="#a16207" strokeWidth={0.8} />
+      <path
+        d="M7 4.8H4.2c.1 3 1.4 4.7 3.3 5.1M17 4.8h2.8c-.1 3-1.4 4.7-3.3 5.1"
+        stroke="#a16207"
+        strokeWidth={1.3}
+        fill="none"
+      />
+      <path d="M10.9 13.7h2.2v3h-2.2z" fill="#a16207" />
+      <path d="M8.3 16.7h7.4c.4 0 .8.34.8.75v1.55H7.5v-1.55c0-.41.36-.75.8-.75z" fill="#854d0e" />
     </svg>
   );
 }
@@ -106,11 +151,14 @@ const ICONS: Partial<Record<PickSport, React.ComponentType<{ className?: string 
   NCAAB: Basketball,
   MLB: Baseball,
   NHL: HockeyPuck,
-  SOCCER: Whistle,
+  SOCCER: SoccerBall,
   UFC_MMA: Octagon,
+  GOLF: GolfFlag,
+  TENNIS: TennisBall,
+  OTHER: Trophy,
 };
 
 export function SportIcon({ sport, className }: { sport: PickSport; className?: string }) {
-  const Icon = ICONS[sport] ?? Football;
+  const Icon = ICONS[sport] ?? Trophy;
   return <Icon className={className} />;
 }
