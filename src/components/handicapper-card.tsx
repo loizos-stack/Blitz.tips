@@ -10,32 +10,42 @@ export function HandicapperCard({ handicapper, rank }: { handicapper: Handicappe
   return (
     <Link
       href={`/handicappers/${handicapper.handle}`}
-      className={`card group flex flex-col gap-4 p-5 transition-colors hover:border-accent/60 ${
+      className={`card group flex flex-col overflow-hidden p-0 transition-colors hover:border-accent/60 ${
         handicapper.isFeatured ? "border-gold/50 bg-gold/5" : ""
       }`}
     >
-      <div className="flex items-center gap-3">
-        {rank !== undefined && (
-          <span className="w-6 shrink-0 text-center text-sm font-bold text-muted">#{rank}</span>
+      <div className="relative h-20 w-full overflow-hidden bg-gradient-to-r from-accent/20 via-surface-raised to-gold/15">
+        {handicapper.coverUrl && (
+          // eslint-disable-next-line @next/next/no-img-element -- user-uploaded cover (Vercel Blob URL)
+          <img src={handicapper.coverUrl} alt="" className="h-full w-full object-cover" />
         )}
-        <Avatar
-          src={handicapper.avatarUrl}
-          name={handicapper.displayName}
-          className="h-11 w-11 shrink-0 rounded-full text-base"
-        />
-        <div className="min-w-0">
-          <div className="flex items-center gap-1.5">
-            <p className="truncate font-semibold group-hover:text-accent">{handicapper.displayName}</p>
-            {handicapper.isVerified && <BadgeCheck className="h-4 w-4 shrink-0 text-accent" />}
-            {handicapper.isFeatured && (
-              <span className="shrink-0 rounded-full bg-gold/15 px-1.5 py-0.5 text-[10px] font-semibold text-gold">
-                FEATURED
-              </span>
-            )}
-          </div>
-          <p className="truncate text-sm text-muted">@{handicapper.handle}</p>
-        </div>
+        {rank !== undefined && (
+          <span className="absolute left-2 top-2 rounded-full bg-black/55 px-2 py-0.5 text-xs font-bold text-white">
+            #{rank}
+          </span>
+        )}
       </div>
+
+      <div className="flex flex-1 flex-col gap-4 px-5 pb-5">
+        <div className="flex items-center gap-3">
+          <Avatar
+            src={handicapper.avatarUrl}
+            name={handicapper.displayName}
+            className="-mt-8 h-16 w-16 shrink-0 rounded-full border-4 border-surface text-base"
+          />
+          <div className="min-w-0 pt-1">
+            <div className="flex items-center gap-1.5">
+              <p className="truncate font-semibold group-hover:text-accent">{handicapper.displayName}</p>
+              {handicapper.isVerified && <BadgeCheck className="h-4 w-4 shrink-0 text-accent" />}
+              {handicapper.isFeatured && (
+                <span className="shrink-0 rounded-full bg-gold/15 px-1.5 py-0.5 text-[10px] font-semibold text-gold">
+                  FEATURED
+                </span>
+              )}
+            </div>
+            <p className="truncate text-sm text-muted">@{handicapper.handle}</p>
+          </div>
+        </div>
 
       <div className="flex flex-wrap gap-1.5">
         {handicapper.sports.slice(0, 4).map((sport) => (
@@ -64,6 +74,7 @@ export function HandicapperCard({ handicapper, rank }: { handicapper: Handicappe
       </div>
 
       <p className="text-sm text-muted">{formatCents(handicapper.monthlyPriceCents)}/mo</p>
+      </div>
     </Link>
   );
 }
