@@ -13,6 +13,7 @@ import { CreatePickForm } from "@/components/create-pick-form";
 import { HandicapperPickRow } from "@/components/handicapper-pick-row";
 import { ManagePlanCard } from "@/components/manage-plan-card";
 import { ProfileImagesForm } from "@/components/profile-images-form";
+import { VerifyEmailBanner } from "@/components/verify-email-banner";
 
 export const metadata: Metadata = { title: "Handicapper dashboard" };
 export const dynamic = "force-dynamic";
@@ -21,14 +22,23 @@ export default async function HandicapperDashboardPage() {
   const session = await auth();
   if (!session) redirect("/signin?callbackUrl=/dashboard/handicapper");
 
-  const handicapper = await prisma.handicapperProfile.findUnique({
-    where: { userId: session.user.id },
-    include: { picks: { orderBy: { eventStartsAt: "desc" } } },
-  });
+  const [handicapper, currentUser] = await Promise.all([
+    prisma.handicapperProfile.findUnique({
+      where: { userId: session.user.id },
+      include: { picks: { orderBy: { eventStartsAt: "desc" } } },
+    }),
+    prisma.user.findUnique({
+      where: { id: session.user.id },
+      select: { emailVerified: true },
+    }),
+  ]);
+
+  const unverified = !currentUser?.emailVerified;
 
   if (!handicapper) {
     return (
-      <div className="container-page py-12">
+      <div className="container-page space-y-6 py-12">
+        {unverified && <VerifyEmailBanner />}
         <BecomeHandicapperForm />
       </div>
     );
@@ -57,6 +67,12 @@ export default async function HandicapperDashboardPage() {
           </p>
         </div>
       </div>
+
+      {unverified && (
+        <div className="mt-6">
+          <VerifyEmailBanner />
+        </div>
+      )}
 
       <div className="mt-6">
         <ProfileImagesForm

@@ -3,12 +3,17 @@ import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { stripe } from "@/lib/stripe";
 import { commissionPercentForPlan } from "@/lib/plans";
+import { isEmailVerified } from "@/lib/verification";
 
 const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
 
 export async function POST(request: Request) {
   const session = await auth();
   if (!session) return NextResponse.json({ error: "Sign in required" }, { status: 401 });
+
+  if (!(await isEmailVerified(session.user.id))) {
+    return NextResponse.json({ error: "Please verify your email before subscribing." }, { status: 403 });
+  }
 
   const body = await request.json().catch(() => null);
   const handicapperId = body?.handicapperId;

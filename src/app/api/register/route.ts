@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
 import { registerSchema } from "@/lib/validations";
+import { sendVerificationEmail } from "@/lib/verification";
 
 export async function POST(request: Request) {
   const body = await request.json().catch(() => null);
@@ -25,6 +26,11 @@ export async function POST(request: Request) {
     data: { name, email: normalizedEmail, passwordHash },
     select: { id: true, email: true, name: true },
   });
+
+  // Best-effort: a verification email failure shouldn't block registration.
+  await sendVerificationEmail(normalizedEmail).catch((e) =>
+    console.error("Failed to send verification email:", e)
+  );
 
   return NextResponse.json({ user }, { status: 201 });
 }

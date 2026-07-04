@@ -5,6 +5,7 @@ import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { PickCard } from "@/components/pick-card";
 import { ManageBillingButton } from "@/components/manage-billing-button";
+import { VerifyEmailBanner } from "@/components/verify-email-banner";
 
 export const metadata: Metadata = { title: "Dashboard" };
 export const dynamic = "force-dynamic";
@@ -12,6 +13,11 @@ export const dynamic = "force-dynamic";
 export default async function DashboardPage() {
   const session = await auth();
   if (!session) redirect("/signin?callbackUrl=/dashboard");
+
+  const currentUser = await prisma.user.findUnique({
+    where: { id: session.user.id },
+    select: { emailVerified: true },
+  });
 
   const subscriptions = await prisma.subscription.findMany({
     where: { subscriberId: session.user.id, status: "ACTIVE" },
@@ -34,6 +40,12 @@ export default async function DashboardPage() {
     <div className="container-page py-12">
       <h1 className="text-3xl font-bold">Your feed</h1>
       <p className="mt-2 text-muted">Picks from the handicappers you follow.</p>
+
+      {!currentUser?.emailVerified && (
+        <div className="mt-6">
+          <VerifyEmailBanner />
+        </div>
+      )}
 
       <div className="mt-8 flex flex-col gap-8 lg:flex-row">
         <div className="flex-1">

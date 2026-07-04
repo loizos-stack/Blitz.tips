@@ -2,11 +2,16 @@ import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { createPickSchema } from "@/lib/validations";
+import { isEmailVerified } from "@/lib/verification";
 import type { BetType, PickSport } from "@prisma/client";
 
 export async function POST(request: Request) {
   const session = await auth();
   if (!session) return NextResponse.json({ error: "Sign in required" }, { status: 401 });
+
+  if (!(await isEmailVerified(session.user.id))) {
+    return NextResponse.json({ error: "Please verify your email before posting picks." }, { status: 403 });
+  }
 
   const handicapper = await prisma.handicapperProfile.findUnique({ where: { userId: session.user.id } });
   if (!handicapper) {
