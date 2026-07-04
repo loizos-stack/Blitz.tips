@@ -2,12 +2,9 @@ import "server-only";
 import { randomBytes } from "node:crypto";
 import { prisma } from "@/lib/prisma";
 import { sendEmail, verificationEmailHtml } from "@/lib/email";
+import { siteUrl } from "@/lib/site";
 
 const TOKEN_TTL_MS = 24 * 60 * 60 * 1000;
-
-function appUrl(): string {
-  return process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
-}
 
 /**
  * Create a fresh email-verification token for an address (replacing any prior
@@ -22,7 +19,7 @@ export async function sendVerificationEmail(email: string): Promise<void> {
   await prisma.verificationToken.deleteMany({ where: { identifier } });
   await prisma.verificationToken.create({ data: { identifier, token, expires } });
 
-  const url = `${appUrl()}/verify-email?token=${token}`;
+  const url = `${siteUrl()}/verify-email?token=${token}`;
 
   // Without an email provider configured, surface the link in logs so local
   // dev can still complete verification.

@@ -4,8 +4,9 @@ import { prisma } from "@/lib/prisma";
 import { stripe } from "@/lib/stripe";
 import { commissionPercentForPlan } from "@/lib/plans";
 import { isEmailVerified } from "@/lib/verification";
+import { siteUrl } from "@/lib/site";
 
-const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
+const appUrl = siteUrl();
 
 export async function POST(request: Request) {
   const session = await auth();

@@ -2,9 +2,10 @@ import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { stripe, getOrCreatePlanPrice } from "@/lib/stripe";
+import { siteUrl } from "@/lib/site";
 import type { BillingInterval, HandicapperPlan } from "@prisma/client";
 
-const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
+const appUrl = siteUrl();
 
 export async function POST(request: Request) {
   const session = await auth();
