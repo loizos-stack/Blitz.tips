@@ -52,9 +52,9 @@ export function NavBar() {
               )}
               <Link
                 href={session.user.role === "HANDICAPPER" ? "/dashboard/handicapper" : "/dashboard"}
-                className="text-sm font-medium text-white/60 hover:text-white"
+                className="rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-accent-foreground hover:opacity-90"
               >
-                Dashboard
+                Go to Dashboard
               </Link>
               <button
                 onClick={() => signOut({ callbackUrl: "/" })}
@@ -114,10 +114,10 @@ export function NavBar() {
                   )}
                   <Link
                     href={session.user.role === "HANDICAPPER" ? "/dashboard/handicapper" : "/dashboard"}
-                    className="rounded-lg px-2 py-2.5 text-sm font-medium text-white/60 hover:bg-white/5 hover:text-white"
+                    className="rounded-lg bg-accent px-4 py-2.5 text-center text-sm font-semibold text-accent-foreground"
                     onClick={() => setOpen(false)}
                   >
-                    Dashboard
+                    Go to Dashboard
                   </Link>
                   <button
                     onClick={() => signOut({ callbackUrl: "/" })}
