@@ -33,8 +33,8 @@ export function NavBar() {
               key={link.href}
               href={link.href}
               className={cn(
-                "text-sm font-medium transition-colors hover:text-white",
-                pathname?.startsWith(link.href) ? "text-white" : "text-white/60"
+                "text-sm font-bold transition-colors hover:text-white",
+                pathname?.startsWith(link.href) ? "text-white" : "text-white/90"
               )}
             >
               {link.label}
@@ -65,7 +65,7 @@ export function NavBar() {
             </>
           ) : (
             <>
-              <Link href="/signin" className="text-sm font-medium text-white/60 hover:text-white">
+              <Link href="/signin" className="text-sm font-bold text-white/90 hover:text-white">
                 Sign in
               </Link>
               <Link
@@ -94,7 +94,7 @@ export function NavBar() {
               <Link
                 key={link.href}
                 href={link.href}
-                className="rounded-lg px-2 py-2.5 text-sm font-medium text-white/60 hover:bg-white/5 hover:text-white"
+                className="rounded-lg px-2 py-2.5 text-sm font-bold text-white/90 hover:bg-white/5 hover:text-white"
                 onClick={() => setOpen(false)}
               >
                 {link.label}
@@ -130,7 +130,7 @@ export function NavBar() {
                 <>
                   <Link
                     href="/signin"
-                    className="rounded-lg px-2 py-2.5 text-sm font-medium text-white/60 hover:bg-white/5 hover:text-white"
+                    className="rounded-lg px-2 py-2.5 text-sm font-bold text-white/90 hover:bg-white/5 hover:text-white"
                     onClick={() => setOpen(false)}
                   >
                     Sign in
