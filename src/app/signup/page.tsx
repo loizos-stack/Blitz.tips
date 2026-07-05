@@ -67,7 +67,9 @@ function SignUpForm({ as }: { as: "subscriber" | "handicapper" }) {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
-  const destination = as === "handicapper" ? "/dashboard/handicapper" : "/dashboard";
+  // Handicappers go straight to their dashboard to build a profile; subscribers
+  // (and any admin-email account) go through the role-aware resolver.
+  const destination = as === "handicapper" ? "/dashboard/handicapper" : "/welcome";
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();

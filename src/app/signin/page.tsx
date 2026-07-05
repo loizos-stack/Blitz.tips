@@ -17,7 +17,9 @@ const OAUTH_ERRORS: Record<string, string> = {
 function SignInForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const callbackUrl = searchParams.get("callbackUrl") ?? "/dashboard";
+  // Default to the role-aware resolver so each account lands on its own
+  // dashboard; an explicit callbackUrl (e.g. a page they were bounced from) wins.
+  const callbackUrl = searchParams.get("callbackUrl") ?? "/welcome";
   const oauthError = searchParams.get("error");
 
   const [email, setEmail] = useState("");
