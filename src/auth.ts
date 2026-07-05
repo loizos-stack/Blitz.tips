@@ -50,11 +50,29 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       if (trigger === "update" || !token.role) {
         const dbUser = await prisma.user.findUnique({
           where: { id: (token.userId as string | undefined) ?? undefined },
-          select: { role: true, handicapper: { select: { handle: true } } },
+          select: { email: true, role: true, handicapper: { select: { handle: true } } },
         });
         if (dbUser) {
           token.role = dbUser.role;
           token.handicapperHandle = dbUser.handicapper?.handle ?? null;
+
+          // Emails listed in ADMIN_EMAILS are admins — this bootstraps the
+          // first admin without any manual database edit, and persists the
+          // role so admin shows up correctly in user lists.
+          const adminEmails = (process.env.ADMIN_EMAILS ?? "")
+            .split(",")
+            .map((e) => e.trim().toLowerCase())
+            .filter(Boolean);
+          if (
+            dbUser.role !== "ADMIN" &&
+            dbUser.email &&
+            adminEmails.includes(dbUser.email.toLowerCase())
+          ) {
+            token.role = "ADMIN";
+            await prisma.user
+              .update({ where: { email: dbUser.email }, data: { role: "ADMIN" } })
+              .catch(() => undefined);
+          }
         }
       }
       return token;

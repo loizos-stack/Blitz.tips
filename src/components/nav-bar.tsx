@@ -45,6 +45,11 @@ export function NavBar() {
         <div className="hidden md:flex items-center gap-3">
           {status === "authenticated" ? (
             <>
+              {session.user.role === "ADMIN" && (
+                <Link href="/admin" className="text-sm font-medium text-gold hover:text-white">
+                  Admin
+                </Link>
+              )}
               <Link
                 href={session.user.role === "HANDICAPPER" ? "/dashboard/handicapper" : "/dashboard"}
                 className="text-sm font-medium text-white/60 hover:text-white"
@@ -98,6 +103,15 @@ export function NavBar() {
             <div className="mt-2 flex flex-col gap-2 border-t border-white/10 pt-3">
               {status === "authenticated" ? (
                 <>
+                  {session.user.role === "ADMIN" && (
+                    <Link
+                      href="/admin"
+                      className="rounded-lg px-2 py-2.5 text-sm font-medium text-gold hover:bg-white/5"
+                      onClick={() => setOpen(false)}
+                    >
+                      Admin
+                    </Link>
+                  )}
                   <Link
                     href={session.user.role === "HANDICAPPER" ? "/dashboard/handicapper" : "/dashboard"}
                     className="rounded-lg px-2 py-2.5 text-sm font-medium text-white/60 hover:bg-white/5 hover:text-white"
