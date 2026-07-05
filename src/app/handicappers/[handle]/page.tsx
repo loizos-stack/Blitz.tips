@@ -39,6 +39,10 @@ export default async function HandicapperProfilePage({
   const session = await auth();
   const isOwner = session?.user.id && handicapper.userId === session.user.id;
 
+  // Suspended profiles disappear from the public site; the owner and admins
+  // can still open them (the owner sees the suspension notice below).
+  if (handicapper.suspendedAt && !isOwner && session?.user.role !== "ADMIN") notFound();
+
   let isSubscribed = false;
   if (session?.user.id && !isOwner) {
     const sub = await prisma.subscription.findUnique({
@@ -61,6 +65,12 @@ export default async function HandicapperProfilePage({
         )}
       </div>
       <div className="container-page pb-12">
+      {handicapper.suspendedAt && (
+        <div className="mb-6 rounded-lg border border-danger/40 bg-danger/10 px-4 py-3 text-sm">
+          This profile is suspended and hidden from the public site. Contact support if you believe
+          this is a mistake.
+        </div>
+      )}
       <div className="flex flex-col gap-6 md:flex-row md:items-start md:justify-between">
         <div className="flex items-start gap-4">
           <Avatar

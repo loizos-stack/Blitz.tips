@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/admin";
+import { logAdmin } from "@/lib/audit";
 import { settlePickSchema } from "@/lib/validations";
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -16,8 +17,13 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
 
   await prisma.pick.update({
     where: { id },
-    data: { result: parsed.data.result, settledAt: parsed.data.result === "PENDING" ? null : new Date() },
+    data: {
+      result: parsed.data.result,
+      settledAt: parsed.data.result === "PENDING" ? null : new Date(),
+      settledBy: parsed.data.result === "PENDING" ? null : session.user.id,
+    },
   });
+  await logAdmin(session, "pick.settle", "Pick", id, `result=${parsed.data.result}`);
   return NextResponse.json({ ok: true });
 }
 
@@ -26,6 +32,7 @@ export async function DELETE(_request: Request, { params }: { params: Promise<{ 
   if (!session) return NextResponse.json({ error: "Admin only" }, { status: 403 });
 
   const { id } = await params;
-  await prisma.pick.delete({ where: { id } });
+  const pick = await prisma.pick.delete({ where: { id } });
+  await logAdmin(session, "pick.delete", "Pick", id, `${pick.matchup} — ${pick.selection}`);
   return NextResponse.json({ ok: true });
 }

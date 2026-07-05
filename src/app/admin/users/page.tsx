@@ -19,6 +19,7 @@ export default async function AdminUsersPage() {
       name: true,
       role: true,
       emailVerified: true,
+      suspendedAt: true,
       createdAt: true,
       handicapper: { select: { handle: true } },
       _count: { select: { subscriptions: true } },
@@ -43,7 +44,14 @@ export default async function AdminUsersPage() {
         <tbody>
           {users.map((u) => (
             <tr key={u.id} className="border-b border-border last:border-b-0">
-              <td className="px-4 py-2.5">{u.email}</td>
+              <td className="px-4 py-2.5">
+                {u.email}
+                {u.suspendedAt && (
+                  <span className="ml-2 rounded-full bg-danger/15 px-1.5 py-0.5 text-[10px] font-bold text-danger">
+                    SUSPENDED
+                  </span>
+                )}
+              </td>
               <td className="px-4 py-2.5">{u.name ?? "—"}</td>
               <td className="px-4 py-2.5 text-muted">
                 {u.handicapper ? `@${u.handicapper.handle}` : "—"}
@@ -70,13 +78,26 @@ export default async function AdminUsersPage() {
                 )}
               </td>
               <td className="px-4 py-2.5 text-right">
-                <AdminButton
-                  endpoint={`/api/admin/users/${u.id}`}
-                  method="DELETE"
-                  label="Delete"
-                  tone="danger"
-                  confirmText={`Delete ${u.email} and everything they own (profile, picks, subscriptions)? This cannot be undone.`}
-                />
+                <div className="flex justify-end gap-1.5">
+                  <AdminButton
+                    endpoint={`/api/admin/users/${u.id}`}
+                    body={{ suspended: !u.suspendedAt }}
+                    label={u.suspendedAt ? "Unsuspend" : "Suspend"}
+                    tone={u.suspendedAt ? "default" : "danger"}
+                    confirmText={
+                      u.suspendedAt
+                        ? undefined
+                        : `Suspend ${u.email}? They won't be able to sign in until unsuspended.`
+                    }
+                  />
+                  <AdminButton
+                    endpoint={`/api/admin/users/${u.id}`}
+                    method="DELETE"
+                    label="Delete"
+                    tone="danger"
+                    confirmText={`Delete ${u.email} and everything they own (profile, picks, subscriptions)? This cannot be undone.`}
+                  />
+                </div>
               </td>
             </tr>
           ))}

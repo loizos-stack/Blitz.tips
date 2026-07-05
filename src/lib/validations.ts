@@ -55,6 +55,8 @@ export const createPickSchema = z.object({
   analysis: z.string().max(2000).optional(),
   isPremium: z.boolean().default(true),
   eventStartsAt: z.string().min(1, "Event start time is required"),
+  oddsApiEventId: z.string().max(64).optional(),
+  oddsApiSportKey: z.string().max(64).optional(),
 });
 
 export const settlePickSchema = z.object({

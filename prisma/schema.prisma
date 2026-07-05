@@ -79,6 +79,8 @@ model User {
   image          String?
   passwordHash   String?
   role           Role      @default(SUBSCRIBER)
+  // Soft ban: suspended users can't sign in or act; data stays intact.
+  suspendedAt    DateTime?
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
 
@@ -140,6 +142,9 @@ model HandicapperProfile {
   coverUrl    String?
   sports      PickSport[] @default([])
   isVerified  Boolean  @default(false)
+  // Soft suspension: hidden from listings, profile 404s, can't post picks or
+  // take new subscribers; existing data stays intact.
+  suspendedAt DateTime?
 
   // Subscriber pricing packages. Monthly is the required anchor; weekly and
   // annual are optional add-ons (null = the handicapper doesn't offer them).
@@ -194,12 +199,42 @@ model Pick {
 
   eventStartsAt  DateTime
   settledAt      DateTime?
+  // Who graded this pick: the owner's userId (self), an admin's userId, or
+  // "auto" for score-based settlement. Null while pending. The audit column
+  // behind the "verified records" promise.
+  settledBy      String?
+  // Set for picks created from the odds schedule — lets auto-settlement match
+  // this pick to a final score.
+  oddsApiEventId String?
+  oddsApiSportKey String?
 
   createdAt      DateTime   @default(now())
   updatedAt      DateTime   @updatedAt
 
   @@index([handicapperId, createdAt])
   @@index([result])
+}
+
+// One row per admin mutation — who did what to which record, when.
+model AdminAuditLog {
+  id         String   @id @default(cuid())
+  actorId    String
+  actorEmail String
+  action     String
+  targetType String
+  targetId   String
+  detail     String?  @db.Text
+  createdAt  DateTime @default(now())
+
+  @@index([createdAt])
+}
+
+// Small key-value store for admin-configurable settings (announcement banner,
+// cached odds-quota snapshot, ...).
+model SiteSetting {
+  key       String   @id
+  value     String   @db.Text
+  updatedAt DateTime @updatedAt
 }
 
 model Subscription {

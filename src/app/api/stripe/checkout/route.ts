@@ -38,6 +38,9 @@ export async function POST(request: Request) {
   if (handicapper.userId === session.user.id) {
     return NextResponse.json({ error: "You can't subscribe to yourself" }, { status: 400 });
   }
+  if (handicapper.suspendedAt) {
+    return NextResponse.json({ error: "This handicapper isn't accepting subscribers" }, { status: 400 });
+  }
   if (!handicapper.stripeAccountReady || !handicapper.stripeAccountId) {
     return NextResponse.json({ error: "This handicapper hasn't enabled subscriptions yet" }, { status: 400 });
   }
@@ -81,6 +84,7 @@ export async function POST(request: Request) {
   const checkoutSession = await stripe.checkout.sessions.create({
     mode: "subscription",
     customer: customerId,
+    allow_promotion_codes: true,
     line_items: [{ price: priceId, quantity: 1 }],
     subscription_data: {
       application_fee_percent: commissionPercentForPlan(handicapper.plan),

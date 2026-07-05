@@ -251,6 +251,9 @@ export interface LiveScore {
 
 export interface UpcomingEvent {
   id: string;
+  // Upstream league key (e.g. "americanfootball_nfl", "soccer_epl") — stored
+  // on picks created from the schedule so auto-settlement can look up scores.
+  sportKey: string;
   matchup: string;
   homeTeam: string;
   awayTeam: string;
@@ -309,7 +312,7 @@ async function fetchLeagueEvents(
   const events = data
     .filter((e) => new Date(e.commence_time) > recentCutoff)
     .slice(0, 25)
-    .map((event) => normalizeEvent(event, sport));
+    .map((event) => normalizeEvent(event, sport, sportKey));
 
   // Scores are billed per league, so only fetch them for this league if one of
   // its games has actually started.
@@ -393,7 +396,7 @@ async function getScores(sportKey: string, apiKey: string): Promise<Map<string, 
   return map;
 }
 
-function normalizeEvent(event: OddsApiEvent, sport: PickSport): UpcomingEvent {
+function normalizeEvent(event: OddsApiEvent, sport: PickSport, sportKey: string): UpcomingEvent {
   const bookmaker =
     PREFERRED_BOOKMAKERS.map((key) => event.bookmakers.find((b) => b.key === key)).find(Boolean) ??
     event.bookmakers[0] ??
@@ -429,6 +432,7 @@ function normalizeEvent(event: OddsApiEvent, sport: PickSport): UpcomingEvent {
 
   return {
     id: event.id,
+    sportKey,
     matchup: `${event.away_team} @ ${event.home_team}`,
     homeTeam: event.home_team,
     awayTeam: event.away_team,

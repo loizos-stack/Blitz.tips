@@ -17,6 +17,9 @@ export async function POST(request: Request) {
   if (!handicapper) {
     return NextResponse.json({ error: "You need a handicapper profile first" }, { status: 403 });
   }
+  if (handicapper.suspendedAt) {
+    return NextResponse.json({ error: "Your profile is suspended — contact support." }, { status: 403 });
+  }
 
   const body = await request.json().catch(() => null);
   const parsed = createPickSchema.safeParse(body);
@@ -42,6 +45,8 @@ export async function POST(request: Request) {
       analysis: parsed.data.analysis,
       isPremium: parsed.data.isPremium,
       eventStartsAt,
+      oddsApiEventId: parsed.data.oddsApiEventId,
+      oddsApiSportKey: parsed.data.oddsApiSportKey,
     },
   });
 

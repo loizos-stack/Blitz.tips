@@ -34,6 +34,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
 
         const user = await prisma.user.findUnique({ where: { email: email.toLowerCase() } });
         if (!user?.passwordHash) return null;
+        if (user.suspendedAt) return null;
 
         const valid = await bcrypt.compare(password, user.passwordHash);
         if (!valid) return null;
@@ -43,6 +44,15 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     }),
   ],
   callbacks: {
+    // Suspended accounts can't start new sessions via OAuth either.
+    async signIn({ user }) {
+      if (!user.email) return true;
+      const dbUser = await prisma.user.findUnique({
+        where: { email: user.email.toLowerCase() },
+        select: { suspendedAt: true },
+      });
+      return !dbUser?.suspendedAt;
+    },
     async jwt({ token, user, trigger }) {
       if (user?.id) {
         token.userId = user.id;

@@ -62,7 +62,7 @@ export function AdminButton({
   tone = "default",
 }: {
   endpoint: string;
-  method?: "PATCH" | "DELETE";
+  method?: "PATCH" | "DELETE" | "POST";
   body?: Record<string, unknown>;
   label: string;
   confirmText?: string;
@@ -78,11 +78,15 @@ export function AdminButton({
       onClick={async () => {
         if (confirmText && !window.confirm(confirmText)) return;
         setBusy(true);
-        await fetch(endpoint, {
+        const res = await fetch(endpoint, {
           method,
           headers: { "Content-Type": "application/json" },
           body: body ? JSON.stringify(body) : undefined,
         });
+        if (!res.ok) {
+          const resBody = await res.json().catch(() => ({}));
+          window.alert(resBody.error ?? "Action failed");
+        }
         setBusy(false);
         router.refresh();
       }}

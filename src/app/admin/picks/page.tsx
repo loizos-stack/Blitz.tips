@@ -16,8 +16,21 @@ export default async function AdminPicksPage() {
   const picks = await prisma.pick.findMany({
     orderBy: { eventStartsAt: "desc" },
     take: 150,
-    include: { handicapper: { select: { handle: true } } },
+    include: { handicapper: { select: { handle: true, userId: true } } },
   });
+
+  // Self-graded picks are the integrity risk — label them so they stand out
+  // from admin- and score-settled results.
+  const settledByLabel = (p: (typeof picks)[number]) =>
+    !p.settledBy ? (
+      <span className="text-muted">—</span>
+    ) : p.settledBy === "auto" ? (
+      <span className="text-accent">Auto (score)</span>
+    ) : p.settledBy === p.handicapper.userId ? (
+      <span className="text-gold">Self</span>
+    ) : (
+      <span>Admin</span>
+    );
 
   return (
     <div className="card overflow-x-auto p-0">
@@ -31,6 +44,7 @@ export default async function AdminPicksPage() {
             <th className="px-4 py-3">Units</th>
             <th className="px-4 py-3">Event</th>
             <th className="px-4 py-3">Result</th>
+            <th className="px-4 py-3">Settled by</th>
             <th className="px-4 py-3" />
           </tr>
         </thead>
@@ -51,6 +65,7 @@ export default async function AdminPicksPage() {
                   options={RESULT_OPTIONS}
                 />
               </td>
+              <td className="px-4 py-2.5 text-xs">{settledByLabel(p)}</td>
               <td className="px-4 py-2.5 text-right">
                 <AdminButton
                   endpoint={`/api/admin/picks/${p.id}`}

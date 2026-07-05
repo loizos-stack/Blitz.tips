@@ -39,6 +39,7 @@ const STATS_LOOKBACK_DAYS = 30;
 
 export async function listHandicapperSummaries(): Promise<HandicapperSummary[]> {
   const handicappers = await prisma.handicapperProfile.findMany({
+    where: { suspendedAt: null },
     include: { picks: true },
     orderBy: { createdAt: "asc" },
   });

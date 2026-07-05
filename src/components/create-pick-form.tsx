@@ -122,6 +122,10 @@ export function CreatePickForm({ handicapperSports }: { handicapperSports: strin
         analysis: analysis || undefined,
         isPremium,
         eventStartsAt: startsAt,
+        // Schedule picks carry the odds-API event so results can be graded
+        // automatically from final scores.
+        oddsApiEventId: mode === "schedule" && selectedEvent ? selectedEvent.id : undefined,
+        oddsApiSportKey: mode === "schedule" && selectedEvent ? selectedEvent.sportKey : undefined,
       }),
     });
 

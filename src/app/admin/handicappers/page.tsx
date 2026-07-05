@@ -39,7 +39,14 @@ export default async function AdminHandicappersPage() {
         <tbody>
           {handicappers.map((h) => (
             <tr key={h.id} className="border-b border-border last:border-b-0">
-              <td className="px-4 py-2.5 font-medium">@{h.handle}</td>
+              <td className="px-4 py-2.5 font-medium">
+                @{h.handle}
+                {h.suspendedAt && (
+                  <span className="ml-2 rounded-full bg-danger/15 px-1.5 py-0.5 text-[10px] font-bold text-danger">
+                    SUSPENDED
+                  </span>
+                )}
+              </td>
               <td className="px-4 py-2.5 text-muted">{h.user.email}</td>
               <td className="px-4 py-2.5 tabular-nums">{formatCents(h.monthlyPriceCents)}</td>
               <td className="px-4 py-2.5 tabular-nums">{h._count.picks}</td>
@@ -61,13 +68,26 @@ export default async function AdminHandicappersPage() {
                 />
               </td>
               <td className="px-4 py-2.5 text-right">
-                <AdminButton
-                  endpoint={`/api/admin/handicappers/${h.id}`}
-                  method="DELETE"
-                  label="Delete"
-                  tone="danger"
-                  confirmText={`Delete @${h.handle}'s profile, picks, and subscriptions? The user account stays. This cannot be undone.`}
-                />
+                <div className="flex justify-end gap-1.5">
+                  <AdminButton
+                    endpoint={`/api/admin/handicappers/${h.id}`}
+                    body={{ suspended: !h.suspendedAt }}
+                    label={h.suspendedAt ? "Unsuspend" : "Suspend"}
+                    tone={h.suspendedAt ? "default" : "danger"}
+                    confirmText={
+                      h.suspendedAt
+                        ? undefined
+                        : `Suspend @${h.handle}? Their profile is hidden and they can't post picks or take subscribers until unsuspended.`
+                    }
+                  />
+                  <AdminButton
+                    endpoint={`/api/admin/handicappers/${h.id}`}
+                    method="DELETE"
+                    label="Delete"
+                    tone="danger"
+                    confirmText={`Delete @${h.handle}'s profile, picks, and subscriptions? The user account stays. This cannot be undone.`}
+                  />
+                </div>
               </td>
             </tr>
           ))}

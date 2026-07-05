@@ -26,6 +26,9 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     data: {
       result: parsed.data.result,
       settledAt: parsed.data.result === "PENDING" ? null : new Date(),
+      // Audit who graded it — self-settled picks are flagged in the admin
+      // panel so suspicious grading can be spot-checked.
+      settledBy: parsed.data.result === "PENDING" ? null : session.user.id,
     },
   });
 

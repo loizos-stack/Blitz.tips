@@ -44,6 +44,7 @@ export async function POST(request: Request) {
   const checkoutSession = await stripe.checkout.sessions.create({
     mode: "subscription",
     customer: customerId,
+    allow_promotion_codes: true,
     line_items: [{ price: priceId, quantity: 1 }],
     subscription_data: {
       metadata: { kind: "handicapper_plan", handicapperProfileId: handicapper.id, plan, interval },

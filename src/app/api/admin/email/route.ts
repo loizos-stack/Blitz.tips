@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/admin";
+import { logAdmin } from "@/lib/audit";
 import { sendEmail } from "@/lib/email";
 
 const AUDIENCES = ["ALL", "HANDICAPPERS", "CUSTOMERS"] as const;
@@ -83,5 +84,6 @@ export async function POST(request: Request) {
     }
   }
 
+  await logAdmin(session, "email.send", "Broadcast", audience, `"${subject}" → ${sent} sent, ${failed} failed`);
   return NextResponse.json({ sent, failed, audience });
 }
