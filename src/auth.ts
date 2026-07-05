@@ -55,24 +55,28 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         if (dbUser) {
           token.role = dbUser.role;
           token.handicapperHandle = dbUser.handicapper?.handle ?? null;
+          if (dbUser.email) token.email = dbUser.email;
+        }
+      }
 
-          // Emails listed in ADMIN_EMAILS are admins — this bootstraps the
-          // first admin without any manual database edit, and persists the
-          // role so admin shows up correctly in user lists.
-          const adminEmails = (process.env.ADMIN_EMAILS ?? "")
-            .split(",")
-            .map((e) => e.trim().toLowerCase())
-            .filter(Boolean);
-          if (
-            dbUser.role !== "ADMIN" &&
-            dbUser.email &&
-            adminEmails.includes(dbUser.email.toLowerCase())
-          ) {
-            token.role = "ADMIN";
-            await prisma.user
-              .update({ where: { email: dbUser.email }, data: { role: "ADMIN" } })
-              .catch(() => undefined);
-          }
+      // Emails listed in ADMIN_EMAILS are admins. Checked on every callback
+      // (it's a string comparison, no DB hit) so setting the env var takes
+      // effect for already-signed-in sessions too — no fresh sign-in needed.
+      // Persisting the role keeps user lists accurate.
+      const adminEmails = (process.env.ADMIN_EMAILS ?? "")
+        .split(",")
+        .map((e) => e.trim().toLowerCase())
+        .filter(Boolean);
+      if (
+        token.role !== "ADMIN" &&
+        typeof token.email === "string" &&
+        adminEmails.includes(token.email.toLowerCase())
+      ) {
+        token.role = "ADMIN";
+        if (token.userId) {
+          await prisma.user
+            .update({ where: { id: token.userId as string }, data: { role: "ADMIN" } })
+            .catch(() => undefined);
         }
       }
       return token;
