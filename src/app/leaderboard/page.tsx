@@ -64,7 +64,7 @@ export default async function LeaderboardPage({
             {SORTS[key].label}
           </Link>
         ))}
-        <SportFilterSelect sort={sortKey} sport={sportFilter} />
+        <SportFilterSelect basePath="/leaderboard" sort={sortKey} sport={sportFilter} />
       </div>
 
       <div className="card overflow-hidden">

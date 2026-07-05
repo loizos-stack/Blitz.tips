@@ -20,6 +20,21 @@ export function sortFeaturedFirst<T extends { isFeatured: boolean }>(
   });
 }
 
+/**
+ * Paid-plan handicappers (Gold above Silver, active billing only) are pinned
+ * above free ones regardless of the chosen sort; ties within each tier break
+ * by the given stat comparator. Used on the directory, where placement is
+ * part of what paid plans buy.
+ */
+export function sortPaidFirst<T extends Pick<HandicapperProfile, "plan" | "planStatus">>(
+  items: T[],
+  compareFn: (a: T, b: T) => number
+): T[] {
+  const tier = (h: T) =>
+    h.planStatus !== "ACTIVE" ? 0 : h.plan === "GOLD" ? 2 : h.plan === "SILVER" ? 1 : 0;
+  return [...items].sort((a, b) => tier(b) - tier(a) || compareFn(a, b));
+}
+
 const STATS_LOOKBACK_DAYS = 30;
 
 export async function listHandicapperSummaries(): Promise<HandicapperSummary[]> {

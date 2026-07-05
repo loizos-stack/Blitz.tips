@@ -9,7 +9,7 @@ import { PickCard } from "@/components/pick-card";
 import { SubscribeButton } from "@/components/subscribe-button";
 import { Avatar } from "@/components/avatar";
 import { SportIcon } from "@/components/sport-icon";
-import { SPORT_LABELS, formatCents } from "@/lib/utils";
+import { SPORT_LABELS } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
 
@@ -85,43 +85,28 @@ export default async function HandicapperProfilePage({
                 </span>
               ))}
             </div>
-            {/* Pricing is always visible here — including to the owner and
-                before Stripe payouts are connected — so the offered packages
-                are never hidden behind the subscribe button's state. */}
-            <p className="mt-3 text-sm font-medium">
-              {[
-                handicapper.weeklyPriceCents != null &&
-                  `${formatCents(handicapper.weeklyPriceCents)}/wk`,
-                `${formatCents(handicapper.monthlyPriceCents)}/mo`,
-                handicapper.annualPriceCents != null &&
-                  `${formatCents(handicapper.annualPriceCents)}/yr`,
-              ]
-                .filter(Boolean)
-                .join(" · ")}
-              <span className="font-normal text-muted"> for premium picks</span>
-            </p>
             {handicapper.bio && <p className="mt-4 max-w-xl text-sm text-muted">{handicapper.bio}</p>}
           </div>
         </div>
 
-        {!isOwner && (
-          <div className="w-full md:w-80">
-            {unlocked ? (
-              <div className="card p-4 text-center text-sm text-accent">You&apos;re subscribed</div>
-            ) : (
-              <SubscribeButton
-                handicapperId={handicapper.id}
-                packages={{
-                  WEEKLY: handicapper.weeklyPriceCents,
-                  MONTHLY: handicapper.monthlyPriceCents,
-                  ANNUAL: handicapper.annualPriceCents,
-                }}
-                isSignedIn={Boolean(session)}
-                isReady={handicapper.stripeAccountReady}
-              />
-            )}
-          </div>
-        )}
+        <div className="w-full md:w-80">
+          {!isOwner && isSubscribed ? (
+            <div className="card p-4 text-center text-sm text-accent">You&apos;re subscribed</div>
+          ) : (
+            <SubscribeButton
+              handicapperId={handicapper.id}
+              displayName={handicapper.displayName}
+              packages={{
+                WEEKLY: handicapper.weeklyPriceCents,
+                MONTHLY: handicapper.monthlyPriceCents,
+                ANNUAL: handicapper.annualPriceCents,
+              }}
+              isSignedIn={Boolean(session)}
+              isReady={handicapper.stripeAccountReady}
+              isOwner={Boolean(isOwner)}
+            />
+          )}
+        </div>
       </div>
 
       <div className="mt-8 grid grid-cols-2 gap-3 sm:grid-cols-4">
