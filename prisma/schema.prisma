@@ -81,6 +81,12 @@ model User {
   role           Role      @default(SUBSCRIBER)
   // Soft ban: suspended users can't sign in or act; data stays intact.
   suspendedAt    DateTime?
+  // Superadmins have every admin permission and can manage other admins.
+  // Bootstrapped from ADMIN_EMAILS/SUPERADMIN_EMAILS; can also be granted in-app.
+  isSuperAdmin   Boolean   @default(false)
+  // For scoped admins (role ADMIN, not superadmin): the set of admin-panel
+  // permission keys they're allowed. See ADMIN_PERMISSIONS in src/lib/permissions.ts.
+  adminPermissions String[] @default([])
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
 

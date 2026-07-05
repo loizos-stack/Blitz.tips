@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { runAutoSettle } from "@/lib/auto-settle";
-import { requireAdmin } from "@/lib/admin";
+import { requirePermission } from "@/lib/permissions";
 
 export const maxDuration = 60;
 
@@ -12,7 +12,7 @@ export const maxDuration = 60;
 export async function GET(request: Request) {
   const cronSecret = process.env.CRON_SECRET;
   const isCron = cronSecret && request.headers.get("authorization") === `Bearer ${cronSecret}`;
-  const isAdmin = !isCron && (await requireAdmin());
+  const isAdmin = !isCron && (await requirePermission("system"));
   if (!isCron && !isAdmin) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }

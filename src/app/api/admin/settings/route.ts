@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { requireAdmin } from "@/lib/admin";
+import { requirePermission } from "@/lib/permissions";
 import { logAdmin } from "@/lib/audit";
 import { setSetting } from "@/lib/settings";
 
@@ -7,8 +7,9 @@ import { setSetting } from "@/lib/settings";
 const EDITABLE_KEYS = ["announcement"];
 
 export async function POST(request: Request) {
-  const session = await requireAdmin();
-  if (!session) return NextResponse.json({ error: "Admin only" }, { status: 403 });
+  const ctx = await requirePermission("system");
+  if (!ctx) return NextResponse.json({ error: "Not permitted" }, { status: 403 });
+  const session = ctx.session;
 
   const body = await request.json().catch(() => ({}));
   const key = typeof body.key === "string" ? body.key : "";

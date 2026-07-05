@@ -1,14 +1,15 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { requireAdmin } from "@/lib/admin";
+import { requirePermission } from "@/lib/permissions";
 import { logAdmin } from "@/lib/audit";
 
 const ROLES = ["SUBSCRIBER", "HANDICAPPER", "ADMIN"] as const;
 type Role = (typeof ROLES)[number];
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
-  const session = await requireAdmin();
-  if (!session) return NextResponse.json({ error: "Admin only" }, { status: 403 });
+  const ctx = await requirePermission("users");
+  if (!ctx) return NextResponse.json({ error: "Not permitted" }, { status: 403 });
+  const session = ctx.session;
 
   const { id } = await params;
   const body = await request.json().catch(() => ({}));
@@ -42,8 +43,9 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
 }
 
 export async function DELETE(_request: Request, { params }: { params: Promise<{ id: string }> }) {
-  const session = await requireAdmin();
-  if (!session) return NextResponse.json({ error: "Admin only" }, { status: 403 });
+  const ctx = await requirePermission("users");
+  if (!ctx) return NextResponse.json({ error: "Not permitted" }, { status: 403 });
+  const session = ctx.session;
 
   const { id } = await params;
   if (id === session.user.id) {

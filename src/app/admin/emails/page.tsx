@@ -1,9 +1,11 @@
 import { prisma } from "@/lib/prisma";
 import { EmailComposer } from "@/components/admin/email-composer";
+import { guardAdminPage } from "@/lib/permissions";
 
 export const dynamic = "force-dynamic";
 
 export default async function AdminEmailsPage() {
+  await guardAdminPage("emails");
   const [all, handicappers] = await Promise.all([
     prisma.user.count(),
     prisma.user.count({ where: { handicapper: { isNot: null } } }),

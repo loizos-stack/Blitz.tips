@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { AdminSelect, AdminButton } from "@/components/admin/admin-actions";
+import { guardAdminPage } from "@/lib/permissions";
 
 export const dynamic = "force-dynamic";
 
@@ -10,6 +11,7 @@ const ROLE_OPTIONS = [
 ];
 
 export default async function AdminUsersPage() {
+  await guardAdminPage("users");
   const users = await prisma.user.findMany({
     orderBy: { createdAt: "desc" },
     take: 200,

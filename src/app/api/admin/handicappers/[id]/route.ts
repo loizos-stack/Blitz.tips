@@ -1,14 +1,16 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { requireAdmin } from "@/lib/admin";
+import { requireAnyPermission } from "@/lib/permissions";
 import { logAdmin } from "@/lib/audit";
 
 const PLANS = ["FREE", "SILVER", "GOLD"] as const;
 type Plan = (typeof PLANS)[number];
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
-  const session = await requireAdmin();
-  if (!session) return NextResponse.json({ error: "Admin only" }, { status: 403 });
+  // The Media tab moderates images via this route, so either permission grants it.
+  const ctx = await requireAnyPermission(["handicappers", "media"]);
+  if (!ctx) return NextResponse.json({ error: "Not permitted" }, { status: 403 });
+  const session = ctx.session;
 
   const { id } = await params;
   const body = await request.json().catch(() => ({}));
@@ -60,8 +62,9 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
 }
 
 export async function DELETE(_request: Request, { params }: { params: Promise<{ id: string }> }) {
-  const session = await requireAdmin();
-  if (!session) return NextResponse.json({ error: "Admin only" }, { status: 403 });
+  const ctx = await requireAnyPermission(["handicappers"]);
+  if (!ctx) return NextResponse.json({ error: "Not permitted" }, { status: 403 });
+  const session = ctx.session;
 
   const { id } = await params;
   const profile = await prisma.handicapperProfile.findUnique({ where: { id }, select: { userId: true, handle: true } });

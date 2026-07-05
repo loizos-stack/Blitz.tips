@@ -1,12 +1,13 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { requireAdmin } from "@/lib/admin";
+import { requirePermission } from "@/lib/permissions";
 import { logAdmin } from "@/lib/audit";
 import { settlePickSchema } from "@/lib/validations";
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
-  const session = await requireAdmin();
-  if (!session) return NextResponse.json({ error: "Admin only" }, { status: 403 });
+  const ctx = await requirePermission("picks");
+  if (!ctx) return NextResponse.json({ error: "Not permitted" }, { status: 403 });
+  const session = ctx.session;
 
   const { id } = await params;
   const body = await request.json().catch(() => ({}));
@@ -28,8 +29,9 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
 }
 
 export async function DELETE(_request: Request, { params }: { params: Promise<{ id: string }> }) {
-  const session = await requireAdmin();
-  if (!session) return NextResponse.json({ error: "Admin only" }, { status: 403 });
+  const ctx = await requirePermission("picks");
+  if (!ctx) return NextResponse.json({ error: "Not permitted" }, { status: 403 });
+  const session = ctx.session;
 
   const { id } = await params;
   const pick = await prisma.pick.delete({ where: { id } });

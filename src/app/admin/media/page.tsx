@@ -1,10 +1,12 @@
 import { prisma } from "@/lib/prisma";
 import { AdminButton } from "@/components/admin/admin-actions";
+import { guardAdminPage } from "@/lib/permissions";
 
 export const dynamic = "force-dynamic";
 
 // Review-and-remove gallery for user-uploaded profile images.
 export default async function AdminMediaPage() {
+  await guardAdminPage("media");
   const handicappers = await prisma.handicapperProfile.findMany({
     where: { OR: [{ avatarUrl: { not: null } }, { coverUrl: { not: null } }] },
     orderBy: { updatedAt: "desc" },

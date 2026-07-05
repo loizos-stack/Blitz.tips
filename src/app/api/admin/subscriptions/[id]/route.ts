@@ -2,12 +2,13 @@ import { NextResponse } from "next/server";
 import Stripe from "stripe";
 import { prisma } from "@/lib/prisma";
 import { stripe } from "@/lib/stripe";
-import { requireAdmin } from "@/lib/admin";
+import { requirePermission } from "@/lib/permissions";
 import { logAdmin } from "@/lib/audit";
 
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
-  const session = await requireAdmin();
-  if (!session) return NextResponse.json({ error: "Admin only" }, { status: 403 });
+  const ctx = await requirePermission("subscriptions");
+  if (!ctx) return NextResponse.json({ error: "Not permitted" }, { status: 403 });
+  const session = ctx.session;
 
   const { id } = await params;
   const body = await request.json().catch(() => ({}));

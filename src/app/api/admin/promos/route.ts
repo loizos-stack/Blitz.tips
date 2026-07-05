@@ -1,11 +1,11 @@
 import { NextResponse } from "next/server";
 import { stripe } from "@/lib/stripe";
-import { requireAdmin } from "@/lib/admin";
+import { requirePermission } from "@/lib/permissions";
 import { logAdmin } from "@/lib/audit";
 
 export async function GET() {
-  const session = await requireAdmin();
-  if (!session) return NextResponse.json({ error: "Admin only" }, { status: 403 });
+  const ctx = await requirePermission("promos");
+  if (!ctx) return NextResponse.json({ error: "Not permitted" }, { status: 403 });
 
   try {
     const codes = await stripe.promotionCodes.list({ limit: 50, expand: ["data.promotion.coupon"] });
@@ -29,8 +29,9 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
-  const session = await requireAdmin();
-  if (!session) return NextResponse.json({ error: "Admin only" }, { status: 403 });
+  const ctx = await requirePermission("promos");
+  if (!ctx) return NextResponse.json({ error: "Not permitted" }, { status: 403 });
+  const session = ctx.session;
 
   const body = await request.json().catch(() => ({}));
   const code = typeof body.code === "string" ? body.code.trim().toUpperCase() : "";
@@ -65,8 +66,9 @@ export async function POST(request: Request) {
 }
 
 export async function PATCH(request: Request) {
-  const session = await requireAdmin();
-  if (!session) return NextResponse.json({ error: "Admin only" }, { status: 403 });
+  const ctx = await requirePermission("promos");
+  if (!ctx) return NextResponse.json({ error: "Not permitted" }, { status: 403 });
+  const session = ctx.session;
 
   const body = await request.json().catch(() => ({}));
   const id = typeof body.id === "string" ? body.id : "";

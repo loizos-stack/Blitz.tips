@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { StatCard } from "@/components/stat-card";
 import { formatCents } from "@/lib/utils";
 import { commissionPercentForPlan, planPriceCents } from "@/lib/plans";
+import { guardAdminPage } from "@/lib/permissions";
 
 export const dynamic = "force-dynamic";
 
@@ -10,6 +11,7 @@ export const dynamic = "force-dynamic";
 // approximated), and Stripe fees aren't subtracted — the exact ledger lives in
 // the Stripe dashboard.
 export default async function AdminFinancialsPage() {
+  await guardAdminPage("financials");
   const [handicappers, activeSubs] = await Promise.all([
     prisma.handicapperProfile.findMany({
       include: {

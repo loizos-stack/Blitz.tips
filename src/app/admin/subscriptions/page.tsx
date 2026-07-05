@@ -1,9 +1,11 @@
 import { prisma } from "@/lib/prisma";
 import { AdminButton } from "@/components/admin/admin-actions";
+import { guardAdminPage } from "@/lib/permissions";
 
 export const dynamic = "force-dynamic";
 
 export default async function AdminSubscriptionsPage() {
+  await guardAdminPage("subscriptions");
   const subscriptions = await prisma.subscription.findMany({
     orderBy: { createdAt: "desc" },
     take: 200,

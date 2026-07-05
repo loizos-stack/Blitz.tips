@@ -1,13 +1,13 @@
 import { NextResponse } from "next/server";
-import { requireAdmin } from "@/lib/admin";
+import { requirePermission } from "@/lib/permissions";
 
 const API_BASE = process.env.ODDS_API_BASE ?? "https://api.the-odds-api.com/v4";
 
 // Reads the live credit counters from The Odds API's response headers. The
 // /sports endpoint is free, so checking costs nothing.
 export async function GET() {
-  const session = await requireAdmin();
-  if (!session) return NextResponse.json({ error: "Admin only" }, { status: 403 });
+  const ctx = await requirePermission("system");
+  if (!ctx) return NextResponse.json({ error: "Not permitted" }, { status: 403 });
 
   const apiKey = process.env.THE_ODDS_API_KEY;
   if (!apiKey) return NextResponse.json({ error: "THE_ODDS_API_KEY not configured" }, { status: 400 });

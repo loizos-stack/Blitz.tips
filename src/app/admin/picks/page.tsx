@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { formatOdds } from "@/lib/odds";
 import { AdminSelect, AdminButton } from "@/components/admin/admin-actions";
+import { guardAdminPage } from "@/lib/permissions";
 
 export const dynamic = "force-dynamic";
 
@@ -13,6 +14,7 @@ const RESULT_OPTIONS = [
 ];
 
 export default async function AdminPicksPage() {
+  await guardAdminPage("picks");
   const picks = await prisma.pick.findMany({
     orderBy: { eventStartsAt: "desc" },
     take: 150,

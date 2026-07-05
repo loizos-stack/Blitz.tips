@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { StatCard } from "@/components/stat-card";
 import { formatCents } from "@/lib/utils";
+import { guardAdminPage } from "@/lib/permissions";
 
 export const dynamic = "force-dynamic";
 
@@ -95,6 +96,7 @@ async function loadOverviewData() {
 }
 
 export default async function AdminOverviewPage() {
+  await guardAdminPage("overview");
   const {
     users,
     handicappers,

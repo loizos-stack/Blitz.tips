@@ -1,8 +1,10 @@
 import { prisma } from "@/lib/prisma";
+import { guardAdminPage } from "@/lib/permissions";
 
 export const dynamic = "force-dynamic";
 
 export default async function AdminAuditPage() {
+  await guardAdminPage("audit");
   const entries = await prisma.adminAuditLog.findMany({
     orderBy: { createdAt: "desc" },
     take: 200,

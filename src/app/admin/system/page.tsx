@@ -1,9 +1,11 @@
 import { getSetting } from "@/lib/settings";
 import { OddsQuotaCard, AnnouncementCard, AutoSettleCard } from "@/components/admin/system-tools";
+import { guardAdminPage } from "@/lib/permissions";
 
 export const dynamic = "force-dynamic";
 
 export default async function AdminSystemPage() {
+  await guardAdminPage("system");
   const announcement = (await getSetting("announcement")) ?? "";
 
   return (

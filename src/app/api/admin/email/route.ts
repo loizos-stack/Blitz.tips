@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { requireAdmin } from "@/lib/admin";
+import { requirePermission } from "@/lib/permissions";
 import { logAdmin } from "@/lib/audit";
 import { sendEmail } from "@/lib/email";
 
@@ -41,8 +41,9 @@ function wrapInTemplate(bodyHtml: string): string {
 }
 
 export async function POST(request: Request) {
-  const session = await requireAdmin();
-  if (!session) return NextResponse.json({ error: "Admin only" }, { status: 403 });
+  const ctx = await requirePermission("emails");
+  if (!ctx) return NextResponse.json({ error: "Not permitted" }, { status: 403 });
+  const session = ctx.session;
 
   const body = await request.json().catch(() => ({}));
   const audience: Audience = AUDIENCES.includes(body.audience) ? body.audience : "ALL";
