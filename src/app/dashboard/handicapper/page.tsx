@@ -4,9 +4,19 @@ import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { computeStats } from "@/lib/odds";
-import { formatCents } from "@/lib/utils";
+import {
+  breakdownBy,
+  computeStreaks,
+  cumulativeUnits,
+  formatStreak,
+  formatUnits,
+  statsSince,
+} from "@/lib/analytics";
+import { formatCents, SPORT_LABELS, BET_TYPE_LABELS } from "@/lib/utils";
 import { commissionPercentForPlan } from "@/lib/plans";
 import { StatCard } from "@/components/stat-card";
+import { UnitsChart } from "@/components/dashboard/units-chart";
+import { BreakdownTable } from "@/components/dashboard/breakdown-table";
 import { BecomeHandicapperForm } from "@/components/become-handicapper-form";
 import { ConnectOnboardingBanner } from "@/components/connect-onboarding-banner";
 import { CreatePickForm } from "@/components/create-pick-form";
@@ -50,6 +60,20 @@ export default async function HandicapperDashboardPage() {
   });
 
   const stats = computeStats(handicapper.picks);
+  const streaks = computeStreaks(handicapper.picks);
+  const unitsSeries = cumulativeUnits(handicapper.picks);
+  const last30 = statsSince(handicapper.picks, 30);
+  const bySport = breakdownBy(
+    handicapper.picks,
+    (p) => p.sport,
+    (k) => SPORT_LABELS[k] ?? k
+  );
+  const byBetType = breakdownBy(
+    handicapper.picks,
+    (p) => p.betType,
+    (k) => BET_TYPE_LABELS[k] ?? k
+  );
+
   const grossMonthlyCents = subscriberCount * handicapper.monthlyPriceCents;
   const netMonthlyCents = Math.round(
     grossMonthlyCents * (1 - commissionPercentForPlan(handicapper.plan) / 100)
@@ -94,6 +118,104 @@ export default async function HandicapperDashboardPage() {
         <StatCard label="Win rate" value={stats.winRate ? `${stats.winRate.toFixed(1)}%` : "—"} />
         <StatCard label="Subscribers" value={subscriberCount.toString()} />
         <StatCard label="Est. earnings/mo" value={formatCents(netMonthlyCents)} tone="accent" />
+      </div>
+
+      <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <StatCard
+          label="Units net"
+          value={formatUnits(stats.unitsNet)}
+          tone={stats.unitsNet > 0 ? "accent" : stats.unitsNet < 0 ? "danger" : "default"}
+        />
+        <StatCard
+          label="ROI"
+          value={stats.roi != null ? `${stats.roi > 0 ? "+" : ""}${stats.roi.toFixed(1)}%` : "—"}
+          tone={stats.roi != null && stats.roi > 0 ? "accent" : stats.roi != null && stats.roi < 0 ? "danger" : "default"}
+        />
+        <StatCard
+          label="Current streak"
+          value={formatStreak(streaks.current)}
+          tone={streaks.current > 0 ? "accent" : streaks.current < 0 ? "danger" : "default"}
+        />
+        <StatCard label="Pending" value={stats.pending.toString()} />
+      </div>
+
+      <div className="mt-6 grid gap-4 lg:grid-cols-[1.4fr_1fr]">
+        <div className="card p-5">
+          <div className="flex items-center justify-between">
+            <p className="font-semibold">Units over time</p>
+            <span
+              className={
+                stats.unitsNet > 0
+                  ? "text-sm font-semibold text-accent"
+                  : stats.unitsNet < 0
+                    ? "text-sm font-semibold text-danger"
+                    : "text-sm font-semibold text-muted"
+              }
+            >
+              {formatUnits(stats.unitsNet)}
+            </span>
+          </div>
+          <p className="mt-1 text-xs text-muted">Cumulative profit/loss across your settled picks.</p>
+          <UnitsChart points={unitsSeries} className="mt-4" />
+        </div>
+
+        <div className="card p-5">
+          <p className="font-semibold">Last 30 days</p>
+          <p className="mt-1 text-xs text-muted">Rolling form from recently settled picks.</p>
+          <div className="mt-4 grid grid-cols-2 gap-4">
+            <div>
+              <p className="text-2xl font-bold tabular-nums">{last30.record}</p>
+              <p className="text-xs text-muted">Record</p>
+            </div>
+            <div>
+              <p className="text-2xl font-bold tabular-nums">
+                {last30.winRate != null ? `${last30.winRate.toFixed(0)}%` : "—"}
+              </p>
+              <p className="text-xs text-muted">Win rate</p>
+            </div>
+            <div>
+              <p
+                className={
+                  last30.unitsNet > 0
+                    ? "text-2xl font-bold tabular-nums text-accent"
+                    : last30.unitsNet < 0
+                      ? "text-2xl font-bold tabular-nums text-danger"
+                      : "text-2xl font-bold tabular-nums"
+                }
+              >
+                {formatUnits(last30.unitsNet)}
+              </p>
+              <p className="text-xs text-muted">Units</p>
+            </div>
+            <div>
+              <p className="text-2xl font-bold tabular-nums">
+                {last30.roi != null ? `${last30.roi > 0 ? "+" : ""}${last30.roi.toFixed(0)}%` : "—"}
+              </p>
+              <p className="text-xs text-muted">ROI</p>
+            </div>
+          </div>
+          <div className="mt-4 border-t border-border pt-3 text-xs text-muted">
+            Best win streak <span className="font-semibold text-foreground">{streaks.bestWin || "—"}</span>
+            {"  ·  "}
+            Longest losing streak{" "}
+            <span className="font-semibold text-foreground">{streaks.worstLoss || "—"}</span>
+          </div>
+        </div>
+      </div>
+
+      <div className="mt-6 grid gap-4 lg:grid-cols-2">
+        <div className="card p-0">
+          <p className="px-5 pt-5 font-semibold">By sport</p>
+          <div className="mt-3">
+            <BreakdownTable rows={bySport} firstColumn="Sport" />
+          </div>
+        </div>
+        <div className="card p-0">
+          <p className="px-5 pt-5 font-semibold">By bet type</p>
+          <div className="mt-3">
+            <BreakdownTable rows={byBetType} firstColumn="Bet type" />
+          </div>
+        </div>
       </div>
 
       <div className="mt-6">

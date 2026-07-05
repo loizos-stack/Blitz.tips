@@ -2,51 +2,125 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
+import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { computeStats } from "@/lib/odds";
+import { cumulativeUnits, formatUnits } from "@/lib/analytics";
+import { formatCents } from "@/lib/utils";
 import { PickCard } from "@/components/pick-card";
 import { ManageBillingButton } from "@/components/manage-billing-button";
 import { VerifyEmailBanner } from "@/components/verify-email-banner";
 import { Avatar } from "@/components/avatar";
+import { StatCard } from "@/components/stat-card";
+import { UnitsChart } from "@/components/dashboard/units-chart";
 
 export const metadata: Metadata = { title: "Dashboard" };
 export const dynamic = "force-dynamic";
 
-export default async function DashboardPage() {
-  const session = await auth();
-  if (!session) redirect("/signin?callbackUrl=/dashboard");
-
+// Data loading + wall-clock reads live outside the component so they don't trip
+// the render-purity lint; a server component fetching per-request data is fine.
+async function loadDashboard(userId: string) {
   const [currentUser, handicapperProfile] = await Promise.all([
     prisma.user.findUnique({
-      where: { id: session.user.id },
+      where: { id: userId },
       select: { emailVerified: true },
     }),
     prisma.handicapperProfile.findUnique({
-      where: { userId: session.user.id },
+      where: { userId },
       select: { id: true },
     }),
   ]);
 
   const subscriptions = await prisma.subscription.findMany({
-    where: { subscriberId: session.user.id, status: "ACTIVE" },
+    where: { subscriberId: userId, status: "ACTIVE" },
     include: { handicapper: true },
     orderBy: { createdAt: "desc" },
   });
 
   const handicapperIds = subscriptions.map((s) => s.handicapperId);
 
-  const picks = handicapperIds.length
-    ? await prisma.pick.findMany({
-        where: { handicapperId: { in: handicapperIds } },
-        include: { handicapper: true },
-        orderBy: { eventStartsAt: "desc" },
-        take: 50,
-      })
-    : [];
+  // Lightweight pull for records/analytics (every pick), plus a richer pull for
+  // the feed itself (capped, with handicapper attribution).
+  const [statsPicks, feedPicks] = handicapperIds.length
+    ? await Promise.all([
+        prisma.pick.findMany({
+          where: { handicapperId: { in: handicapperIds } },
+          select: {
+            handicapperId: true,
+            odds: true,
+            units: true,
+            result: true,
+            settledAt: true,
+            eventStartsAt: true,
+          },
+        }),
+        prisma.pick.findMany({
+          where: { handicapperId: { in: handicapperIds } },
+          include: { handicapper: true },
+          orderBy: { eventStartsAt: "desc" },
+          take: 60,
+        }),
+      ])
+    : [[], []];
+
+  const now = Date.now();
+  const isUpcoming = (p: { result: string; eventStartsAt: Date }) =>
+    p.result === "PENDING" && p.eventStartsAt.getTime() >= now;
+
+  const combined = computeStats(statsPicks);
+  const monthlySpendCents = subscriptions.reduce((sum, s) => sum + s.handicapper.monthlyPriceCents, 0);
+
+  // Per-handicapper record, ranked by units won, so the best of who you follow floats up.
+  const perCapper = subscriptions
+    .map((sub) => {
+      const ps = statsPicks.filter((p) => p.handicapperId === sub.handicapperId);
+      return {
+        sub,
+        stats: computeStats(ps),
+        points: cumulativeUnits(ps),
+        upcoming: ps.filter(isUpcoming).length,
+      };
+    })
+    .sort((a, b) => b.stats.unitsNet - a.stats.unitsNet);
+
+  const upcomingPicks = feedPicks
+    .filter(isUpcoming)
+    .sort((a, b) => a.eventStartsAt.getTime() - b.eventStartsAt.getTime());
+  const recentPicks = feedPicks.filter((p) => !isUpcoming(p));
+
+  return {
+    currentUser,
+    handicapperProfile,
+    subscriptions,
+    feedPicks,
+    combined,
+    monthlySpendCents,
+    perCapper,
+    upcomingPicks,
+    recentPicks,
+  };
+}
+
+export default async function DashboardPage() {
+  const session = await auth();
+  if (!session) redirect("/signin?callbackUrl=/dashboard");
+
+  const {
+    currentUser,
+    handicapperProfile,
+    subscriptions,
+    feedPicks,
+    combined,
+    monthlySpendCents,
+    perCapper,
+    upcomingPicks,
+    recentPicks,
+  } = await loadDashboard(session.user.id);
 
   return (
     <div className="container-page py-12">
       <h1 className="text-3xl font-bold">Your feed</h1>
-      <p className="mt-2 text-muted">Picks from the handicappers you follow.</p>
+      <p className="mt-2 text-muted">Picks and performance from the handicappers you follow.</p>
 
       {!currentUser?.emailVerified && (
         <div className="mt-6">
@@ -54,9 +128,80 @@ export default async function DashboardPage() {
         </div>
       )}
 
+      {subscriptions.length > 0 && (
+        <div className="mt-8 grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <StatCard label="Following" value={subscriptions.length.toString()} />
+          <StatCard label="Monthly spend" value={formatCents(monthlySpendCents)} />
+          <StatCard label="Combined record" value={combined.record} />
+          <StatCard
+            label="Combined units"
+            value={formatUnits(combined.unitsNet)}
+            tone={combined.unitsNet > 0 ? "accent" : combined.unitsNet < 0 ? "danger" : "default"}
+          />
+        </div>
+      )}
+
+      {perCapper.length > 0 && (
+        <section className="mt-8">
+          <h2 className="mb-3 font-semibold">Your handicappers</h2>
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+            {perCapper.map(({ sub, stats, points, upcoming }) => (
+              <div key={sub.id} className="card p-5">
+                <div className="flex items-center justify-between gap-2">
+                  <Link
+                    href={`/handicappers/${sub.handicapper.handle}`}
+                    className="flex min-w-0 items-center gap-2 hover:text-accent"
+                  >
+                    <Avatar
+                      src={sub.handicapper.avatarUrl}
+                      name={sub.handicapper.displayName}
+                      className="h-9 w-9 shrink-0 rounded-full text-xs"
+                    />
+                    <span className="min-w-0">
+                      <span className="block truncate font-semibold">{sub.handicapper.displayName}</span>
+                      <span className="block truncate text-xs text-muted">@{sub.handicapper.handle}</span>
+                    </span>
+                  </Link>
+                  <span
+                    className={
+                      stats.unitsNet > 0
+                        ? "shrink-0 text-sm font-semibold text-accent"
+                        : stats.unitsNet < 0
+                          ? "shrink-0 text-sm font-semibold text-danger"
+                          : "shrink-0 text-sm font-semibold text-muted"
+                    }
+                  >
+                    {formatUnits(stats.unitsNet)}
+                  </span>
+                </div>
+
+                <UnitsChart points={points} className="mt-4" />
+
+                <div className="mt-4 grid grid-cols-3 gap-2 border-t border-border pt-3 text-center">
+                  <div>
+                    <p className="text-sm font-bold tabular-nums">{stats.record}</p>
+                    <p className="text-[11px] text-muted">Record</p>
+                  </div>
+                  <div>
+                    <p className="text-sm font-bold tabular-nums">
+                      {stats.winRate != null ? `${stats.winRate.toFixed(0)}%` : "—"}
+                    </p>
+                    <p className="text-[11px] text-muted">Win rate</p>
+                  </div>
+                  <div>
+                    <p className="text-sm font-bold tabular-nums text-accent">{upcoming || "—"}</p>
+                    <p className="text-[11px] text-muted">Upcoming</p>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
       <div className="mt-8 flex flex-col gap-8 lg:flex-row">
         <div className="flex-1">
-          {picks.length === 0 ? (
+          {feedPicks.length === 0 ? (
             <div className="card p-8 text-center">
               <p className="text-muted">You&apos;re not subscribed to any handicappers yet.</p>
               <Link
@@ -67,23 +212,35 @@ export default async function DashboardPage() {
               </Link>
             </div>
           ) : (
-            <div className="grid gap-4 sm:grid-cols-2">
-              {picks.map((pick) => (
-                <div key={pick.id}>
-                  <Link
-                    href={`/handicappers/${pick.handicapper.handle}`}
-                    className="mb-1.5 inline-flex items-center gap-1.5 text-sm font-medium text-muted hover:text-accent"
-                  >
-                    <Avatar
-                      src={pick.handicapper.avatarUrl}
-                      name={pick.handicapper.displayName}
-                      className="h-5 w-5 rounded-full text-[9px]"
-                    />
-                    @{pick.handicapper.handle}
-                  </Link>
-                  <PickCard pick={pick} />
-                </div>
-              ))}
+            <div className="space-y-8">
+              {upcomingPicks.length > 0 && (
+                <section>
+                  <h2 className="mb-3 flex items-center gap-2 font-semibold">
+                    Upcoming
+                    <span className="rounded-full bg-accent/10 px-2 py-0.5 text-xs font-medium text-accent">
+                      {upcomingPicks.length}
+                    </span>
+                  </h2>
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    {upcomingPicks.map((pick) => (
+                      <PickAttribution key={pick.id} pick={pick} />
+                    ))}
+                  </div>
+                </section>
+              )}
+
+              <section>
+                <h2 className="mb-3 font-semibold">Recent results</h2>
+                {recentPicks.length === 0 ? (
+                  <p className="text-sm text-muted">No settled picks yet.</p>
+                ) : (
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    {recentPicks.map((pick) => (
+                      <PickAttribution key={pick.id} pick={pick} />
+                    ))}
+                  </div>
+                )}
+              </section>
             </div>
           )}
         </div>
@@ -141,6 +298,28 @@ export default async function DashboardPage() {
           )}
         </aside>
       </div>
+    </div>
+  );
+}
+
+type FeedPick = Prisma.PickGetPayload<{ include: { handicapper: true } }>;
+
+// A feed pick with a link back to the handicapper who posted it.
+function PickAttribution({ pick }: { pick: FeedPick }) {
+  return (
+    <div>
+      <Link
+        href={`/handicappers/${pick.handicapper.handle}`}
+        className="mb-1.5 inline-flex items-center gap-1.5 text-sm font-medium text-muted hover:text-accent"
+      >
+        <Avatar
+          src={pick.handicapper.avatarUrl}
+          name={pick.handicapper.displayName}
+          className="h-5 w-5 rounded-full text-[9px]"
+        />
+        @{pick.handicapper.handle}
+      </Link>
+      <PickCard pick={pick} />
     </div>
   );
 }
