@@ -123,7 +123,7 @@ export default async function HandicapperProfilePage({
         </div>
       </div>
 
-      <div className="mt-8 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+      <div className="mt-8 grid grid-cols-2 gap-3 sm:grid-cols-4">
         <StatCard label="Record" value={handicapper.stats.record} />
         <StatCard
           label="Win rate"
@@ -134,7 +134,6 @@ export default async function HandicapperProfilePage({
           value={`${handicapper.stats.unitsNet >= 0 ? "+" : ""}${handicapper.stats.unitsNet.toFixed(1)}`}
           tone={handicapper.stats.unitsNet >= 0 ? "accent" : "danger"}
         />
-        <StatCard label="Units risked" value={`${handicapper.stats.unitsRisked.toFixed(1)}u`} />
         <StatCard label="ROI" value={handicapper.stats.roi !== null ? `${handicapper.stats.roi.toFixed(1)}%` : "—"} />
       </div>
 

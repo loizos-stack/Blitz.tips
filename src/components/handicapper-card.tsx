@@ -82,16 +82,13 @@ export function HandicapperCard({ handicapper, rank }: { handicapper: Handicappe
         </div>
       </div>
 
-      <div className="flex items-center justify-between text-xs">
-        <span className="text-muted">
-          <span className="font-semibold tabular-nums text-foreground">{stats.unitsRisked.toFixed(1)}u</span> risked
-        </span>
-        {stats.pending > 0 && (
+      {stats.pending > 0 && (
+        <div className="text-xs">
           <span className="rounded-full bg-gold/15 px-2 py-0.5 font-semibold text-gold">
             {stats.pending} pending
           </span>
-        )}
-      </div>
+        </div>
+      )}
 
       <p className="text-sm text-muted">
         {[
