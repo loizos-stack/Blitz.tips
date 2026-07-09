@@ -65,7 +65,7 @@ export function HandicapperCard({ handicapper, rank }: { handicapper: Handicappe
         ))}
       </div>
 
-      <div className="grid grid-cols-5 gap-1.5 border-t border-border pt-4 text-sm">
+      <div className="grid grid-cols-6 gap-1 border-t border-border pt-4 text-sm">
         <div>
           <p className="text-xs text-muted">Record</p>
           <p className="font-semibold tabular-nums">{stats.record}</p>
@@ -101,21 +101,21 @@ export function HandicapperCard({ handicapper, rank }: { handicapper: Handicappe
             {formatStreak(currentStreak)}
           </p>
         </div>
+        <div>
+          <p className="text-xs text-muted">L10</p>
+          <p className="font-semibold tabular-nums">
+            {handicapper.last10Stats.totalPicks > 0 ? handicapper.last10Stats.record : "—"}
+          </p>
+        </div>
       </div>
 
-      <div className="flex flex-wrap items-center gap-2 text-xs">
-        <span className="flex items-center gap-1.5 rounded-full bg-surface-raised px-2 py-0.5">
-          <span className="font-semibold text-muted">L10</span>
-          <span className="font-semibold tabular-nums">
-            {handicapper.last10Stats.totalPicks > 0 ? handicapper.last10Stats.record : "—"}
-          </span>
-        </span>
-        {stats.pending > 0 && (
+      {stats.pending > 0 && (
+        <div className="text-xs">
           <span className="rounded-full bg-gold/15 px-2 py-0.5 font-semibold text-gold">
             {stats.pending} pending
           </span>
-        )}
-      </div>
+        </div>
+      )}
 
       <p className="text-sm text-muted">
         {[
