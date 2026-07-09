@@ -28,6 +28,9 @@ import { PricingPackagesCard } from "@/components/pricing-packages-card";
 import { SocialsForm } from "@/components/socials-form";
 import { TestimonialsForm } from "@/components/testimonials-form";
 import { VerifyEmailBanner } from "@/components/verify-email-banner";
+import { getSetting } from "@/lib/settings";
+import { DASHBOARD_ORDER_SETTING, resolveSectionOrder } from "@/lib/dashboard-sections";
+import type { ReactNode } from "react";
 
 export const metadata: Metadata = { title: "Handicapper dashboard" };
 export const dynamic = "force-dynamic";
@@ -85,41 +88,12 @@ export default async function HandicapperDashboardPage() {
     grossMonthlyCents * (1 - commissionPercentForPlan(handicapper.plan) / 100)
   );
 
-  return (
-    <div className="container-page py-12">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="text-3xl font-bold">Your dashboard</h1>
-          <p className="mt-1 text-muted">
-            Public profile:{" "}
-            <Link href={`/handicappers/${handicapper.handle}`} className="text-accent hover:underline">
-              blitz.tips/handicappers/{handicapper.handle}
-            </Link>
-          </p>
-        </div>
-      </div>
-
-      {unverified && (
-        <div className="mt-6">
-          <VerifyEmailBanner />
-        </div>
-      )}
-
-      <div className="mt-6">
-        <ProfileImagesForm
-          avatarUrl={handicapper.avatarUrl}
-          coverUrl={handicapper.coverUrl}
-          displayName={handicapper.displayName}
-        />
-      </div>
-
-      {!handicapper.stripeAccountReady && (
-        <div className="mt-6">
-          <ConnectOnboardingBanner />
-        </div>
-      )}
-
-      <div className="mt-6 grid gap-8 lg:grid-cols-[1fr_20rem]">
+  // The reorderable sections, keyed by the CMS catalog. An admin can rearrange
+  // these from /admin/cms; the header, verify banner, profile images and Stripe
+  // banner stay pinned to the top regardless of order.
+  const sections: Record<string, ReactNode> = {
+    postPick: (
+      <div className="grid gap-8 lg:grid-cols-[1fr_20rem]">
         <div className="flex flex-col gap-3">
           <h2 className="font-semibold">Post a pick</h2>
           <CreatePickForm handicapperSports={handicapper.sports} />
@@ -139,34 +113,38 @@ export default async function HandicapperDashboardPage() {
           )}
         </div>
       </div>
+    ),
+    stats: (
+      <div className="space-y-3">
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <StatCard label="Record" value={stats.record} />
+          <StatCard label="Win rate" value={stats.winRate ? `${stats.winRate.toFixed(1)}%` : "—"} />
+          <StatCard label="Subscribers" value={subscriberCount.toString()} />
+          <StatCard label="Est. earnings/mo" value={formatCents(netMonthlyCents)} tone="accent" />
+        </div>
 
-      <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <StatCard label="Record" value={stats.record} />
-        <StatCard label="Win rate" value={stats.winRate ? `${stats.winRate.toFixed(1)}%` : "—"} />
-        <StatCard label="Subscribers" value={subscriberCount.toString()} />
-        <StatCard label="Est. earnings/mo" value={formatCents(netMonthlyCents)} tone="accent" />
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <StatCard
+            label="Units net"
+            value={formatUnits(stats.unitsNet)}
+            tone={stats.unitsNet > 0 ? "accent" : stats.unitsNet < 0 ? "danger" : "default"}
+          />
+          <StatCard
+            label="ROI"
+            value={stats.roi != null ? `${stats.roi > 0 ? "+" : ""}${stats.roi.toFixed(1)}%` : "—"}
+            tone={stats.roi != null && stats.roi > 0 ? "accent" : stats.roi != null && stats.roi < 0 ? "danger" : "default"}
+          />
+          <StatCard
+            label="Current streak"
+            value={formatStreak(streaks.current)}
+            tone={streaks.current > 0 ? "accent" : streaks.current < 0 ? "danger" : "default"}
+          />
+          <StatCard label="Pending" value={stats.pending.toString()} />
+        </div>
       </div>
-
-      <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <StatCard
-          label="Units net"
-          value={formatUnits(stats.unitsNet)}
-          tone={stats.unitsNet > 0 ? "accent" : stats.unitsNet < 0 ? "danger" : "default"}
-        />
-        <StatCard
-          label="ROI"
-          value={stats.roi != null ? `${stats.roi > 0 ? "+" : ""}${stats.roi.toFixed(1)}%` : "—"}
-          tone={stats.roi != null && stats.roi > 0 ? "accent" : stats.roi != null && stats.roi < 0 ? "danger" : "default"}
-        />
-        <StatCard
-          label="Current streak"
-          value={formatStreak(streaks.current)}
-          tone={streaks.current > 0 ? "accent" : streaks.current < 0 ? "danger" : "default"}
-        />
-        <StatCard label="Pending" value={stats.pending.toString()} />
-      </div>
-
-      <div className="mt-6 grid gap-4 lg:grid-cols-[1.4fr_1fr]">
+    ),
+    performance: (
+      <div className="grid gap-4 lg:grid-cols-[1.4fr_1fr]">
         <div className="card p-5">
           <div className="flex items-center justify-between">
             <p className="font-semibold">Units over time</p>
@@ -229,8 +207,9 @@ export default async function HandicapperDashboardPage() {
           </div>
         </div>
       </div>
-
-      <div className="mt-6 grid gap-4 lg:grid-cols-2">
+    ),
+    breakdowns: (
+      <div className="grid gap-4 lg:grid-cols-2">
         <div className="card p-0">
           <p className="px-5 pt-5 font-semibold">By sport</p>
           <div className="mt-3">
@@ -244,25 +223,24 @@ export default async function HandicapperDashboardPage() {
           </div>
         </div>
       </div>
-
-      <div className="mt-6">
-        <ManagePlanCard
-          plan={handicapper.plan}
-          planStatus={handicapper.planStatus}
-          planInterval={handicapper.planInterval}
-          planCurrentPeriodEnd={handicapper.planCurrentPeriodEnd}
-        />
-      </div>
-
-      <div className="mt-6">
-        <PricingPackagesCard
-          weeklyPriceCents={handicapper.weeklyPriceCents}
-          monthlyPriceCents={handicapper.monthlyPriceCents}
-          annualPriceCents={handicapper.annualPriceCents}
-        />
-      </div>
-
-      <div className="mt-6 grid gap-4 lg:grid-cols-2">
+    ),
+    plan: (
+      <ManagePlanCard
+        plan={handicapper.plan}
+        planStatus={handicapper.planStatus}
+        planInterval={handicapper.planInterval}
+        planCurrentPeriodEnd={handicapper.planCurrentPeriodEnd}
+      />
+    ),
+    pricing: (
+      <PricingPackagesCard
+        weeklyPriceCents={handicapper.weeklyPriceCents}
+        monthlyPriceCents={handicapper.monthlyPriceCents}
+        annualPriceCents={handicapper.annualPriceCents}
+      />
+    ),
+    community: (
+      <div className="grid gap-4 lg:grid-cols-2">
         <SocialsForm
           initial={{
             xUrl: handicapper.xUrl,
@@ -278,6 +256,50 @@ export default async function HandicapperDashboardPage() {
           initial={handicapper.testimonials.map((t) => ({ id: t.id, author: t.author, quote: t.quote }))}
         />
       </div>
+    ),
+  };
+
+  const order = resolveSectionOrder("handicapper", await getSetting(DASHBOARD_ORDER_SETTING.handicapper));
+
+  return (
+    <div className="container-page py-12">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h1 className="text-3xl font-bold">Your dashboard</h1>
+          <p className="mt-1 text-muted">
+            Public profile:{" "}
+            <Link href={`/handicappers/${handicapper.handle}`} className="text-accent hover:underline">
+              blitz.tips/handicappers/{handicapper.handle}
+            </Link>
+          </p>
+        </div>
+      </div>
+
+      {unverified && (
+        <div className="mt-6">
+          <VerifyEmailBanner />
+        </div>
+      )}
+
+      <div className="mt-6">
+        <ProfileImagesForm
+          avatarUrl={handicapper.avatarUrl}
+          coverUrl={handicapper.coverUrl}
+          displayName={handicapper.displayName}
+        />
+      </div>
+
+      {!handicapper.stripeAccountReady && (
+        <div className="mt-6">
+          <ConnectOnboardingBanner />
+        </div>
+      )}
+
+      {order.map((key) => (
+        <div key={key} className="mt-6">
+          {sections[key]}
+        </div>
+      ))}
     </div>
   );
 }

@@ -13,6 +13,9 @@ import { VerifyEmailBanner } from "@/components/verify-email-banner";
 import { Avatar } from "@/components/avatar";
 import { StatCard } from "@/components/stat-card";
 import { UnitsChart } from "@/components/dashboard/units-chart";
+import { getSetting } from "@/lib/settings";
+import { DASHBOARD_ORDER_SETTING, resolveSectionOrder } from "@/lib/dashboard-sections";
+import type { ReactNode } from "react";
 
 export const metadata: Metadata = { title: "Dashboard" };
 export const dynamic = "force-dynamic";
@@ -117,89 +120,80 @@ export default async function DashboardPage() {
     recentPicks,
   } = await loadDashboard(session.user.id);
 
-  return (
-    <div className="container-page py-12">
-      <h1 className="text-3xl font-bold">Your feed</h1>
-      <p className="mt-2 text-muted">Picks and performance from the handicappers you follow.</p>
-
-      {!currentUser?.emailVerified && (
-        <div className="mt-6">
-          <VerifyEmailBanner />
-        </div>
-      )}
-
-      {subscriptions.length > 0 && (
-        <div className="mt-8 grid grid-cols-2 gap-3 sm:grid-cols-4">
-          <StatCard label="Following" value={subscriptions.length.toString()} />
-          <StatCard label="Monthly spend" value={formatCents(monthlySpendCents)} />
-          <StatCard label="Combined record" value={combined.record} />
-          <StatCard
-            label="Combined units"
-            value={formatUnits(combined.unitsNet)}
-            tone={combined.unitsNet > 0 ? "accent" : combined.unitsNet < 0 ? "danger" : "default"}
-          />
-        </div>
-      )}
-
-      {perCapper.length > 0 && (
-        <section className="mt-8">
-          <h2 className="mb-3 font-semibold">Your handicappers</h2>
-          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-            {perCapper.map(({ sub, stats, points, upcoming }) => (
-              <div key={sub.id} className="card p-5">
-                <div className="flex items-center justify-between gap-2">
-                  <Link
-                    href={`/handicappers/${sub.handicapper.handle}`}
-                    className="flex min-w-0 items-center gap-2 hover:text-accent"
-                  >
-                    <Avatar
-                      src={sub.handicapper.avatarUrl}
-                      name={sub.handicapper.displayName}
-                      className="h-9 w-9 shrink-0 rounded-full text-xs"
-                    />
-                    <span className="min-w-0">
-                      <span className="block truncate font-semibold">{sub.handicapper.displayName}</span>
-                      <span className="block truncate text-xs text-muted">@{sub.handicapper.handle}</span>
-                    </span>
-                  </Link>
-                  <span
-                    className={
-                      stats.unitsNet > 0
-                        ? "shrink-0 text-sm font-semibold text-accent"
-                        : stats.unitsNet < 0
-                          ? "shrink-0 text-sm font-semibold text-danger"
-                          : "shrink-0 text-sm font-semibold text-muted"
-                    }
-                  >
-                    {formatUnits(stats.unitsNet)}
+  // Reorderable sections, keyed by the CMS catalog. The page heading and verify
+  // banner stay pinned to the top; an admin can rearrange these from /admin/cms.
+  const sections: Record<string, ReactNode> = {
+    summary: subscriptions.length > 0 && (
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <StatCard label="Following" value={subscriptions.length.toString()} />
+        <StatCard label="Monthly spend" value={formatCents(monthlySpendCents)} />
+        <StatCard label="Combined record" value={combined.record} />
+        <StatCard
+          label="Combined units"
+          value={formatUnits(combined.unitsNet)}
+          tone={combined.unitsNet > 0 ? "accent" : combined.unitsNet < 0 ? "danger" : "default"}
+        />
+      </div>
+    ),
+    handicappers: perCapper.length > 0 && (
+      <section>
+        <h2 className="mb-3 font-semibold">Your handicappers</h2>
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+          {perCapper.map(({ sub, stats, points, upcoming }) => (
+            <div key={sub.id} className="card p-5">
+              <div className="flex items-center justify-between gap-2">
+                <Link
+                  href={`/handicappers/${sub.handicapper.handle}`}
+                  className="flex min-w-0 items-center gap-2 hover:text-accent"
+                >
+                  <Avatar
+                    src={sub.handicapper.avatarUrl}
+                    name={sub.handicapper.displayName}
+                    className="h-9 w-9 shrink-0 rounded-full text-xs"
+                  />
+                  <span className="min-w-0">
+                    <span className="block truncate font-semibold">{sub.handicapper.displayName}</span>
+                    <span className="block truncate text-xs text-muted">@{sub.handicapper.handle}</span>
                   </span>
+                </Link>
+                <span
+                  className={
+                    stats.unitsNet > 0
+                      ? "shrink-0 text-sm font-semibold text-accent"
+                      : stats.unitsNet < 0
+                        ? "shrink-0 text-sm font-semibold text-danger"
+                        : "shrink-0 text-sm font-semibold text-muted"
+                  }
+                >
+                  {formatUnits(stats.unitsNet)}
+                </span>
+              </div>
+
+              <UnitsChart points={points} className="mt-4" />
+
+              <div className="mt-4 grid grid-cols-3 gap-2 border-t border-border pt-3 text-center">
+                <div>
+                  <p className="text-sm font-bold tabular-nums">{stats.record}</p>
+                  <p className="text-[11px] text-muted">Record</p>
                 </div>
-
-                <UnitsChart points={points} className="mt-4" />
-
-                <div className="mt-4 grid grid-cols-3 gap-2 border-t border-border pt-3 text-center">
-                  <div>
-                    <p className="text-sm font-bold tabular-nums">{stats.record}</p>
-                    <p className="text-[11px] text-muted">Record</p>
-                  </div>
-                  <div>
-                    <p className="text-sm font-bold tabular-nums">
-                      {stats.winRate != null ? `${stats.winRate.toFixed(0)}%` : "—"}
-                    </p>
-                    <p className="text-[11px] text-muted">Win rate</p>
-                  </div>
-                  <div>
-                    <p className="text-sm font-bold tabular-nums text-accent">{upcoming || "—"}</p>
-                    <p className="text-[11px] text-muted">Upcoming</p>
-                  </div>
+                <div>
+                  <p className="text-sm font-bold tabular-nums">
+                    {stats.winRate != null ? `${stats.winRate.toFixed(0)}%` : "—"}
+                  </p>
+                  <p className="text-[11px] text-muted">Win rate</p>
+                </div>
+                <div>
+                  <p className="text-sm font-bold tabular-nums text-accent">{upcoming || "—"}</p>
+                  <p className="text-[11px] text-muted">Upcoming</p>
                 </div>
               </div>
-            ))}
-          </div>
-        </section>
-      )}
-
-      <div className="mt-8 flex flex-col gap-8 lg:flex-row">
+            </div>
+          ))}
+        </div>
+      </section>
+    ),
+    feed: (
+      <div className="flex flex-col gap-8 lg:flex-row">
         <div className="flex-1">
           {feedPicks.length === 0 ? (
             <div className="card p-8 text-center">
@@ -298,6 +292,29 @@ export default async function DashboardPage() {
           )}
         </aside>
       </div>
+    ),
+  };
+
+  const order = resolveSectionOrder("subscriber", await getSetting(DASHBOARD_ORDER_SETTING.subscriber));
+
+  return (
+    <div className="container-page py-12">
+      <h1 className="text-3xl font-bold">Your feed</h1>
+      <p className="mt-2 text-muted">Picks and performance from the handicappers you follow.</p>
+
+      {!currentUser?.emailVerified && (
+        <div className="mt-6">
+          <VerifyEmailBanner />
+        </div>
+      )}
+
+      {order.map((key) =>
+        sections[key] ? (
+          <div key={key} className="mt-8">
+            {sections[key]}
+          </div>
+        ) : null
+      )}
     </div>
   );
 }
