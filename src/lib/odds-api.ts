@@ -39,6 +39,20 @@ const GAME_IN_PROGRESS_WINDOW_MS = 4 * 60 * 60 * 1000;
 // Overridable so tests can point at a local mock of the upstream API.
 const API_BASE = process.env.ODDS_API_BASE ?? "https://api.the-odds-api.com/v4";
 
+// Read the Odds API key robustly: trims stray whitespace/newlines from a pasted
+// value and accepts a couple of common alternate variable names, so a small
+// naming/formatting slip in the host env doesn't silently blank the whole feed.
+// THE_ODDS_API_KEY is the canonical name.
+export function oddsApiKey(): string | undefined {
+  const raw =
+    process.env.THE_ODDS_API_KEY ??
+    process.env.ODDS_API_KEY ??
+    process.env.THEODDS_API_KEY ??
+    process.env.NEXT_PUBLIC_THE_ODDS_API_KEY;
+  const key = raw?.trim();
+  return key ? key : undefined;
+}
+
 // Sports we can serve from the API; everything else falls back to manual entry.
 // SOCCER's value here is only a fallback single league — soccer is normally
 // resolved to whatever leagues our tier has in season (see getSoccerLeagueKeys).
@@ -169,7 +183,7 @@ function isWithinUpcomingWindow(commenceTime: Date, now: Date): boolean {
 // non-trivial on your plan, either drop back to a static tab list
 // (HOMEPAGE_SPORTS) or raise REVALIDATE_SECONDS further.
 export async function getAvailableHomepageSports(): Promise<PickSport[]> {
-  const apiKey = process.env.THE_ODDS_API_KEY;
+  const apiKey = oddsApiKey();
   if (!apiKey) return [];
 
   const now = new Date();
@@ -328,7 +342,7 @@ async function fetchLeagueEvents(
 }
 
 export async function getUpcomingEvents(sport: PickSport): Promise<OddsFeedResult> {
-  const apiKey = process.env.THE_ODDS_API_KEY;
+  const apiKey = oddsApiKey();
   if (!apiKey) return { configured: false, supported: false, events: [] };
 
   if (!isSportSupported(sport)) return { configured: true, supported: false, events: [] };

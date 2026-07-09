@@ -1,5 +1,6 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
+import { oddsApiKey } from "@/lib/odds-api";
 import type { Pick as PickModel, PickResult } from "@prisma/client";
 
 const API_BASE = process.env.ODDS_API_BASE ?? "https://api.the-odds-api.com/v4";
@@ -82,7 +83,7 @@ export interface AutoSettleReport {
  * that can't be parsed are left untouched.
  */
 export async function runAutoSettle(): Promise<AutoSettleReport> {
-  const apiKey = process.env.THE_ODDS_API_KEY;
+  const apiKey = oddsApiKey();
   const report: AutoSettleReport = { candidates: 0, settled: 0, skipped: 0, errors: [] };
 
   if (!apiKey) {

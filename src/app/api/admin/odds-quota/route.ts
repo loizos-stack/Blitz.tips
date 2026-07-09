@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { requirePermission } from "@/lib/permissions";
+import { oddsApiKey } from "@/lib/odds-api";
 
 const API_BASE = process.env.ODDS_API_BASE ?? "https://api.the-odds-api.com/v4";
 
@@ -9,7 +10,7 @@ export async function GET() {
   const ctx = await requirePermission("system");
   if (!ctx) return NextResponse.json({ error: "Not permitted" }, { status: 403 });
 
-  const apiKey = process.env.THE_ODDS_API_KEY;
+  const apiKey = oddsApiKey();
   if (!apiKey) return NextResponse.json({ error: "THE_ODDS_API_KEY not configured" }, { status: 400 });
 
   try {
