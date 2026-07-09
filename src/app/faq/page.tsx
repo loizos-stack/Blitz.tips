@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { ChevronDown } from "lucide-react";
+import { ContactForm } from "@/components/contact-form";
 
 export const metadata: Metadata = {
   title: "FAQ",
@@ -123,24 +124,14 @@ export default function FaqPage() {
           ))}
         </div>
 
-        <div className="mt-12 rounded-2xl border border-border bg-surface-raised p-8 text-center">
+        <div className="mt-12">
           <h2 className="text-xl font-bold">Still have questions?</h2>
-          <p className="mx-auto mt-2 max-w-md text-sm text-muted">
-            Browse proven handicappers or start your own track record — we&rsquo;re happy to help either way.
+          <p className="mt-2 text-sm text-muted">
+            Didn&rsquo;t find your answer? Send us a message and we&rsquo;ll help — or email{" "}
+            <a href="mailto:support@blitz.tips" className="text-accent hover:underline">support@blitz.tips</a>.
           </p>
-          <div className="mt-5 flex flex-wrap justify-center gap-3">
-            <Link
-              href="/leaderboard"
-              className="rounded-lg bg-accent px-5 py-2.5 text-sm font-semibold text-accent-foreground hover:opacity-90"
-            >
-              Browse the leaderboard
-            </Link>
-            <Link
-              href="/about"
-              className="rounded-lg border border-border px-5 py-2.5 text-sm font-semibold hover:border-muted"
-            >
-              About Blitz.tips
-            </Link>
+          <div className="mt-5">
+            <ContactForm />
           </div>
         </div>
       </div>

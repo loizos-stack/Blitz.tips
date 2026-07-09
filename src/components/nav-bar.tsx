@@ -12,7 +12,7 @@ const links = [
   { href: "/leaderboard", label: "Leaderboard" },
   { href: "/handicappers", label: "Handicappers" },
   { href: "/pricing", label: "Become a Handicapper" },
-  { href: "/about", label: "About" },
+  { href: "/about", label: "About us" },
 ];
 
 export function NavBar() {

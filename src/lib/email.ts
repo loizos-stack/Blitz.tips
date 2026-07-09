@@ -18,6 +18,7 @@ export async function sendEmail(opts: {
   subject: string;
   html: string;
   text: string;
+  replyTo?: string;
 }): Promise<void> {
   if (!resend) {
     console.warn(`[email] RESEND_API_KEY not set — would send "${opts.subject}" to ${opts.to}`);
@@ -29,6 +30,7 @@ export async function sendEmail(opts: {
     subject: opts.subject,
     html: opts.html,
     text: opts.text,
+    ...(opts.replyTo ? { replyTo: opts.replyTo } : {}),
   });
   if (error) throw new Error(error.message);
 }

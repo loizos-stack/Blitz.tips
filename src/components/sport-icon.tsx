@@ -64,19 +64,26 @@ function HockeyPuck({ className }: { className?: string }) {
   );
 }
 
-// Classic pentagon ball with a bold outline so it doesn't wash out on the
-// light theme.
+// Classic black-and-white soccer ball: a central pentagon, five surrounding
+// pentagons and connecting seams. Bold outline so it reads on the light theme.
 function SoccerBall({ className }: { className?: string }) {
   return (
     <svg viewBox="0 0 24 24" className={className}>
-      <circle cx="12" cy="12" r="9.5" fill="#f2f3f5" stroke="#79808b" strokeWidth={1.2} />
-      <path d="M12 7.6l3.8 2.8-1.5 4.4H9.7l-1.5-4.4L12 7.6z" fill="#1f2430" />
-      <g stroke="#1f2430" strokeWidth={1.4} strokeLinecap="round" fill="none">
-        <path d="M12 2.8v4.8" />
-        <path d="M3.6 9.2l4.9 1.2" />
-        <path d="M6.4 19.2l3.3-4.4" />
-        <path d="M17.6 19.2l-3.3-4.4" />
-        <path d="M20.4 9.2l-4.9 1.2" />
+      <circle cx="12" cy="12" r="9.5" fill="#ffffff" stroke="#2b2f36" strokeWidth={1.2} />
+      <path d="M12 7.9l3.3 2.4-1.26 3.9H9.96L8.7 10.3z" fill="#20242c" />
+      <g fill="#20242c">
+        <path d="M12 2.7l1.9 1.4-.7 2.1h-2.4l-.7-2.1z" />
+        <path d="M3.5 8.9l2.2-.1.75 2.15-1.8 1.35-1.75-1.3z" />
+        <path d="M20.5 8.9l-2.2-.1-.75 2.15 1.8 1.35 1.75-1.3z" />
+        <path d="M7.2 19.9l.7-2.15 2.25.75.15 2.25-2.15.6z" />
+        <path d="M16.8 19.9l-.7-2.15-2.25.75-.15 2.25 2.15.6z" />
+      </g>
+      <g stroke="#2b2f36" strokeWidth={1.1} fill="none" strokeLinecap="round">
+        <path d="M12 7.9V6" />
+        <path d="M8.85 10.6L6.2 9.9" />
+        <path d="M15.15 10.6l2.65-.7" />
+        <path d="M10.05 14.2l-1.6 1.9" />
+        <path d="M13.95 14.2l1.6 1.9" />
       </g>
     </svg>
   );
@@ -127,18 +134,21 @@ function Trophy({ className }: { className?: string }) {
   );
 }
 
-// Octagon cage — an unmistakable MMA mark, distinct from a boxing glove.
-function Octagon({ className }: { className?: string }) {
+// Red boxing glove — the striking-sports mark for UFC / MMA.
+function BoxingGlove({ className }: { className?: string }) {
   return (
     <svg viewBox="0 0 24 24" className={className}>
-      <path d="M8.2 3h7.6L21 8.2v7.6L15.8 21H8.2L3 15.8V8.2z" fill="#b91c1c" />
+      <path d="M6.2 11.9c-1.7.05-3-1-3-2.35 0-1.3 1.2-2.35 2.8-2.3z" fill="#d92d2d" />
       <path
-        d="M9.4 6.4h5.2L17.6 9.4v5.2L14.6 17.6H9.4L6.4 14.6V9.4z"
-        fill="none"
-        stroke="#fee2e2"
-        strokeWidth={1.1}
-        strokeLinejoin="round"
+        d="M6 8.3C6 5.7 8.1 3.7 10.7 3.7h1.7C15.6 3.7 18 6 18 8.9v3.5c0 1.9-1.5 3.4-3.4 3.4H9.4C7.5 15.8 6 14.3 6 12.4z"
+        fill="#e63946"
       />
+      <path d="M9.1 8.3c1.9-.7 3.9-.7 5.8 0" stroke="#a52020" strokeWidth={1.1} fill="none" strokeLinecap="round" />
+      <path
+        d="M8.7 15.8h6c.85 0 1.5.65 1.5 1.5v1.7c0 .85-.65 1.5-1.5 1.5H9c-.85 0-1.5-.65-1.5-1.5v-1.5c0-.95.55-1.7 1.2-1.7z"
+        fill="#c92a2a"
+      />
+      <path d="M7.9 18.2h8.2" stroke="#8f1c1c" strokeWidth={0.9} />
     </svg>
   );
 }
@@ -152,7 +162,7 @@ const ICONS: Partial<Record<PickSport, React.ComponentType<{ className?: string 
   MLB: Baseball,
   NHL: HockeyPuck,
   SOCCER: SoccerBall,
-  UFC_MMA: Octagon,
+  UFC_MMA: BoxingGlove,
   GOLF: GolfFlag,
   TENNIS: TennisBall,
   OTHER: Trophy,
