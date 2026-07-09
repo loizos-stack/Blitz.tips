@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import { listHandicapperSummaries, sortFeaturedFirst, type HandicapperSummary } from "@/lib/handicappers";
 import { Avatar } from "@/components/avatar";
 import { SportFilterSelect } from "@/components/sport-filter-select";
+import { formatStreak } from "@/lib/analytics";
 import { SPORT_LABELS } from "@/lib/utils";
 import { cn } from "@/lib/utils";
 import type { PickSport } from "@prisma/client";
@@ -68,13 +69,16 @@ export default async function LeaderboardPage({
       </div>
 
       <div className="card overflow-hidden">
-        <div className="hidden grid-cols-[3rem_1fr_6rem_6rem_6rem_6rem] gap-4 border-b border-border px-5 py-3 text-xs font-medium uppercase tracking-wide text-muted md:grid">
+        <div className="hidden gap-4 border-b border-border px-5 py-3 text-xs font-medium uppercase tracking-wide text-muted md:grid md:grid-cols-[3rem_1fr_6rem_6rem_6rem_6rem] lg:grid-cols-[3rem_1fr_5rem_5rem_5rem_5rem_4.5rem_4.5rem_4.5rem]">
           <span>#</span>
           <span>Handicapper</span>
           <span className="text-right">Record</span>
           <span className="text-right">Win %</span>
           <span className="text-right">Units</span>
           <span className="text-right">ROI</span>
+          <span className="hidden text-right lg:block">Streak</span>
+          <span className="hidden text-right lg:block">L10</span>
+          <span className="hidden text-right lg:block">Picks</span>
         </div>
         {sorted.length === 0 ? (
           <p className="p-8 text-center text-muted">No handicappers match this filter yet.</p>
@@ -83,7 +87,7 @@ export default async function LeaderboardPage({
             <Link
               key={h.id}
               href={`/handicappers/${h.handle}`}
-              className="grid grid-cols-[2rem_1fr_auto] items-center gap-3 border-b border-border px-5 py-4 last:border-b-0 hover:bg-surface-raised/60 md:grid-cols-[3rem_1fr_6rem_6rem_6rem_6rem] md:gap-4"
+              className="grid grid-cols-[2rem_1fr_auto] items-center gap-3 border-b border-border px-5 py-4 last:border-b-0 hover:bg-surface-raised/60 md:grid-cols-[3rem_1fr_6rem_6rem_6rem_6rem] md:gap-4 lg:grid-cols-[3rem_1fr_5rem_5rem_5rem_5rem_4.5rem_4.5rem_4.5rem]"
             >
               <span className="text-sm font-bold text-muted">#{i + 1}</span>
               <div className="flex min-w-0 items-center gap-3">
@@ -120,6 +124,18 @@ export default async function LeaderboardPage({
               <span className="hidden text-right tabular-nums text-muted md:block">
                 {h.stats.roi !== null ? `${h.stats.roi.toFixed(1)}%` : "—"}
               </span>
+              <span
+                className={cn(
+                  "hidden text-right font-semibold tabular-nums lg:block",
+                  h.currentStreak > 0 ? "text-accent" : h.currentStreak < 0 ? "text-danger" : "text-muted"
+                )}
+              >
+                {formatStreak(h.currentStreak)}
+              </span>
+              <span className="hidden text-right tabular-nums text-muted lg:block">
+                {h.last10Stats.totalPicks > 0 ? h.last10Stats.record : "—"}
+              </span>
+              <span className="hidden text-right tabular-nums text-muted lg:block">{h.stats.totalPicks}</span>
             </Link>
           ))
         )}
