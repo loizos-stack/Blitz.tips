@@ -11,7 +11,8 @@ import { cn } from "@/lib/utils";
 const links = [
   { href: "/leaderboard", label: "Leaderboard" },
   { href: "/handicappers", label: "Handicappers" },
-  { href: "/pricing", label: "Become a Handicapper" },
+  { href: "/buy-picks", label: "Buy Picks" },
+  { href: "/pricing", label: "Sell Picks" },
   { href: "/about", label: "About us" },
 ];
 
