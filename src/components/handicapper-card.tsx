@@ -103,13 +103,19 @@ export function HandicapperCard({ handicapper, rank }: { handicapper: Handicappe
         </div>
       </div>
 
-      {stats.pending > 0 && (
-        <div className="text-xs">
+      <div className="flex flex-wrap items-center gap-2 text-xs">
+        <span className="flex items-center gap-1.5 rounded-full bg-surface-raised px-2 py-0.5">
+          <span className="font-semibold text-muted">L10</span>
+          <span className="font-semibold tabular-nums">
+            {handicapper.last10Stats.totalPicks > 0 ? handicapper.last10Stats.record : "—"}
+          </span>
+        </span>
+        {stats.pending > 0 && (
           <span className="rounded-full bg-gold/15 px-2 py-0.5 font-semibold text-gold">
             {stats.pending} pending
           </span>
-        </div>
-      )}
+        )}
+      </div>
 
       <p className="text-sm text-muted">
         {[

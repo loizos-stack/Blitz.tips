@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { computeStats, type HandicapperStats } from "@/lib/odds";
-import { computeStreaks } from "@/lib/analytics";
+import { computeStreaks, lastNStats } from "@/lib/analytics";
 import { isFeaturedHandicapper } from "@/lib/plans";
 import type { HandicapperProfile, Pick as PickModel, Testimonial, ParlayLeg } from "@prisma/client";
 
@@ -9,6 +9,8 @@ export type PickWithLegs = PickModel & { parlayLegs: ParlayLeg[] };
 export type HandicapperSummary = HandicapperProfile & {
   stats: HandicapperStats;
   last30Stats: HandicapperStats;
+  /** Record over the most recent 10 settled picks (the "L10" form line). */
+  last10Stats: HandicapperStats;
   /** Current win/loss run (positive = wins, negative = losses); shown on cards. */
   currentStreak: number;
   isFeatured: boolean;
@@ -85,6 +87,7 @@ function toSummary(handicapper: HandicapperProfile & { picks: PickModel[] }): Ha
     ...handicapper,
     stats: computeStats(handicapper.picks),
     last30Stats: computeStats(recentPicks),
+    last10Stats: lastNStats(handicapper.picks, 10),
     currentStreak: computeStreaks(handicapper.picks).current,
     isFeatured: isFeaturedHandicapper(handicapper.plan, handicapper.planStatus),
   };

@@ -137,10 +137,17 @@ export default async function HandicapperProfilePage({
         <StatCard label="ROI" value={handicapper.stats.roi !== null ? `${handicapper.stats.roi.toFixed(1)}%` : "—"} />
       </div>
 
-      <p className="mt-3 text-xs text-muted">
-        Last 30 days: {handicapper.last30Stats.record} · {handicapper.last30Stats.unitsNet >= 0 ? "+" : ""}
-        {handicapper.last30Stats.unitsNet.toFixed(1)}u
-      </p>
+      <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted">
+        <span>
+          <span className="font-semibold text-foreground">L10</span> {handicapper.last10Stats.totalPicks > 0
+            ? `${handicapper.last10Stats.record} · ${handicapper.last10Stats.unitsNet >= 0 ? "+" : ""}${handicapper.last10Stats.unitsNet.toFixed(1)}u`
+            : "—"}
+        </span>
+        <span>
+          Last 30 days: {handicapper.last30Stats.record} · {handicapper.last30Stats.unitsNet >= 0 ? "+" : ""}
+          {handicapper.last30Stats.unitsNet.toFixed(1)}u
+        </span>
+      </div>
 
       {pendingPicks.length > 0 && (
         <div className="mt-8">

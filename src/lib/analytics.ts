@@ -97,6 +97,15 @@ export function statsSince(picks: TimedPick[], days: number, now = Date.now()): 
   return computeStats(picks.filter((p) => pickDate(p).getTime() >= cutoff));
 }
 
+/** Stats over only the most recent N settled picks (by timeline) — e.g. an L10 form line. */
+export function lastNStats(picks: TimedPick[], n: number): HandicapperStats {
+  const recent = picks
+    .filter((p) => isSettled(p.result))
+    .sort((a, b) => pickDate(a).getTime() - pickDate(b).getTime())
+    .slice(-n);
+  return computeStats(recent);
+}
+
 export function formatUnits(n: number): string {
   const s = n > 0 ? `+${n}` : `${n}`;
   return `${s}u`;
