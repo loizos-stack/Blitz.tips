@@ -2,6 +2,8 @@ import "server-only";
 import { prisma } from "@/lib/prisma";
 import { sendEmail } from "@/lib/email";
 import { sendPush } from "@/lib/push";
+import { sendTelegram } from "@/lib/telegram";
+import { sendDiscordDM } from "@/lib/discord";
 import { formatOdds } from "@/lib/odds";
 
 const SITE_URL = process.env.NEXT_PUBLIC_APP_URL ?? "https://blitz.tips";
@@ -40,7 +42,17 @@ export async function notifyNewPick(pick: NewPickInput): Promise<void> {
 
     const users = await prisma.user.findMany({
       where: { id: { in: [...recipientIds] }, suspendedAt: null },
-      select: { id: true, email: true, emailVerified: true, notifyEmail: true, notifyPush: true },
+      select: {
+        id: true,
+        email: true,
+        emailVerified: true,
+        notifyEmail: true,
+        notifyPush: true,
+        notifyTelegram: true,
+        telegramChatId: true,
+        notifyDiscord: true,
+        discordUserId: true,
+      },
     });
 
     const url = `/handicappers/${handicapper.handle}`;
@@ -95,6 +107,28 @@ export async function notifyNewPick(pick: NewPickInput): Promise<void> {
       );
       void results;
     }
+
+    // 4) Telegram DMs — for opted-in, linked recipients.
+    const chatMessage = (userId: string) => `<b>${escapeHtml(title)}</b>\n${escapeHtml(bodyFor(userId))}\n${SITE_URL}${url}`;
+    await Promise.allSettled(
+      users
+        .filter((u) => u.notifyTelegram && u.telegramChatId)
+        .map(async (u) => {
+          const { gone } = await sendTelegram(u.telegramChatId!, chatMessage(u.id));
+          if (gone) await prisma.user.update({ where: { id: u.id }, data: { telegramChatId: null } }).catch(() => null);
+        })
+    );
+
+    // 5) Discord DMs — for opted-in, linked recipients.
+    const discordMessage = (userId: string) => `**${title}**\n${bodyFor(userId)}\n${SITE_URL}${url}`;
+    await Promise.allSettled(
+      users
+        .filter((u) => u.notifyDiscord && u.discordUserId)
+        .map(async (u) => {
+          const { gone } = await sendDiscordDM(u.discordUserId!, discordMessage(u.id));
+          if (gone) await prisma.user.update({ where: { id: u.id }, data: { discordUserId: null } }).catch(() => null);
+        })
+    );
   } catch (e) {
     console.error("notifyNewPick failed:", e);
   }

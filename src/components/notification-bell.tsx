@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { formatDistanceToNowStrict } from "date-fns";
 import { Bell } from "lucide-react";
+import { pushSupported, isPushSubscribed, subscribePush, unsubscribePush } from "@/lib/push-client";
 
 interface NotificationItem {
   id: string;
@@ -12,15 +13,6 @@ interface NotificationItem {
   url: string | null;
   readAt: string | null;
   createdAt: string;
-}
-
-function urlBase64ToUint8Array(base64String: string): Uint8Array<ArrayBuffer> {
-  const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
-  const base64 = (base64String + padding).replace(/-/g, "+").replace(/_/g, "/");
-  const raw = atob(base64);
-  const out = new Uint8Array(new ArrayBuffer(raw.length));
-  for (let i = 0; i < raw.length; i++) out[i] = raw.charCodeAt(i);
-  return out;
 }
 
 export function NotificationBell() {
@@ -58,18 +50,12 @@ export function NotificationBell() {
       .then((r) => r.json())
       .then((p) => setEmailOn(p.notifyEmail !== false))
       .catch(() => {});
-    const supported =
-      typeof window !== "undefined" && "serviceWorker" in navigator && "PushManager" in window;
-    if (!supported) return;
+    if (!pushSupported()) return;
     fetch("/api/push/subscribe")
       .then((r) => r.json())
       .then((p) => setPushAvailable(Boolean(p.configured)))
       .catch(() => {});
-    navigator.serviceWorker
-      .getRegistration()
-      .then((reg) => reg?.pushManager.getSubscription())
-      .then((sub) => setPushOn(Boolean(sub)))
-      .catch(() => {});
+    isPushSubscribed().then(setPushOn);
   }, []);
 
   useEffect(() => {
@@ -100,50 +86,15 @@ export function NotificationBell() {
     }).catch(() => {});
   }
 
-  async function enablePush() {
+  async function togglePush(next: boolean) {
     setPushBusy(true);
     try {
-      const reg = await navigator.serviceWorker.register("/sw.js");
-      const perm = await Notification.requestPermission();
-      if (perm !== "granted") return;
-      const { publicKey } = await fetch("/api/push/subscribe").then((r) => r.json());
-      if (!publicKey) return;
-      const sub = await reg.pushManager.subscribe({
-        userVisibleOnly: true,
-        applicationServerKey: urlBase64ToUint8Array(publicKey),
-      });
-      await fetch("/api/push/subscribe", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(sub),
-      });
-      await fetch("/api/notifications/preferences", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ notifyPush: true }),
-      });
-      setPushOn(true);
-    } catch {
-      // permission denied or unsupported — leave the toggle off
-    } finally {
-      setPushBusy(false);
-    }
-  }
-
-  async function disablePush() {
-    setPushBusy(true);
-    try {
-      const reg = await navigator.serviceWorker.getRegistration();
-      const sub = await reg?.pushManager.getSubscription();
-      if (sub) {
-        await fetch("/api/push/subscribe", {
-          method: "DELETE",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ endpoint: sub.endpoint }),
-        }).catch(() => {});
-        await sub.unsubscribe().catch(() => {});
+      if (next) {
+        if (await subscribePush()) setPushOn(true);
+      } else {
+        await unsubscribePush();
+        setPushOn(false);
       }
-      setPushOn(false);
     } finally {
       setPushBusy(false);
     }
@@ -229,11 +180,18 @@ export function NotificationBell() {
                   type="checkbox"
                   checked={pushOn}
                   disabled={pushBusy}
-                  onChange={(e) => (e.target.checked ? enablePush() : disablePush())}
+                  onChange={(e) => togglePush(e.target.checked)}
                   className="h-4 w-4 accent-[var(--accent,#16a34a)]"
                 />
               </label>
             )}
+            <Link
+              href="/settings/notifications"
+              onClick={() => setOpen(false)}
+              className="block pt-1 text-xs font-medium text-accent hover:underline"
+            >
+              All notification settings →
+            </Link>
           </div>
         </div>
       )}

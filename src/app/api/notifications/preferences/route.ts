@@ -19,9 +19,16 @@ export async function POST(request: Request) {
   if (!session?.user?.id) return NextResponse.json({ error: "Sign in required" }, { status: 401 });
 
   const body = await request.json().catch(() => ({}));
-  const data: { notifyEmail?: boolean; notifyPush?: boolean } = {};
+  const data: {
+    notifyEmail?: boolean;
+    notifyPush?: boolean;
+    notifyTelegram?: boolean;
+    notifyDiscord?: boolean;
+  } = {};
   if (typeof body.notifyEmail === "boolean") data.notifyEmail = body.notifyEmail;
   if (typeof body.notifyPush === "boolean") data.notifyPush = body.notifyPush;
+  if (typeof body.notifyTelegram === "boolean") data.notifyTelegram = body.notifyTelegram;
+  if (typeof body.notifyDiscord === "boolean") data.notifyDiscord = body.notifyDiscord;
   if (Object.keys(data).length === 0) {
     return NextResponse.json({ error: "Nothing to update" }, { status: 400 });
   }

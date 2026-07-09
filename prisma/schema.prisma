@@ -102,6 +102,13 @@ model User {
   // Per-channel notification opt-outs (in-app is always on). Default on.
   notifyEmail    Boolean   @default(true)
   notifyPush     Boolean   @default(true)
+  notifyTelegram Boolean   @default(true)
+  notifyDiscord  Boolean   @default(true)
+
+  // Linked chat identities for DM notifications (null until the user connects).
+  telegramChatId     String?
+  telegramLinkToken  String?  @unique
+  discordUserId      String?
 
   stripeCustomerId String? @unique
 
