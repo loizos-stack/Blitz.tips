@@ -4,6 +4,7 @@ import { listHandicapperSummaries, sortFeaturedFirst } from "@/lib/handicappers"
 import { HandicapperCard } from "@/components/handicapper-card";
 import { UpcomingGames } from "@/components/upcoming-games";
 import { getUpcomingEvents, getAvailableHomepageSports } from "@/lib/odds-api";
+import { SPORT_LABELS } from "@/lib/utils";
 import type { PickSport } from "@prisma/client";
 
 export const dynamic = "force-dynamic";
@@ -14,18 +15,24 @@ export default async function Home({
   searchParams: Promise<{ sport?: string }>;
 }) {
   const params = await searchParams;
-  const [handicappers, availableSports] = await Promise.all([
+  const [handicappers, unsortedSports] = await Promise.all([
     listHandicapperSummaries(),
     getAvailableHomepageSports(),
   ]);
 
-  // Odds are fetched on demand: only when a visitor explicitly picks a sport
-  // tab (?sport=...). The bare homepage renders the tab bar without spending
-  // any odds-API credits — with the free tier's small quota, idle homepage
-  // traffic shouldn't burn calls nobody asked for.
-  const sport: PickSport | null = availableSports.includes(params.sport as PickSport)
+  // Active sports, alphabetized by their display label so the tab order is
+  // predictable.
+  const availableSports = [...unsortedSports].sort((a, b) =>
+    (SPORT_LABELS[a] ?? a).localeCompare(SPORT_LABELS[b] ?? b)
+  );
+
+  // Default to the first (alphabetical) sport's board so visitors land on a
+  // populated board, not an empty prompt; an explicit ?sport=... tab wins.
+  // Each sport's feed is cached for an hour, so this stays within quota.
+  const requested = availableSports.includes(params.sport as PickSport)
     ? (params.sport as PickSport)
     : null;
+  const sport: PickSport | null = requested ?? availableSports[0] ?? null;
 
   const oddsFeed = sport ? await getUpcomingEvents(sport) : null;
   const featured = sortFeaturedFirst(handicappers, (a, b) => b.stats.unitsNet - a.stats.unitsNet).slice(0, 3);
