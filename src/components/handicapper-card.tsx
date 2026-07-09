@@ -1,13 +1,14 @@
 import Link from "next/link";
 import { BadgeCheck } from "lucide-react";
 import { formatCents, SPORT_LABELS } from "@/lib/utils";
+import { formatStreak } from "@/lib/analytics";
 import { Avatar } from "@/components/avatar";
 import { SportIcon } from "@/components/sport-icon";
 import { SocialLinks } from "@/components/social-links";
 import type { HandicapperSummary } from "@/lib/handicappers";
 
 export function HandicapperCard({ handicapper, rank }: { handicapper: HandicapperSummary; rank?: number }) {
-  const { stats } = handicapper;
+  const { stats, currentStreak } = handicapper;
 
   return (
     <Link
@@ -64,20 +65,40 @@ export function HandicapperCard({ handicapper, rank }: { handicapper: Handicappe
         ))}
       </div>
 
-      <div className="grid grid-cols-3 gap-2 border-t border-border pt-4 text-sm">
+      <div className="grid grid-cols-5 gap-1.5 border-t border-border pt-4 text-sm">
         <div>
-          <p className="text-muted">Record</p>
+          <p className="text-xs text-muted">Record</p>
           <p className="font-semibold tabular-nums">{stats.record}</p>
         </div>
         <div>
-          <p className="text-muted">Win %</p>
+          <p className="text-xs text-muted">Win %</p>
           <p className="font-semibold tabular-nums">{stats.winRate ? `${stats.winRate.toFixed(1)}%` : "—"}</p>
         </div>
         <div>
-          <p className="text-muted">Units</p>
+          <p className="text-xs text-muted">Units</p>
           <p className={`font-semibold tabular-nums ${stats.unitsNet >= 0 ? "text-accent" : "text-danger"}`}>
             {stats.unitsNet >= 0 ? "+" : ""}
             {stats.unitsNet.toFixed(1)}
+          </p>
+        </div>
+        <div>
+          <p className="text-xs text-muted">ROI</p>
+          <p
+            className={`font-semibold tabular-nums ${
+              stats.roi == null ? "" : stats.roi >= 0 ? "text-accent" : "text-danger"
+            }`}
+          >
+            {stats.roi == null ? "—" : `${stats.roi >= 0 ? "+" : ""}${stats.roi.toFixed(1)}%`}
+          </p>
+        </div>
+        <div>
+          <p className="text-xs text-muted">Streak</p>
+          <p
+            className={`font-semibold tabular-nums ${
+              currentStreak > 0 ? "text-accent" : currentStreak < 0 ? "text-danger" : ""
+            }`}
+          >
+            {formatStreak(currentStreak)}
           </p>
         </div>
       </div>
