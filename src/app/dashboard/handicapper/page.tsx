@@ -119,6 +119,27 @@ export default async function HandicapperDashboardPage() {
         </div>
       )}
 
+      <div className="mt-6 grid gap-8 lg:grid-cols-[1fr_20rem]">
+        <div className="flex flex-col gap-3">
+          <h2 className="font-semibold">Post a pick</h2>
+          <CreatePickForm handicapperSports={handicapper.sports} />
+          <CreateParlayForm handicapperSports={handicapper.sports} />
+        </div>
+
+        <div>
+          <h2 className="mb-3 font-semibold">Your picks</h2>
+          {handicapper.picks.length === 0 ? (
+            <p className="text-muted">You haven&apos;t posted any picks yet.</p>
+          ) : (
+            <div className="grid gap-3">
+              {handicapper.picks.map((pick) => (
+                <HandicapperPickRow key={pick.id} pick={pick} />
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+
       <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
         <StatCard label="Record" value={stats.record} />
         <StatCard label="Win rate" value={stats.winRate ? `${stats.winRate.toFixed(1)}%` : "—"} />
@@ -256,27 +277,6 @@ export default async function HandicapperDashboardPage() {
         <TestimonialsForm
           initial={handicapper.testimonials.map((t) => ({ id: t.id, author: t.author, quote: t.quote }))}
         />
-      </div>
-
-      <div className="mt-10 grid gap-8 lg:grid-cols-[22rem_1fr]">
-        <div className="flex flex-col gap-3">
-          <h2 className="font-semibold">Post a pick</h2>
-          <CreatePickForm handicapperSports={handicapper.sports} />
-          <CreateParlayForm handicapperSports={handicapper.sports} />
-        </div>
-
-        <div>
-          <h2 className="mb-3 font-semibold">Your picks</h2>
-          {handicapper.picks.length === 0 ? (
-            <p className="text-muted">You haven&apos;t posted any picks yet.</p>
-          ) : (
-            <div className="grid gap-4 sm:grid-cols-2">
-              {handicapper.picks.map((pick) => (
-                <HandicapperPickRow key={pick.id} pick={pick} />
-              ))}
-            </div>
-          )}
-        </div>
       </div>
     </div>
   );
