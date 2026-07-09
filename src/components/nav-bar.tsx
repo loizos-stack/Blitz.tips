@@ -7,6 +7,7 @@ import { usePathname } from "next/navigation";
 import { useSession, signOut } from "next-auth/react";
 import { Menu, X } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { NotificationBell } from "@/components/notification-bell";
 
 const links = [
   { href: "/leaderboard", label: "Leaderboard" },
@@ -29,7 +30,8 @@ export function NavBar() {
           <span>Blitz<span className="text-accent">.tips</span></span>
         </Link>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2">
+          {status === "authenticated" && <NotificationBell />}
           {/* Auth actions stay inline on larger screens; everything else lives
               behind the menu button at every size. */}
           <div className="hidden md:flex items-center gap-3">

@@ -1,9 +1,10 @@
-import { NextResponse } from "next/server";
+import { NextResponse, after } from "next/server";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { createPickSchema, createParlaySchema } from "@/lib/validations";
 import { isEmailVerified } from "@/lib/verification";
 import { logActivity } from "@/lib/audit";
+import { notifyNewPick } from "@/lib/notifications";
 import { combineParlayOdds } from "@/lib/odds";
 import type { BetType, PickSport } from "@prisma/client";
 
@@ -27,7 +28,7 @@ export async function POST(request: Request) {
 
   // Parlays carry a `legs` array; combined odds are computed server-side.
   if (body && Array.isArray(body.legs)) {
-    return createParlay(body, handicapper.id, session.user.id, session.user.email);
+    return createParlay(body, handicapper, session.user.email);
   }
 
   const parsed = createPickSchema.safeParse(body);
@@ -67,6 +68,23 @@ export async function POST(request: Request) {
     detail: `${pick.matchup} — ${pick.selection} @ ${pick.odds}`,
   });
 
+  // Notify the handicapper's followers and subscribers after the response.
+  after(() =>
+    notifyNewPick({
+      id: pick.id,
+      matchup: pick.matchup,
+      selection: pick.selection,
+      odds: pick.odds,
+      isPremium: pick.isPremium,
+      handicapper: {
+        id: handicapper.id,
+        userId: handicapper.userId,
+        handle: handicapper.handle,
+        displayName: handicapper.displayName,
+      },
+    })
+  );
+
   return NextResponse.json({ pick }, { status: 201 });
 }
 
@@ -74,10 +92,11 @@ export async function POST(request: Request) {
 // combined (multiplied) American odds.
 async function createParlay(
   body: unknown,
-  handicapperId: string,
-  actorId: string,
+  handicapper: { id: string; userId: string; handle: string; displayName: string },
   actorEmail: string | null | undefined
 ) {
+  const handicapperId = handicapper.id;
+  const actorId = handicapper.userId;
   const parsed = createParlaySchema.safeParse(body);
   if (!parsed.success) {
     return NextResponse.json({ error: parsed.error.issues[0]?.message ?? "Invalid parlay" }, { status: 400 });
@@ -125,6 +144,22 @@ async function createParlay(
     targetId: pick.id,
     detail: `${legs.length}-leg parlay @ ${combinedOdds}`,
   });
+
+  after(() =>
+    notifyNewPick({
+      id: pick.id,
+      matchup: pick.matchup,
+      selection: `${legs.length}-leg parlay`,
+      odds: pick.odds,
+      isPremium: pick.isPremium,
+      handicapper: {
+        id: handicapper.id,
+        userId: handicapper.userId,
+        handle: handicapper.handle,
+        displayName: handicapper.displayName,
+      },
+    })
+  );
 
   return NextResponse.json({ pick }, { status: 201 });
 }

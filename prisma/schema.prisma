@@ -96,6 +96,12 @@ model User {
   handicapper    HandicapperProfile?
   subscriptions  Subscription[]        @relation("SubscriberSubscriptions")
   follows        Follow[]              @relation("UserFollows")
+  notifications  Notification[]
+  pushSubscriptions PushSubscription[]
+
+  // Per-channel notification opt-outs (in-app is always on). Default on.
+  notifyEmail    Boolean   @default(true)
+  notifyPush     Boolean   @default(true)
 
   stripeCustomerId String? @unique
 
@@ -330,4 +336,43 @@ model Follow {
 
   @@unique([followerId, handicapperId])
   @@index([handicapperId])
+}
+
+// An in-app notification for the bell/notification center. Also the source of
+// truth that a given event happened; email and web push are additional
+// delivery channels driven off the same fan-out.
+model Notification {
+  id            String    @id @default(cuid())
+  userId        String
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  type          String    // e.g. "pick.new"
+  title         String
+  body          String    @db.Text
+  url           String?
+
+  // Loose references (no FK cascade needed — notifications are disposable).
+  handicapperId String?
+  pickId        String?
+
+  readAt        DateTime?
+  createdAt     DateTime  @default(now())
+
+  @@index([userId, createdAt])
+}
+
+// A browser Web Push subscription (endpoint + keys) for a user. A user may have
+// several (one per device/browser). Removed when the push service reports it's
+// gone (404/410).
+model PushSubscription {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  endpoint  String   @unique
+  p256dh    String
+  auth      String
+  createdAt DateTime @default(now())
+
+  @@index([userId])
 }
