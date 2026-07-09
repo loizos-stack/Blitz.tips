@@ -8,6 +8,16 @@ import { SPORT_LABELS, BET_TYPE_LABELS } from "@/lib/utils";
 
 type PickWithLegs = PickModel & { parlayLegs?: Pick<ParlayLeg, "id" | "matchup" | "selection" | "odds">[] };
 
+// The stake on a bet, emphasized so followers can size their own play.
+function UnitsBadge({ units }: { units: number }) {
+  return (
+    <span className="inline-flex items-baseline gap-1 rounded-lg border border-accent/30 bg-accent/10 px-2.5 py-1">
+      <span className="text-base font-bold tabular-nums text-accent">{units}u</span>
+      <span className="text-[10px] font-semibold uppercase tracking-wide text-accent/80">risk</span>
+    </span>
+  );
+}
+
 export function PickCard({ pick, locked = false }: { pick: PickWithLegs; locked?: boolean }) {
   const isParlay = pick.betType === "PARLAY";
   const legs = pick.parlayLegs ?? [];
@@ -68,7 +78,9 @@ export function PickCard({ pick, locked = false }: { pick: PickWithLegs; locked?
               </li>
             ))}
           </ul>
-          <div className="mt-3 text-sm text-muted">{pick.units}u</div>
+          <div className="mt-3">
+            <UnitsBadge units={pick.units} />
+          </div>
         </>
       ) : (
         <>
@@ -77,7 +89,7 @@ export function PickCard({ pick, locked = false }: { pick: PickWithLegs; locked?
             <span className="rounded-full bg-surface-raised px-2.5 py-1">{BET_TYPE_LABELS[pick.betType]}</span>
             <span className="font-semibold">{pick.selection}</span>
             <span className="font-semibold tabular-nums">{formatOdds(pick.odds)}</span>
-            <span className="text-muted">{pick.units}u</span>
+            <UnitsBadge units={pick.units} />
           </div>
         </>
       )}
