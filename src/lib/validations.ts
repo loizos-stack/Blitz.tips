@@ -59,6 +59,30 @@ export const createPickSchema = z.object({
   oddsApiSportKey: z.string().max(64).optional(),
 });
 
+const oddsValue = z
+  .number()
+  .int()
+  .refine((v) => v !== 0 && (v >= 100 || v <= -100), "Odds must be +100/-100 or beyond");
+
+export const parlayLegSchema = z.object({
+  sport: z.string().optional(),
+  league: z.string().max(60).optional(),
+  matchup: z.string().min(2).max(140),
+  selection: z.string().min(1).max(140),
+  odds: oddsValue,
+  oddsApiEventId: z.string().max(64).optional(),
+  oddsApiSportKey: z.string().max(64).optional(),
+});
+
+export const createParlaySchema = z.object({
+  sport: z.string(),
+  units: z.number().min(0.1).max(20),
+  analysis: z.string().max(2000).optional(),
+  isPremium: z.boolean().default(true),
+  eventStartsAt: z.string().min(1, "Event start time is required"),
+  legs: z.array(parlayLegSchema).min(2, "A parlay needs at least 2 legs").max(12),
+});
+
 export const settlePickSchema = z.object({
   result: z.enum(["WIN", "LOSS", "PUSH", "VOID", "PENDING"]),
 });

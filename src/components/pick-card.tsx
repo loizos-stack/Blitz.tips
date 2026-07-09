@@ -1,19 +1,24 @@
-import { Lock } from "lucide-react";
+import { Lock, Layers } from "lucide-react";
 import { format } from "date-fns";
-import type { Pick as PickModel } from "@prisma/client";
+import type { Pick as PickModel, ParlayLeg } from "@prisma/client";
 import { ResultPill } from "@/components/result-pill";
 import { SportIcon } from "@/components/sport-icon";
 import { formatOdds } from "@/lib/odds";
 import { SPORT_LABELS, BET_TYPE_LABELS } from "@/lib/utils";
 
-export function PickCard({ pick, locked = false }: { pick: PickModel; locked?: boolean }) {
+type PickWithLegs = PickModel & { parlayLegs?: Pick<ParlayLeg, "id" | "matchup" | "selection" | "odds">[] };
+
+export function PickCard({ pick, locked = false }: { pick: PickWithLegs; locked?: boolean }) {
+  const isParlay = pick.betType === "PARLAY";
+  const legs = pick.parlayLegs ?? [];
+
   if (locked) {
     return (
       <div className="card relative overflow-hidden p-5">
         <div className="flex items-center justify-between text-sm text-muted">
           <span className="flex items-center gap-1.5">
-            <SportIcon sport={pick.sport} className="h-4 w-4" />
-            {SPORT_LABELS[pick.sport]}
+            {isParlay ? <Layers className="h-4 w-4" /> : <SportIcon sport={pick.sport} className="h-4 w-4" />}
+            {isParlay ? `${legs.length}-leg parlay` : SPORT_LABELS[pick.sport]}
           </span>
           <span>{format(pick.eventStartsAt, "MMM d, h:mm a")}</span>
         </div>
@@ -37,21 +42,45 @@ export function PickCard({ pick, locked = false }: { pick: PickModel; locked?: b
     <div className="card p-5">
       <div className="flex items-center justify-between text-sm text-muted">
         <span className="flex items-center gap-1.5">
-          <SportIcon sport={pick.sport} className="h-4 w-4" />
-          {SPORT_LABELS[pick.sport]}
-          {pick.league ? ` · ${pick.league}` : ""}
+          {isParlay ? <Layers className="h-4 w-4" /> : <SportIcon sport={pick.sport} className="h-4 w-4" />}
+          {isParlay ? "Parlay" : SPORT_LABELS[pick.sport]}
+          {!isParlay && pick.league ? ` · ${pick.league}` : ""}
         </span>
         <span>{format(pick.eventStartsAt, "MMM d, h:mm a")}</span>
       </div>
 
-      <p className="mt-3 font-semibold">{pick.matchup}</p>
-
-      <div className="mt-2 flex flex-wrap items-center gap-3 text-sm">
-        <span className="rounded-full bg-surface-raised px-2.5 py-1">{BET_TYPE_LABELS[pick.betType]}</span>
-        <span className="font-semibold">{pick.selection}</span>
-        <span className="font-semibold tabular-nums">{formatOdds(pick.odds)}</span>
-        <span className="text-muted">{pick.units}u</span>
-      </div>
+      {isParlay ? (
+        <>
+          <div className="mt-3 flex items-center justify-between">
+            <p className="font-semibold">{legs.length}-leg parlay</p>
+            <span className="rounded-full bg-accent/10 px-2.5 py-1 text-sm font-semibold tabular-nums text-accent">
+              {formatOdds(pick.odds)}
+            </span>
+          </div>
+          <ul className="mt-3 divide-y divide-border rounded-lg border border-border">
+            {legs.map((leg) => (
+              <li key={leg.id} className="flex items-center justify-between gap-3 px-3 py-2 text-sm">
+                <span className="min-w-0">
+                  <span className="block truncate font-medium">{leg.selection}</span>
+                  <span className="block truncate text-xs text-muted">{leg.matchup}</span>
+                </span>
+                <span className="shrink-0 tabular-nums text-muted">{formatOdds(leg.odds)}</span>
+              </li>
+            ))}
+          </ul>
+          <div className="mt-3 text-sm text-muted">{pick.units}u</div>
+        </>
+      ) : (
+        <>
+          <p className="mt-3 font-semibold">{pick.matchup}</p>
+          <div className="mt-2 flex flex-wrap items-center gap-3 text-sm">
+            <span className="rounded-full bg-surface-raised px-2.5 py-1">{BET_TYPE_LABELS[pick.betType]}</span>
+            <span className="font-semibold">{pick.selection}</span>
+            <span className="font-semibold tabular-nums">{formatOdds(pick.odds)}</span>
+            <span className="text-muted">{pick.units}u</span>
+          </div>
+        </>
+      )}
 
       {pick.analysis && <p className="mt-3 text-sm text-muted">{pick.analysis}</p>}
 

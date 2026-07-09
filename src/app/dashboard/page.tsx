@@ -56,7 +56,7 @@ async function loadDashboard(userId: string) {
         }),
         prisma.pick.findMany({
           where: { handicapperId: { in: handicapperIds } },
-          include: { handicapper: true },
+          include: { handicapper: true, parlayLegs: { orderBy: { order: "asc" } } },
           orderBy: { eventStartsAt: "desc" },
           take: 60,
         }),
@@ -302,7 +302,7 @@ export default async function DashboardPage() {
   );
 }
 
-type FeedPick = Prisma.PickGetPayload<{ include: { handicapper: true } }>;
+type FeedPick = Prisma.PickGetPayload<{ include: { handicapper: true; parlayLegs: true } }>;
 
 // A feed pick with a link back to the handicapper who posted it.
 function PickAttribution({ pick }: { pick: FeedPick }) {

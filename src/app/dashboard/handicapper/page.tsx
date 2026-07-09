@@ -20,6 +20,7 @@ import { BreakdownTable } from "@/components/dashboard/breakdown-table";
 import { BecomeHandicapperForm } from "@/components/become-handicapper-form";
 import { ConnectOnboardingBanner } from "@/components/connect-onboarding-banner";
 import { CreatePickForm } from "@/components/create-pick-form";
+import { CreateParlayForm } from "@/components/create-parlay-form";
 import { HandicapperPickRow } from "@/components/handicapper-pick-row";
 import { ManagePlanCard } from "@/components/manage-plan-card";
 import { ProfileImagesForm } from "@/components/profile-images-form";
@@ -258,9 +259,10 @@ export default async function HandicapperDashboardPage() {
       </div>
 
       <div className="mt-10 grid gap-8 lg:grid-cols-[22rem_1fr]">
-        <div>
-          <h2 className="mb-3 font-semibold">Post a pick</h2>
+        <div className="flex flex-col gap-3">
+          <h2 className="font-semibold">Post a pick</h2>
           <CreatePickForm handicapperSports={handicapper.sports} />
+          <CreateParlayForm handicapperSports={handicapper.sports} />
         </div>
 
         <div>

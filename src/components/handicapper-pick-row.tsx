@@ -39,7 +39,7 @@ export function HandicapperPickRow({ pick }: { pick: PickModel }) {
 
       <div className="mt-2 flex flex-wrap items-center gap-3 text-sm">
         <span className="rounded-full bg-surface-raised px-2.5 py-1">{BET_TYPE_LABELS[pick.betType]}</span>
-        <span className="font-semibold">{pick.selection}</span>
+        {pick.betType !== "PARLAY" && <span className="font-semibold">{pick.selection}</span>}
         <span className="font-semibold tabular-nums">{formatOdds(pick.odds)}</span>
         <span className="text-muted">{pick.units}u</span>
         {pick.isPremium && <span className="text-xs text-muted">Premium</span>}

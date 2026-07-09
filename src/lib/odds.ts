@@ -19,6 +19,24 @@ export function formatOdds(odds: number): string {
   return odds > 0 ? `+${odds}` : `${odds}`;
 }
 
+/** American odds → decimal (payout multiplier including stake). */
+export function americanToDecimal(odds: number): number {
+  return odds > 0 ? 1 + odds / 100 : 1 + 100 / Math.abs(odds);
+}
+
+/** Decimal odds → American, rounded to a whole number. */
+export function decimalToAmerican(dec: number): number {
+  if (dec <= 1) return 0;
+  return dec >= 2 ? Math.round((dec - 1) * 100) : Math.round(-100 / (dec - 1));
+}
+
+/** Combine parlay legs' American odds by multiplying their decimal payouts. */
+export function combineParlayOdds(legOdds: number[]): number {
+  if (legOdds.length === 0) return 0;
+  const dec = legOdds.reduce((acc, o) => acc * americanToDecimal(o), 1);
+  return decimalToAmerican(dec);
+}
+
 export interface HandicapperStats {
   totalPicks: number;
   wins: number;

@@ -1,7 +1,9 @@
 import { prisma } from "@/lib/prisma";
 import { computeStats, type HandicapperStats } from "@/lib/odds";
 import { isFeaturedHandicapper } from "@/lib/plans";
-import type { HandicapperProfile, Pick as PickModel, Testimonial } from "@prisma/client";
+import type { HandicapperProfile, Pick as PickModel, Testimonial, ParlayLeg } from "@prisma/client";
+
+export type PickWithLegs = PickModel & { parlayLegs: ParlayLeg[] };
 
 export type HandicapperSummary = HandicapperProfile & {
   stats: HandicapperStats;
@@ -49,11 +51,14 @@ export async function listHandicapperSummaries(): Promise<HandicapperSummary[]> 
 
 export async function getHandicapperByHandle(
   handle: string
-): Promise<(HandicapperSummary & { picksList: PickModel[]; testimonials: Testimonial[] }) | null> {
+): Promise<(HandicapperSummary & { picksList: PickWithLegs[]; testimonials: Testimonial[] }) | null> {
   const handicapper = await prisma.handicapperProfile.findUnique({
     where: { handle },
     include: {
-      picks: { orderBy: { eventStartsAt: "desc" } },
+      picks: {
+        orderBy: { eventStartsAt: "desc" },
+        include: { parlayLegs: { orderBy: { order: "asc" } } },
+      },
       testimonials: { orderBy: { createdAt: "desc" } },
     },
   });

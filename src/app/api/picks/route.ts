@@ -1,9 +1,10 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
-import { createPickSchema } from "@/lib/validations";
+import { createPickSchema, createParlaySchema } from "@/lib/validations";
 import { isEmailVerified } from "@/lib/verification";
 import { logActivity } from "@/lib/audit";
+import { combineParlayOdds } from "@/lib/odds";
 import type { BetType, PickSport } from "@prisma/client";
 
 export async function POST(request: Request) {
@@ -23,6 +24,12 @@ export async function POST(request: Request) {
   }
 
   const body = await request.json().catch(() => null);
+
+  // Parlays carry a `legs` array; combined odds are computed server-side.
+  if (body && Array.isArray(body.legs)) {
+    return createParlay(body, handicapper.id, session.user.id, session.user.email);
+  }
+
   const parsed = createPickSchema.safeParse(body);
   if (!parsed.success) {
     return NextResponse.json({ error: parsed.error.issues[0]?.message ?? "Invalid input" }, { status: 400 });
@@ -58,6 +65,65 @@ export async function POST(request: Request) {
     targetType: "Pick",
     targetId: pick.id,
     detail: `${pick.matchup} — ${pick.selection} @ ${pick.odds}`,
+  });
+
+  return NextResponse.json({ pick }, { status: 201 });
+}
+
+// Create a PARLAY pick: store each leg and set the parent Pick's odds to the
+// combined (multiplied) American odds.
+async function createParlay(
+  body: unknown,
+  handicapperId: string,
+  actorId: string,
+  actorEmail: string | null | undefined
+) {
+  const parsed = createParlaySchema.safeParse(body);
+  if (!parsed.success) {
+    return NextResponse.json({ error: parsed.error.issues[0]?.message ?? "Invalid parlay" }, { status: 400 });
+  }
+
+  const eventStartsAt = new Date(parsed.data.eventStartsAt);
+  if (Number.isNaN(eventStartsAt.getTime())) {
+    return NextResponse.json({ error: "Invalid event start time" }, { status: 400 });
+  }
+
+  const { legs, sport, units, analysis, isPremium } = parsed.data;
+  const combinedOdds = combineParlayOdds(legs.map((l) => l.odds));
+
+  const pick = await prisma.pick.create({
+    data: {
+      handicapperId,
+      sport: sport as PickSport,
+      matchup: `${legs.length}-leg parlay`,
+      betType: "PARLAY",
+      selection: legs.map((l) => l.selection).join(" + "),
+      odds: combinedOdds,
+      units,
+      analysis,
+      isPremium,
+      eventStartsAt,
+      parlayLegs: {
+        create: legs.map((l, i) => ({
+          sport: (l.sport as PickSport | undefined) ?? null,
+          league: l.league ?? null,
+          matchup: l.matchup,
+          selection: l.selection,
+          odds: l.odds,
+          order: i,
+        })),
+      },
+    },
+    include: { parlayLegs: { orderBy: { order: "asc" } } },
+  });
+
+  await logActivity({
+    actorId,
+    actorEmail,
+    action: "pick.create",
+    targetType: "Pick",
+    targetId: pick.id,
+    detail: `${legs.length}-leg parlay @ ${combinedOdds}`,
   });
 
   return NextResponse.json({ pick }, { status: 201 });

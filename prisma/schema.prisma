@@ -225,11 +225,34 @@ model Pick {
   oddsApiEventId String?
   oddsApiSportKey String?
 
+  // For a PARLAY bet: the individual legs. `odds` on the parent Pick holds the
+  // combined (multiplied) American odds; each leg keeps its own line.
+  parlayLegs     ParlayLeg[]
+
   createdAt      DateTime   @default(now())
   updatedAt      DateTime   @updatedAt
 
   @@index([handicapperId, createdAt])
   @@index([result])
+}
+
+// One selection within a parlay Pick. Legs are display-only detail; the parlay
+// is graded as a whole on the parent Pick.
+model ParlayLeg {
+  id        String    @id @default(cuid())
+  pickId    String
+  pick      Pick      @relation(fields: [pickId], references: [id], onDelete: Cascade)
+
+  sport     PickSport?
+  league    String?
+  matchup   String
+  selection String
+  odds      Int
+  order     Int        @default(0)
+
+  createdAt DateTime   @default(now())
+
+  @@index([pickId])
 }
 
 // A short quote a handicapper adds from one of their subscribers, shown on the
