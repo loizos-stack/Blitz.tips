@@ -24,6 +24,8 @@ import { HandicapperPickRow } from "@/components/handicapper-pick-row";
 import { ManagePlanCard } from "@/components/manage-plan-card";
 import { ProfileImagesForm } from "@/components/profile-images-form";
 import { PricingPackagesCard } from "@/components/pricing-packages-card";
+import { SocialsForm } from "@/components/socials-form";
+import { TestimonialsForm } from "@/components/testimonials-form";
 import { VerifyEmailBanner } from "@/components/verify-email-banner";
 
 export const metadata: Metadata = { title: "Handicapper dashboard" };
@@ -36,7 +38,10 @@ export default async function HandicapperDashboardPage() {
   const [handicapper, currentUser] = await Promise.all([
     prisma.handicapperProfile.findUnique({
       where: { userId: session.user.id },
-      include: { picks: { orderBy: { eventStartsAt: "desc" } } },
+      include: {
+        picks: { orderBy: { eventStartsAt: "desc" } },
+        testimonials: { orderBy: { createdAt: "asc" } },
+      },
     }),
     prisma.user.findUnique({
       where: { id: session.user.id },
@@ -232,6 +237,23 @@ export default async function HandicapperDashboardPage() {
           weeklyPriceCents={handicapper.weeklyPriceCents}
           monthlyPriceCents={handicapper.monthlyPriceCents}
           annualPriceCents={handicapper.annualPriceCents}
+        />
+      </div>
+
+      <div className="mt-6 grid gap-4 lg:grid-cols-2">
+        <SocialsForm
+          initial={{
+            xUrl: handicapper.xUrl,
+            instagramUrl: handicapper.instagramUrl,
+            youtubeUrl: handicapper.youtubeUrl,
+            tiktokUrl: handicapper.tiktokUrl,
+            discordUrl: handicapper.discordUrl,
+            telegramUrl: handicapper.telegramUrl,
+            websiteUrl: handicapper.websiteUrl,
+          }}
+        />
+        <TestimonialsForm
+          initial={handicapper.testimonials.map((t) => ({ id: t.id, author: t.author, quote: t.quote }))}
         />
       </div>
 

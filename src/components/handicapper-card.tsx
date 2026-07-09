@@ -3,6 +3,7 @@ import { BadgeCheck } from "lucide-react";
 import { formatCents, SPORT_LABELS } from "@/lib/utils";
 import { Avatar } from "@/components/avatar";
 import { SportIcon } from "@/components/sport-icon";
+import { SocialLinks } from "@/components/social-links";
 import type { HandicapperSummary } from "@/lib/handicappers";
 
 export function HandicapperCard({ handicapper, rank }: { handicapper: HandicapperSummary; rank?: number }) {
@@ -90,6 +91,8 @@ export function HandicapperCard({ handicapper, rank }: { handicapper: Handicappe
           .filter(Boolean)
           .join(" · ")}
       </p>
+
+      <SocialLinks profile={handicapper} linked={false} />
       </div>
     </Link>
   );

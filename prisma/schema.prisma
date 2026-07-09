@@ -152,6 +152,16 @@ model HandicapperProfile {
   // take new subscribers; existing data stays intact.
   suspendedAt DateTime?
 
+  // Social links shown (with icons) on the public profile and cards. Null = not
+  // provided. Stored as full normalized URLs.
+  xUrl         String?
+  instagramUrl String?
+  youtubeUrl   String?
+  tiktokUrl    String?
+  discordUrl   String?
+  telegramUrl  String?
+  websiteUrl   String?
+
   // Subscriber pricing packages. Monthly is the required anchor; weekly and
   // annual are optional add-ons (null = the handicapper doesn't offer them).
   monthlyPriceCents Int   @default(2999)
@@ -180,6 +190,7 @@ model HandicapperProfile {
 
   picks         Pick[]
   subscriptions Subscription[] @relation("HandicapperSubscriptions")
+  testimonials  Testimonial[]
 
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -219,6 +230,20 @@ model Pick {
 
   @@index([handicapperId, createdAt])
   @@index([result])
+}
+
+// A short quote a handicapper adds from one of their subscribers, shown on the
+// public profile. Curated by the handicapper (not open user reviews).
+model Testimonial {
+  id            String   @id @default(cuid())
+  handicapperId String
+  handicapper   HandicapperProfile @relation(fields: [handicapperId], references: [id], onDelete: Cascade)
+
+  author        String
+  quote         String   @db.Text
+  createdAt     DateTime @default(now())
+
+  @@index([handicapperId])
 }
 
 // One row per admin mutation — who did what to which record, when.

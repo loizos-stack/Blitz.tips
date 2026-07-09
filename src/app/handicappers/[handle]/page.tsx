@@ -1,12 +1,13 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { BadgeCheck } from "lucide-react";
+import { BadgeCheck, Quote } from "lucide-react";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { getHandicapperByHandle } from "@/lib/handicappers";
 import { StatCard } from "@/components/stat-card";
 import { PickCard } from "@/components/pick-card";
 import { SubscribeButton } from "@/components/subscribe-button";
+import { SocialLinks } from "@/components/social-links";
 import { Avatar } from "@/components/avatar";
 import { SportIcon } from "@/components/sport-icon";
 import { SPORT_LABELS } from "@/lib/utils";
@@ -96,6 +97,7 @@ export default async function HandicapperProfilePage({
               ))}
             </div>
             {handicapper.bio && <p className="mt-4 max-w-xl text-sm text-muted">{handicapper.bio}</p>}
+            <SocialLinks profile={handicapper} className="mt-4" />
           </div>
         </div>
 
@@ -137,6 +139,21 @@ export default async function HandicapperProfilePage({
         Last 30 days: {handicapper.last30Stats.record} · {handicapper.last30Stats.unitsNet >= 0 ? "+" : ""}
         {handicapper.last30Stats.unitsNet.toFixed(1)}u
       </p>
+
+      {handicapper.testimonials.length > 0 && (
+        <div className="mt-10">
+          <h2 className="mb-4 text-xl font-bold">What subscribers say</h2>
+          <div className="grid gap-4 sm:grid-cols-2">
+            {handicapper.testimonials.map((t) => (
+              <figure key={t.id} className="card p-5">
+                <Quote className="h-5 w-5 text-accent/60" />
+                <blockquote className="mt-2 text-sm text-muted">&ldquo;{t.quote}&rdquo;</blockquote>
+                <figcaption className="mt-3 text-sm font-medium">— {t.author}</figcaption>
+              </figure>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div className="mt-10">
         <h2 className="mb-4 text-xl font-bold">Picks</h2>
