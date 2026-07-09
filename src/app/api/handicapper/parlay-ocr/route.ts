@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
-import { readParlayFromImage, isOcrConfigured } from "@/lib/parlay-ocr";
+import { readParlayFromImage } from "@/lib/parlay-ocr";
 
 export const maxDuration = 60;
 
@@ -11,13 +11,6 @@ export async function POST(request: Request) {
 
   const profile = await prisma.handicapperProfile.findUnique({ where: { userId: session.user.id } });
   if (!profile) return NextResponse.json({ error: "Handicapper profile required" }, { status: 403 });
-
-  if (!isOcrConfigured()) {
-    return NextResponse.json(
-      { configured: false, error: "Bet-slip reading isn't enabled on this server. Add the legs manually or from the schedule." },
-      { status: 400 }
-    );
-  }
 
   const body = await request.json().catch(() => ({}));
   const image = typeof body.image === "string" ? body.image : "";
