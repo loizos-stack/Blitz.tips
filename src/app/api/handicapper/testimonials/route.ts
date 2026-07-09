@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
+import { logActivity } from "@/lib/audit";
 
 const MAX_TESTIMONIALS = 20;
 
@@ -30,6 +31,14 @@ export async function POST(request: Request) {
   const testimonial = await prisma.testimonial.create({
     data: { handicapperId: profile.id, author, quote },
   });
+  await logActivity({
+    actorId: session.user.id,
+    actorEmail: session.user.email,
+    action: "testimonial.create",
+    targetType: "Testimonial",
+    targetId: testimonial.id,
+    detail: `@${profile.handle} added testimonial from ${author}`,
+  });
   return NextResponse.json({ testimonial });
 }
 
@@ -47,5 +56,13 @@ export async function DELETE(request: Request) {
   const result = await prisma.testimonial.deleteMany({ where: { id, handicapperId: profile.id } });
   if (result.count === 0) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
+  await logActivity({
+    actorId: session.user.id,
+    actorEmail: session.user.email,
+    action: "testimonial.delete",
+    targetType: "Testimonial",
+    targetId: id,
+    detail: `@${profile.handle} removed a testimonial`,
+  });
   return NextResponse.json({ ok: true });
 }

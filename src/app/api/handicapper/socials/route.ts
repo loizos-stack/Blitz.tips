@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { SOCIAL_PLATFORMS, normalizeSocialUrl, type SocialField } from "@/lib/socials";
+import { logActivity } from "@/lib/audit";
 
 export async function POST(request: Request) {
   const session = await auth();
@@ -23,5 +24,13 @@ export async function POST(request: Request) {
   }
 
   await prisma.handicapperProfile.update({ where: { id: profile.id }, data });
+  await logActivity({
+    actorId: session.user.id,
+    actorEmail: session.user.email,
+    action: "handicapper.socials",
+    targetType: "HandicapperProfile",
+    targetId: profile.id,
+    detail: `@${profile.handle} updated social links`,
+  });
   return NextResponse.json({ ok: true });
 }

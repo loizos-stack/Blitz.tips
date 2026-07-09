@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import Stripe from "stripe";
 import { stripe } from "@/lib/stripe";
 import { prisma } from "@/lib/prisma";
+import { logActivity } from "@/lib/audit";
 import type { BillingInterval, HandicapperPlan, SubscriptionStatus } from "@prisma/client";
 
 const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
@@ -49,6 +50,14 @@ async function syncSubscription(subscription: Stripe.Subscription) {
       currentPeriodEnd: periodEndUnix ? new Date(periodEndUnix * 1000) : null,
       cancelAtPeriodEnd: subscription.cancel_at_period_end,
     },
+  });
+
+  await logActivity({
+    actorId: subscriberId,
+    action: `subscription.${mapStatus(subscription.status).toLowerCase()}`,
+    targetType: "Subscription",
+    targetId: subscription.id,
+    detail: `subscriber ${subscriberId} → handicapper ${handicapperId}`,
   });
 }
 

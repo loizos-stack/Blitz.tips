@@ -3,6 +3,7 @@ import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
 import { registerSchema } from "@/lib/validations";
 import { sendVerificationEmail } from "@/lib/verification";
+import { logActivity } from "@/lib/audit";
 
 export async function POST(request: Request) {
   const body = await request.json().catch(() => null);
@@ -25,6 +26,15 @@ export async function POST(request: Request) {
   const user = await prisma.user.create({
     data: { name, email: normalizedEmail, passwordHash },
     select: { id: true, email: true, name: true },
+  });
+
+  await logActivity({
+    actorId: user.id,
+    actorEmail: user.email,
+    action: "user.register",
+    targetType: "User",
+    targetId: user.id,
+    detail: "New account registered",
   });
 
   // Best-effort: a verification email failure shouldn't block registration.

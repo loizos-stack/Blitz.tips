@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { settlePickSchema } from "@/lib/validations";
+import { logActivity } from "@/lib/audit";
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const session = await auth();
@@ -30,6 +31,15 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       // panel so suspicious grading can be spot-checked.
       settledBy: parsed.data.result === "PENDING" ? null : session.user.id,
     },
+  });
+
+  await logActivity({
+    actorId: session.user.id,
+    actorEmail: session.user.email,
+    action: "pick.settle",
+    targetType: "Pick",
+    targetId: updated.id,
+    detail: `${updated.matchup} → ${parsed.data.result}`,
   });
 
   return NextResponse.json({ pick: updated });

@@ -3,6 +3,7 @@ import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { createPickSchema } from "@/lib/validations";
 import { isEmailVerified } from "@/lib/verification";
+import { logActivity } from "@/lib/audit";
 import type { BetType, PickSport } from "@prisma/client";
 
 export async function POST(request: Request) {
@@ -48,6 +49,15 @@ export async function POST(request: Request) {
       oddsApiEventId: parsed.data.oddsApiEventId,
       oddsApiSportKey: parsed.data.oddsApiSportKey,
     },
+  });
+
+  await logActivity({
+    actorId: session.user.id,
+    actorEmail: session.user.email,
+    action: "pick.create",
+    targetType: "Pick",
+    targetId: pick.id,
+    detail: `${pick.matchup} — ${pick.selection} @ ${pick.odds}`,
   });
 
   return NextResponse.json({ pick }, { status: 201 });

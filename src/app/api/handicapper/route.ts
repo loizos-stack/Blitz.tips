@@ -3,6 +3,7 @@ import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { ensureSubscriberPrices } from "@/lib/subscriber-pricing";
 import { becomeHandicapperSchema } from "@/lib/validations";
+import { logActivity } from "@/lib/audit";
 import type { PickSport } from "@prisma/client";
 
 export async function POST(request: Request) {
@@ -53,6 +54,15 @@ export async function POST(request: Request) {
   } catch (error) {
     console.error("Stripe price setup failed during handicapper signup; deferring:", error);
   }
+
+  await logActivity({
+    actorId: session.user.id,
+    actorEmail: session.user.email,
+    action: "handicapper.create",
+    targetType: "HandicapperProfile",
+    targetId: handicapper.id,
+    detail: `@${handicapper.handle} became a handicapper`,
+  });
 
   return NextResponse.json({ handicapper }, { status: 201 });
 }
