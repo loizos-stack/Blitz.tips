@@ -20,8 +20,9 @@ export const HANDICAPPER_SECTIONS: DashboardSection[] = [
 ];
 
 export const SUBSCRIBER_SECTIONS: DashboardSection[] = [
-  { key: "summary", label: "Summary stats", description: "Following, spend, combined record and units" },
+  { key: "summary", label: "Summary stats", description: "Subscriptions, spend, combined record and units" },
   { key: "handicappers", label: "Your handicappers", description: "Per-capper performance cards" },
+  { key: "following", label: "Following", description: "Handicappers you follow, paid plans first then alphabetical" },
   { key: "feed", label: "Picks feed", description: "Upcoming and recent picks, plus your subscriptions" },
 ];
 

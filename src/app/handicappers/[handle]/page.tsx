@@ -7,6 +7,7 @@ import { getHandicapperByHandle } from "@/lib/handicappers";
 import { StatCard } from "@/components/stat-card";
 import { PickCard } from "@/components/pick-card";
 import { SubscribeButton } from "@/components/subscribe-button";
+import { FollowButton } from "@/components/follow-button";
 import { SocialLinks } from "@/components/social-links";
 import { Avatar } from "@/components/avatar";
 import { SportIcon } from "@/components/sport-icon";
@@ -45,13 +46,22 @@ export default async function HandicapperProfilePage({
   if (handicapper.suspendedAt && !isOwner && session?.user.role !== "ADMIN") notFound();
 
   let isSubscribed = false;
+  let isFollowing = false;
   if (session?.user.id && !isOwner) {
-    const sub = await prisma.subscription.findUnique({
-      where: {
-        subscriberId_handicapperId: { subscriberId: session.user.id, handicapperId: handicapper.id },
-      },
-    });
+    const [sub, follow] = await Promise.all([
+      prisma.subscription.findUnique({
+        where: {
+          subscriberId_handicapperId: { subscriberId: session.user.id, handicapperId: handicapper.id },
+        },
+      }),
+      prisma.follow.findUnique({
+        where: {
+          followerId_handicapperId: { followerId: session.user.id, handicapperId: handicapper.id },
+        },
+      }),
+    ]);
     isSubscribed = sub?.status === "ACTIVE";
+    isFollowing = Boolean(follow);
   }
 
   const unlocked = isOwner || isSubscribed;
@@ -82,9 +92,12 @@ export default async function HandicapperProfilePage({
             className="-mt-12 h-24 w-24 shrink-0 rounded-full border-4 border-surface text-2xl sm:-mt-16"
           />
           <div className="pt-2">
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <h1 className="text-2xl font-bold">{handicapper.displayName}</h1>
               {handicapper.isVerified && <BadgeCheck className="h-5 w-5 text-accent" />}
+              {!isOwner && (
+                <FollowButton handicapperId={handicapper.id} initialFollowing={isFollowing} />
+              )}
             </div>
             <p className="text-muted">@{handicapper.handle}</p>
             <div className="mt-3 flex flex-wrap gap-1.5">

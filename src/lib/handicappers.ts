@@ -54,6 +54,16 @@ export async function listHandicapperSummaries(): Promise<HandicapperSummary[]> 
   return handicappers.map(toSummary);
 }
 
+/** Summaries for a specific set of handicapper ids (e.g. the ones a user follows). */
+export async function listHandicapperSummariesByIds(ids: string[]): Promise<HandicapperSummary[]> {
+  if (ids.length === 0) return [];
+  const handicappers = await prisma.handicapperProfile.findMany({
+    where: { id: { in: ids }, suspendedAt: null },
+    include: { picks: true },
+  });
+  return handicappers.map(toSummary);
+}
+
 export async function getHandicapperByHandle(
   handle: string
 ): Promise<(HandicapperSummary & { picksList: PickWithLegs[]; testimonials: Testimonial[] }) | null> {

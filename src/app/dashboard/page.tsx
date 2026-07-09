@@ -8,11 +8,13 @@ import { computeStats } from "@/lib/odds";
 import { cumulativeUnits, formatUnits } from "@/lib/analytics";
 import { formatCents } from "@/lib/utils";
 import { PickCard } from "@/components/pick-card";
+import { HandicapperCard } from "@/components/handicapper-card";
 import { ManageBillingButton } from "@/components/manage-billing-button";
 import { VerifyEmailBanner } from "@/components/verify-email-banner";
 import { Avatar } from "@/components/avatar";
 import { StatCard } from "@/components/stat-card";
 import { UnitsChart } from "@/components/dashboard/units-chart";
+import { listHandicapperSummariesByIds, sortPaidFirst } from "@/lib/handicappers";
 import { getSetting } from "@/lib/settings";
 import { DASHBOARD_ORDER_SETTING, resolveSectionOrder } from "@/lib/dashboard-sections";
 import type { ReactNode } from "react";
@@ -34,11 +36,20 @@ async function loadDashboard(userId: string) {
     }),
   ]);
 
-  const subscriptions = await prisma.subscription.findMany({
-    where: { subscriberId: userId, status: "ACTIVE" },
-    include: { handicapper: true },
-    orderBy: { createdAt: "desc" },
-  });
+  const [subscriptions, followRows] = await Promise.all([
+    prisma.subscription.findMany({
+      where: { subscriberId: userId, status: "ACTIVE" },
+      include: { handicapper: true },
+      orderBy: { createdAt: "desc" },
+    }),
+    prisma.follow.findMany({ where: { followerId: userId }, select: { handicapperId: true } }),
+  ]);
+
+  // Followed handicappers, paid plans first then alphabetical by name.
+  const followed = sortPaidFirst(
+    await listHandicapperSummariesByIds(followRows.map((f) => f.handicapperId)),
+    (a, b) => a.displayName.localeCompare(b.displayName)
+  );
 
   const handicapperIds = subscriptions.map((s) => s.handicapperId);
 
@@ -95,6 +106,7 @@ async function loadDashboard(userId: string) {
     currentUser,
     handicapperProfile,
     subscriptions,
+    followed,
     feedPicks,
     combined,
     monthlySpendCents,
@@ -112,6 +124,7 @@ export default async function DashboardPage() {
     currentUser,
     handicapperProfile,
     subscriptions,
+    followed,
     feedPicks,
     combined,
     monthlySpendCents,
@@ -125,7 +138,7 @@ export default async function DashboardPage() {
   const sections: Record<string, ReactNode> = {
     summary: subscriptions.length > 0 && (
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <StatCard label="Following" value={subscriptions.length.toString()} />
+        <StatCard label="Subscribed" value={subscriptions.length.toString()} />
         <StatCard label="Monthly spend" value={formatCents(monthlySpendCents)} />
         <StatCard label="Combined record" value={combined.record} />
         <StatCard
@@ -188,6 +201,19 @@ export default async function DashboardPage() {
                 </div>
               </div>
             </div>
+          ))}
+        </div>
+      </section>
+    ),
+    following: followed.length > 0 && (
+      <section>
+        <h2 className="mb-1 font-semibold">Following</h2>
+        <p className="mb-3 text-sm text-muted">
+          Handicappers you follow to track their stats — paid plans first, then alphabetical.
+        </p>
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {followed.map((h) => (
+            <HandicapperCard key={h.id} handicapper={h} />
           ))}
         </div>
       </section>

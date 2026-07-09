@@ -95,6 +95,7 @@ model User {
 
   handicapper    HandicapperProfile?
   subscriptions  Subscription[]        @relation("SubscriberSubscriptions")
+  follows        Follow[]              @relation("UserFollows")
 
   stripeCustomerId String? @unique
 
@@ -190,6 +191,7 @@ model HandicapperProfile {
 
   picks         Pick[]
   subscriptions Subscription[] @relation("HandicapperSubscriptions")
+  followers     Follow[]       @relation("HandicapperFollowers")
   testimonials  Testimonial[]
 
   createdAt   DateTime @default(now())
@@ -311,4 +313,21 @@ model Subscription {
 
   @@unique([subscriberId, handicapperId])
   @@index([handicapperId, status])
+}
+
+// A free "follow": a customer tracking a handicapper's stats without paying
+// for their picks. Distinct from Subscription, which is the paid relationship
+// that unlocks premium picks.
+model Follow {
+  id            String   @id @default(cuid())
+  followerId    String
+  follower      User     @relation("UserFollows", fields: [followerId], references: [id], onDelete: Cascade)
+
+  handicapperId String
+  handicapper   HandicapperProfile @relation("HandicapperFollowers", fields: [handicapperId], references: [id], onDelete: Cascade)
+
+  createdAt     DateTime @default(now())
+
+  @@unique([followerId, handicapperId])
+  @@index([handicapperId])
 }
