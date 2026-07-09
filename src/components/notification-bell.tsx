@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { formatDistanceToNowStrict } from "date-fns";
-import { Bell, Check } from "lucide-react";
+import { Bell } from "lucide-react";
 
 interface NotificationItem {
   id: string;
@@ -41,11 +41,15 @@ export function NotificationBell() {
     }
   }, []);
 
-  // Poll for new notifications; the browser cache keeps this cheap.
+  // Poll for new notifications; the browser cache keeps this cheap. The initial
+  // load is deferred so the effect doesn't set state synchronously.
   useEffect(() => {
-    load();
+    const first = setTimeout(() => void load(), 0);
     const t = setInterval(load, 60000);
-    return () => clearInterval(t);
+    return () => {
+      clearTimeout(first);
+      clearInterval(t);
+    };
   }, [load]);
 
   // One-time capability + preference probe.
