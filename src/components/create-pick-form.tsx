@@ -6,7 +6,10 @@ import { format } from "date-fns";
 import { CalendarSearch, PencilLine } from "lucide-react";
 import { SPORT_LABELS, BET_TYPE_LABELS, cn } from "@/lib/utils";
 import { formatOdds } from "@/lib/odds";
+import { getTeamNames } from "@/lib/team-logos";
+import { TeamLogo } from "@/components/team-logo";
 import type { MarketOption, UpcomingEvent } from "@/lib/odds-api";
+import type { PickSport } from "@prisma/client";
 
 const sportKeys = Object.keys(SPORT_LABELS);
 const betTypeKeys = Object.keys(BET_TYPE_LABELS);
@@ -159,6 +162,7 @@ export function CreatePickForm({ handicapperSports }: { handicapperSports: strin
   }
 
   const readyToSubmit = mode === "manual" || (selectedEvent && selectedMarket);
+  const teamNames = getTeamNames(sport as PickSport);
 
   return (
     <form onSubmit={handleSubmit} className="card flex flex-col gap-4 p-5">
@@ -225,7 +229,19 @@ export function CreatePickForm({ handicapperSports }: { handicapperSports: strin
                     }}
                     className="flex w-full items-center justify-between px-3 py-2.5 text-left text-sm"
                   >
-                    <span className="font-medium">{event.matchup}</span>
+                    <span className="flex min-w-0 items-center gap-2">
+                      {(event.awayTeamLogo || event.homeTeamLogo) && (
+                        <span className="flex shrink-0 items-center -space-x-1.5">
+                          {event.awayTeamLogo && (
+                            <TeamLogo sport={sport as PickSport} logoUrl={event.awayTeamLogo} className="h-5 w-5 rounded-full ring-2 ring-surface" />
+                          )}
+                          {event.homeTeamLogo && (
+                            <TeamLogo sport={sport as PickSport} logoUrl={event.homeTeamLogo} className="h-5 w-5 rounded-full ring-2 ring-surface" />
+                          )}
+                        </span>
+                      )}
+                      <span className="truncate font-medium">{event.matchup}</span>
+                    </span>
                     <span className="ml-2 shrink-0 text-xs text-muted">
                       {format(new Date(event.commenceTime), "MMM d, h:mm a")}
                     </span>
@@ -291,10 +307,21 @@ export function CreatePickForm({ handicapperSports }: { handicapperSports: strin
               required
               value={matchup}
               onChange={(e) => setMatchup(e.target.value)}
-              placeholder="Chiefs @ Bills"
+              placeholder="Away @ Home (e.g. Chiefs @ Bills)"
+              list="team-suggestions"
               className="mt-1 w-full rounded-lg border border-border bg-surface-raised px-3 py-2 text-sm outline-none focus:border-accent"
             />
+            {teamNames.length > 0 && (
+              <p className="mt-1 text-[11px] text-muted">
+                Type a team name to autocomplete — matching teams get their logo on the pick.
+              </p>
+            )}
           </div>
+          <datalist id="team-suggestions">
+            {teamNames.map((n) => (
+              <option key={n} value={n} />
+            ))}
+          </datalist>
 
           <div className="grid grid-cols-2 gap-3">
             <div>
@@ -318,6 +345,7 @@ export function CreatePickForm({ handicapperSports }: { handicapperSports: strin
                 value={selection}
                 onChange={(e) => setSelection(e.target.value)}
                 placeholder="Bills -2.5"
+                list="team-suggestions"
                 className="mt-1 w-full rounded-lg border border-border bg-surface-raised px-3 py-2 text-sm outline-none focus:border-accent"
               />
             </div>

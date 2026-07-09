@@ -193,6 +193,21 @@ const LEAGUE_TEAMS: Partial<Record<PickSport, Record<string, string>>> = {
   NHL: NHL_TEAMS,
 };
 
+function titleCase(name: string): string {
+  return name.replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+// Display team names for a sport, used to power manual-pick autocomplete so
+// handicappers land on the canonical name that resolves to a crest. Empty for
+// sports without a name→logo table (soccer, MMA, golf, tennis, college).
+export function getTeamNames(sport: PickSport): string[] {
+  const teams = LEAGUE_TEAMS[sport];
+  if (!teams) return [];
+  const names = new Set<string>();
+  for (const key of Object.keys(teams)) names.add(titleCase(key));
+  return [...names].sort();
+}
+
 export function getTeamLogoUrl(sport: PickSport, teamName: string): string | null {
   const leaguePath = LEAGUE_PATH[sport];
   const teams = LEAGUE_TEAMS[sport];
