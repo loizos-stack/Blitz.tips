@@ -56,6 +56,8 @@ export default async function HandicapperProfilePage({
 
   const unlocked = isOwner || isSubscribed;
   const picks = handicapper.picksList;
+  const pendingPicks = picks.filter((p) => p.result === "PENDING");
+  const settledPicks = picks.filter((p) => p.result !== "PENDING");
 
   return (
     <div>
@@ -121,7 +123,7 @@ export default async function HandicapperProfilePage({
         </div>
       </div>
 
-      <div className="mt-8 grid grid-cols-2 gap-3 sm:grid-cols-4">
+      <div className="mt-8 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
         <StatCard label="Record" value={handicapper.stats.record} />
         <StatCard
           label="Win rate"
@@ -132,6 +134,7 @@ export default async function HandicapperProfilePage({
           value={`${handicapper.stats.unitsNet >= 0 ? "+" : ""}${handicapper.stats.unitsNet.toFixed(1)}`}
           tone={handicapper.stats.unitsNet >= 0 ? "accent" : "danger"}
         />
+        <StatCard label="Units risked" value={`${handicapper.stats.unitsRisked.toFixed(1)}u`} />
         <StatCard label="ROI" value={handicapper.stats.roi !== null ? `${handicapper.stats.roi.toFixed(1)}%` : "—"} />
       </div>
 
@@ -139,6 +142,22 @@ export default async function HandicapperProfilePage({
         Last 30 days: {handicapper.last30Stats.record} · {handicapper.last30Stats.unitsNet >= 0 ? "+" : ""}
         {handicapper.last30Stats.unitsNet.toFixed(1)}u
       </p>
+
+      {pendingPicks.length > 0 && (
+        <div className="mt-8">
+          <h2 className="mb-4 flex items-center gap-2 text-xl font-bold">
+            Open plays
+            <span className="rounded-full bg-gold/15 px-2 py-0.5 text-xs font-semibold text-gold">
+              {pendingPicks.length} pending
+            </span>
+          </h2>
+          <div className="grid gap-4 sm:grid-cols-2">
+            {pendingPicks.map((pick) => (
+              <PickCard key={pick.id} pick={pick} locked={pick.isPremium && !unlocked} />
+            ))}
+          </div>
+        </div>
+      )}
 
       {handicapper.testimonials.length > 0 && (
         <div className="mt-10">
@@ -156,12 +175,14 @@ export default async function HandicapperProfilePage({
       )}
 
       <div className="mt-10">
-        <h2 className="mb-4 text-xl font-bold">Picks</h2>
+        <h2 className="mb-4 text-xl font-bold">Track record</h2>
         {picks.length === 0 ? (
           <p className="text-muted">No picks posted yet.</p>
+        ) : settledPicks.length === 0 ? (
+          <p className="text-muted">No settled picks yet — see the open plays above.</p>
         ) : (
           <div className="grid gap-4 sm:grid-cols-2">
-            {picks.map((pick) => (
+            {settledPicks.map((pick) => (
               <PickCard key={pick.id} pick={pick} locked={pick.isPremium && !unlocked} />
             ))}
           </div>
