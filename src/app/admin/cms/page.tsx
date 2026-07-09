@@ -12,18 +12,19 @@ export const dynamic = "force-dynamic";
 export default async function AdminCmsPage() {
   await guardAdminPage("cms");
 
-  const [handicapperSaved, subscriberSaved] = await Promise.all([
+  const [handicapperSaved, subscriberSaved, profileSaved] = await Promise.all([
     getSetting(DASHBOARD_ORDER_SETTING.handicapper),
     getSetting(DASHBOARD_ORDER_SETTING.subscriber),
+    getSetting(DASHBOARD_ORDER_SETTING.profile),
   ]);
 
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-lg font-semibold">Dashboard layout</h2>
+        <h2 className="text-lg font-semibold">Page layout</h2>
         <p className="mt-1 text-sm text-muted">
-          Drag-free reordering of the sections handicappers and customers see on their dashboards.
-          Changes take effect immediately for everyone.
+          Drag-free reordering of the sections on the handicapper and customer dashboards and the
+          public handicapper profile page. Changes take effect immediately for everyone.
         </p>
       </div>
 
@@ -35,6 +36,10 @@ export default async function AdminCmsPage() {
         subscriber={{
           sections: sectionsFor("subscriber"),
           order: resolveSectionOrder("subscriber", subscriberSaved),
+        }}
+        profile={{
+          sections: sectionsFor("profile"),
+          order: resolveSectionOrder("profile", profileSaved),
         }}
       />
     </div>

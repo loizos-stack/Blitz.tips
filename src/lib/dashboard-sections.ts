@@ -26,15 +26,33 @@ export const SUBSCRIBER_SECTIONS: DashboardSection[] = [
   { key: "feed", label: "Picks feed", description: "Upcoming and recent picks, plus your subscriptions" },
 ];
 
+// The public handicapper profile page (blitz.tips/handicappers/[handle]). The
+// cover, avatar, name, socials, bio, and subscribe box stay pinned; these
+// stacked sections below them are reorderable.
+export const PROFILE_SECTIONS: DashboardSection[] = [
+  { key: "stats", label: "Stats", description: "Record, win rate, net units, ROI, plus the L10 / last-30 line" },
+  { key: "openPlays", label: "Open plays", description: "The handicapper's pending picks" },
+  { key: "testimonials", label: "Testimonials", description: "What subscribers say" },
+  { key: "trackRecord", label: "Track record", description: "Settled picks history" },
+];
+
 export const DASHBOARD_ORDER_SETTING = {
   handicapper: "dashboard_order_handicapper",
   subscriber: "dashboard_order_subscriber",
+  profile: "profile_order_sections",
 } as const;
 
 export type DashboardKind = keyof typeof DASHBOARD_ORDER_SETTING;
 
 export function sectionsFor(kind: DashboardKind): DashboardSection[] {
-  return kind === "handicapper" ? HANDICAPPER_SECTIONS : SUBSCRIBER_SECTIONS;
+  switch (kind) {
+    case "handicapper":
+      return HANDICAPPER_SECTIONS;
+    case "subscriber":
+      return SUBSCRIBER_SECTIONS;
+    case "profile":
+      return PROFILE_SECTIONS;
+  }
 }
 
 /**

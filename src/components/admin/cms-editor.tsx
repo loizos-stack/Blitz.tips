@@ -102,9 +102,10 @@ function DashboardPanel({ kind, title, description, sections, initialOrder }: Da
 export interface CmsEditorProps {
   handicapper: { sections: DashboardSection[]; order: string[] };
   subscriber: { sections: DashboardSection[]; order: string[] };
+  profile: { sections: DashboardSection[]; order: string[] };
 }
 
-export function CmsEditor({ handicapper, subscriber }: CmsEditorProps) {
+export function CmsEditor({ handicapper, subscriber, profile }: CmsEditorProps) {
   return (
     <div className="grid gap-4 lg:grid-cols-2">
       <DashboardPanel
@@ -120,6 +121,13 @@ export function CmsEditor({ handicapper, subscriber }: CmsEditorProps) {
         description="Order of the sections below the feed heading."
         sections={subscriber.sections}
         initialOrder={subscriber.order}
+      />
+      <DashboardPanel
+        kind="profile"
+        title="Handicapper profile page"
+        description="Order of the sections below the profile header and subscribe box (public page)."
+        sections={profile.sections}
+        initialOrder={profile.order}
       />
     </div>
   );

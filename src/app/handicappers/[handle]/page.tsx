@@ -12,6 +12,9 @@ import { SocialLinks } from "@/components/social-links";
 import { Avatar } from "@/components/avatar";
 import { SportIcon } from "@/components/sport-icon";
 import { SPORT_LABELS } from "@/lib/utils";
+import { getSetting } from "@/lib/settings";
+import { DASHBOARD_ORDER_SETTING, resolveSectionOrder } from "@/lib/dashboard-sections";
+import type { ReactNode } from "react";
 
 export const dynamic = "force-dynamic";
 
@@ -68,6 +71,87 @@ export default async function HandicapperProfilePage({
   const picks = handicapper.picksList;
   const pendingPicks = picks.filter((p) => p.result === "PENDING");
   const settledPicks = picks.filter((p) => p.result !== "PENDING");
+
+  // The reorderable sections below the profile header. Order is controlled by
+  // admins from /admin/cms; the cover, identity, and subscribe box stay pinned.
+  const sections: Record<string, ReactNode> = {
+    stats: (
+      <>
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <StatCard label="Record" value={handicapper.stats.record} />
+          <StatCard
+            label="Win rate"
+            value={handicapper.stats.winRate ? `${handicapper.stats.winRate.toFixed(1)}%` : "—"}
+          />
+          <StatCard
+            label="Net units"
+            value={`${handicapper.stats.unitsNet >= 0 ? "+" : ""}${handicapper.stats.unitsNet.toFixed(1)}`}
+            tone={handicapper.stats.unitsNet >= 0 ? "accent" : "danger"}
+          />
+          <StatCard label="ROI" value={handicapper.stats.roi !== null ? `${handicapper.stats.roi.toFixed(1)}%` : "—"} />
+        </div>
+
+        <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted">
+          <span>
+            <span className="font-semibold text-foreground">L10</span> {handicapper.last10Stats.totalPicks > 0
+              ? `${handicapper.last10Stats.record} · ${handicapper.last10Stats.unitsNet >= 0 ? "+" : ""}${handicapper.last10Stats.unitsNet.toFixed(1)}u`
+              : "—"}
+          </span>
+          <span>
+            Last 30 days: {handicapper.last30Stats.record} · {handicapper.last30Stats.unitsNet >= 0 ? "+" : ""}
+            {handicapper.last30Stats.unitsNet.toFixed(1)}u
+          </span>
+        </div>
+      </>
+    ),
+    openPlays: pendingPicks.length > 0 && (
+      <>
+        <h2 className="mb-4 flex items-center gap-2 text-xl font-bold">
+          Open plays
+          <span className="rounded-full bg-gold/15 px-2 py-0.5 text-xs font-semibold text-gold">
+            {pendingPicks.length} pending
+          </span>
+        </h2>
+        <div className="grid gap-4 sm:grid-cols-2">
+          {pendingPicks.map((pick) => (
+            <PickCard key={pick.id} pick={pick} locked={pick.isPremium && !unlocked} />
+          ))}
+        </div>
+      </>
+    ),
+    testimonials: handicapper.testimonials.length > 0 && (
+      <>
+        <h2 className="mb-4 text-xl font-bold">What subscribers say</h2>
+        <div className="grid gap-4 sm:grid-cols-2">
+          {handicapper.testimonials.map((t) => (
+            <figure key={t.id} className="card p-5">
+              <Quote className="h-5 w-5 text-accent/60" />
+              <blockquote className="mt-2 text-sm text-muted">&ldquo;{t.quote}&rdquo;</blockquote>
+              <figcaption className="mt-3 text-sm font-medium">— {t.author}</figcaption>
+            </figure>
+          ))}
+        </div>
+      </>
+    ),
+    trackRecord: (
+      <>
+        <h2 className="mb-4 text-xl font-bold">Track record</h2>
+        {picks.length === 0 ? (
+          <p className="text-muted">No picks posted yet.</p>
+        ) : settledPicks.length === 0 ? (
+          <p className="text-muted">No settled picks yet — see the open plays above.</p>
+        ) : (
+          <div className="grid gap-4 sm:grid-cols-2">
+            {settledPicks.map((pick) => (
+              <PickCard key={pick.id} pick={pick} locked={pick.isPremium && !unlocked} />
+            ))}
+          </div>
+        )}
+      </>
+    ),
+  };
+
+  const profileOrder = resolveSectionOrder("profile", await getSetting(DASHBOARD_ORDER_SETTING.profile));
 
   return (
     <div>
@@ -136,77 +220,13 @@ export default async function HandicapperProfilePage({
         </div>
       </div>
 
-      <div className="mt-8 grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <StatCard label="Record" value={handicapper.stats.record} />
-        <StatCard
-          label="Win rate"
-          value={handicapper.stats.winRate ? `${handicapper.stats.winRate.toFixed(1)}%` : "—"}
-        />
-        <StatCard
-          label="Net units"
-          value={`${handicapper.stats.unitsNet >= 0 ? "+" : ""}${handicapper.stats.unitsNet.toFixed(1)}`}
-          tone={handicapper.stats.unitsNet >= 0 ? "accent" : "danger"}
-        />
-        <StatCard label="ROI" value={handicapper.stats.roi !== null ? `${handicapper.stats.roi.toFixed(1)}%` : "—"} />
-      </div>
-
-      <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted">
-        <span>
-          <span className="font-semibold text-foreground">L10</span> {handicapper.last10Stats.totalPicks > 0
-            ? `${handicapper.last10Stats.record} · ${handicapper.last10Stats.unitsNet >= 0 ? "+" : ""}${handicapper.last10Stats.unitsNet.toFixed(1)}u`
-            : "—"}
-        </span>
-        <span>
-          Last 30 days: {handicapper.last30Stats.record} · {handicapper.last30Stats.unitsNet >= 0 ? "+" : ""}
-          {handicapper.last30Stats.unitsNet.toFixed(1)}u
-        </span>
-      </div>
-
-      {pendingPicks.length > 0 && (
-        <div className="mt-8">
-          <h2 className="mb-4 flex items-center gap-2 text-xl font-bold">
-            Open plays
-            <span className="rounded-full bg-gold/15 px-2 py-0.5 text-xs font-semibold text-gold">
-              {pendingPicks.length} pending
-            </span>
-          </h2>
-          <div className="grid gap-4 sm:grid-cols-2">
-            {pendingPicks.map((pick) => (
-              <PickCard key={pick.id} pick={pick} locked={pick.isPremium && !unlocked} />
-            ))}
+      {profileOrder.map((key) =>
+        sections[key] ? (
+          <div key={key} className="mt-8">
+            {sections[key]}
           </div>
-        </div>
+        ) : null
       )}
-
-      {handicapper.testimonials.length > 0 && (
-        <div className="mt-10">
-          <h2 className="mb-4 text-xl font-bold">What subscribers say</h2>
-          <div className="grid gap-4 sm:grid-cols-2">
-            {handicapper.testimonials.map((t) => (
-              <figure key={t.id} className="card p-5">
-                <Quote className="h-5 w-5 text-accent/60" />
-                <blockquote className="mt-2 text-sm text-muted">&ldquo;{t.quote}&rdquo;</blockquote>
-                <figcaption className="mt-3 text-sm font-medium">— {t.author}</figcaption>
-              </figure>
-            ))}
-          </div>
-        </div>
-      )}
-
-      <div className="mt-10">
-        <h2 className="mb-4 text-xl font-bold">Track record</h2>
-        {picks.length === 0 ? (
-          <p className="text-muted">No picks posted yet.</p>
-        ) : settledPicks.length === 0 ? (
-          <p className="text-muted">No settled picks yet — see the open plays above.</p>
-        ) : (
-          <div className="grid gap-4 sm:grid-cols-2">
-            {settledPicks.map((pick) => (
-              <PickCard key={pick.id} pick={pick} locked={pick.isPremium && !unlocked} />
-            ))}
-          </div>
-        )}
-      </div>
       </div>
     </div>
   );

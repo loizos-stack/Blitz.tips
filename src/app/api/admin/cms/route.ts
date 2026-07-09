@@ -9,7 +9,7 @@ import {
 } from "@/lib/dashboard-sections";
 
 function isKind(value: unknown): value is DashboardKind {
-  return value === "handicapper" || value === "subscriber";
+  return value === "handicapper" || value === "subscriber" || value === "profile";
 }
 
 export async function POST(request: Request) {
