@@ -13,6 +13,8 @@ const SORTS = {
   units: { label: "Net units", fn: (h: HandicapperSummary) => h.stats.unitsNet },
   winRate: { label: "Win rate", fn: (h: HandicapperSummary) => h.stats.winRate ?? -Infinity },
   roi: { label: "ROI", fn: (h: HandicapperSummary) => h.stats.roi ?? -Infinity },
+  streak: { label: "Streak", fn: (h: HandicapperSummary) => h.currentStreak },
+  l10: { label: "L10", fn: (h: HandicapperSummary) => h.last10Stats.unitsNet },
   price: { label: "Price (low to high)", fn: (h: HandicapperSummary) => -h.monthlyPriceCents },
 } as const;
 
