@@ -5,8 +5,11 @@ import { sendPush } from "@/lib/push";
 import { sendTelegram } from "@/lib/telegram";
 import { sendDiscordDM } from "@/lib/discord";
 import { formatOdds } from "@/lib/odds";
+import { siteUrl } from "@/lib/site";
 
-const SITE_URL = process.env.NEXT_PUBLIC_APP_URL ?? "https://blitz.tips";
+// Resolved via siteUrl() so a stale *.vercel.app value in NEXT_PUBLIC_APP_URL
+// never leaks into notification links (same rule as emails/Stripe redirects).
+const SITE_URL = siteUrl();
 
 interface NewPickInput {
   id: string;
