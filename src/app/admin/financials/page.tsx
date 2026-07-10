@@ -107,7 +107,7 @@ export default async function AdminFinancialsPage() {
         <>
           <h2 className="mb-3 mt-8 font-semibold">Crypto passes (owed to handicappers)</h2>
           <p className="mb-3 text-xs text-muted">
-            Crypto payments land in your Coinbase Commerce account; the net column is what you owe
+            Crypto payments land in your NOWPayments account; the net column is what you owe
             each handicapper from confirmed passes (all-time). Pay out manually and keep your own
             record of settled amounts.
           </p>

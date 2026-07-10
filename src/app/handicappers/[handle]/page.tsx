@@ -15,7 +15,7 @@ import { SPORT_LABELS } from "@/lib/utils";
 import { getSetting } from "@/lib/settings";
 import { DASHBOARD_ORDER_SETTING, resolveSectionOrder } from "@/lib/dashboard-sections";
 import { isSubscriptionActive } from "@/lib/subscription-status";
-import { coinbaseConfigured } from "@/lib/coinbase";
+import { nowPaymentsConfigured } from "@/lib/nowpayments";
 import type { ReactNode } from "react";
 
 export const dynamic = "force-dynamic";
@@ -217,7 +217,7 @@ export default async function HandicapperProfilePage({
               isSignedIn={Boolean(session)}
               isReady={handicapper.stripeAccountReady}
               isOwner={Boolean(isOwner)}
-              cryptoEnabled={coinbaseConfigured()}
+              cryptoEnabled={nowPaymentsConfigured()}
             />
           )}
         </div>

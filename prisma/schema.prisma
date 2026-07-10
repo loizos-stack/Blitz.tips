@@ -328,13 +328,13 @@ model Subscription {
   @@index([handicapperId, status])
 }
 
-// A crypto payment for a fixed-length access pass (Coinbase Commerce charge).
+// A crypto payment for a fixed-length access pass (NOWPayments invoice).
 // Crypto can't auto-renew or split funds like Stripe Connect: payments land in
-// the platform's Commerce account, and confirmed rows double as the earnings
+// the platform's NOWPayments account, and confirmed rows double as the earnings
 // ledger showing what each handicapper is owed (netCents).
 model CryptoPayment {
   id             String   @id @default(cuid())
-  chargeCode     String   @unique // Coinbase Commerce charge code
+  chargeCode     String   @unique // our order id, echoed back by the NOWPayments IPN
   subscriberId   String
   handicapperId  String
 

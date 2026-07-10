@@ -1,28 +1,31 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { verifyWebhookSignature, PASS_DAYS } from "@/lib/coinbase";
+import { verifyIpnSignature, PASS_DAYS } from "@/lib/nowpayments";
 import { logActivity } from "@/lib/audit";
 
-// Coinbase Commerce webhook: activates the access pass when a charge confirms.
+// NOWPayments IPN callback: activates the access pass when a payment finishes.
 export async function POST(request: Request) {
-  const raw = await request.text();
-  if (!verifyWebhookSignature(raw, request.headers.get("x-cc-webhook-signature"))) {
-    return NextResponse.json({ error: "Invalid signature" }, { status: 401 });
-  }
-
-  let event: { type?: string; data?: { code?: string } } = {};
+  let body: {
+    payment_status?: string;
+    order_id?: string;
+  };
   try {
-    event = JSON.parse(raw).event ?? {};
+    body = await request.json();
   } catch {
     return NextResponse.json({ error: "Invalid payload" }, { status: 400 });
   }
 
-  const code = event.data?.code;
-  if (!code) return NextResponse.json({ received: true });
+  if (!verifyIpnSignature(body, request.headers.get("x-nowpayments-sig"))) {
+    return NextResponse.json({ error: "Invalid signature" }, { status: 401 });
+  }
 
-  // charge:resolved covers charges confirmed after a delay/underpayment fix.
-  if (event.type === "charge:confirmed" || event.type === "charge:resolved") {
-    const payment = await prisma.cryptoPayment.findUnique({ where: { chargeCode: code } });
+  const orderId = body.order_id;
+  const status = body.payment_status;
+  if (!orderId || !status) return NextResponse.json({ received: true });
+
+  // "finished" = fully paid and settled to the merchant balance.
+  if (status === "finished") {
+    const payment = await prisma.cryptoPayment.findUnique({ where: { chargeCode: orderId } });
     if (payment && payment.status !== "CONFIRMED") {
       await prisma.cryptoPayment.update({
         where: { id: payment.id },
@@ -74,16 +77,18 @@ export async function POST(request: Request) {
         where: { id: payment.handicapperId },
         select: { handle: true, displayName: true },
       });
-      await prisma.notification.create({
-        data: {
-          userId: payment.subscriberId,
-          type: "crypto.pass",
-          title: "Crypto payment confirmed",
-          body: `Your pass to ${handicapper?.displayName ?? "the handicapper"} is active until ${periodEnd.toLocaleDateString()}.`,
-          url: handicapper ? `/handicappers/${handicapper.handle}` : null,
-          handicapperId: payment.handicapperId,
-        },
-      }).catch(() => null);
+      await prisma.notification
+        .create({
+          data: {
+            userId: payment.subscriberId,
+            type: "crypto.pass",
+            title: "Crypto payment confirmed",
+            body: `Your pass to ${handicapper?.displayName ?? "the handicapper"} is active until ${periodEnd.toLocaleDateString()}.`,
+            url: handicapper ? `/handicappers/${handicapper.handle}` : null,
+            handicapperId: payment.handicapperId,
+          },
+        })
+        .catch(() => null);
 
       await logActivity({
         actorId: payment.subscriberId,
@@ -93,9 +98,9 @@ export async function POST(request: Request) {
         detail: `${payment.interval} pass → handicapper ${payment.handicapperId} ($${(payment.amountCents / 100).toFixed(2)})`,
       });
     }
-  } else if (event.type === "charge:failed") {
+  } else if (status === "failed" || status === "expired" || status === "refunded") {
     await prisma.cryptoPayment
-      .updateMany({ where: { chargeCode: code, status: "PENDING" }, data: { status: "EXPIRED" } })
+      .updateMany({ where: { chargeCode: orderId, status: "PENDING" }, data: { status: "EXPIRED" } })
       .catch(() => null);
   }
 
