@@ -10,7 +10,7 @@ export default function PrivacyPage() {
   return (
     <LegalShell
       title="Privacy Policy"
-      updated="July 6, 2026"
+      updated="July 10, 2026"
       intro="This Privacy Policy explains what information Blitz.tips collects, how we use it, and the choices you have. By using Blitz.tips you agree to the practices described here."
     >
       <Section title="Information we collect">
@@ -18,7 +18,7 @@ export default function PrivacyPage() {
           items={[
             <><strong>Account information</strong> — your name, email address, and password (stored only as a secure hash). If you sign in with Google, we receive your basic profile and email from Google.</>,
             <><strong>Handicapper profile</strong> — the display name, handle, bio, images, pricing, and picks you choose to publish.</>,
-            <><strong>Payment information</strong> — subscriptions and payouts are handled by Stripe. We never see or store full card numbers; Stripe provides us only limited data such as the last four digits, status, and subscription identifiers.</>,
+            <><strong>Payment information</strong> — card subscriptions and payouts are handled by Stripe. We never see or store full card numbers; Stripe provides us only limited data such as the last four digits, status, and subscription identifiers. Crypto payments are handled by NOWPayments: we store order identifiers, amounts, and payment status, but never your wallet&rsquo;s private keys. Note that blockchain transactions are public by nature.</>,
             <><strong>Usage data</strong> — basic technical information such as pages viewed, device and browser type, and IP address, used to keep the service secure and reliable.</>,
           ]}
         />
@@ -43,7 +43,8 @@ export default function PrivacyPage() {
         </p>
         <Bullets
           items={[
-            <><strong>Stripe</strong> — payment processing, subscriptions, and handicapper payouts.</>,
+            <><strong>Stripe</strong> — card payment processing, subscriptions, and handicapper payouts.</>,
+            <><strong>NOWPayments</strong> — cryptocurrency payment processing for access passes.</>,
             <><strong>Resend</strong> — delivery of transactional and account email.</>,
             <><strong>Hosting &amp; database providers</strong> — to host the application and store your data securely.</>,
             "Law enforcement or regulators where required by law, or to protect the rights and safety of our users.",

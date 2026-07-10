@@ -11,22 +11,37 @@ export default function RefundsPage() {
   return (
     <LegalShell
       title="Refund Policy"
-      updated="July 6, 2026"
-      intro="This policy explains how billing, cancellations, and refunds work for subscriptions and handicapper plans on Blitz.tips."
+      updated="July 10, 2026"
+      intro="This policy explains how billing, cancellations, and refunds work for card subscriptions, crypto access passes, and handicapper plans on Blitz.tips."
     >
-      <Section title="Subscriptions to handicappers">
+      <Section title="Subscriptions to handicappers (card)">
         <p>
-          When you subscribe to a handicapper, you&rsquo;re charged immediately and then automatically at the
-          start of each renewal period (weekly, monthly, or annual) until you cancel. Because premium picks
-          are delivered instantly and time-sensitive, payments are generally non-refundable once the period
-          has begun.
+          When you subscribe to a handicapper with a card, you&rsquo;re charged immediately and then
+          automatically at the start of each renewal period (weekly, monthly, or annual) until you cancel.
+          Because premium picks are delivered instantly and time-sensitive, payments are generally
+          non-refundable once the period has begun.
         </p>
+      </Section>
+
+      <Section title="Crypto access passes">
+        <p>
+          Paying with cryptocurrency buys a one-time, fixed-length access pass (7 days, 30 days, or 1
+          year). Crypto passes never renew automatically — there is nothing to cancel, and access simply
+          ends when the pass expires.
+        </p>
+        <Bullets
+          items={[
+            "Cryptocurrency transactions are irreversible on-chain, so crypto payments are final and generally non-refundable once your pass is activated.",
+            "If a payment fails, expires, or is underpaid at checkout, no pass is granted — follow the payment provider's on-screen instructions, or contact us if funds left your wallet without a pass being activated.",
+            "Where we approve a refund for a crypto purchase (per the criteria below), it is returned in cryptocurrency — typically a stablecoin — to a wallet address you provide, net of network fees. Exchange-rate movements between purchase and refund are not compensated.",
+          ]}
+        />
       </Section>
 
       <Section title="Cancelling vs. refunding">
         <Bullets
           items={[
-            <><strong>Cancelling</strong> stops future renewals. You keep access for the remainder of the period you&rsquo;ve already paid for, and you won&rsquo;t be charged again. You can cancel any time from your <Link href="/dashboard" className="text-accent hover:underline">dashboard</Link>.</>,
+            <><strong>Cancelling</strong> stops future renewals on card subscriptions. You keep access for the remainder of the period you&rsquo;ve already paid for, and you won&rsquo;t be charged again. You can cancel any time from your <Link href="/dashboard" className="text-accent hover:underline">dashboard</Link>. Crypto passes don&rsquo;t renew, so they never need cancelling.</>,
             <><strong>Refunding</strong> returns money already paid. This is handled case by case (see below) rather than automatically.</>,
           ]}
         />
@@ -52,8 +67,9 @@ export default function RefundsPage() {
           Email{" "}
           <a href="mailto:support@blitz.tips" className="text-accent hover:underline">support@blitz.tips</a>{" "}
           within 14 days of the charge, including the email on your account and the approximate date and
-          amount. Approved refunds are returned to your original payment method via Stripe, typically within
-          5–10 business days.
+          amount. Approved card refunds are returned to your original payment method via Stripe, typically
+          within 5–10 business days. Approved crypto refunds are sent in cryptocurrency to a wallet address
+          you provide, as described above.
         </p>
       </Section>
 

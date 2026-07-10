@@ -11,7 +11,7 @@ export default function TermsPage() {
   return (
     <LegalShell
       title="Terms &amp; Conditions"
-      updated="July 6, 2026"
+      updated="July 10, 2026"
       intro="These Terms & Conditions govern your access to and use of Blitz.tips. By creating an account or using the service, you agree to these terms. If you don't agree, please don't use Blitz.tips."
     >
       <Section title="1. Eligibility">
@@ -54,7 +54,7 @@ export default function TermsPage() {
           items={[
             "Your picks and records must be genuine. Fabricating, back-dating, or otherwise manipulating results is strictly prohibited and grounds for immediate removal.",
             "The core details of a pick lock at post time to preserve an honest track record.",
-            "You set your own subscription prices; Blitz.tips retains a commission based on your plan and pays the remainder to your connected Stripe account.",
+            "You set your own subscription prices; Blitz.tips retains a commission based on your plan. Card revenue is paid to your connected Stripe account automatically; crypto pass revenue is collected by Blitz.tips and your share (net of commission) is paid out to you by Blitz.tips.",
             "You are responsible for any taxes on income you earn, and for the accuracy of the payout details you provide.",
             "You will not post unlawful, misleading, or infringing content.",
           ]}
@@ -62,9 +62,18 @@ export default function TermsPage() {
       </Section>
 
       <Section title="5. Subscriptions and billing">
+        <p>You can pay for handicapper subscriptions in two ways:</p>
+        <Bullets
+          items={[
+            <><strong>Card (Stripe)</strong> — subscriptions renew automatically at the start of each period until cancelled.</>,
+            <><strong>Cryptocurrency (via NOWPayments)</strong> — a one-time payment buys a fixed-length access pass (7 days, 30 days, or 1 year). Crypto passes never renew automatically; access simply ends when the pass expires unless you buy another. The USD price is converted to your chosen cryptocurrency at the exchange rate applied at checkout, and network fees are borne by the payer.</>,
+          ]}
+        />
         <p>
-          Paid subscriptions and plan fees renew automatically until cancelled and are processed by Stripe.
-          Billing, cancellations, and refunds are governed by our{" "}
+          Cryptocurrency transactions are recorded on public blockchains and are irreversible once
+          broadcast. It is your responsibility to send the exact amount requested to the address shown
+          before the payment window expires; underpaid or late payments may fail. Billing, cancellations,
+          and refunds for both payment methods are governed by our{" "}
           <Link href="/refunds" className="text-accent hover:underline">Refund Policy</Link>, which forms
           part of these Terms.
         </p>
