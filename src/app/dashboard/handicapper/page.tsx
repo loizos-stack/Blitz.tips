@@ -18,7 +18,8 @@ import { StatCard } from "@/components/stat-card";
 import { UnitsChart } from "@/components/dashboard/units-chart";
 import { BreakdownTable } from "@/components/dashboard/breakdown-table";
 import { BecomeHandicapperForm } from "@/components/become-handicapper-form";
-import { ConnectOnboardingBanner } from "@/components/connect-onboarding-banner";
+import { ConnectOnboardingBanner, StripePayoutsCard } from "@/components/connect-onboarding-banner";
+import { syncConnectStatus } from "@/lib/connect";
 import { CreatePickForm } from "@/components/create-pick-form";
 import { CreateParlayForm } from "@/components/create-parlay-form";
 import { HandicapperPickRow } from "@/components/handicapper-pick-row";
@@ -63,6 +64,14 @@ export default async function HandicapperDashboardPage() {
       </div>
     );
   }
+
+  // Self-healing Connect status: when an account exists but isn't marked
+  // ready, check Stripe directly — covers a missing/misconfigured webhook and
+  // the return from onboarding.
+  const stripeReady =
+    handicapper.stripeAccountId && !handicapper.stripeAccountReady
+      ? await syncConnectStatus(handicapper)
+      : handicapper.stripeAccountReady;
 
   const subscriberCount = await prisma.subscription.count({
     where: { handicapperId: handicapper.id, status: "ACTIVE" },
@@ -289,11 +298,13 @@ export default async function HandicapperDashboardPage() {
         />
       </div>
 
-      {!handicapper.stripeAccountReady && (
-        <div className="mt-6">
-          <ConnectOnboardingBanner />
-        </div>
-      )}
+      <div className="mt-6">
+        {stripeReady ? (
+          <StripePayoutsCard />
+        ) : (
+          <ConnectOnboardingBanner resume={Boolean(handicapper.stripeAccountId)} />
+        )}
+      </div>
 
       {order.map((key) => (
         <div key={key} className="mt-6">

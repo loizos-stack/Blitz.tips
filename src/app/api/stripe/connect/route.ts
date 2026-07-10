@@ -22,9 +22,11 @@ export async function POST() {
         type: "express",
         email: session.user.email ?? undefined,
         business_type: "individual",
+        // Destination charges: the platform is the merchant of record, so the
+        // connected account only needs transfers. Requesting card_payments too
+        // would force a much heavier onboarding for nothing.
         capabilities: {
           transfers: { requested: true },
-          card_payments: { requested: true },
         },
         metadata: { handicapperId: handicapper.id, handle: handicapper.handle },
       });
@@ -56,8 +58,10 @@ export async function POST() {
   try {
     const accountLink = await stripe.accountLinks.create({
       account: accountId,
-      refresh_url: `${appUrl}/dashboard/handicapper`,
-      return_url: `${appUrl}/dashboard/handicapper`,
+      // Markers let the dashboard force a status sync on return and show the
+      // "resume onboarding" state when Stripe expires the link mid-flow.
+      refresh_url: `${appUrl}/dashboard/handicapper?connect=refresh`,
+      return_url: `${appUrl}/dashboard/handicapper?connect=return`,
       type: "account_onboarding",
     });
     return NextResponse.json({ url: accountLink.url });
