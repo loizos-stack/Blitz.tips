@@ -328,6 +328,41 @@ model Subscription {
   @@index([handicapperId, status])
 }
 
+// A crypto payment for a fixed-length access pass (Coinbase Commerce charge).
+// Crypto can't auto-renew or split funds like Stripe Connect: payments land in
+// the platform's Commerce account, and confirmed rows double as the earnings
+// ledger showing what each handicapper is owed (netCents).
+model CryptoPayment {
+  id             String   @id @default(cuid())
+  chargeCode     String   @unique // Coinbase Commerce charge code
+  subscriberId   String
+  handicapperId  String
+
+  interval       BillingIntervalPass
+  amountCents    Int      // what the subscriber paid (USD-priced)
+  commissionCents Int     // platform's cut at time of purchase
+  netCents       Int      // owed to the handicapper
+
+  status         CryptoPaymentStatus @default(PENDING)
+  confirmedAt    DateTime?
+  createdAt      DateTime @default(now())
+
+  @@index([handicapperId, status])
+  @@index([subscriberId])
+}
+
+enum CryptoPaymentStatus {
+  PENDING
+  CONFIRMED
+  EXPIRED
+}
+
+enum BillingIntervalPass {
+  WEEKLY
+  MONTHLY
+  ANNUAL
+}
+
 // A free "follow": a customer tracking a handicapper's stats without paying
 // for their picks. Distinct from Subscription, which is the paid relationship
 // that unlocks premium picks.

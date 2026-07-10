@@ -3,10 +3,16 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Check, Lock } from "lucide-react";
+import { Check, Lock, Bitcoin } from "lucide-react";
 import { formatCents, cn } from "@/lib/utils";
 
 type PackageInterval = "WEEKLY" | "MONTHLY" | "ANNUAL";
+
+const PASS_LENGTH: Record<PackageInterval, string> = {
+  WEEKLY: "7-day",
+  MONTHLY: "30-day",
+  ANNUAL: "1-year",
+};
 
 const INTERVAL_SUFFIX: Record<PackageInterval, string> = {
   WEEKLY: "/wk",
@@ -29,6 +35,7 @@ export function SubscribeButton({
   isSignedIn,
   isReady,
   isOwner = false,
+  cryptoEnabled = false,
 }: {
   handicapperId: string;
   displayName: string;
@@ -37,6 +44,7 @@ export function SubscribeButton({
   isSignedIn: boolean;
   isReady: boolean;
   isOwner?: boolean;
+  cryptoEnabled?: boolean;
 }) {
   const router = useRouter();
   const offered = (Object.keys(INTERVAL_SUFFIX) as PackageInterval[]).filter(
@@ -44,6 +52,7 @@ export function SubscribeButton({
   );
   const [interval, setInterval] = useState<PackageInterval>("MONTHLY");
   const [loading, setLoading] = useState(false);
+  const [cryptoLoading, setCryptoLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   // "Save X%" on the annual package relative to paying monthly for a year.
@@ -72,6 +81,28 @@ export function SubscribeButton({
 
     if (!res.ok) {
       setError(body.error ?? "Could not start checkout");
+      return;
+    }
+    if (body.url) window.location.href = body.url;
+  }
+
+  // A one-time crypto payment for a fixed access period (no auto-renew).
+  async function handleCrypto() {
+    if (!isSignedIn) {
+      router.push(`/signin?callbackUrl=/handicappers`);
+      return;
+    }
+    setCryptoLoading(true);
+    setError(null);
+    const res = await fetch("/api/crypto/checkout", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ handicapperId, interval }),
+    });
+    const body = await res.json().catch(() => ({}));
+    setCryptoLoading(false);
+    if (!res.ok) {
+      setError(body.error ?? "Could not start crypto checkout");
       return;
     }
     if (body.url) window.location.href = body.url;
@@ -154,11 +185,29 @@ export function SubscribeButton({
               className="w-full rounded-lg bg-accent px-6 py-3 text-sm font-semibold text-accent-foreground hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
             >
               {!isReady
-                ? "Subscriptions not yet enabled"
+                ? cryptoEnabled
+                  ? "Card payments not yet enabled"
+                  : "Subscriptions not yet enabled"
                 : loading
                   ? "Redirecting…"
                   : `Subscribe — ${formatCents(packages[interval]!)}${INTERVAL_SUFFIX[interval]}`}
             </button>
+            {cryptoEnabled && (
+              <button
+                onClick={handleCrypto}
+                disabled={cryptoLoading}
+                className="flex w-full items-center justify-center gap-2 rounded-lg border border-border px-6 py-3 text-sm font-semibold hover:border-muted disabled:opacity-60"
+              >
+                <Bitcoin className="h-4 w-4 text-gold" />
+                {cryptoLoading ? "Redirecting…" : `Pay with crypto — ${formatCents(packages[interval]!)}`}
+              </button>
+            )}
+            {cryptoEnabled && (
+              <p className="text-center text-[11px] text-muted">
+                Crypto buys a one-time {PASS_LENGTH[interval]} pass — no auto-renew, we&rsquo;ll remind
+                you before it ends.
+              </p>
+            )}
             {error && <p className="text-sm text-danger">{error}</p>}
           </>
         )}

@@ -11,6 +11,7 @@ import {
   type PackageInterval,
 } from "@/lib/subscriber-pricing";
 import { siteUrl } from "@/lib/site";
+import { isSubscriptionActive } from "@/lib/subscription-status";
 
 const appUrl = siteUrl();
 
@@ -64,7 +65,7 @@ export async function POST(request: Request) {
   const existingActive = await prisma.subscription.findUnique({
     where: { subscriberId_handicapperId: { subscriberId: session.user.id, handicapperId } },
   });
-  if (existingActive?.status === "ACTIVE") {
+  if (isSubscriptionActive(existingActive)) {
     return NextResponse.json({ error: "You're already subscribed" }, { status: 409 });
   }
 

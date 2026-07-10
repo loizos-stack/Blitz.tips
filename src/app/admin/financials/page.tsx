@@ -12,7 +12,7 @@ export const dynamic = "force-dynamic";
 // the Stripe dashboard.
 export default async function AdminFinancialsPage() {
   await guardAdminPage("financials");
-  const [handicappers, activeSubs] = await Promise.all([
+  const [handicappers, activeSubs, cryptoPayments] = await Promise.all([
     prisma.handicapperProfile.findMany({
       include: {
         _count: { select: { subscriptions: { where: { status: "ACTIVE" } } } },
@@ -20,6 +20,7 @@ export default async function AdminFinancialsPage() {
       orderBy: { createdAt: "asc" },
     }),
     prisma.subscription.count({ where: { status: "ACTIVE" } }),
+    prisma.cryptoPayment.findMany({ where: { status: "CONFIRMED" } }),
   ]);
 
   const rows = handicappers
@@ -101,6 +102,63 @@ export default async function AdminFinancialsPage() {
           </tbody>
         </table>
       </div>
+
+      {cryptoPayments.length > 0 && (
+        <>
+          <h2 className="mb-3 mt-8 font-semibold">Crypto passes (owed to handicappers)</h2>
+          <p className="mb-3 text-xs text-muted">
+            Crypto payments land in your Coinbase Commerce account; the net column is what you owe
+            each handicapper from confirmed passes (all-time). Pay out manually and keep your own
+            record of settled amounts.
+          </p>
+          <div className="card overflow-x-auto p-0">
+            <table className="w-full min-w-[40rem] text-sm">
+              <thead>
+                <tr className="border-b border-border text-left text-xs uppercase tracking-wide text-muted">
+                  <th className="px-4 py-3">Handicapper</th>
+                  <th className="px-4 py-3">Confirmed passes</th>
+                  <th className="px-4 py-3">Gross</th>
+                  <th className="px-4 py-3">Platform cut</th>
+                  <th className="px-4 py-3">Net owed</th>
+                </tr>
+              </thead>
+              <tbody>
+                {Object.values(
+                  cryptoPayments.reduce<
+                    Record<string, { handicapperId: string; count: number; gross: number; cut: number; net: number }>
+                  >((acc, p) => {
+                    const row = (acc[p.handicapperId] ??= {
+                      handicapperId: p.handicapperId,
+                      count: 0,
+                      gross: 0,
+                      cut: 0,
+                      net: 0,
+                    });
+                    row.count += 1;
+                    row.gross += p.amountCents;
+                    row.cut += p.commissionCents;
+                    row.net += p.netCents;
+                    return acc;
+                  }, {})
+                )
+                  .sort((a, b) => b.net - a.net)
+                  .map((r) => {
+                    const h = handicappers.find((x) => x.id === r.handicapperId);
+                    return (
+                      <tr key={r.handicapperId} className="border-b border-border last:border-b-0">
+                        <td className="px-4 py-2.5 font-medium">@{h?.handle ?? r.handicapperId}</td>
+                        <td className="px-4 py-2.5 tabular-nums">{r.count}</td>
+                        <td className="px-4 py-2.5 tabular-nums">{formatCents(r.gross)}</td>
+                        <td className="px-4 py-2.5 tabular-nums text-accent">{formatCents(r.cut)}</td>
+                        <td className="px-4 py-2.5 tabular-nums font-semibold">{formatCents(r.net)}</td>
+                      </tr>
+                    );
+                  })}
+              </tbody>
+            </table>
+          </div>
+        </>
+      )}
 
       <h2 className="mb-3 mt-8 font-semibold">Paid handicapper plans</h2>
       <div className="card overflow-x-auto p-0">

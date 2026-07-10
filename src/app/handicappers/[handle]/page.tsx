@@ -14,6 +14,8 @@ import { SportIcon } from "@/components/sport-icon";
 import { SPORT_LABELS } from "@/lib/utils";
 import { getSetting } from "@/lib/settings";
 import { DASHBOARD_ORDER_SETTING, resolveSectionOrder } from "@/lib/dashboard-sections";
+import { isSubscriptionActive } from "@/lib/subscription-status";
+import { coinbaseConfigured } from "@/lib/coinbase";
 import type { ReactNode } from "react";
 
 export const dynamic = "force-dynamic";
@@ -63,7 +65,7 @@ export default async function HandicapperProfilePage({
         },
       }),
     ]);
-    isSubscribed = sub?.status === "ACTIVE";
+    isSubscribed = isSubscriptionActive(sub);
     isFollowing = Boolean(follow);
   }
 
@@ -215,6 +217,7 @@ export default async function HandicapperProfilePage({
               isSignedIn={Boolean(session)}
               isReady={handicapper.stripeAccountReady}
               isOwner={Boolean(isOwner)}
+              cryptoEnabled={coinbaseConfigured()}
             />
           )}
         </div>
