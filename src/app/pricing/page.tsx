@@ -6,9 +6,9 @@ import { formatCents, cn } from "@/lib/utils";
 import type { HandicapperPlan } from "@prisma/client";
 
 export const metadata: Metadata = {
-  title: "Sell Picks",
+  title: "Sell Tips",
   description:
-    "Sell your sports picks on Blitz.tips. Build a verified track record, set your own prices, and earn recurring subscription income while we handle billing and payouts.",
+    "Sell your sports tips on Blitz.tips. Build a verified track record, set your own prices, and get paid by card or crypto while we handle billing and payouts.",
 };
 
 const PLAN_ORDER: HandicapperPlan[] = ["FREE", "SILVER", "GOLD"];
@@ -21,8 +21,8 @@ const BENEFITS = [
   },
   {
     icon: Wallet,
-    title: "Recurring subscription income",
-    body: "Subscribers pay you weekly, monthly, or annually. Billing, invoices, and payouts run through Stripe — the money lands in your bank on its own.",
+    title: "Card and crypto payments",
+    body: "Subscribers pay weekly, monthly, or annually — by card through Stripe or in crypto (BTC, ETH, USDC and 300+ coins). Card money lands in your bank on its own; crypto earnings are tracked on the platform and paid out to you.",
   },
   {
     icon: Tags,
@@ -61,7 +61,7 @@ const STEPS = [
   },
   {
     title: "Get paid every month",
-    body: "Subscribers pay your prices; Stripe handles billing and deposits your earnings.",
+    body: "Subscribers pay your prices by card or crypto; Stripe deposits card earnings automatically and crypto earnings are paid out to you.",
   },
 ];
 
@@ -77,7 +77,7 @@ export default function PricingPage() {
           <span className="inline-flex items-center gap-2 rounded-full border border-border bg-surface px-3 py-1 text-xs font-medium text-muted">
             For handicappers
           </span>
-          <h1 className="mt-6 text-4xl font-bold">Sell your picks. Get paid to be right.</h1>
+          <h1 className="mt-6 text-4xl font-bold">Sell your tips. Get paid to be right.</h1>
           <p className="mt-4 text-muted">
             Blitz.tips is a marketplace for handicappers with a real, verified record. We handle
             subscriptions, billing, and record-keeping so you can focus on finding winners — and
@@ -88,7 +88,7 @@ export default function PricingPage() {
               href="/signup?as=handicapper"
               className="flex items-center justify-center rounded-lg bg-accent px-6 py-3 text-sm font-semibold text-accent-foreground hover:opacity-90"
             >
-              Start selling picks
+              Start selling tips
             </Link>
             <Link
               href="/leaderboard"
@@ -186,7 +186,7 @@ export default function PricingPage() {
         <p className="mx-auto mt-8 max-w-2xl text-center text-sm text-muted">
           No setup fees and no monthly minimums on Free. Looking to follow cappers instead?{" "}
           <Link href="/buy-picks" className="text-accent hover:underline">
-            Buy picks
+            Buy tips
           </Link>
           .
         </p>

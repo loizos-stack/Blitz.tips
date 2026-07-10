@@ -75,7 +75,7 @@ export default async function Home({
                 href="/pricing"
                 className="flex items-center justify-center rounded-lg border border-border px-6 py-3 text-sm font-semibold hover:border-muted"
               >
-                Sell your picks
+                Sell your tips
               </Link>
             </div>
           </div>

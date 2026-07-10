@@ -3,9 +3,9 @@ import Link from "next/link";
 import { ShieldCheck, LineChart, Lock, Search, CreditCard, Bell } from "lucide-react";
 
 export const metadata: Metadata = {
-  title: "Buy Picks",
+  title: "Buy Tips",
   description:
-    "Buy sports picks from verified handicappers on Blitz.tips. Every pick is timestamped and graded, so you can subscribe to cappers with a real, provable track record.",
+    "Buy sports tips from verified handicappers on Blitz.tips — pay by card or crypto. Every pick is timestamped and graded, so you can subscribe to cappers with a real, provable track record.",
 };
 
 const BENEFITS = [
@@ -26,8 +26,8 @@ const BENEFITS = [
   },
   {
     icon: CreditCard,
-    title: "Subscribe directly, cancel anytime",
-    body: "Pay a capper's weekly, monthly, or annual price through secure Stripe checkout. No middlemen, and you can cancel whenever you like.",
+    title: "Pay by card or crypto",
+    body: "Pay a capper's weekly, monthly, or annual price by card through secure Stripe checkout — cancel anytime — or with crypto (BTC, ETH, USDC and 300+ coins) for a one-time access pass that never auto-renews.",
   },
   {
     icon: Bell,
@@ -52,7 +52,7 @@ const STEPS = [
   },
   {
     title: "Subscribe to your pick",
-    body: "Choose weekly, monthly, or annual at the capper's price and check out securely.",
+    body: "Choose weekly, monthly, or annual at the capper's price and pay by card or crypto.",
   },
   {
     title: "Get their picks",
@@ -72,7 +72,7 @@ export default function BuyPicksPage() {
           <span className="inline-flex items-center gap-2 rounded-full border border-border bg-surface px-3 py-1 text-xs font-medium text-muted">
             For bettors
           </span>
-          <h1 className="mt-6 text-4xl font-bold">Buy picks from handicappers who prove it.</h1>
+          <h1 className="mt-6 text-4xl font-bold">Buy tips from handicappers who prove it.</h1>
           <p className="mt-4 text-muted">
             Stop guessing which touts are legit. On Blitz.tips every pick is timestamped and graded,
             so you can subscribe to handicappers with a real, verifiable record — and see exactly
@@ -130,7 +130,7 @@ export default function BuyPicksPage() {
             Browse verified records and subscribe in a couple of clicks. Got a winning record of your
             own?{" "}
             <Link href="/pricing" className="text-accent hover:underline">
-              Sell your picks
+              Sell your tips
             </Link>{" "}
             instead.
           </p>
