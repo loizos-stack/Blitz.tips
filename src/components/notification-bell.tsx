@@ -138,7 +138,9 @@ export function NotificationBell() {
               items.map((n) => {
                 const inner = (
                   <div
-                    className={`flex gap-2 px-4 py-3 ${n.readAt ? "" : "bg-accent/5"} hover:bg-surface-raised`}
+                    className={`flex gap-2 border-b border-border/60 px-4 py-3 last:border-b-0 ${
+                      n.readAt ? "bg-surface-raised/70 hover:bg-surface-raised" : "bg-accent/10 hover:bg-accent/15"
+                    }`}
                   >
                     <span
                       className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${n.readAt ? "bg-transparent" : "bg-accent"}`}
