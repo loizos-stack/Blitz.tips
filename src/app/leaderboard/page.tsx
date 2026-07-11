@@ -1,8 +1,10 @@
 import Link from "next/link";
 import type { Metadata } from "next";
+import { BadgeCheck } from "lucide-react";
 import { listHandicapperSummaries, sortFeaturedFirst, type HandicapperSummary } from "@/lib/handicappers";
 import { Avatar } from "@/components/avatar";
 import { SportFilterSelect } from "@/components/sport-filter-select";
+import { verifiedBadgeColorClass } from "@/lib/plans";
 import { formatStreak } from "@/lib/analytics";
 import { SPORT_LABELS } from "@/lib/utils";
 import { cn } from "@/lib/utils";
@@ -85,7 +87,9 @@ export default async function LeaderboardPage({
         {sorted.length === 0 ? (
           <p className="p-8 text-center text-muted">No handicappers match this filter yet.</p>
         ) : (
-          sorted.map((h, i) => (
+          sorted.map((h, i) => {
+            const planBadgeClass = verifiedBadgeColorClass(h.plan, h.planStatus);
+            return (
             <Link
               key={h.id}
               href={`/handicappers/${h.handle}`}
@@ -101,6 +105,7 @@ export default async function LeaderboardPage({
                 <div className="min-w-0">
                   <div className="flex items-center gap-1.5">
                     <p className="truncate font-semibold">{h.displayName}</p>
+                    {planBadgeClass && <BadgeCheck className={`h-4 w-4 shrink-0 ${planBadgeClass}`} />}
                     {h.isFeatured && (
                       <span className="shrink-0 rounded-full bg-gold/15 px-1.5 py-0.5 text-[10px] font-semibold text-gold">
                         FEATURED
@@ -139,7 +144,8 @@ export default async function LeaderboardPage({
               </span>
               <span className="hidden text-right tabular-nums text-muted lg:block">{h.stats.totalPicks}</span>
             </Link>
-          ))
+          );
+          })
         )}
       </div>
       </div>

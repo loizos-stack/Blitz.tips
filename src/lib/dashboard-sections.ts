@@ -30,8 +30,8 @@ export const SUBSCRIBER_SECTIONS: DashboardSection[] = [
 // cover, avatar, name, socials, bio, and subscribe box stay pinned; these
 // stacked sections below them are reorderable.
 export const PROFILE_SECTIONS: DashboardSection[] = [
+  { key: "pendingPlays", label: "Pending tips", description: "The handicapper's pending picks" },
   { key: "stats", label: "Stats", description: "Record, win rate, net units, ROI, plus the L10 / last-30 line" },
-  { key: "pendingPlays", label: "Pending plays", description: "The handicapper's pending picks" },
   { key: "trackRecord", label: "Track record", description: "Settled picks history" },
   { key: "testimonials", label: "Testimonials", description: "What subscribers say" },
 ];

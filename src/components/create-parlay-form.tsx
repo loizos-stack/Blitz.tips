@@ -7,6 +7,8 @@ import { CalendarSearch, PencilLine, ImageUp, Trash2, Layers, Plus } from "lucid
 import { SPORT_LABELS, cn, formatMatchup, usesVsSeparator, parseMatchupSides } from "@/lib/utils";
 import { formatOdds, combineParlayOdds } from "@/lib/odds";
 import { getTeamNames } from "@/lib/team-logos";
+import { TeamLogo } from "@/components/team-logo";
+import { TeamCrest } from "@/components/team-crest";
 import type { MarketOption, UpcomingEvent } from "@/lib/odds-api";
 import type { PickSport } from "@prisma/client";
 
@@ -16,6 +18,9 @@ interface Leg {
   matchup: string;
   selection: string;
   odds: number;
+  // The sport this leg belongs to (schedule leg's feed sport, else the parlay
+  // tag) so its crests resolve against the right league. Not sent to the API.
+  sport?: string;
 }
 
 function normalizeText(s: string): string {
@@ -122,7 +127,7 @@ export function CreateParlayForm({
       setError("Enter both teams, a selection, and valid odds for the leg");
       return;
     }
-    const leg: Leg = { matchup: formatMatchup(sport, mAway.trim(), mHome.trim()), selection: mSelection.trim(), odds };
+    const leg: Leg = { matchup: formatMatchup(sport, mAway.trim(), mHome.trim()), selection: mSelection.trim(), odds, sport };
     const conflict = legConflict(legs, leg);
     if (conflict) {
       setError(conflict);
@@ -137,7 +142,7 @@ export function CreateParlayForm({
   }
 
   function addScheduleLeg(event: UpcomingEvent, market: MarketOption) {
-    const leg: Leg = { matchup: event.matchup, selection: market.selection, odds: market.odds };
+    const leg: Leg = { matchup: event.matchup, selection: market.selection, odds: market.odds, sport: feedSport };
     const conflict = legConflict(legs, leg);
     if (conflict) {
       setError(conflict);
@@ -214,7 +219,7 @@ export function CreateParlayForm({
         analysis: analysis || undefined,
         isPremium,
         eventStartsAt: new Date(eventStartsAt).toISOString(),
-        legs,
+        legs: legs.map((l) => ({ matchup: l.matchup, selection: l.selection, odds: l.odds })),
       }),
     });
     const body = await res.json().catch(() => ({}));
@@ -278,11 +283,22 @@ export function CreateParlayForm({
       {/* Current legs */}
       {legs.length > 0 ? (
         <ul className="divide-y divide-border rounded-lg border border-border">
-          {legs.map((leg, i) => (
+          {legs.map((leg, i) => {
+            const sides = parseMatchupSides(leg.matchup);
+            const legSport = leg.sport ?? sport;
+            return (
             <li key={i} className="flex items-center justify-between gap-3 px-3 py-2 text-sm">
-              <span className="min-w-0">
-                <span className="block truncate font-display font-medium">{leg.selection}</span>
-                <span className="block truncate font-display text-xs text-muted">{leg.matchup}</span>
+              <span className="flex min-w-0 items-center gap-2">
+                {sides && (
+                  <span className="flex shrink-0 items-center -space-x-1.5">
+                    <TeamCrest sport={legSport} name={sides.awayTeam} className="h-5 w-5 rounded-full ring-2 ring-surface" />
+                    <TeamCrest sport={legSport} name={sides.homeTeam} className="h-5 w-5 rounded-full ring-2 ring-surface" />
+                  </span>
+                )}
+                <span className="min-w-0">
+                  <span className="block truncate font-display font-medium">{leg.selection}</span>
+                  <span className="block truncate font-display text-xs text-muted">{leg.matchup}</span>
+                </span>
               </span>
               <span className="flex shrink-0 items-center gap-2">
                 <span className="tabular-nums text-muted">{formatOdds(leg.odds)}</span>
@@ -291,7 +307,8 @@ export function CreateParlayForm({
                 </button>
               </span>
             </li>
-          ))}
+          );
+          })}
         </ul>
       ) : (
         <p className="rounded-lg border border-dashed border-border px-3 py-4 text-center text-sm text-muted">
@@ -313,9 +330,12 @@ export function CreateParlayForm({
             <input value={mHome} onChange={(e) => setMHome(e.target.value)} placeholder={vsSport ? "Home team" : "Home team (e.g. Bills)"} list="parlay-team-suggestions" className={input} />
           </div>
           {mAway.trim() && mHome.trim() && (
-            <p className="text-[11px] text-muted">
-              Reads as <span className="font-medium text-foreground">{formatMatchup(sport, mAway.trim(), mHome.trim())}</span>
-            </p>
+            <div className="flex items-center gap-1.5 text-[11px] text-muted">
+              <span>Reads as</span>
+              <TeamCrest sport={sport} name={mAway} className="h-4 w-4 shrink-0 rounded-full" />
+              <span className="font-medium text-foreground">{formatMatchup(sport, mAway.trim(), mHome.trim())}</span>
+              <TeamCrest sport={sport} name={mHome} className="h-4 w-4 shrink-0 rounded-full" />
+            </div>
           )}
           <div className="grid grid-cols-[1fr_7rem] gap-2">
             <input value={mSelection} onChange={(e) => setMSelection(e.target.value)} placeholder="Selection (Bills -2.5)" className={input} />
@@ -357,7 +377,19 @@ export function CreateParlayForm({
                     onClick={() => setOpenEvent(openEvent === event.id ? null : event.id)}
                     className="flex w-full items-center justify-between px-3 py-2 text-left text-sm"
                   >
-                    <span className="font-display font-medium">{event.matchup}</span>
+                    <span className="flex min-w-0 items-center gap-2">
+                      {(event.awayTeamLogo || event.homeTeamLogo) && (
+                        <span className="flex shrink-0 items-center -space-x-1.5">
+                          {event.awayTeamLogo && (
+                            <TeamLogo sport={feedSport as PickSport} logoUrl={event.awayTeamLogo} className="h-5 w-5 rounded-full ring-2 ring-surface" />
+                          )}
+                          {event.homeTeamLogo && (
+                            <TeamLogo sport={feedSport as PickSport} logoUrl={event.homeTeamLogo} className="h-5 w-5 rounded-full ring-2 ring-surface" />
+                          )}
+                        </span>
+                      )}
+                      <span className="truncate font-display font-medium">{event.matchup}</span>
+                    </span>
                     <span className="ml-2 shrink-0 text-xs text-muted">{format(new Date(event.commenceTime), "MMM d, h:mm a")}</span>
                   </button>
                   {openEvent === event.id && (

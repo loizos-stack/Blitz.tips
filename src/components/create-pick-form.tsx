@@ -8,6 +8,7 @@ import { SPORT_LABELS, BET_TYPE_LABELS, cn, formatMatchup, usesVsSeparator } fro
 import { formatOdds } from "@/lib/odds";
 import { getTeamNames } from "@/lib/team-logos";
 import { TeamLogo } from "@/components/team-logo";
+import { TeamCrest } from "@/components/team-crest";
 import type { MarketOption, UpcomingEvent } from "@/lib/odds-api";
 import type { PickSport } from "@prisma/client";
 
@@ -309,7 +310,11 @@ export function CreatePickForm({
 
           {selectedEvent && selectedMarket && (
             <div className="rounded-lg bg-surface-raised p-3 text-sm">
-              <p className="font-display font-semibold">{selectedEvent.matchup}</p>
+              <div className="flex items-center gap-2">
+                <TeamLogo sport={sport as PickSport} logoUrl={selectedEvent.awayTeamLogo} className="h-5 w-5 shrink-0 rounded-full" />
+                <p className="font-display font-semibold">{selectedEvent.matchup}</p>
+                <TeamLogo sport={sport as PickSport} logoUrl={selectedEvent.homeTeamLogo} className="h-5 w-5 shrink-0 rounded-full" />
+              </div>
               <p className="mt-0.5 text-muted">
                 {BET_TYPE_LABELS[selectedMarket.betType]} · {selectedMarket.selection} ·{" "}
                 <span className="tabular-nums">{formatOdds(selectedMarket.odds)}</span>
@@ -349,12 +354,14 @@ export function CreatePickForm({
               />
             </div>
             {awayTeam.trim() && homeTeam.trim() ? (
-              <p className="mt-1 text-[11px] text-muted">
-                Reads as{" "}
+              <div className="mt-1.5 flex items-center gap-1.5 text-[11px] text-muted">
+                <span>Reads as</span>
+                <TeamCrest sport={sport} name={awayTeam} className="h-4 w-4 shrink-0 rounded-full" />
                 <span className="font-medium text-foreground">
                   {formatMatchup(sport, awayTeam.trim(), homeTeam.trim())}
                 </span>
-              </p>
+                <TeamCrest sport={sport} name={homeTeam} className="h-4 w-4 shrink-0 rounded-full" />
+              </div>
             ) : (
               teamNames.length > 0 && (
                 <p className="mt-1 text-[11px] text-muted">

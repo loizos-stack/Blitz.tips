@@ -119,7 +119,7 @@ export default async function HandicapperProfilePage({
     pendingPlays: pendingPicks.length > 0 && (
       <>
         <h2 className="mb-4 flex items-center gap-2 text-xl font-bold">
-          Pending plays
+          Pending tips
           <span className="rounded-full bg-gold/15 px-2 py-0.5 text-xs font-semibold text-gold">
             {pendingPicks.length} pending
           </span>
@@ -151,7 +151,7 @@ export default async function HandicapperProfilePage({
         {picks.length === 0 ? (
           <p className="text-muted">No picks posted yet.</p>
         ) : settledPicks.length === 0 ? (
-          <p className="text-muted">No settled picks yet — see the pending plays above.</p>
+          <p className="text-muted">No settled picks yet — see the pending tips above.</p>
         ) : (
           <PaginatedTrackRecord picks={settledPicks} unlocked={unlocked} />
         )}

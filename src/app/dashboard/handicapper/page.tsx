@@ -21,7 +21,7 @@ import { BecomeHandicapperForm } from "@/components/become-handicapper-form";
 import { ConnectOnboardingBanner, StripePayoutsCard } from "@/components/connect-onboarding-banner";
 import { syncConnectStatus } from "@/lib/connect";
 import { PostTipForms } from "@/components/post-tip-forms";
-import { HandicapperPickRow } from "@/components/handicapper-pick-row";
+import { HandicapperPickList } from "@/components/handicapper-pick-list";
 import { enrichPickCrests } from "@/lib/pick-logos";
 import { ManagePlanCard } from "@/components/manage-plan-card";
 import { ProfileImagesForm } from "@/components/profile-images-form";
@@ -116,11 +116,7 @@ export default async function HandicapperDashboardPage() {
           {displayPicks.length === 0 ? (
             <p className="text-muted">You haven&apos;t posted any picks yet.</p>
           ) : (
-            <div className="grid gap-3">
-              {displayPicks.map((pick) => (
-                <HandicapperPickRow key={pick.id} pick={pick} />
-              ))}
-            </div>
+            <HandicapperPickList picks={displayPicks} />
           )}
         </div>
       </div>

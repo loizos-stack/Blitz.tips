@@ -163,7 +163,15 @@ export function PickCard({ pick, locked = false }: { pick: PickWithLegs; locked?
 
       <div className="mt-4 flex items-center justify-between">
         <ResultPill result={pick.result} />
-        {pick.isPremium && <span className="text-xs text-muted">Premium pick</span>}
+        {pick.isPremium ? (
+          <span className="rounded-full bg-gold/15 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-gold">
+            Premium
+          </span>
+        ) : (
+          <span className="rounded-full bg-accent/10 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-accent">
+            Free
+          </span>
+        )}
       </div>
     </div>
   );
