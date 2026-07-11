@@ -75,7 +75,7 @@ export function HandicapperCard({ handicapper, rank }: { handicapper: Handicappe
         </div>
         <div>
           <p className="text-xs text-muted">Win %</p>
-          <p className="font-semibold tabular-nums">{stats.winRate ? `${stats.winRate.toFixed(1)}%` : "—"}</p>
+          <p className="font-semibold tabular-nums">{stats.winRate != null ? `${Math.round(stats.winRate)}%` : "—"}</p>
         </div>
         <div>
           <p className="text-xs text-muted">Units</p>
