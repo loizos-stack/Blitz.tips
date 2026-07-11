@@ -35,7 +35,8 @@ export const PLAN_DEFINITIONS: Record<HandicapperPlan, PlanDefinition> = {
     perks: [
       "Everything in Silver",
       "Lowest 10% commission — keep 90%",
-      "Featured at the top of the homepage and leaderboard",
+      "Gold verified badge next to your name",
+      "Top placement on the homepage and leaderboard",
       "Promoted on Blitz.tips social media",
     ],
   },
@@ -47,11 +48,6 @@ export function commissionPercentForPlan(plan: HandicapperPlan): number {
 
 export function planPriceCents(plan: HandicapperPlan, interval: BillingInterval): number | null {
   return interval === "ANNUAL" ? PLAN_DEFINITIONS[plan].annualPriceCents : PLAN_DEFINITIONS[plan].monthlyPriceCents;
-}
-
-/** Gold's homepage/leaderboard featuring only applies while their plan billing is actually current. */
-export function isFeaturedHandicapper(plan: HandicapperPlan, planStatus: SubscriptionStatus): boolean {
-  return plan === "GOLD" && planStatus === "ACTIVE";
 }
 
 /**

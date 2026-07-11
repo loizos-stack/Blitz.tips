@@ -14,9 +14,7 @@ export function HandicapperCard({ handicapper, rank }: { handicapper: Handicappe
   return (
     <Link
       href={`/handicappers/${handicapper.handle}`}
-      className={`card group flex flex-col overflow-hidden p-0 transition-colors hover:border-accent/60 ${
-        handicapper.isFeatured ? "border-gold/50 bg-gold/5" : ""
-      }`}
+      className="card group flex flex-col overflow-hidden p-0 transition-colors hover:border-accent/60"
     >
       <div className="relative h-20 w-full overflow-hidden bg-gradient-to-r from-accent/20 via-surface-raised to-gold/15">
         {handicapper.coverUrl && (
@@ -44,11 +42,6 @@ export function HandicapperCard({ handicapper, rank }: { handicapper: Handicappe
             <div className="flex items-center gap-1.5">
               <p className="truncate font-semibold group-hover:text-accent">{handicapper.displayName}</p>
               <PlanBadge plan={handicapper.plan} planStatus={handicapper.planStatus} />
-              {handicapper.isFeatured && (
-                <span className="shrink-0 rounded-full bg-gold/15 px-1.5 py-0.5 text-[10px] font-semibold text-gold">
-                  FEATURED
-                </span>
-              )}
             </div>
             <p className="truncate text-sm text-muted">@{handicapper.handle}</p>
           </div>
