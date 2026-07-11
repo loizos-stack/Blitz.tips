@@ -69,3 +69,18 @@ export function verifiedBadgeColorClass(
   if (plan === "SILVER") return "text-silver";
   return null;
 }
+
+/**
+ * The plan a verified badge should represent, or null when none should show
+ * (Free plan, or a paid plan that isn't currently active). Drives the filled
+ * PlanBadge next to a handicapper's name.
+ */
+export function verifiedBadgePlan(
+  plan: HandicapperPlan,
+  planStatus: SubscriptionStatus
+): "GOLD" | "SILVER" | null {
+  if (planStatus !== "ACTIVE") return null;
+  if (plan === "GOLD") return "GOLD";
+  if (plan === "SILVER") return "SILVER";
+  return null;
+}

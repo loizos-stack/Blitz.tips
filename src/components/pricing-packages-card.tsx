@@ -17,15 +17,18 @@ export function PricingPackagesCard({
   weeklyPriceCents,
   monthlyPriceCents,
   annualPriceCents,
+  subscriptionTrialDays,
 }: {
   weeklyPriceCents: number | null;
   monthlyPriceCents: number;
   annualPriceCents: number | null;
+  subscriptionTrialDays: number | null;
 }) {
   const router = useRouter();
   const [weekly, setWeekly] = useState(toInput(weeklyPriceCents));
   const [monthly, setMonthly] = useState(toInput(monthlyPriceCents));
   const [annual, setAnnual] = useState(toInput(annualPriceCents));
+  const [trial, setTrial] = useState(String(subscriptionTrialDays ?? 0));
   const [state, setState] = useState<"idle" | "saving" | "saved" | "error">("idle");
   const [error, setError] = useState<string | null>(null);
 
@@ -40,6 +43,7 @@ export function PricingPackagesCard({
         monthlyPriceCents: toCents(monthly) ?? 0,
         weeklyPriceCents: toCents(weekly),
         annualPriceCents: toCents(annual),
+        subscriptionTrialDays: Number(trial),
       }),
     });
     const body = await res.json().catch(() => ({}));
@@ -92,6 +96,25 @@ export function PricingPackagesCard({
             {field("Weekly (USD)", weekly, setWeekly, { min: "1.99" })}
             {field("Monthly (USD)", monthly, setMonthly, { min: "4.99", required: true })}
             {field("Annual (USD)", annual, setAnnual, { min: "9.99" })}
+          </div>
+
+          <div className="mt-3 max-w-md">
+            <span className="text-xs text-muted">Free trial</span>
+            <select
+              value={trial}
+              onChange={(e) => {
+                setTrial(e.target.value);
+                setState("idle");
+              }}
+              className="mt-1 w-full rounded-lg border border-border bg-surface-raised px-3 py-2 text-sm outline-none focus:border-accent"
+            >
+              <option value="0">No trial</option>
+              <option value="1">1 day free</option>
+              <option value="2">2 days free</option>
+            </select>
+            <p className="mt-1 text-[11px] text-muted">
+              Applies to weekly &amp; monthly card subscriptions only — annual and crypto have no trial.
+            </p>
           </div>
 
           <div className="mt-3 flex items-center gap-3">

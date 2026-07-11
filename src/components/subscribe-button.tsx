@@ -36,6 +36,7 @@ export function SubscribeButton({
   isReady,
   isOwner = false,
   cryptoEnabled = false,
+  trialDays = null,
 }: {
   handicapperId: string;
   displayName: string;
@@ -45,6 +46,8 @@ export function SubscribeButton({
   isReady: boolean;
   isOwner?: boolean;
   cryptoEnabled?: boolean;
+  // Free-trial days on weekly/monthly card subscriptions (never annual/crypto).
+  trialDays?: number | null;
 }) {
   const router = useRouter();
   const offered = (Object.keys(INTERVAL_SUFFIX) as PackageInterval[]).filter(
@@ -54,6 +57,10 @@ export function SubscribeButton({
   const [loading, setLoading] = useState(false);
   const [cryptoLoading, setCryptoLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // A free trial applies to card subscriptions on weekly/monthly only.
+  const trialFor = (i: PackageInterval) => (trialDays && i !== "ANNUAL" ? trialDays : null);
+  const activeTrial = trialFor(interval);
 
   // "Save X%" on the annual package relative to paying monthly for a year.
   const annualSavePct =
@@ -148,6 +155,11 @@ export function SubscribeButton({
                       SAVE {annualSavePct}%
                     </span>
                   )}
+                  {trialFor(i) && (
+                    <span className="rounded-full bg-accent/15 px-2 py-0.5 text-[10px] font-bold text-accent">
+                      {trialFor(i)}-DAY FREE TRIAL
+                    </span>
+                  )}
                 </span>
                 <span className="text-sm font-bold tabular-nums">
                   {formatCents(packages[i]!)}
@@ -190,7 +202,9 @@ export function SubscribeButton({
                   : "Subscriptions not yet enabled"
                 : loading
                   ? "Redirecting…"
-                  : `Subscribe — ${formatCents(packages[interval]!)}${INTERVAL_SUFFIX[interval]}`}
+                  : activeTrial
+                    ? `Start ${activeTrial}-day free trial`
+                    : `Subscribe — ${formatCents(packages[interval]!)}${INTERVAL_SUFFIX[interval]}`}
             </button>
             {cryptoEnabled && (
               <button

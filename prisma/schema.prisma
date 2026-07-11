@@ -195,6 +195,10 @@ model HandicapperProfile {
   weeklyPriceCents  Int?
   annualPriceCents  Int?
 
+  // Optional free-trial length (1 or 2 days) applied to weekly/monthly Stripe
+  // subscriptions only — never annual. null/0 = no trial.
+  subscriptionTrialDays Int?
+
   stripeAccountId      String?  @unique
   stripeAccountReady   Boolean  @default(false)
   stripeProductId      String?

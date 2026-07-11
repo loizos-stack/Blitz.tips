@@ -82,6 +82,12 @@ export async function POST(request: Request) {
     await prisma.user.update({ where: { id: session.user.id }, data: { stripeCustomerId: customerId } });
   }
 
+  // A free trial the handicapper set applies to weekly/monthly only, never annual.
+  const trialDays =
+    interval !== "ANNUAL" && handicapper.subscriptionTrialDays
+      ? handicapper.subscriptionTrialDays
+      : undefined;
+
   const checkoutSession = await stripe.checkout.sessions.create({
     mode: "subscription",
     customer: customerId,
@@ -91,6 +97,7 @@ export async function POST(request: Request) {
       application_fee_percent: commissionPercentForPlan(handicapper.plan),
       transfer_data: { destination: stripeAccountId },
       metadata: { subscriberId: session.user.id, handicapperId: handicapper.id },
+      ...(trialDays ? { trial_period_days: trialDays } : {}),
     },
     metadata: { subscriberId: session.user.id, handicapperId: handicapper.id },
     success_url: `${appUrl}/handicappers/${handicapper.handle}?subscribed=1`,

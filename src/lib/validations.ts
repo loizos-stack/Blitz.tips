@@ -33,6 +33,8 @@ export const becomeHandicapperSchema = z.object({
     .min(999, "Minimum annual price is $9.99")
     .max(999999, "Max annual price is $9,999.99")
     .nullish(),
+  // Free-trial length for weekly/monthly packages: 0 (none), 1, or 2 days.
+  subscriptionTrialDays: z.number().int().min(0).max(2, "Trials can be at most 2 days").nullish(),
 });
 
 // Dashboard price updates share the same package constraints.
@@ -40,6 +42,7 @@ export const updatePricingSchema = becomeHandicapperSchema.pick({
   monthlyPriceCents: true,
   weeklyPriceCents: true,
   annualPriceCents: true,
+  subscriptionTrialDays: true,
 });
 
 export const createPickSchema = z.object({

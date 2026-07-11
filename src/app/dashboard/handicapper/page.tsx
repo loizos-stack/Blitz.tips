@@ -244,6 +244,7 @@ export default async function HandicapperDashboardPage() {
         weeklyPriceCents={handicapper.weeklyPriceCents}
         monthlyPriceCents={handicapper.monthlyPriceCents}
         annualPriceCents={handicapper.annualPriceCents}
+        subscriptionTrialDays={handicapper.subscriptionTrialDays}
       />
     ),
     community: (

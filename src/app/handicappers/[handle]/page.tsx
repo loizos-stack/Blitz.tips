@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { BadgeCheck, Quote } from "lucide-react";
+import { Quote } from "lucide-react";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { getHandicapperByHandle } from "@/lib/handicappers";
@@ -13,7 +13,7 @@ import { SocialLinks } from "@/components/social-links";
 import { Avatar } from "@/components/avatar";
 import { SportIcon } from "@/components/sport-icon";
 import { SPORT_LABELS } from "@/lib/utils";
-import { verifiedBadgeColorClass } from "@/lib/plans";
+import { PlanBadge } from "@/components/plan-badge";
 import { getSetting } from "@/lib/settings";
 import { DASHBOARD_ORDER_SETTING, resolveSectionOrder } from "@/lib/dashboard-sections";
 import { isSubscriptionActive } from "@/lib/subscription-status";
@@ -73,7 +73,6 @@ export default async function HandicapperProfilePage({
   }
 
   const unlocked = isOwner || isSubscribed;
-  const planBadgeClass = verifiedBadgeColorClass(handicapper.plan, handicapper.planStatus);
   const picks = await enrichPickCrests(handicapper.picksList);
   const pendingPicks = picks.filter((p) => p.result === "PENDING");
   const settledPicks = picks.filter((p) => p.result !== "PENDING");
@@ -186,7 +185,7 @@ export default async function HandicapperProfilePage({
           <div className="pt-2">
             <div className="flex flex-wrap items-center gap-2">
               <h1 className="text-2xl font-bold">{handicapper.displayName}</h1>
-              {planBadgeClass && <BadgeCheck className={`h-5 w-5 ${planBadgeClass}`} />}
+              <PlanBadge plan={handicapper.plan} planStatus={handicapper.planStatus} size="md" />
               {!isOwner && (
                 <FollowButton handicapperId={handicapper.id} initialFollowing={isFollowing} />
               )}
@@ -224,6 +223,7 @@ export default async function HandicapperProfilePage({
               isReady={handicapper.stripeAccountReady}
               isOwner={Boolean(isOwner)}
               cryptoEnabled={nowPaymentsConfigured()}
+              trialDays={handicapper.subscriptionTrialDays}
             />
           )}
         </div>

@@ -17,7 +17,9 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: parsed.error.issues[0]?.message ?? "Invalid input" }, { status: 400 });
   }
 
-  const { monthlyPriceCents, weeklyPriceCents, annualPriceCents } = parsed.data;
+  const { monthlyPriceCents, weeklyPriceCents, annualPriceCents, subscriptionTrialDays } = parsed.data;
+  // Store 0/absent as null (no trial).
+  const trialDays = subscriptionTrialDays ? subscriptionTrialDays : null;
 
   // Stripe Prices are immutable — when an amount changes (or a package is
   // dropped) clear the stored price id so ensureSubscriberPrices creates a
@@ -29,6 +31,7 @@ export async function POST(request: Request) {
       monthlyPriceCents,
       weeklyPriceCents: weeklyPriceCents ?? null,
       annualPriceCents: annualPriceCents ?? null,
+      subscriptionTrialDays: trialDays,
       ...(monthlyPriceCents !== profile.monthlyPriceCents && { stripePriceId: null }),
       ...((weeklyPriceCents ?? null) !== profile.weeklyPriceCents && { stripeWeeklyPriceId: null }),
       ...((annualPriceCents ?? null) !== profile.annualPriceCents && { stripeAnnualPriceId: null }),
