@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { signIn } from "next-auth/react";
 import { TrendingUp, Megaphone } from "lucide-react";
 import { GoogleIcon } from "@/components/google-icon";
+import { COUNTRIES } from "@/lib/countries";
 
 function RoleChooser() {
   return (
@@ -64,12 +65,13 @@ function SignUpForm({ as }: { as: "subscriber" | "handicapper" }) {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [country, setCountry] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
-  // Handicappers go straight to their dashboard to build a profile; subscribers
-  // (and any admin-email account) go through the role-aware resolver.
-  const destination = as === "handicapper" ? "/dashboard/handicapper" : "/welcome";
+  // After Google sign-in (already email-verified) skip the code step; the
+  // onboarding resolver still routes handicappers vs subscribers correctly.
+  const googleDestination = as === "handicapper" ? "/dashboard/handicapper" : "/welcome";
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -79,7 +81,7 @@ function SignUpForm({ as }: { as: "subscriber" | "handicapper" }) {
     const res = await fetch("/api/register", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name, email, password }),
+      body: JSON.stringify({ name, email, password, country }),
     });
 
     if (!res.ok) {
@@ -97,7 +99,9 @@ function SignUpForm({ as }: { as: "subscriber" | "handicapper" }) {
       return;
     }
 
-    router.push(destination);
+    // Enter the onboarding flow: verify the emailed code, then (subscribers)
+    // discover handicappers and set up notifications.
+    router.push(`/onboarding/verify?as=${as}`);
     router.refresh();
   }
 
@@ -117,7 +121,7 @@ function SignUpForm({ as }: { as: "subscriber" | "handicapper" }) {
         </p>
 
         <button
-          onClick={() => signIn("google", { callbackUrl: destination })}
+          onClick={() => signIn("google", { callbackUrl: googleDestination })}
           className="mt-6 flex w-full items-center justify-center gap-2.5 rounded-lg border border-border bg-white py-2.5 text-sm font-medium text-neutral-800 hover:bg-neutral-50"
         >
           <GoogleIcon className="h-4 w-4" />
@@ -160,6 +164,24 @@ function SignUpForm({ as }: { as: "subscriber" | "handicapper" }) {
               onChange={(e) => setPassword(e.target.value)}
               className="mt-1 w-full rounded-lg border border-border bg-surface-raised px-3 py-2 text-sm outline-none focus:border-accent"
             />
+          </div>
+          <div>
+            <label className="text-sm font-medium">Country</label>
+            <select
+              required
+              value={country}
+              onChange={(e) => setCountry(e.target.value)}
+              className="mt-1 w-full rounded-lg border border-border bg-surface-raised px-3 py-2 text-sm outline-none focus:border-accent"
+            >
+              <option value="" disabled>
+                Select your country
+              </option>
+              {COUNTRIES.map((c) => (
+                <option key={c} value={c}>
+                  {c}
+                </option>
+              ))}
+            </select>
           </div>
 
           {error && <p className="text-sm text-danger">{error}</p>}

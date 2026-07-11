@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
 import { registerSchema } from "@/lib/validations";
-import { sendVerificationEmail } from "@/lib/verification";
+import { sendVerificationCode } from "@/lib/verification";
 import { logActivity } from "@/lib/audit";
 
 export async function POST(request: Request) {
@@ -13,7 +13,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: parsed.error.issues[0]?.message ?? "Invalid input" }, { status: 400 });
   }
 
-  const { name, email, password } = parsed.data;
+  const { name, email, password, country } = parsed.data;
   const normalizedEmail = email.toLowerCase();
 
   const existing = await prisma.user.findUnique({ where: { email: normalizedEmail } });
@@ -24,7 +24,7 @@ export async function POST(request: Request) {
   const passwordHash = await bcrypt.hash(password, 12);
 
   const user = await prisma.user.create({
-    data: { name, email: normalizedEmail, passwordHash },
+    data: { name, email: normalizedEmail, passwordHash, country: country ?? null },
     select: { id: true, email: true, name: true },
   });
 
@@ -38,8 +38,9 @@ export async function POST(request: Request) {
   });
 
   // Best-effort: a verification email failure shouldn't block registration.
-  await sendVerificationEmail(normalizedEmail).catch((e) =>
-    console.error("Failed to send verification email:", e)
+  // Onboarding verifies with a 6-digit code entered on-screen.
+  await sendVerificationCode(normalizedEmail).catch((e) =>
+    console.error("Failed to send verification code:", e)
   );
 
   return NextResponse.json({ user }, { status: 201 });

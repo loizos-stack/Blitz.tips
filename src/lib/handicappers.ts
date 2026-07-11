@@ -87,6 +87,40 @@ export async function getHandicapperByHandle(
   };
 }
 
+export type HotHandicapper = HandicapperSummary & {
+  /** Stats over picks settled within the lookback window (default last 7 days). */
+  weekStats: HandicapperStats;
+};
+
+/**
+ * The "hottest" handicappers over a recent window, ranked by ROI. Only counts
+ * picks settled within the window, and requires a minimum sample so a single
+ * lucky settled pick doesn't top the list. Used by the signup discover step.
+ */
+export async function listHottestHandicappers({
+  days = 7,
+  limit = 6,
+  minSettled = 3,
+}: { days?: number; limit?: number; minSettled?: number } = {}): Promise<HotHandicapper[]> {
+  const cutoff = new Date();
+  cutoff.setDate(cutoff.getDate() - days);
+
+  const handicappers = await prisma.handicapperProfile.findMany({
+    where: { suspendedAt: null },
+    include: { picks: true },
+  });
+
+  const ranked = handicappers
+    .map((h) => {
+      const windowPicks = h.picks.filter((p) => p.settledAt && p.settledAt >= cutoff);
+      return { ...toSummary(h), weekStats: computeStats(windowPicks) };
+    })
+    .filter((h) => h.weekStats.roi !== null && h.weekStats.wins + h.weekStats.losses >= minSettled)
+    .sort((a, b) => (b.weekStats.roi ?? 0) - (a.weekStats.roi ?? 0));
+
+  return ranked.slice(0, limit);
+}
+
 function toSummary(handicapper: HandicapperProfile & { picks: PickModel[] }): HandicapperSummary {
   const cutoff = new Date();
   cutoff.setDate(cutoff.getDate() - STATS_LOOKBACK_DAYS);

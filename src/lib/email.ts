@@ -46,6 +46,29 @@ export function verificationEmailText(url: string): string {
   ].join("\n");
 }
 
+export function verificationCodeEmailText(code: string): string {
+  return [
+    "Welcome to Blitz.tips!",
+    "",
+    `Your verification code is: ${code}`,
+    "",
+    "Enter this code on the signup screen to finish setting up your account.",
+    "It expires in 15 minutes. If you didn't create a Blitz.tips account, you can ignore this email.",
+  ].join("\n");
+}
+
+export function verificationCodeEmailHtml(code: string): string {
+  return `
+  <div style="font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;max-width:480px;margin:0 auto;padding:24px;color:#13161c">
+    <h1 style="font-size:20px;margin:0 0 12px">Confirm your email</h1>
+    <p style="color:#4b5563;line-height:1.5">Welcome to Blitz.tips! Enter this code on the signup screen to finish setting up your account.</p>
+    <p style="margin:24px 0;text-align:center">
+      <span style="display:inline-block;font-size:34px;font-weight:700;letter-spacing:8px;background:#f3f4f6;color:#13161c;padding:14px 22px;border-radius:10px">${code}</span>
+    </p>
+    <p style="color:#9ca3af;font-size:12px;margin-top:24px">This code expires in 15 minutes. If you didn't create a Blitz.tips account, you can ignore this email.</p>
+  </div>`;
+}
+
 export function verificationEmailHtml(url: string): string {
   return `
   <div style="font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;max-width:480px;margin:0 auto;padding:24px;color:#13161c">

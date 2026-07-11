@@ -4,6 +4,7 @@ export const registerSchema = z.object({
   name: z.string().min(2, "Name is too short").max(60),
   email: z.email("Enter a valid email"),
   password: z.string().min(8, "Password must be at least 8 characters"),
+  country: z.string().min(2, "Select your country").max(60).optional(),
 });
 
 export const becomeHandicapperSchema = z.object({

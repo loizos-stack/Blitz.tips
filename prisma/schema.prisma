@@ -78,6 +78,8 @@ model User {
   emailVerified  DateTime?
   image          String?
   passwordHash   String?
+  // Self-reported country, collected at signup (ISO country name).
+  country        String?
   role           Role      @default(SUBSCRIBER)
   // Soft ban: suspended users can't sign in or act; data stays intact.
   suspendedAt    DateTime?
@@ -148,6 +150,17 @@ model VerificationToken {
   expires    DateTime
 
   @@unique([identifier, token])
+}
+
+// Short numeric email-verification codes used by the signup onboarding flow
+// (one active code per email; replaced on resend).
+model EmailVerificationCode {
+  id         String   @id @default(cuid())
+  identifier String   @unique
+  code       String
+  expires    DateTime
+  attempts   Int      @default(0)
+  createdAt  DateTime @default(now())
 }
 
 model HandicapperProfile {
