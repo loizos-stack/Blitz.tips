@@ -24,5 +24,10 @@ export async function GET(request: NextRequest) {
   }
 
   const feed = await getUpcomingEvents(sport as PickSport);
-  return NextResponse.json(feed);
+  // Exclude games that have already started — a handicapper shouldn't be able to
+  // post a tip on a game in progress. (The public board keeps showing in-progress
+  // games; this endpoint feeds only the pick/parlay forms.)
+  const now = Date.now();
+  const events = feed.events.filter((e) => new Date(e.commenceTime).getTime() > now);
+  return NextResponse.json({ ...feed, events });
 }

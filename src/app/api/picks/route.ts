@@ -40,6 +40,12 @@ export async function POST(request: Request) {
   if (Number.isNaN(eventStartsAt.getTime())) {
     return NextResponse.json({ error: "Invalid event start time" }, { status: 400 });
   }
+  if (eventStartsAt.getTime() <= Date.now()) {
+    return NextResponse.json(
+      { error: "This game has already started — you can't post a tip on it." },
+      { status: 400 }
+    );
+  }
 
   const pick = await prisma.pick.create({
     data: {
@@ -105,6 +111,12 @@ async function createParlay(
   const eventStartsAt = new Date(parsed.data.eventStartsAt);
   if (Number.isNaN(eventStartsAt.getTime())) {
     return NextResponse.json({ error: "Invalid event start time" }, { status: 400 });
+  }
+  if (eventStartsAt.getTime() <= Date.now()) {
+    return NextResponse.json(
+      { error: "This game has already started — you can't post a tip on it." },
+      { status: 400 }
+    );
   }
 
   const { legs, sport, units, analysis, isPremium } = parsed.data;
