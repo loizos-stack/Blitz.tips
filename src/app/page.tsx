@@ -72,10 +72,10 @@ export default async function Home({
                 See the leaderboard <ArrowRight className="h-4 w-4" />
               </Link>
               <Link
-                href="/pricing"
+                href="/signup"
                 className="flex items-center justify-center rounded-lg border border-border px-6 py-3 text-sm font-semibold hover:border-muted"
               >
-                Sell your tips
+                Buy or Sell tips
               </Link>
             </div>
           </div>
