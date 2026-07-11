@@ -155,6 +155,33 @@ async function getSoccerLeagueKeys(apiKey: string): Promise<string[]> {
   return ranked.slice(0, MAX_SOCCER_LEAGUES);
 }
 
+// Fight sports (UFC/MMA) only offer a moneyline — there are no spreads or
+// totals on a bout. Requesting spreads/totals for these is wasteful and, if the
+// upstream rejects the unsupported markets, would blank the whole board (both
+// the primary and the regions=us fallback carry the same markets param). These
+// sports also get priced closer to the event, so they use a shorter cache than
+// the once-a-day team-sport board.
+const MONEYLINE_ONLY_SPORTS: Partial<Record<PickSport, boolean>> = {
+  UFC_MMA: true,
+};
+
+export function isMoneylineOnly(sport: PickSport): boolean {
+  return Boolean(MONEYLINE_ONLY_SPORTS[sport]);
+}
+
+function marketsForSport(sport: PickSport): string {
+  return isMoneylineOnly(sport) ? "h2h" : "h2h,spreads,totals";
+}
+
+// Fight cards price late and shift near the event, and they're infrequent
+// (roughly weekly), so refreshing every few hours keeps them current without
+// meaningfully denting the quota. Team-sport boards stay on the daily window.
+const FIGHT_ODDS_REVALIDATE_SECONDS = 3 * 60 * 60;
+
+function oddsRevalidateForSport(sport: PickSport): number {
+  return isMoneylineOnly(sport) ? FIGHT_ODDS_REVALIDATE_SECONDS : REVALIDATE_SECONDS;
+}
+
 // The upstream sport key(s) backing one of our PickSports. Usually one; soccer
 // fans out to several leagues.
 async function resolveSportKeys(sport: PickSport, apiKey: string): Promise<string[]> {
@@ -297,21 +324,22 @@ async function fetchLeagueEvents(
   sport: PickSport,
   apiKey: string
 ): Promise<UpcomingEvent[]> {
+  const revalidate = oddsRevalidateForSport(sport);
   const base =
     `${API_BASE}/sports/${sportKey}/odds` +
-    `?apiKey=${apiKey}&markets=h2h,spreads,totals&oddsFormat=american`;
+    `?apiKey=${apiKey}&markets=${marketsForSport(sport)}&oddsFormat=american`;
 
   // Prefer specific books (Pinnacle first). If the bookmakers list is rejected
   // for any reason, fall back to the plain US region so a bad key never blanks
   // the board.
   let res = await fetch(`${base}&bookmakers=${BOOKMAKERS_PARAM}`, {
-    next: { revalidate: REVALIDATE_SECONDS },
+    next: { revalidate },
   });
   if (!res.ok) {
     console.error(
       `Odds API bookmakers request failed for ${sportKey}: ${res.status}; retrying with regions=us`
     );
-    res = await fetch(`${base}&regions=us`, { next: { revalidate: REVALIDATE_SECONDS } });
+    res = await fetch(`${base}&regions=us`, { next: { revalidate } });
   }
   if (!res.ok) {
     console.error(`Odds API request failed for ${sportKey}: ${res.status}`);
@@ -410,6 +438,12 @@ async function getScores(sportKey: string, apiKey: string): Promise<Map<string, 
   return map;
 }
 
+// Soccer is written home-team-first with "vs" (the convention on scoreboards
+// and betting slips worldwide); every other sport uses "Away @ Home".
+export function formatMatchup(sport: PickSport, homeTeam: string, awayTeam: string): string {
+  return sport === "SOCCER" ? `${homeTeam} vs ${awayTeam}` : `${awayTeam} @ ${homeTeam}`;
+}
+
 function normalizeEvent(event: OddsApiEvent, sport: PickSport, sportKey: string): UpcomingEvent {
   const bookmaker =
     PREFERRED_BOOKMAKERS.map((key) => event.bookmakers.find((b) => b.key === key)).find(Boolean) ??
@@ -447,7 +481,7 @@ function normalizeEvent(event: OddsApiEvent, sport: PickSport, sportKey: string)
   return {
     id: event.id,
     sportKey,
-    matchup: `${event.away_team} @ ${event.home_team}`,
+    matchup: formatMatchup(sport, event.home_team, event.away_team),
     homeTeam: event.home_team,
     awayTeam: event.away_team,
     homeTeamLogo: getTeamLogoUrl(sport, event.home_team),
