@@ -3,10 +3,12 @@
 import { useCallback, useState } from "react";
 import { useRouter } from "next/navigation";
 import { format } from "date-fns";
-import { CalendarSearch, PencilLine, ImageUp, Trash2, Layers } from "lucide-react";
-import { SPORT_LABELS, cn } from "@/lib/utils";
+import { CalendarSearch, PencilLine, ImageUp, Trash2, Layers, Plus } from "lucide-react";
+import { SPORT_LABELS, cn, formatMatchup, usesVsSeparator } from "@/lib/utils";
 import { formatOdds, combineParlayOdds } from "@/lib/odds";
+import { getTeamNames } from "@/lib/team-logos";
 import type { MarketOption, UpcomingEvent } from "@/lib/odds-api";
+import type { PickSport } from "@prisma/client";
 
 const sportKeys = Object.keys(SPORT_LABELS);
 
@@ -21,10 +23,25 @@ type FeedState =
   | { status: "unavailable"; reason: string }
   | { status: "ready"; events: UpcomingEvent[] };
 
-export function CreateParlayForm({ handicapperSports }: { handicapperSports: string[] }) {
+export function CreateParlayForm({
+  handicapperSports,
+  open: openProp,
+  onOpenChange,
+}: {
+  handicapperSports: string[];
+  // Optional controlled open state (see CreatePickForm) so the two posting
+  // forms can be made mutually exclusive by a shared parent.
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+}) {
   const router = useRouter();
-  const [open, setOpen] = useState(false);
-  const [addMode, setAddMode] = useState<"manual" | "schedule" | "upload">("manual");
+  const [openState, setOpenState] = useState(false);
+  const open = openProp ?? openState;
+  const setOpen = (value: boolean) => {
+    setOpenState(value);
+    onOpenChange?.(value);
+  };
+  const [addMode, setAddMode] = useState<"manual" | "schedule" | "upload">("schedule");
 
   const [sport, setSport] = useState(handicapperSports[0] ?? sportKeys[0]);
   const [legs, setLegs] = useState<Leg[]>([]);
@@ -36,7 +53,8 @@ export function CreateParlayForm({ handicapperSports }: { handicapperSports: str
   const [loading, setLoading] = useState(false);
 
   // Manual leg inputs
-  const [mMatchup, setMMatchup] = useState("");
+  const [mAway, setMAway] = useState("");
+  const [mHome, setMHome] = useState("");
   const [mSelection, setMSelection] = useState("");
   const [mOdds, setMOdds] = useState("-110");
 
@@ -51,6 +69,9 @@ export function CreateParlayForm({ handicapperSports }: { handicapperSports: str
   const combined = legs.length >= 2 ? combineParlayOdds(legs.map((l) => l.odds)) : null;
   const input =
     "rounded-lg border border-border bg-surface-raised px-3 py-2 text-sm outline-none focus:border-accent";
+  // Manual legs are entered per the parlay's sport tag (separator + autocomplete).
+  const vsSport = usesVsSeparator(sport);
+  const teamNames = getTeamNames(sport as PickSport);
 
   const addLeg = (leg: Leg) => setLegs((prev) => [...prev, leg]);
   const removeLeg = (i: number) => setLegs((prev) => prev.filter((_, idx) => idx !== i));
@@ -68,13 +89,14 @@ export function CreateParlayForm({ handicapperSports }: { handicapperSports: str
 
   function addManualLeg() {
     const odds = Number(mOdds);
-    if (!mMatchup.trim() || !mSelection.trim() || !Number.isInteger(odds) || odds === 0) {
-      setError("Enter a matchup, selection, and valid odds for the leg");
+    if (!mAway.trim() || !mHome.trim() || !mSelection.trim() || !Number.isInteger(odds) || odds === 0) {
+      setError("Enter both teams, a selection, and valid odds for the leg");
       return;
     }
     setError(null);
-    addLeg({ matchup: mMatchup.trim(), selection: mSelection.trim(), odds });
-    setMMatchup("");
+    addLeg({ matchup: formatMatchup(sport, mAway.trim(), mHome.trim()), selection: mSelection.trim(), odds });
+    setMAway("");
+    setMHome("");
     setMSelection("");
     setMOdds("-110");
   }
@@ -150,13 +172,18 @@ export function CreateParlayForm({ handicapperSports }: { handicapperSports: str
     router.refresh();
   }
 
+  function openForm() {
+    setOpen(true);
+    if (addMode === "schedule" && feed.status === "idle") void loadFeed(feedSport);
+  }
+
   if (!open) {
     return (
       <button
-        onClick={() => setOpen(true)}
+        onClick={openForm}
         className="flex w-full items-center justify-center gap-2 rounded-lg border border-border py-3 text-sm font-semibold hover:border-accent"
       >
-        <Layers className="h-4 w-4" /> Post a parlay
+        <Layers className="h-4 w-4" /> Post a parlay <Plus className="h-4 w-4" />
       </button>
     );
   }
@@ -216,14 +243,22 @@ export function CreateParlayForm({ handicapperSports }: { handicapperSports: str
 
       {/* Add-leg method tabs */}
       <div className="grid grid-cols-3 gap-2 rounded-lg bg-surface-raised p-1">
-        {tab("manual", "Manual", PencilLine)}
         {tab("schedule", "Schedule", CalendarSearch)}
+        {tab("manual", "Manual", PencilLine)}
         {tab("upload", "Upload slip", ImageUp)}
       </div>
 
       {addMode === "manual" && (
         <div className="flex flex-col gap-2">
-          <input value={mMatchup} onChange={(e) => setMMatchup(e.target.value)} placeholder="Matchup (Chiefs @ Bills)" className={input} />
+          <div className="grid grid-cols-2 gap-2">
+            <input value={mAway} onChange={(e) => setMAway(e.target.value)} placeholder={vsSport ? "Away team" : "Away team (e.g. Chiefs)"} list="parlay-team-suggestions" className={input} />
+            <input value={mHome} onChange={(e) => setMHome(e.target.value)} placeholder={vsSport ? "Home team" : "Home team (e.g. Bills)"} list="parlay-team-suggestions" className={input} />
+          </div>
+          {mAway.trim() && mHome.trim() && (
+            <p className="text-[11px] text-muted">
+              Reads as <span className="font-medium text-foreground">{formatMatchup(sport, mAway.trim(), mHome.trim())}</span>
+            </p>
+          )}
           <div className="grid grid-cols-[1fr_7rem] gap-2">
             <input value={mSelection} onChange={(e) => setMSelection(e.target.value)} placeholder="Selection (Bills -2.5)" className={input} />
             <input value={mOdds} onChange={(e) => setMOdds(e.target.value)} type="number" placeholder="-110" className={input} />
@@ -231,6 +266,11 @@ export function CreateParlayForm({ handicapperSports }: { handicapperSports: str
           <button type="button" onClick={addManualLeg} className="self-start rounded-lg border border-border px-3 py-1.5 text-sm font-medium hover:border-accent">
             + Add leg
           </button>
+          <datalist id="parlay-team-suggestions">
+            {teamNames.map((n) => (
+              <option key={n} value={n} />
+            ))}
+          </datalist>
         </div>
       )}
 

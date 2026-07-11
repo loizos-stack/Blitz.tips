@@ -3,7 +3,7 @@
 import { useCallback, useState } from "react";
 import { useRouter } from "next/navigation";
 import { format } from "date-fns";
-import { CalendarSearch, PencilLine } from "lucide-react";
+import { CalendarSearch, PencilLine, Plus } from "lucide-react";
 import { SPORT_LABELS, BET_TYPE_LABELS, cn, formatMatchup, usesVsSeparator } from "@/lib/utils";
 import { formatOdds } from "@/lib/odds";
 import { getTeamNames } from "@/lib/team-logos";
@@ -26,9 +26,24 @@ interface FeedResponse {
   error?: string;
 }
 
-export function CreatePickForm({ handicapperSports }: { handicapperSports: string[] }) {
+export function CreatePickForm({
+  handicapperSports,
+  open: openProp,
+  onOpenChange,
+}: {
+  handicapperSports: string[];
+  // Optional controlled open state so a parent can make the pick and parlay
+  // forms mutually exclusive; falls back to internal state when omitted.
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+}) {
   const router = useRouter();
-  const [open, setOpen] = useState(false);
+  const [openState, setOpenState] = useState(false);
+  const open = openProp ?? openState;
+  const setOpen = (value: boolean) => {
+    setOpenState(value);
+    onOpenChange?.(value);
+  };
   const [mode, setMode] = useState<"schedule" | "manual">("schedule");
 
   const [sport, setSport] = useState(handicapperSports[0] ?? sportKeys[0]);
@@ -165,9 +180,9 @@ export function CreatePickForm({ handicapperSports }: { handicapperSports: strin
     return (
       <button
         onClick={openForm}
-        className="w-full rounded-lg bg-accent py-3 text-sm font-semibold text-accent-foreground hover:opacity-90"
+        className="flex w-full items-center justify-center gap-2 rounded-lg bg-accent py-3 text-sm font-semibold text-accent-foreground hover:opacity-90"
       >
-        + Post a new pick
+        Post a new tip <Plus className="h-4 w-4" />
       </button>
     );
   }
@@ -375,8 +390,7 @@ export function CreatePickForm({ handicapperSports }: { handicapperSports: strin
                 required
                 value={selection}
                 onChange={(e) => setSelection(e.target.value)}
-                placeholder="Bills -2.5"
-                list="team-suggestions"
+                placeholder="e.g. Bills -2.5, Over 44.5"
                 className="mt-1 w-full rounded-lg border border-border bg-surface-raised px-3 py-2 text-sm outline-none focus:border-accent"
               />
             </div>
@@ -465,7 +479,7 @@ export function CreatePickForm({ handicapperSports }: { handicapperSports: strin
           disabled={loading || !readyToSubmit}
           className="flex-1 rounded-lg bg-accent py-2 text-sm font-semibold text-accent-foreground hover:opacity-90 disabled:opacity-60"
         >
-          {loading ? "Posting…" : "Post pick"}
+          {loading ? "Posting…" : "Post tip"}
         </button>
       </div>
     </form>
