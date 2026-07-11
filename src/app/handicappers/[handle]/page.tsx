@@ -71,6 +71,7 @@ export default async function HandicapperProfilePage({
   }
 
   const unlocked = isOwner || isSubscribed;
+  const planBadgeClass = verifiedBadgeColorClass(handicapper.plan, handicapper.planStatus);
   const picks = handicapper.picksList;
   const pendingPicks = picks.filter((p) => p.result === "PENDING");
   const settledPicks = picks.filter((p) => p.result !== "PENDING");
@@ -181,11 +182,7 @@ export default async function HandicapperProfilePage({
           <div className="pt-2">
             <div className="flex flex-wrap items-center gap-2">
               <h1 className="text-2xl font-bold">{handicapper.displayName}</h1>
-              {handicapper.isVerified && (
-                <BadgeCheck
-                  className={`h-5 w-5 ${verifiedBadgeColorClass(handicapper.plan, handicapper.planStatus)}`}
-                />
-              )}
+              {planBadgeClass && <BadgeCheck className={`h-5 w-5 ${planBadgeClass}`} />}
               {!isOwner && (
                 <FollowButton handicapperId={handicapper.id} initialFollowing={isFollowing} />
               )}

@@ -55,12 +55,17 @@ export function isFeaturedHandicapper(plan: HandicapperPlan, planStatus: Subscri
 }
 
 /**
- * Tailwind text-color class for the verified badge, tinted by the handicapper's
- * active plan: gold for Gold, silver for Silver, default accent otherwise
- * (Free, or a paid plan that isn't currently active).
+ * Tailwind text-color class for the plan badge next to a handicapper's name —
+ * gold for an active Gold plan, silver for an active Silver plan. Returns null
+ * for Free (or a paid plan that isn't currently active): those handicappers
+ * show no badge at all.
  */
-export function verifiedBadgeColorClass(plan: HandicapperPlan, planStatus: SubscriptionStatus): string {
-  if (planStatus === "ACTIVE" && plan === "GOLD") return "text-gold";
-  if (planStatus === "ACTIVE" && plan === "SILVER") return "text-silver";
-  return "text-accent";
+export function verifiedBadgeColorClass(
+  plan: HandicapperPlan,
+  planStatus: SubscriptionStatus
+): string | null {
+  if (planStatus !== "ACTIVE") return null;
+  if (plan === "GOLD") return "text-gold";
+  if (plan === "SILVER") return "text-silver";
+  return null;
 }

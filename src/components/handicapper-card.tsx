@@ -11,6 +11,7 @@ import type { HandicapperSummary } from "@/lib/handicappers";
 
 export function HandicapperCard({ handicapper, rank }: { handicapper: HandicapperSummary; rank?: number }) {
   const { stats, currentStreak } = handicapper;
+  const planBadgeClass = verifiedBadgeColorClass(handicapper.plan, handicapper.planStatus);
 
   return (
     <Link
@@ -44,11 +45,7 @@ export function HandicapperCard({ handicapper, rank }: { handicapper: Handicappe
           <div className="min-w-0 pt-1">
             <div className="flex items-center gap-1.5">
               <p className="truncate font-semibold group-hover:text-accent">{handicapper.displayName}</p>
-              {handicapper.isVerified && (
-                <BadgeCheck
-                  className={`h-4 w-4 shrink-0 ${verifiedBadgeColorClass(handicapper.plan, handicapper.planStatus)}`}
-                />
-              )}
+              {planBadgeClass && <BadgeCheck className={`h-4 w-4 shrink-0 ${planBadgeClass}`} />}
               {handicapper.isFeatured && (
                 <span className="shrink-0 rounded-full bg-gold/15 px-1.5 py-0.5 text-[10px] font-semibold text-gold">
                   FEATURED
