@@ -4,7 +4,7 @@ import { useCallback, useState } from "react";
 import { useRouter } from "next/navigation";
 import { format } from "date-fns";
 import { CalendarSearch, PencilLine, ImageUp, Trash2, Layers, Plus } from "lucide-react";
-import { SPORT_LABELS, cn, formatMatchup, usesVsSeparator } from "@/lib/utils";
+import { SPORT_LABELS, cn, formatMatchup, usesVsSeparator, parseMatchupSides } from "@/lib/utils";
 import { formatOdds, combineParlayOdds } from "@/lib/odds";
 import { getTeamNames } from "@/lib/team-logos";
 import type { MarketOption, UpcomingEvent } from "@/lib/odds-api";
@@ -16,6 +16,35 @@ interface Leg {
   matchup: string;
   selection: string;
   odds: number;
+}
+
+function normalizeText(s: string): string {
+  return s.toLowerCase().replace(/\s+/g, " ").trim();
+}
+
+// Two matchups are the same game when they name the same pair of teams,
+// regardless of order/separator ("Chiefs @ Bills" === "Bills vs Chiefs").
+function sameGame(a: string, b: string): boolean {
+  if (normalizeText(a) === normalizeText(b)) return true;
+  const sa = parseMatchupSides(a);
+  const sb = parseMatchupSides(b);
+  if (!sa || !sb) return false;
+  const key = (s: { awayTeam: string; homeTeam: string }) =>
+    [normalizeText(s.awayTeam), normalizeText(s.homeTeam)].sort().join("|");
+  return key(sa) === key(sb);
+}
+
+// Guard against nonsensical parlays: the same selection twice, or two legs from
+// the same game (e.g. betting both sides). Returns an error message or null.
+function legConflict(legs: Leg[], leg: Leg): string | null {
+  const selection = normalizeText(leg.selection);
+  if (legs.some((l) => normalizeText(l.selection) === selection)) {
+    return "That selection is already in this parlay.";
+  }
+  if (legs.some((l) => sameGame(l.matchup, leg.matchup))) {
+    return "You already have a leg from that game — you can't put two sides of the same matchup in one parlay.";
+  }
+  return null;
 }
 
 type FeedState =
@@ -93,8 +122,14 @@ export function CreateParlayForm({
       setError("Enter both teams, a selection, and valid odds for the leg");
       return;
     }
+    const leg: Leg = { matchup: formatMatchup(sport, mAway.trim(), mHome.trim()), selection: mSelection.trim(), odds };
+    const conflict = legConflict(legs, leg);
+    if (conflict) {
+      setError(conflict);
+      return;
+    }
     setError(null);
-    addLeg({ matchup: formatMatchup(sport, mAway.trim(), mHome.trim()), selection: mSelection.trim(), odds });
+    addLeg(leg);
     setMAway("");
     setMHome("");
     setMSelection("");
@@ -102,7 +137,14 @@ export function CreateParlayForm({
   }
 
   function addScheduleLeg(event: UpcomingEvent, market: MarketOption) {
-    addLeg({ matchup: event.matchup, selection: market.selection, odds: market.odds });
+    const leg: Leg = { matchup: event.matchup, selection: market.selection, odds: market.odds };
+    const conflict = legConflict(legs, leg);
+    if (conflict) {
+      setError(conflict);
+      return;
+    }
+    setError(null);
+    addLeg(leg);
     if (!eventStartsAt) {
       // Prefill the parlay start with the earliest chosen game.
       setEventStartsAt(format(new Date(event.commenceTime), "yyyy-MM-dd'T'HH:mm"));
@@ -138,7 +180,23 @@ export function CreateParlayForm({
       setError("No legs found in that image — try a clearer photo or add them manually");
       return;
     }
-    setLegs((prev) => [...prev, ...body.legs]);
+    // Drop any scanned legs that duplicate or conflict with what's already in
+    // the parlay (or with each other), and tell the capper how many we skipped.
+    const accepted = [...legs];
+    let skipped = 0;
+    for (const leg of body.legs as Leg[]) {
+      if (legConflict(accepted, leg)) {
+        skipped += 1;
+        continue;
+      }
+      accepted.push(leg);
+    }
+    setLegs(accepted);
+    setError(
+      skipped > 0
+        ? `Skipped ${skipped} duplicate or conflicting leg${skipped > 1 ? "s" : ""} from the slip.`
+        : null
+    );
   }
 
   async function submit(e: React.FormEvent) {
