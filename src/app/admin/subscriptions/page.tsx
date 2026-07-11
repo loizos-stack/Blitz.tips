@@ -1,11 +1,12 @@
 import { prisma } from "@/lib/prisma";
 import { AdminButton } from "@/components/admin/admin-actions";
+import { GrantSubscriptionForm } from "@/components/admin/grant-subscription-form";
 import { guardAdminPage } from "@/lib/permissions";
 
 export const dynamic = "force-dynamic";
 
 export default async function AdminSubscriptionsPage() {
-  await guardAdminPage("subscriptions");
+  const ctx = await guardAdminPage("subscriptions");
   const subscriptions = await prisma.subscription.findMany({
     orderBy: { createdAt: "desc" },
     take: 200,
@@ -16,7 +17,9 @@ export default async function AdminSubscriptionsPage() {
   });
 
   return (
-    <div className="card overflow-x-auto p-0">
+    <div className="flex flex-col gap-6">
+      {ctx.isSuperAdmin && <GrantSubscriptionForm />}
+      <div className="card overflow-x-auto p-0">
       <table className="w-full min-w-[48rem] text-sm">
         <thead>
           <tr className="border-b border-border text-left text-xs uppercase tracking-wide text-muted">
@@ -87,6 +90,7 @@ export default async function AdminSubscriptionsPage() {
           )}
         </tbody>
       </table>
+      </div>
     </div>
   );
 }

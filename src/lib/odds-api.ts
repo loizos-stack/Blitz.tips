@@ -403,15 +403,18 @@ export async function getUpcomingEvents(sport: PickSport): Promise<OddsFeedResul
   );
   const events = perLeague
     .flat()
+    // Finished games drop off the board — it shows upcoming and in-progress
+    // only. (Scores still power auto-settlement separately.)
+    .filter((e) => !e.liveScore?.completed)
     .sort((a, b) => new Date(a.commenceTime).getTime() - new Date(b.commenceTime).getTime())
     .slice(0, 25);
 
-  // Prefer games in the next 48h (plus anything live or just-finished); if this
-  // sport has nothing in that window, fall back to its next upcoming games
-  // rather than showing nothing.
+  // Prefer games in the next 48h (plus anything live); if this sport has nothing
+  // in that window, fall back to its next upcoming games rather than showing
+  // nothing.
   const now = new Date();
   const windowEvents = events.filter(
-    (e) => isWithinUpcomingWindow(new Date(e.commenceTime), now) || e.liveScore
+    (e) => isWithinUpcomingWindow(new Date(e.commenceTime), now) || Boolean(e.liveScore)
   );
   const finalEvents = windowEvents.length > 0 ? windowEvents : events;
 
