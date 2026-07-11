@@ -105,7 +105,7 @@ export default async function LeaderboardPage({
                 <div className="min-w-0">
                   <div className="flex items-center gap-1.5">
                     <p className="truncate font-semibold">{h.displayName}</p>
-                    {planBadgeClass && <BadgeCheck className={`h-4 w-4 shrink-0 ${planBadgeClass}`} />}
+                    {planBadgeClass && <BadgeCheck className={`h-5 w-5 shrink-0 ${planBadgeClass}`} />}
                     {h.isFeatured && (
                       <span className="shrink-0 rounded-full bg-gold/15 px-1.5 py-0.5 text-[10px] font-semibold text-gold">
                         FEATURED

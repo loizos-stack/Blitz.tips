@@ -69,9 +69,10 @@ function SignUpForm({ as }: { as: "subscriber" | "handicapper" }) {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
-  // After Google sign-in (already email-verified) skip the code step; the
-  // onboarding resolver still routes handicappers vs subscribers correctly.
-  const googleDestination = as === "handicapper" ? "/dashboard/handicapper" : "/welcome";
+  // Google sign-ups still go through onboarding (country → discover →
+  // notifications) but skip the 6-digit code — Google verifies email ownership,
+  // so the createUser event marks them verified. The country step is the entry.
+  const googleDestination = `/onboarding/country?as=${as}`;
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();

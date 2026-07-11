@@ -43,6 +43,19 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       },
     }),
   ],
+  events: {
+    // The adapter's createUser only runs for OAuth (Google) sign-ups here —
+    // credentials accounts are created in /api/register. Google verifies email
+    // ownership, so mark these verified up front; that lets the onboarding skip
+    // the 6-digit code step for Google users.
+    async createUser({ user }) {
+      if (user.id) {
+        await prisma.user
+          .update({ where: { id: user.id }, data: { emailVerified: new Date() } })
+          .catch(() => undefined);
+      }
+    },
+  },
   callbacks: {
     // Suspended accounts can't start new sessions via OAuth either.
     async signIn({ user }) {
