@@ -2,6 +2,7 @@ import "server-only";
 import type { PickSport } from "@prisma/client";
 import { getTeamLogoUrl } from "@/lib/team-logos";
 import { formatMatchup } from "@/lib/utils";
+import { sportsDbConfigured, resolveSportsDbLogo } from "@/lib/sportsdb";
 
 // The Odds API (the-odds-api.com) client.
 //
@@ -356,6 +357,23 @@ async function fetchLeagueEvents(
     .filter((e) => new Date(e.commence_time) > recentCutoff)
     .slice(0, 25)
     .map((event) => normalizeEvent(event, sport, sportKey));
+
+  // Backfill crests the static ESPN table can't resolve (soccer, college, and
+  // the individual sports) from TheSportsDB. Only touches sides that came back
+  // null, and each lookup degrades to null on any failure — so this never
+  // blocks or breaks the board, just enriches it when a badge is found.
+  if (sportsDbConfigured()) {
+    await Promise.all(
+      events.map(async (event) => {
+        if (event.awayTeamLogo == null) {
+          event.awayTeamLogo = await resolveSportsDbLogo(sport, event.awayTeam);
+        }
+        if (event.homeTeamLogo == null) {
+          event.homeTeamLogo = await resolveSportsDbLogo(sport, event.homeTeam);
+        }
+      })
+    );
+  }
 
   // Scores are billed per league, so only fetch them for this league if one of
   // its games has actually started.
