@@ -80,7 +80,7 @@ export function UpcomingGames({
                 href={`/?sport=${s}#lines`}
                 scroll={false}
                 className={cn(
-                  "flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm font-medium",
+                  "flex items-center gap-1.5 rounded-full border px-3 py-1.5 font-display text-sm font-medium",
                   s === sport
                     ? "border-accent bg-accent/10 text-accent"
                     : "border-border text-muted hover:text-foreground"
@@ -125,11 +125,11 @@ export function UpcomingGames({
 
                   <div className="mt-3 grid grid-cols-[auto_1fr_auto] items-center gap-x-2 gap-y-1.5">
                     <TeamLogo sport={sport} logoUrl={event.awayTeamLogo} className="h-7 w-7 shrink-0" />
-                    <p className="min-w-0 truncate text-sm font-semibold">{event.awayTeam}</p>
+                    <p className="min-w-0 truncate font-display text-sm font-semibold">{event.awayTeam}</p>
                     <p className="text-sm font-bold tabular-nums">{event.liveScore?.awayScore ?? ""}</p>
 
                     <TeamLogo sport={sport} logoUrl={event.homeTeamLogo} className="h-7 w-7 shrink-0" />
-                    <p className="min-w-0 truncate text-sm font-semibold">{event.homeTeam}</p>
+                    <p className="min-w-0 truncate font-display text-sm font-semibold">{event.homeTeam}</p>
                     <p className="text-sm font-bold tabular-nums">{event.liveScore?.homeScore ?? ""}</p>
                   </div>
 
