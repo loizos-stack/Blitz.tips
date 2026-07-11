@@ -13,22 +13,27 @@ function toCents(value: string): number | null {
   return Math.round(parseFloat(value) * 100);
 }
 
+type Currency = "USD" | "EUR" | "GBP";
+
 export function PricingPackagesCard({
   weeklyPriceCents,
   monthlyPriceCents,
   annualPriceCents,
   subscriptionTrialDays,
+  priceCurrency,
 }: {
   weeklyPriceCents: number | null;
   monthlyPriceCents: number;
   annualPriceCents: number | null;
   subscriptionTrialDays: number | null;
+  priceCurrency: Currency;
 }) {
   const router = useRouter();
   const [weekly, setWeekly] = useState(toInput(weeklyPriceCents));
   const [monthly, setMonthly] = useState(toInput(monthlyPriceCents));
   const [annual, setAnnual] = useState(toInput(annualPriceCents));
   const [trial, setTrial] = useState(String(subscriptionTrialDays ?? 0));
+  const [currency, setCurrency] = useState<Currency>(priceCurrency);
   const [state, setState] = useState<"idle" | "saving" | "saved" | "error">("idle");
   const [error, setError] = useState<string | null>(null);
 
@@ -44,6 +49,7 @@ export function PricingPackagesCard({
         weeklyPriceCents: toCents(weekly),
         annualPriceCents: toCents(annual),
         subscriptionTrialDays: Number(trial),
+        priceCurrency: currency,
       }),
     });
     const body = await res.json().catch(() => ({}));
@@ -92,10 +98,29 @@ export function PricingPackagesCard({
             blank to not offer them. Price changes apply to new subscribers only.
           </p>
 
+          <div className="mt-3 max-w-md">
+            <span className="text-xs text-muted">Currency</span>
+            <select
+              value={currency}
+              onChange={(e) => {
+                setCurrency(e.target.value as Currency);
+                setState("idle");
+              }}
+              className="mt-1 w-full rounded-lg border border-border bg-surface-raised px-3 py-2 text-sm outline-none focus:border-accent"
+            >
+              <option value="USD">USD ($)</option>
+              <option value="EUR">EUR (€)</option>
+              <option value="GBP">GBP (£)</option>
+            </select>
+            <p className="mt-1 text-[11px] text-muted">
+              Subscribers are charged in this currency for both card and crypto payments.
+            </p>
+          </div>
+
           <div className="mt-3 grid max-w-md grid-cols-3 gap-2">
-            {field("Weekly (USD)", weekly, setWeekly, { min: "1.99" })}
-            {field("Monthly (USD)", monthly, setMonthly, { min: "4.99", required: true })}
-            {field("Annual (USD)", annual, setAnnual, { min: "9.99" })}
+            {field(`Weekly (${currency})`, weekly, setWeekly, { min: "1.99" })}
+            {field(`Monthly (${currency})`, monthly, setMonthly, { min: "4.99", required: true })}
+            {field(`Annual (${currency})`, annual, setAnnual, { min: "9.99" })}
           </div>
 
           <div className="mt-3 max-w-md">

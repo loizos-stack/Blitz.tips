@@ -127,7 +127,7 @@ export default async function HandicapperDashboardPage() {
           <StatCard label="Record" value={stats.record} />
           <StatCard label="Win rate" value={stats.winRate ? `${stats.winRate.toFixed(1)}%` : "—"} />
           <StatCard label="Subscribers" value={subscriberCount.toString()} />
-          <StatCard label="Est. earnings/mo" value={formatCents(netMonthlyCents)} tone="accent" />
+          <StatCard label="Est. earnings/mo" value={formatCents(netMonthlyCents, handicapper.priceCurrency)} tone="accent" />
         </div>
 
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
@@ -245,6 +245,7 @@ export default async function HandicapperDashboardPage() {
         monthlyPriceCents={handicapper.monthlyPriceCents}
         annualPriceCents={handicapper.annualPriceCents}
         subscriptionTrialDays={handicapper.subscriptionTrialDays}
+        priceCurrency={handicapper.priceCurrency}
       />
     ),
     community: (

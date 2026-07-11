@@ -4,10 +4,10 @@ export function cn(...inputs: ClassValue[]) {
   return clsx(inputs);
 }
 
-export function formatCents(cents: number): string {
+export function formatCents(cents: number, currency: "USD" | "EUR" | "GBP" = "USD"): string {
   return (cents / 100).toLocaleString("en-US", {
     style: "currency",
-    currency: "USD",
+    currency,
     minimumFractionDigits: cents % 100 === 0 ? 0 : 2,
   });
 }

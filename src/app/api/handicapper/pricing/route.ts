@@ -20,6 +20,10 @@ export async function POST(request: Request) {
   const { monthlyPriceCents, weeklyPriceCents, annualPriceCents, subscriptionTrialDays } = parsed.data;
   // Store 0/absent as null (no trial).
   const trialDays = subscriptionTrialDays ? subscriptionTrialDays : null;
+  const priceCurrency = parsed.data.priceCurrency ?? profile.priceCurrency;
+  // A currency change means every existing Stripe Price (in the old currency)
+  // must be recreated in the new one.
+  const currencyChanged = priceCurrency !== profile.priceCurrency;
 
   // Stripe Prices are immutable — when an amount changes (or a package is
   // dropped) clear the stored price id so ensureSubscriberPrices creates a
@@ -32,9 +36,10 @@ export async function POST(request: Request) {
       weeklyPriceCents: weeklyPriceCents ?? null,
       annualPriceCents: annualPriceCents ?? null,
       subscriptionTrialDays: trialDays,
-      ...(monthlyPriceCents !== profile.monthlyPriceCents && { stripePriceId: null }),
-      ...((weeklyPriceCents ?? null) !== profile.weeklyPriceCents && { stripeWeeklyPriceId: null }),
-      ...((annualPriceCents ?? null) !== profile.annualPriceCents && { stripeAnnualPriceId: null }),
+      priceCurrency,
+      ...(currencyChanged || monthlyPriceCents !== profile.monthlyPriceCents ? { stripePriceId: null } : {}),
+      ...(currencyChanged || (weeklyPriceCents ?? null) !== profile.weeklyPriceCents ? { stripeWeeklyPriceId: null } : {}),
+      ...(currencyChanged || (annualPriceCents ?? null) !== profile.annualPriceCents ? { stripeAnnualPriceId: null } : {}),
     },
   });
 
@@ -49,5 +54,7 @@ export async function POST(request: Request) {
     monthlyPriceCents: updated.monthlyPriceCents,
     weeklyPriceCents: updated.weeklyPriceCents,
     annualPriceCents: updated.annualPriceCents,
+    subscriptionTrialDays: updated.subscriptionTrialDays,
+    priceCurrency: updated.priceCurrency,
   });
 }

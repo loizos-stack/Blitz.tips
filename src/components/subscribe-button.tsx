@@ -37,6 +37,7 @@ export function SubscribeButton({
   isOwner = false,
   cryptoEnabled = false,
   trialDays = null,
+  currency = "USD",
 }: {
   handicapperId: string;
   displayName: string;
@@ -48,6 +49,8 @@ export function SubscribeButton({
   cryptoEnabled?: boolean;
   // Free-trial days on weekly/monthly card subscriptions (never annual/crypto).
   trialDays?: number | null;
+  // The handicapper's pricing currency.
+  currency?: "USD" | "EUR" | "GBP";
 }) {
   const router = useRouter();
   const offered = (Object.keys(INTERVAL_SUFFIX) as PackageInterval[]).filter(
@@ -162,7 +165,7 @@ export function SubscribeButton({
                   )}
                 </span>
                 <span className="text-sm font-bold tabular-nums">
-                  {formatCents(packages[i]!)}
+                  {formatCents(packages[i]!, currency)}
                   <span className="font-normal text-muted">{INTERVAL_SUFFIX[i]}</span>
                 </span>
               </button>
@@ -204,7 +207,7 @@ export function SubscribeButton({
                   ? "Redirecting…"
                   : activeTrial
                     ? `Start ${activeTrial}-day free trial`
-                    : `Subscribe — ${formatCents(packages[interval]!)}${INTERVAL_SUFFIX[interval]}`}
+                    : `Subscribe — ${formatCents(packages[interval]!, currency)}${INTERVAL_SUFFIX[interval]}`}
             </button>
             {cryptoEnabled && (
               <button
@@ -213,7 +216,7 @@ export function SubscribeButton({
                 className="flex w-full items-center justify-center gap-2 rounded-lg border border-border px-6 py-3 text-sm font-semibold hover:border-muted disabled:opacity-60"
               >
                 <Bitcoin className="h-4 w-4 text-gold" />
-                {cryptoLoading ? "Redirecting…" : `Pay with crypto — ${formatCents(packages[interval]!)}`}
+                {cryptoLoading ? "Redirecting…" : `Pay with crypto — ${formatCents(packages[interval]!, currency)}`}
               </button>
             )}
             {cryptoEnabled && (

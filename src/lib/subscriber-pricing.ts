@@ -61,7 +61,7 @@ export async function ensureSubscriberPrices(h: HandicapperProfile): Promise<Han
     const price = await stripe.prices.create({
       product: productId,
       unit_amount: h[centsField]!,
-      currency: "usd",
+      currency: h.priceCurrency.toLowerCase(),
       recurring: { interval: stripeInterval },
     });
     data[priceIdField] = price.id;

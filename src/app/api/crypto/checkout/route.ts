@@ -67,6 +67,7 @@ export async function POST(request: Request) {
       orderId,
       description: `${PASS_LABEL[interval]} of premium picks from ${handicapper.displayName} on Blitz.tips`,
       amountCents,
+      priceCurrency: handicapper.priceCurrency,
       ipnUrl: `${appUrl}/api/crypto/webhook`,
       successUrl: `${appUrl}/handicappers/${handicapper.handle}?crypto=pending`,
       cancelUrl: `${appUrl}/handicappers/${handicapper.handle}`,

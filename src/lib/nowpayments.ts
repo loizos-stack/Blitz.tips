@@ -17,11 +17,12 @@ export interface NowInvoice {
   invoice_url: string;
 }
 
-/** Create a fixed-price USD invoice; the buyer picks their coin on the hosted page. */
+/** Create a fixed-price fiat invoice; the buyer picks their coin on the hosted page. */
 export async function createInvoice(opts: {
   orderId: string;
   description: string;
   amountCents: number;
+  priceCurrency?: "USD" | "EUR" | "GBP";
   ipnUrl: string;
   successUrl: string;
   cancelUrl: string;
@@ -31,7 +32,7 @@ export async function createInvoice(opts: {
     headers: { "Content-Type": "application/json", "x-api-key": API_KEY },
     body: JSON.stringify({
       price_amount: Number((opts.amountCents / 100).toFixed(2)),
-      price_currency: "usd",
+      price_currency: (opts.priceCurrency ?? "USD").toLowerCase(),
       order_id: opts.orderId,
       order_description: opts.description.slice(0, 200),
       ipn_callback_url: opts.ipnUrl,

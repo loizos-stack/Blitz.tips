@@ -224,6 +224,7 @@ export default async function HandicapperProfilePage({
               isOwner={Boolean(isOwner)}
               cryptoEnabled={nowPaymentsConfigured()}
               trialDays={handicapper.subscriptionTrialDays}
+              currency={handicapper.priceCurrency}
             />
           )}
         </div>

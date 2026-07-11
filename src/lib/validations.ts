@@ -35,6 +35,8 @@ export const becomeHandicapperSchema = z.object({
     .nullish(),
   // Free-trial length for weekly/monthly packages: 0 (none), 1, or 2 days.
   subscriptionTrialDays: z.number().int().min(0).max(2, "Trials can be at most 2 days").nullish(),
+  // Currency the packages are priced/charged in.
+  priceCurrency: z.enum(["USD", "EUR", "GBP"]).optional(),
 });
 
 // Dashboard price updates share the same package constraints.
@@ -43,6 +45,7 @@ export const updatePricingSchema = becomeHandicapperSchema.pick({
   weeklyPriceCents: true,
   annualPriceCents: true,
   subscriptionTrialDays: true,
+  priceCurrency: true,
 });
 
 export const createPickSchema = z.object({
