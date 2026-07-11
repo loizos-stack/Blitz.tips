@@ -91,7 +91,7 @@ export function HandicapperCard({ handicapper, rank }: { handicapper: Handicappe
               stats.roi == null ? "" : stats.roi >= 0 ? "text-accent" : "text-danger"
             }`}
           >
-            {stats.roi == null ? "—" : `${stats.roi >= 0 ? "+" : ""}${stats.roi.toFixed(1)}%`}
+            {stats.roi == null ? "—" : `${stats.roi >= 0 ? "+" : ""}${Math.round(stats.roi)}%`}
           </p>
         </div>
         <div>
