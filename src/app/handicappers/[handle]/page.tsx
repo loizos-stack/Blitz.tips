@@ -80,33 +80,39 @@ export default async function HandicapperProfilePage({
   // admins from /admin/cms; the cover, identity, and subscribe box stay pinned.
   const sections: Record<string, ReactNode> = {
     stats: (
-      <>
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-          <StatCard label="Record" value={handicapper.stats.record} />
-          <StatCard
-            label="Win rate"
-            value={handicapper.stats.winRate ? `${handicapper.stats.winRate.toFixed(1)}%` : "—"}
-          />
-          <StatCard
-            label="Net units"
-            value={`${handicapper.stats.unitsNet >= 0 ? "+" : ""}${handicapper.stats.unitsNet.toFixed(1)}`}
-            tone={handicapper.stats.unitsNet >= 0 ? "accent" : "danger"}
-          />
-          <StatCard label="ROI" value={handicapper.stats.roi !== null ? `${handicapper.stats.roi.toFixed(1)}%` : "—"} />
-        </div>
-
-        <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted">
-          <span>
-            <span className="font-semibold text-foreground">L10</span> {handicapper.last10Stats.totalPicks > 0
-              ? `${handicapper.last10Stats.record} · ${handicapper.last10Stats.unitsNet >= 0 ? "+" : ""}${handicapper.last10Stats.unitsNet.toFixed(1)}u`
-              : "—"}
-          </span>
-          <span>
-            Last 30 days: {handicapper.last30Stats.record} · {handicapper.last30Stats.unitsNet >= 0 ? "+" : ""}
-            {handicapper.last30Stats.unitsNet.toFixed(1)}u
-          </span>
-        </div>
-      </>
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+        <StatCard label="Record" value={handicapper.stats.record} />
+        <StatCard
+          label="Win rate"
+          value={handicapper.stats.winRate ? `${handicapper.stats.winRate.toFixed(1)}%` : "—"}
+        />
+        <StatCard
+          label="Net units"
+          value={`${handicapper.stats.unitsNet >= 0 ? "+" : ""}${handicapper.stats.unitsNet.toFixed(1)}`}
+          tone={handicapper.stats.unitsNet >= 0 ? "accent" : "danger"}
+        />
+        <StatCard label="ROI" value={handicapper.stats.roi !== null ? `${handicapper.stats.roi.toFixed(1)}%` : "—"} />
+        <StatCard
+          label="L10"
+          value={handicapper.last10Stats.totalPicks > 0 ? handicapper.last10Stats.record : "—"}
+          sub={
+            handicapper.last10Stats.totalPicks > 0
+              ? `${handicapper.last10Stats.unitsNet >= 0 ? "+" : ""}${handicapper.last10Stats.unitsNet.toFixed(1)}u`
+              : undefined
+          }
+          subTone={handicapper.last10Stats.unitsNet >= 0 ? "accent" : "danger"}
+        />
+        <StatCard
+          label="Last 30 days"
+          value={handicapper.last30Stats.totalPicks > 0 ? handicapper.last30Stats.record : "—"}
+          sub={
+            handicapper.last30Stats.totalPicks > 0
+              ? `${handicapper.last30Stats.unitsNet >= 0 ? "+" : ""}${handicapper.last30Stats.unitsNet.toFixed(1)}u`
+              : undefined
+          }
+          subTone={handicapper.last30Stats.unitsNet >= 0 ? "accent" : "danger"}
+        />
+      </div>
     ),
     openPlays: pendingPicks.length > 0 && (
       <>

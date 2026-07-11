@@ -9,22 +9,16 @@ import { formatOdds } from "@/lib/odds";
 import { SPORT_LABELS, BET_TYPE_LABELS } from "@/lib/utils";
 import type { PickSport } from "@prisma/client";
 
-// The team crests for a "Away @ Home" matchup, shown overlapping before the
-// matchup text. Renders nothing when neither team resolves (manual pick with a
-// non-standard name, or a sport we don't have crests for).
-function MatchupLogos({ sport, matchup }: { sport: PickSport; matchup: string }) {
-  // Split on the usual separators so both feed ("Away @ Home") and manually
-  // typed ("Lakers vs Celtics") matchups resolve.
+// Resolve the away/home team crests from an "Away @ Home" matchup string.
+// Splits on the usual separators so both feed ("Away @ Home") and manually
+// typed ("Lakers vs Celtics") matchups resolve. Either side may be null (a
+// manual pick with a non-standard name, or a sport we don't have crests for).
+function matchupCrests(sport: PickSport, matchup: string) {
   const [away, home] = matchup.split(/\s+(?:@|vs\.?|at)\s+/i);
-  const awayLogo = getTeamLogoUrl(sport, (away ?? "").trim());
-  const homeLogo = getTeamLogoUrl(sport, (home ?? "").trim());
-  if (!awayLogo && !homeLogo) return null;
-  return (
-    <span className="flex shrink-0 items-center -space-x-1.5">
-      {awayLogo && <TeamLogo sport={sport} logoUrl={awayLogo} className="h-6 w-6 rounded-full ring-2 ring-surface" />}
-      {homeLogo && <TeamLogo sport={sport} logoUrl={homeLogo} className="h-6 w-6 rounded-full ring-2 ring-surface" />}
-    </span>
-  );
+  return {
+    awayLogo: getTeamLogoUrl(sport, (away ?? "").trim()),
+    homeLogo: getTeamLogoUrl(sport, (home ?? "").trim()),
+  };
 }
 
 type PickWithLegs = PickModel & { parlayLegs?: Pick<ParlayLeg, "id" | "matchup" | "selection" | "odds">[] };
@@ -42,6 +36,7 @@ function UnitsBadge({ units }: { units: number }) {
 export function PickCard({ pick, locked = false }: { pick: PickWithLegs; locked?: boolean }) {
   const isParlay = pick.betType === "PARLAY";
   const legs = pick.parlayLegs ?? [];
+  const crests = isParlay ? null : matchupCrests(pick.sport, pick.matchup);
 
   if (locked) {
     return (
@@ -106,8 +101,13 @@ export function PickCard({ pick, locked = false }: { pick: PickWithLegs; locked?
       ) : (
         <>
           <div className="mt-3 flex items-center gap-2">
-            <MatchupLogos sport={pick.sport} matchup={pick.matchup} />
+            {crests?.awayLogo && (
+              <TeamLogo sport={pick.sport} logoUrl={crests.awayLogo} className="h-6 w-6 shrink-0 rounded-full ring-2 ring-surface" />
+            )}
             <p className="font-display font-semibold">{pick.matchup}</p>
+            {crests?.homeLogo && (
+              <TeamLogo sport={pick.sport} logoUrl={crests.homeLogo} className="ml-auto h-6 w-6 shrink-0 rounded-full ring-2 ring-surface" />
+            )}
           </div>
           <div className="mt-2 flex flex-wrap items-center gap-3 text-sm">
             <span className="rounded-full bg-surface-raised px-2.5 py-1">{BET_TYPE_LABELS[pick.betType]}</span>
