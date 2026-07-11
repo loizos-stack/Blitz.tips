@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { computeStats, type HandicapperStats } from "@/lib/odds";
 import { computeStreaks, lastNStats } from "@/lib/analytics";
+import { isFeaturedHandicapper } from "@/lib/plans";
 import type { HandicapperProfile, Pick as PickModel, Testimonial, ParlayLeg } from "@prisma/client";
 
 export type PickWithLegs = PickModel & { parlayLegs: ParlayLeg[] };
@@ -12,7 +13,19 @@ export type HandicapperSummary = HandicapperProfile & {
   last10Stats: HandicapperStats;
   /** Current win/loss run (positive = wins, negative = losses); shown on cards. */
   currentStreak: number;
+  isFeatured: boolean;
 };
+
+/** Gold handicappers are pinned to the top, per their plan's promised placement; ties broken by the given stat. */
+export function sortFeaturedFirst<T extends { isFeatured: boolean }>(
+  items: T[],
+  compareFn: (a: T, b: T) => number
+): T[] {
+  return [...items].sort((a, b) => {
+    if (a.isFeatured !== b.isFeatured) return a.isFeatured ? -1 : 1;
+    return compareFn(a, b);
+  });
+}
 
 /**
  * Paid-plan handicappers (Gold above Silver, active billing only) are pinned
@@ -120,5 +133,6 @@ function toSummary(handicapper: HandicapperProfile & { picks: PickModel[] }): Ha
     last30Stats: computeStats(recentPicks),
     last10Stats: lastNStats(handicapper.picks, 10),
     currentStreak: computeStreaks(handicapper.picks).current,
+    isFeatured: isFeaturedHandicapper(handicapper.plan, handicapper.planStatus),
   };
 }

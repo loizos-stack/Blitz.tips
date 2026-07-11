@@ -14,7 +14,9 @@ export function HandicapperCard({ handicapper, rank }: { handicapper: Handicappe
   return (
     <Link
       href={`/handicappers/${handicapper.handle}`}
-      className="card group flex flex-col overflow-hidden p-0 transition-colors hover:border-accent/60"
+      className={`card group flex flex-col overflow-hidden p-0 transition-colors hover:border-accent/60 ${
+        handicapper.isFeatured ? "border-gold/50 bg-gold/5" : ""
+      }`}
     >
       <div className="relative h-20 w-full overflow-hidden bg-gradient-to-r from-accent/20 via-surface-raised to-gold/15">
         {handicapper.coverUrl && (

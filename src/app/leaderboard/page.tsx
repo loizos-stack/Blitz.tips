@@ -1,6 +1,6 @@
 import Link from "next/link";
 import type { Metadata } from "next";
-import { listHandicapperSummaries, sortPaidFirst, type HandicapperSummary } from "@/lib/handicappers";
+import { listHandicapperSummaries, sortFeaturedFirst, type HandicapperSummary } from "@/lib/handicappers";
 import { Avatar } from "@/components/avatar";
 import { SportFilterSelect } from "@/components/sport-filter-select";
 import { PlanBadge } from "@/components/plan-badge";
@@ -39,7 +39,7 @@ export default async function LeaderboardPage({
     ? handicappers.filter((h) => h.sports.includes(sportFilter))
     : handicappers;
 
-  const sorted = sortPaidFirst(filtered, (a, b) => SORTS[sortKey].fn(b) - SORTS[sortKey].fn(a));
+  const sorted = sortFeaturedFirst(filtered, (a, b) => SORTS[sortKey].fn(b) - SORTS[sortKey].fn(a));
 
   return (
     <div className="relative overflow-hidden">
