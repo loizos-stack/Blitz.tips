@@ -210,6 +210,11 @@ model HandicapperProfile {
   // (Stripe + crypto). Prices above are integer minor units of this currency.
   priceCurrency PriceCurrency @default(USD)
 
+  // Crypto payout wallets — where the platform sends the handicapper's cut of
+  // crypto (NOWPayments) subscriptions. Internal only; never shown publicly.
+  payoutEthAddress String?
+  payoutBtcAddress String?
+
   stripeAccountId      String?  @unique
   stripeAccountReady   Boolean  @default(false)
   stripeProductId      String?

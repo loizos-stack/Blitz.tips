@@ -27,7 +27,7 @@ export default async function VerifyStep({
 
   // Handicappers head to their dashboard after verifying; subscribers continue
   // through discover + notifications.
-  const nextHref = isHandicapper ? "/dashboard/handicapper" : "/onboarding/discover";
+  const nextHref = isHandicapper ? "/onboarding/handicapper/profile" : "/onboarding/discover";
   if (user.emailVerified) redirect(nextHref);
 
   const steps = isHandicapper

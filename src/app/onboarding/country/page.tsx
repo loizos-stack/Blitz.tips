@@ -18,7 +18,7 @@ export default async function CountryStep({
 
   const { as } = await searchParams;
   const isHandicapper = as === "handicapper";
-  const nextHref = isHandicapper ? "/dashboard/handicapper" : "/onboarding/discover";
+  const nextHref = isHandicapper ? "/onboarding/handicapper/profile" : "/onboarding/discover";
 
   const user = await prisma.user.findUnique({
     where: { id: session.user.id },

@@ -24,6 +24,7 @@ import { PostTipForms } from "@/components/post-tip-forms";
 import { HandicapperPickList } from "@/components/handicapper-pick-list";
 import { enrichPickCrests } from "@/lib/pick-logos";
 import { ManagePlanCard } from "@/components/manage-plan-card";
+import { PayoutWalletsCard } from "@/components/payout-wallets-card";
 import { ProfileImagesForm } from "@/components/profile-images-form";
 import { PricingPackagesCard } from "@/components/pricing-packages-card";
 import { SocialsForm } from "@/components/socials-form";
@@ -240,13 +241,19 @@ export default async function HandicapperDashboardPage() {
       />
     ),
     pricing: (
-      <PricingPackagesCard
-        weeklyPriceCents={handicapper.weeklyPriceCents}
-        monthlyPriceCents={handicapper.monthlyPriceCents}
-        annualPriceCents={handicapper.annualPriceCents}
-        subscriptionTrialDays={handicapper.subscriptionTrialDays}
-        priceCurrency={handicapper.priceCurrency}
-      />
+      <div className="flex flex-col gap-4">
+        <PricingPackagesCard
+          weeklyPriceCents={handicapper.weeklyPriceCents}
+          monthlyPriceCents={handicapper.monthlyPriceCents}
+          annualPriceCents={handicapper.annualPriceCents}
+          subscriptionTrialDays={handicapper.subscriptionTrialDays}
+          priceCurrency={handicapper.priceCurrency}
+        />
+        <PayoutWalletsCard
+          payoutEthAddress={handicapper.payoutEthAddress}
+          payoutBtcAddress={handicapper.payoutBtcAddress}
+        />
+      </div>
     ),
     community: (
       <div className="grid gap-4 lg:grid-cols-2">

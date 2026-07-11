@@ -39,6 +39,23 @@ export const becomeHandicapperSchema = z.object({
   priceCurrency: z.enum(["USD", "EUR", "GBP"]).optional(),
 });
 
+// Crypto payout wallets (internal — where the platform sends the handicapper's
+// cut). Each is optional; loose format checks catch obvious typos.
+export const payoutWalletsSchema = z.object({
+  payoutEthAddress: z
+    .string()
+    .trim()
+    .regex(/^0x[a-fA-F0-9]{40}$/, "Enter a valid ETH (ERC-20) address")
+    .or(z.literal(""))
+    .nullish(),
+  payoutBtcAddress: z
+    .string()
+    .trim()
+    .regex(/^(bc1[a-z0-9]{20,90}|[13][a-km-zA-HJ-NP-Z1-9]{25,39})$/, "Enter a valid BTC address")
+    .or(z.literal(""))
+    .nullish(),
+});
+
 // Dashboard price updates share the same package constraints.
 export const updatePricingSchema = becomeHandicapperSchema.pick({
   monthlyPriceCents: true,
