@@ -1,6 +1,7 @@
 import "server-only";
 import type { PickSport } from "@prisma/client";
 import { getTeamLogoUrl } from "@/lib/team-logos";
+import { formatMatchup } from "@/lib/utils";
 
 // The Odds API (the-odds-api.com) client.
 //
@@ -438,12 +439,6 @@ async function getScores(sportKey: string, apiKey: string): Promise<Map<string, 
   return map;
 }
 
-// Soccer is written home-team-first with "vs" (the convention on scoreboards
-// and betting slips worldwide); every other sport uses "Away @ Home".
-export function formatMatchup(sport: PickSport, homeTeam: string, awayTeam: string): string {
-  return sport === "SOCCER" ? `${homeTeam} vs ${awayTeam}` : `${awayTeam} @ ${homeTeam}`;
-}
-
 function normalizeEvent(event: OddsApiEvent, sport: PickSport, sportKey: string): UpcomingEvent {
   const bookmaker =
     PREFERRED_BOOKMAKERS.map((key) => event.bookmakers.find((b) => b.key === key)).find(Boolean) ??
@@ -481,7 +476,7 @@ function normalizeEvent(event: OddsApiEvent, sport: PickSport, sportKey: string)
   return {
     id: event.id,
     sportKey,
-    matchup: formatMatchup(sport, event.home_team, event.away_team),
+    matchup: formatMatchup(sport, event.away_team, event.home_team),
     homeTeam: event.home_team,
     awayTeam: event.away_team,
     homeTeamLogo: getTeamLogoUrl(sport, event.home_team),

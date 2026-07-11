@@ -4,7 +4,7 @@ import { useCallback, useState } from "react";
 import { useRouter } from "next/navigation";
 import { format } from "date-fns";
 import { CalendarSearch, PencilLine } from "lucide-react";
-import { SPORT_LABELS, BET_TYPE_LABELS, cn } from "@/lib/utils";
+import { SPORT_LABELS, BET_TYPE_LABELS, cn, formatMatchup, usesVsSeparator } from "@/lib/utils";
 import { formatOdds } from "@/lib/odds";
 import { getTeamNames } from "@/lib/team-logos";
 import { TeamLogo } from "@/components/team-logo";
@@ -37,7 +37,11 @@ export function CreatePickForm({ handicapperSports }: { handicapperSports: strin
   const [selectedMarket, setSelectedMarket] = useState<MarketOption | null>(null);
 
   const [league, setLeague] = useState("");
+  // Schedule mode fills `matchup` directly from the chosen event; manual mode
+  // builds it from the away/home fields via formatMatchup on submit.
   const [matchup, setMatchup] = useState("");
+  const [awayTeam, setAwayTeam] = useState("");
+  const [homeTeam, setHomeTeam] = useState("");
   const [betType, setBetType] = useState(betTypeKeys[0]);
   const [selection, setSelection] = useState("");
   const [odds, setOdds] = useState("-110");
@@ -111,13 +115,18 @@ export function CreatePickForm({ handicapperSports }: { handicapperSports: strin
         ? selectedEvent.commenceTime
         : new Date(eventStartsAt).toISOString();
 
+    // Schedule mode already has a formatted matchup; manual mode assembles it
+    // from the away/home fields using the sport's separator convention.
+    const finalMatchup =
+      mode === "schedule" ? matchup : formatMatchup(sport, awayTeam.trim(), homeTeam.trim());
+
     const res = await fetch("/api/picks", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         sport,
         league: league || undefined,
-        matchup,
+        matchup: finalMatchup,
         betType,
         selection,
         odds: Number(odds),
@@ -141,6 +150,8 @@ export function CreatePickForm({ handicapperSports }: { handicapperSports: strin
     }
 
     setMatchup("");
+    setAwayTeam("");
+    setHomeTeam("");
     setSelection("");
     setAnalysis("");
     setEventStartsAt("");
@@ -163,6 +174,7 @@ export function CreatePickForm({ handicapperSports }: { handicapperSports: strin
 
   const readyToSubmit = mode === "manual" || (selectedEvent && selectedMarket);
   const teamNames = getTeamNames(sport as PickSport);
+  const vsSport = usesVsSeparator(sport);
 
   return (
     <form onSubmit={handleSubmit} className="card flex flex-col gap-4 p-5">
@@ -303,18 +315,37 @@ export function CreatePickForm({ handicapperSports }: { handicapperSports: strin
 
           <div>
             <label className="text-xs font-medium text-muted">Matchup</label>
-            <input
-              required
-              value={matchup}
-              onChange={(e) => setMatchup(e.target.value)}
-              placeholder="Away @ Home (e.g. Chiefs @ Bills)"
-              list="team-suggestions"
-              className="mt-1 w-full rounded-lg border border-border bg-surface-raised px-3 py-2 text-sm outline-none focus:border-accent"
-            />
-            {teamNames.length > 0 && (
+            <div className="mt-1 grid grid-cols-2 gap-3">
+              <input
+                required
+                value={awayTeam}
+                onChange={(e) => setAwayTeam(e.target.value)}
+                placeholder={vsSport ? "Away team" : "Away team (e.g. Chiefs)"}
+                list="team-suggestions"
+                className="w-full rounded-lg border border-border bg-surface-raised px-3 py-2 text-sm outline-none focus:border-accent"
+              />
+              <input
+                required
+                value={homeTeam}
+                onChange={(e) => setHomeTeam(e.target.value)}
+                placeholder={vsSport ? "Home team" : "Home team (e.g. Bills)"}
+                list="team-suggestions"
+                className="w-full rounded-lg border border-border bg-surface-raised px-3 py-2 text-sm outline-none focus:border-accent"
+              />
+            </div>
+            {awayTeam.trim() && homeTeam.trim() ? (
               <p className="mt-1 text-[11px] text-muted">
-                Type a team name to autocomplete — matching teams get their logo on the pick.
+                Reads as{" "}
+                <span className="font-medium text-foreground">
+                  {formatMatchup(sport, awayTeam.trim(), homeTeam.trim())}
+                </span>
               </p>
+            ) : (
+              teamNames.length > 0 && (
+                <p className="mt-1 text-[11px] text-muted">
+                  Start typing to autocomplete — {vsSport ? "shown as “Home vs Away”" : "matching teams get their logo on the pick"}.
+                </p>
+              )
             )}
           </div>
           <datalist id="team-suggestions">
