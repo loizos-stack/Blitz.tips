@@ -54,8 +54,8 @@ export default async function AdminPicksPage() {
           {picks.map((p) => (
             <tr key={p.id} className="border-b border-border last:border-b-0">
               <td className="px-4 py-2.5 font-medium">@{p.handicapper.handle}</td>
-              <td className="max-w-52 truncate px-4 py-2.5">{p.matchup}</td>
-              <td className="max-w-48 truncate px-4 py-2.5 text-muted">{p.selection}</td>
+              <td className="max-w-52 truncate px-4 py-2.5 font-display">{p.matchup}</td>
+              <td className="max-w-48 truncate px-4 py-2.5 font-display text-muted">{p.selection}</td>
               <td className="px-4 py-2.5 tabular-nums">{formatOdds(p.odds)}</td>
               <td className="px-4 py-2.5 tabular-nums">{p.units}u</td>
               <td className="px-4 py-2.5 text-muted">{p.eventStartsAt.toLocaleDateString()}</td>

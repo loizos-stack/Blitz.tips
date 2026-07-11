@@ -240,7 +240,7 @@ export function CreatePickForm({ handicapperSports }: { handicapperSports: strin
                           )}
                         </span>
                       )}
-                      <span className="truncate font-medium">{event.matchup}</span>
+                      <span className="truncate font-display font-medium">{event.matchup}</span>
                     </span>
                     <span className="ml-2 shrink-0 text-xs text-muted">
                       {format(new Date(event.commenceTime), "MMM d, h:mm a")}
@@ -259,7 +259,7 @@ export function CreatePickForm({ handicapperSports }: { handicapperSports: strin
                               type="button"
                               onClick={() => chooseMarket(event, market)}
                               className={cn(
-                                "rounded-full border px-2.5 py-1 text-xs font-medium tabular-nums",
+                                "rounded-full border px-2.5 py-1 font-display text-xs font-medium tabular-nums",
                                 selectedMarket === market
                                   ? "border-accent bg-accent/10 text-accent"
                                   : "border-border text-muted hover:text-foreground"
@@ -282,7 +282,7 @@ export function CreatePickForm({ handicapperSports }: { handicapperSports: strin
 
           {selectedEvent && selectedMarket && (
             <div className="rounded-lg bg-surface-raised p-3 text-sm">
-              <p className="font-semibold">{selectedEvent.matchup}</p>
+              <p className="font-display font-semibold">{selectedEvent.matchup}</p>
               <p className="mt-0.5 text-muted">
                 {BET_TYPE_LABELS[selectedMarket.betType]} · {selectedMarket.selection} ·{" "}
                 <span className="tabular-nums">{formatOdds(selectedMarket.odds)}</span>

@@ -196,8 +196,8 @@ export function CreateParlayForm({ handicapperSports }: { handicapperSports: str
           {legs.map((leg, i) => (
             <li key={i} className="flex items-center justify-between gap-3 px-3 py-2 text-sm">
               <span className="min-w-0">
-                <span className="block truncate font-medium">{leg.selection}</span>
-                <span className="block truncate text-xs text-muted">{leg.matchup}</span>
+                <span className="block truncate font-display font-medium">{leg.selection}</span>
+                <span className="block truncate font-display text-xs text-muted">{leg.matchup}</span>
               </span>
               <span className="flex shrink-0 items-center gap-2">
                 <span className="tabular-nums text-muted">{formatOdds(leg.odds)}</span>
@@ -259,7 +259,7 @@ export function CreateParlayForm({ handicapperSports }: { handicapperSports: str
                     onClick={() => setOpenEvent(openEvent === event.id ? null : event.id)}
                     className="flex w-full items-center justify-between px-3 py-2 text-left text-sm"
                   >
-                    <span className="font-medium">{event.matchup}</span>
+                    <span className="font-display font-medium">{event.matchup}</span>
                     <span className="ml-2 shrink-0 text-xs text-muted">{format(new Date(event.commenceTime), "MMM d, h:mm a")}</span>
                   </button>
                   {openEvent === event.id && (
@@ -272,7 +272,7 @@ export function CreateParlayForm({ handicapperSports }: { handicapperSports: str
                             key={i}
                             type="button"
                             onClick={() => addScheduleLeg(event, market)}
-                            className="rounded-full border border-border px-2.5 py-1 text-xs font-medium tabular-nums text-muted hover:border-accent hover:text-accent"
+                            className="rounded-full border border-border px-2.5 py-1 font-display text-xs font-medium tabular-nums text-muted hover:border-accent hover:text-accent"
                           >
                             {market.selection} {formatOdds(market.odds)}
                           </button>

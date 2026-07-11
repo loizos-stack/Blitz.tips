@@ -54,7 +54,7 @@ export function PickCard({ pick, locked = false }: { pick: PickWithLegs; locked?
           <span>{format(pick.eventStartsAt, "MMM d, h:mm a")}</span>
         </div>
         <div className="mt-3 flex items-center gap-2 blur-sm select-none">
-          <p className="font-semibold">{pick.matchup}</p>
+          <p className="font-display font-semibold">{pick.matchup}</p>
         </div>
         <div className="mt-3 flex items-center gap-2 blur-sm select-none">
           <span className="text-sm">{BET_TYPE_LABELS[pick.betType]}</span>
@@ -92,8 +92,8 @@ export function PickCard({ pick, locked = false }: { pick: PickWithLegs; locked?
             {legs.map((leg) => (
               <li key={leg.id} className="flex items-center justify-between gap-3 px-3 py-2 text-sm">
                 <span className="min-w-0">
-                  <span className="block truncate font-medium">{leg.selection}</span>
-                  <span className="block truncate text-xs text-muted">{leg.matchup}</span>
+                  <span className="block truncate font-display font-medium">{leg.selection}</span>
+                  <span className="block truncate font-display text-xs text-muted">{leg.matchup}</span>
                 </span>
                 <span className="shrink-0 tabular-nums text-muted">{formatOdds(leg.odds)}</span>
               </li>
@@ -107,11 +107,11 @@ export function PickCard({ pick, locked = false }: { pick: PickWithLegs; locked?
         <>
           <div className="mt-3 flex items-center gap-2">
             <MatchupLogos sport={pick.sport} matchup={pick.matchup} />
-            <p className="font-semibold">{pick.matchup}</p>
+            <p className="font-display font-semibold">{pick.matchup}</p>
           </div>
           <div className="mt-2 flex flex-wrap items-center gap-3 text-sm">
             <span className="rounded-full bg-surface-raised px-2.5 py-1">{BET_TYPE_LABELS[pick.betType]}</span>
-            <span className="font-semibold">{pick.selection}</span>
+            <span className="font-display font-semibold">{pick.selection}</span>
             <span className="font-semibold tabular-nums">{formatOdds(pick.odds)}</span>
             <UnitsBadge units={pick.units} />
           </div>

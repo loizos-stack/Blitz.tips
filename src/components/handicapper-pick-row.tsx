@@ -35,11 +35,11 @@ export function HandicapperPickRow({ pick }: { pick: PickModel }) {
         <span>{format(pick.eventStartsAt, "MMM d, h:mm a")}</span>
       </div>
 
-      <p className="mt-3 font-semibold">{pick.matchup}</p>
+      <p className="mt-3 font-display font-semibold">{pick.matchup}</p>
 
       <div className="mt-2 flex flex-wrap items-center gap-3 text-sm">
         <span className="rounded-full bg-surface-raised px-2.5 py-1">{BET_TYPE_LABELS[pick.betType]}</span>
-        {pick.betType !== "PARLAY" && <span className="font-semibold">{pick.selection}</span>}
+        {pick.betType !== "PARLAY" && <span className="font-display font-semibold">{pick.selection}</span>}
         <span className="font-semibold tabular-nums">{formatOdds(pick.odds)}</span>
         <span className="inline-flex items-baseline gap-1 rounded-lg border border-accent/30 bg-accent/10 px-2 py-0.5">
           <span className="font-bold tabular-nums text-accent">{pick.units}u</span>
