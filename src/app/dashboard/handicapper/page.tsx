@@ -23,6 +23,7 @@ import { syncConnectStatus } from "@/lib/connect";
 import { CreatePickForm } from "@/components/create-pick-form";
 import { CreateParlayForm } from "@/components/create-parlay-form";
 import { HandicapperPickRow } from "@/components/handicapper-pick-row";
+import { enrichPickCrests } from "@/lib/pick-logos";
 import { ManagePlanCard } from "@/components/manage-plan-card";
 import { ProfileImagesForm } from "@/components/profile-images-form";
 import { PricingPackagesCard } from "@/components/pricing-packages-card";
@@ -92,6 +93,9 @@ export default async function HandicapperDashboardPage() {
     (k) => BET_TYPE_LABELS[k] ?? k
   );
 
+  // Crests for the handicapper's own pick list.
+  const displayPicks = await enrichPickCrests(handicapper.picks);
+
   const grossMonthlyCents = subscriberCount * handicapper.monthlyPriceCents;
   const netMonthlyCents = Math.round(
     grossMonthlyCents * (1 - commissionPercentForPlan(handicapper.plan) / 100)
@@ -111,11 +115,11 @@ export default async function HandicapperDashboardPage() {
 
         <div>
           <h2 className="mb-3 font-semibold">Your picks</h2>
-          {handicapper.picks.length === 0 ? (
+          {displayPicks.length === 0 ? (
             <p className="text-muted">You haven&apos;t posted any picks yet.</p>
           ) : (
             <div className="grid gap-3">
-              {handicapper.picks.map((pick) => (
+              {displayPicks.map((pick) => (
                 <HandicapperPickRow key={pick.id} pick={pick} />
               ))}
             </div>

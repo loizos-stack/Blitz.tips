@@ -6,6 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { getHandicapperByHandle } from "@/lib/handicappers";
 import { StatCard } from "@/components/stat-card";
 import { PickCard } from "@/components/pick-card";
+import { PaginatedTrackRecord } from "@/components/paginated-track-record";
 import { SubscribeButton } from "@/components/subscribe-button";
 import { FollowButton } from "@/components/follow-button";
 import { SocialLinks } from "@/components/social-links";
@@ -17,6 +18,7 @@ import { getSetting } from "@/lib/settings";
 import { DASHBOARD_ORDER_SETTING, resolveSectionOrder } from "@/lib/dashboard-sections";
 import { isSubscriptionActive } from "@/lib/subscription-status";
 import { nowPaymentsConfigured } from "@/lib/nowpayments";
+import { enrichPickCrests } from "@/lib/pick-logos";
 import type { ReactNode } from "react";
 
 export const dynamic = "force-dynamic";
@@ -72,7 +74,7 @@ export default async function HandicapperProfilePage({
 
   const unlocked = isOwner || isSubscribed;
   const planBadgeClass = verifiedBadgeColorClass(handicapper.plan, handicapper.planStatus);
-  const picks = handicapper.picksList;
+  const picks = await enrichPickCrests(handicapper.picksList);
   const pendingPicks = picks.filter((p) => p.result === "PENDING");
   const settledPicks = picks.filter((p) => p.result !== "PENDING");
 
@@ -114,10 +116,10 @@ export default async function HandicapperProfilePage({
         />
       </div>
     ),
-    openPlays: pendingPicks.length > 0 && (
+    pendingPlays: pendingPicks.length > 0 && (
       <>
         <h2 className="mb-4 flex items-center gap-2 text-xl font-bold">
-          Open plays
+          Pending plays
           <span className="rounded-full bg-gold/15 px-2 py-0.5 text-xs font-semibold text-gold">
             {pendingPicks.length} pending
           </span>
@@ -149,13 +151,9 @@ export default async function HandicapperProfilePage({
         {picks.length === 0 ? (
           <p className="text-muted">No picks posted yet.</p>
         ) : settledPicks.length === 0 ? (
-          <p className="text-muted">No settled picks yet — see the open plays above.</p>
+          <p className="text-muted">No settled picks yet — see the pending plays above.</p>
         ) : (
-          <div className="grid gap-4 sm:grid-cols-2">
-            {settledPicks.map((pick) => (
-              <PickCard key={pick.id} pick={pick} locked={pick.isPremium && !unlocked} />
-            ))}
-          </div>
+          <PaginatedTrackRecord picks={settledPicks} unlocked={unlocked} />
         )}
       </>
     ),

@@ -31,9 +31,9 @@ export const SUBSCRIBER_SECTIONS: DashboardSection[] = [
 // stacked sections below them are reorderable.
 export const PROFILE_SECTIONS: DashboardSection[] = [
   { key: "stats", label: "Stats", description: "Record, win rate, net units, ROI, plus the L10 / last-30 line" },
-  { key: "openPlays", label: "Open plays", description: "The handicapper's pending picks" },
-  { key: "testimonials", label: "Testimonials", description: "What subscribers say" },
+  { key: "pendingPlays", label: "Pending plays", description: "The handicapper's pending picks" },
   { key: "trackRecord", label: "Track record", description: "Settled picks history" },
+  { key: "testimonials", label: "Testimonials", description: "What subscribers say" },
 ];
 
 export const DASHBOARD_ORDER_SETTING = {

@@ -42,6 +42,20 @@ export function formatMatchup(sport: string, awayTeam: string, homeTeam: string)
   return usesVsSeparator(sport) ? `${homeTeam} vs ${awayTeam}` : `${awayTeam} @ ${homeTeam}`;
 }
 
+/**
+ * Split a matchup label back into its two sides — the inverse of formatMatchup.
+ * "Home vs Away" resolves home-first; "Away @ Home" (or "at") resolves
+ * away-first. Returns null for labels without a recognizable separator (e.g. a
+ * parlay's "3-leg parlay" placeholder).
+ */
+export function parseMatchupSides(matchup: string): { awayTeam: string; homeTeam: string } | null {
+  const vs = matchup.split(/\s+vs\.?\s+/i);
+  if (vs.length === 2) return { homeTeam: vs[0].trim(), awayTeam: vs[1].trim() };
+  const at = matchup.split(/\s+(?:@|at)\s+/i);
+  if (at.length === 2) return { awayTeam: at[0].trim(), homeTeam: at[1].trim() };
+  return null;
+}
+
 export const BET_TYPE_LABELS: Record<string, string> = {
   SPREAD: "Spread",
   MONEYLINE: "Moneyline",

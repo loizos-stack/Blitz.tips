@@ -1,5 +1,6 @@
 import "server-only";
 import type { PickSport } from "@prisma/client";
+import { getTeamLogoUrl } from "@/lib/team-logos";
 
 // TheSportsDB (thesportsdb.com) logo/badge resolver. The Odds API hands us only
 // team/fighter names, and TheSportsDB is searchable by name — so it fills the
@@ -105,4 +106,15 @@ export async function resolveSportsDbLogo(sport: PickSport, name: string): Promi
   );
   const team = pickBySport(data?.teams ?? [], wanted);
   return team?.strBadge || team?.strTeamBadge || null;
+}
+
+/**
+ * Resolve a crest for a team/fighter name, preferring the free/instant ESPN
+ * table (US major leagues) and falling back to TheSportsDB for everything else.
+ * Returns null when nothing resolves so callers can show the sport icon.
+ */
+export async function resolveTeamLogo(sport: PickSport, name: string): Promise<string | null> {
+  const espn = getTeamLogoUrl(sport, name);
+  if (espn) return espn;
+  return resolveSportsDbLogo(sport, name);
 }

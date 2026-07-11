@@ -5,12 +5,17 @@ import { useRouter } from "next/navigation";
 import { format } from "date-fns";
 import type { Pick as PickModel, PickResult } from "@prisma/client";
 import { ResultPill } from "@/components/result-pill";
+import { TeamLogo } from "@/components/team-logo";
 import { formatOdds } from "@/lib/odds";
 import { SPORT_LABELS, BET_TYPE_LABELS, cn } from "@/lib/utils";
 
 const SETTLE_OPTIONS: PickResult[] = ["WIN", "LOSS", "PUSH", "VOID"];
 
-export function HandicapperPickRow({ pick }: { pick: PickModel }) {
+// Crests are attached server-side (enrichPickCrests) before the pick reaches
+// this client row; a parlay's placeholder matchup resolves to neither side.
+type RowPick = PickModel & { awayTeamLogo?: string | null; homeTeamLogo?: string | null };
+
+export function HandicapperPickRow({ pick }: { pick: RowPick }) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
 
@@ -35,7 +40,15 @@ export function HandicapperPickRow({ pick }: { pick: PickModel }) {
         <span>{format(pick.eventStartsAt, "MMM d, h:mm a")}</span>
       </div>
 
-      <p className="mt-3 font-display font-semibold">{pick.matchup}</p>
+      <div className="mt-3 flex items-center gap-2">
+        {pick.awayTeamLogo && (
+          <TeamLogo sport={pick.sport} logoUrl={pick.awayTeamLogo} className="h-6 w-6 shrink-0 rounded-full ring-2 ring-surface" />
+        )}
+        <p className="font-display font-semibold">{pick.matchup}</p>
+        {pick.homeTeamLogo && (
+          <TeamLogo sport={pick.sport} logoUrl={pick.homeTeamLogo} className="h-6 w-6 shrink-0 rounded-full ring-2 ring-surface" />
+        )}
+      </div>
 
       <div className="mt-2 flex flex-wrap items-center gap-3 text-sm">
         <span className="rounded-full bg-surface-raised px-2.5 py-1">{BET_TYPE_LABELS[pick.betType]}</span>

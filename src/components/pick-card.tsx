@@ -9,10 +9,10 @@ import { formatOdds } from "@/lib/odds";
 import { SPORT_LABELS, BET_TYPE_LABELS } from "@/lib/utils";
 import type { PickSport } from "@prisma/client";
 
-// Resolve the away/home team crests from an "Away @ Home" matchup string.
-// Splits on the usual separators so both feed ("Away @ Home") and manually
-// typed ("Lakers vs Celtics") matchups resolve. Either side may be null (a
-// manual pick with a non-standard name, or a sport we don't have crests for).
+// Synchronous ESPN fallback for the away/home crests from a matchup string —
+// used when the pick hasn't been enriched server-side (enrichPickCrests adds
+// awayTeamLogo/homeTeamLogo, incl. TheSportsDB coverage). Splits on the usual
+// separators so both "Away @ Home" and "Home vs Away" resolve.
 function matchupCrests(sport: PickSport, matchup: string) {
   const [away, home] = matchup.split(/\s+(?:@|vs\.?|at)\s+/i);
   return {
@@ -21,7 +21,33 @@ function matchupCrests(sport: PickSport, matchup: string) {
   };
 }
 
-type PickWithLegs = PickModel & { parlayLegs?: Pick<ParlayLeg, "id" | "matchup" | "selection" | "odds">[] };
+// Optional pre-resolved crests attached by enrichPickCrests (server-side). When
+// absent, PickCard falls back to the synchronous ESPN lookup above.
+type CrestFields = { awayTeamLogo?: string | null; homeTeamLogo?: string | null };
+type LegWithCrests = Pick<ParlayLeg, "id" | "matchup" | "selection" | "odds"> & CrestFields;
+type PickWithLegs = PickModel & CrestFields & { parlayLegs?: LegWithCrests[] };
+
+// Overlapping away+home crests, shown before a matchup (parlay legs). Renders
+// nothing when neither side resolves.
+function CrestPair({
+  sport,
+  awayLogo,
+  homeLogo,
+  size = "h-6 w-6",
+}: {
+  sport: PickSport;
+  awayLogo: string | null;
+  homeLogo: string | null;
+  size?: string;
+}) {
+  if (!awayLogo && !homeLogo) return null;
+  return (
+    <span className="flex shrink-0 items-center -space-x-1.5">
+      {awayLogo && <TeamLogo sport={sport} logoUrl={awayLogo} className={`${size} rounded-full ring-2 ring-surface`} />}
+      {homeLogo && <TeamLogo sport={sport} logoUrl={homeLogo} className={`${size} rounded-full ring-2 ring-surface`} />}
+    </span>
+  );
+}
 
 // The stake on a bet, emphasized so followers can size their own play.
 function UnitsBadge({ units }: { units: number }) {
@@ -36,7 +62,11 @@ function UnitsBadge({ units }: { units: number }) {
 export function PickCard({ pick, locked = false }: { pick: PickWithLegs; locked?: boolean }) {
   const isParlay = pick.betType === "PARLAY";
   const legs = pick.parlayLegs ?? [];
-  const crests = isParlay ? null : matchupCrests(pick.sport, pick.matchup);
+  // Prefer server-enriched crests (covers TheSportsDB); fall back to the
+  // synchronous ESPN lookup so an un-enriched pick still shows US-league logos.
+  const sync = isParlay ? null : matchupCrests(pick.sport, pick.matchup);
+  const awayLogo = pick.awayTeamLogo ?? sync?.awayLogo ?? null;
+  const homeLogo = pick.homeTeamLogo ?? sync?.homeLogo ?? null;
 
   if (locked) {
     return (
@@ -84,15 +114,26 @@ export function PickCard({ pick, locked = false }: { pick: PickWithLegs; locked?
             </span>
           </div>
           <ul className="mt-3 divide-y divide-border rounded-lg border border-border">
-            {legs.map((leg) => (
-              <li key={leg.id} className="flex items-center justify-between gap-3 px-3 py-2 text-sm">
-                <span className="min-w-0">
-                  <span className="block truncate font-display font-medium">{leg.selection}</span>
-                  <span className="block truncate font-display text-xs text-muted">{leg.matchup}</span>
-                </span>
-                <span className="shrink-0 tabular-nums text-muted">{formatOdds(leg.odds)}</span>
-              </li>
-            ))}
+            {legs.map((leg) => {
+              const legSync = matchupCrests(pick.sport, leg.matchup);
+              return (
+                <li key={leg.id} className="flex items-center justify-between gap-3 px-3 py-2 text-sm">
+                  <span className="flex min-w-0 items-center gap-2">
+                    <CrestPair
+                      sport={pick.sport}
+                      awayLogo={leg.awayTeamLogo ?? legSync.awayLogo ?? null}
+                      homeLogo={leg.homeTeamLogo ?? legSync.homeLogo ?? null}
+                      size="h-5 w-5"
+                    />
+                    <span className="min-w-0">
+                      <span className="block truncate font-display font-medium">{leg.selection}</span>
+                      <span className="block truncate font-display text-xs text-muted">{leg.matchup}</span>
+                    </span>
+                  </span>
+                  <span className="shrink-0 tabular-nums text-muted">{formatOdds(leg.odds)}</span>
+                </li>
+              );
+            })}
           </ul>
           <div className="mt-3">
             <UnitsBadge units={pick.units} />
@@ -101,12 +142,12 @@ export function PickCard({ pick, locked = false }: { pick: PickWithLegs; locked?
       ) : (
         <>
           <div className="mt-3 flex items-center gap-2">
-            {crests?.awayLogo && (
-              <TeamLogo sport={pick.sport} logoUrl={crests.awayLogo} className="h-6 w-6 shrink-0 rounded-full ring-2 ring-surface" />
+            {awayLogo && (
+              <TeamLogo sport={pick.sport} logoUrl={awayLogo} className="h-6 w-6 shrink-0 rounded-full ring-2 ring-surface" />
             )}
             <p className="font-display font-semibold">{pick.matchup}</p>
-            {crests?.homeLogo && (
-              <TeamLogo sport={pick.sport} logoUrl={crests.homeLogo} className="h-6 w-6 shrink-0 rounded-full ring-2 ring-surface" />
+            {homeLogo && (
+              <TeamLogo sport={pick.sport} logoUrl={homeLogo} className="h-6 w-6 shrink-0 rounded-full ring-2 ring-surface" />
             )}
           </div>
           <div className="mt-2 flex flex-wrap items-center gap-3 text-sm">

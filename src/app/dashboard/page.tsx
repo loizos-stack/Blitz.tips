@@ -15,6 +15,7 @@ import { Avatar } from "@/components/avatar";
 import { StatCard } from "@/components/stat-card";
 import { UnitsChart } from "@/components/dashboard/units-chart";
 import { listHandicapperSummariesByIds, sortPaidFirst } from "@/lib/handicappers";
+import { enrichPickCrests } from "@/lib/pick-logos";
 import { getSetting } from "@/lib/settings";
 import { DASHBOARD_ORDER_SETTING, resolveSectionOrder } from "@/lib/dashboard-sections";
 import type { ReactNode } from "react";
@@ -55,7 +56,7 @@ async function loadDashboard(userId: string) {
 
   // Lightweight pull for records/analytics (every pick), plus a richer pull for
   // the feed itself (capped, with handicapper attribution).
-  const [statsPicks, feedPicks] = handicapperIds.length
+  const [statsPicks, rawFeedPicks] = handicapperIds.length
     ? await Promise.all([
         prisma.pick.findMany({
           where: { handicapperId: { in: handicapperIds } },
@@ -76,6 +77,9 @@ async function loadDashboard(userId: string) {
         }),
       ])
     : [[], []];
+
+  // Attach team crests to the feed picks (and their parlay legs) for display.
+  const feedPicks = await enrichPickCrests(rawFeedPicks);
 
   const now = Date.now();
   const isUpcoming = (p: { result: string; eventStartsAt: Date }) =>
