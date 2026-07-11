@@ -2,6 +2,7 @@ import Link from "next/link";
 import { BadgeCheck } from "lucide-react";
 import { formatCents, SPORT_LABELS } from "@/lib/utils";
 import { formatStreak } from "@/lib/analytics";
+import { verifiedBadgeColorClass } from "@/lib/plans";
 import { Avatar } from "@/components/avatar";
 import { SportIcon } from "@/components/sport-icon";
 import { SocialLinks } from "@/components/social-links";
@@ -43,7 +44,11 @@ export function HandicapperCard({ handicapper, rank }: { handicapper: Handicappe
           <div className="min-w-0 pt-1">
             <div className="flex items-center gap-1.5">
               <p className="truncate font-semibold group-hover:text-accent">{handicapper.displayName}</p>
-              {handicapper.isVerified && <BadgeCheck className="h-4 w-4 shrink-0 text-accent" />}
+              {handicapper.isVerified && (
+                <BadgeCheck
+                  className={`h-4 w-4 shrink-0 ${verifiedBadgeColorClass(handicapper.plan, handicapper.planStatus)}`}
+                />
+              )}
               {handicapper.isFeatured && (
                 <span className="shrink-0 rounded-full bg-gold/15 px-1.5 py-0.5 text-[10px] font-semibold text-gold">
                   FEATURED

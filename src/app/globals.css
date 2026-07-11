@@ -10,6 +10,7 @@
   --accent: #16a34a;
   --accent-foreground: #ffffff;
   --gold: #b45309;
+  --silver: #8b93a1;
   --danger: #dc2626;
   --push: #626b7a;
 }
@@ -24,6 +25,7 @@
   --color-accent: var(--accent);
   --color-accent-foreground: var(--accent-foreground);
   --color-gold: var(--gold);
+  --color-silver: var(--silver);
   --color-danger: var(--danger);
   --color-push: var(--push);
   --font-sans: var(--font-inter);
