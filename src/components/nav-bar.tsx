@@ -25,7 +25,7 @@ export function NavBar() {
   return (
     <header className="sticky top-0 z-40 border-b border-white/10 bg-[#0b0f14]/95 backdrop-blur">
       <div className="container-page flex h-16 items-center justify-between">
-        <Link href="/" className="flex items-center gap-2 font-bold text-lg tracking-tight text-white">
+        <Link href="/" className="flex items-center gap-2 font-display font-bold text-lg tracking-tight text-white">
           <Image src="/logo-mark.svg" alt="" width={28} height={28} className="h-7 w-7" priority />
           <span>Blitz<span className="text-accent">.tips</span></span>
         </Link>
