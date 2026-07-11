@@ -1,6 +1,14 @@
 // Blitz.tips web-push service worker. Shows notifications pushed from the
 // server and focuses/opens the app when one is clicked.
 
+// Take control immediately on update so the newest SW handles pushes.
+self.addEventListener("install", () => self.skipWaiting());
+self.addEventListener("activate", (event) => event.waitUntil(self.clients.claim()));
+
+// A pass-through fetch handler is required for the browser to treat the app as
+// installable (Add to Home Screen). We don't cache — just let the network serve.
+self.addEventListener("fetch", () => {});
+
 self.addEventListener("push", (event) => {
   let data = {};
   try {
