@@ -106,7 +106,7 @@ export function PickCard({ pick, locked = false }: { pick: PickWithLegs; locked?
             )}
             <p className="font-display font-semibold">{pick.matchup}</p>
             {crests?.homeLogo && (
-              <TeamLogo sport={pick.sport} logoUrl={crests.homeLogo} className="ml-auto h-6 w-6 shrink-0 rounded-full ring-2 ring-surface" />
+              <TeamLogo sport={pick.sport} logoUrl={crests.homeLogo} className="h-6 w-6 shrink-0 rounded-full ring-2 ring-surface" />
             )}
           </div>
           <div className="mt-2 flex flex-wrap items-center gap-3 text-sm">
