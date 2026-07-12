@@ -159,8 +159,8 @@ export function SubscribeButton({
                     </span>
                   )}
                   {trialFor(i) && (
-                    <span className="rounded-full bg-danger px-2 py-0.5 text-[10px] font-bold text-white">
-                      {trialFor(i)}-day trial
+                    <span className="whitespace-nowrap rounded-full bg-danger px-2 py-0.5 text-[10px] font-bold text-white">
+                      {trialFor(i)}-DAY TRIAL
                     </span>
                   )}
                 </span>
