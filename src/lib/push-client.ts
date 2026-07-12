@@ -54,6 +54,37 @@ export async function subscribePush(): Promise<boolean> {
   }
 }
 
+/**
+ * Self-heal push on load: if the user has already granted notification
+ * permission, make sure a live subscription exists and the server knows about
+ * it. This recovers subscriptions the server pruned after a 410 (e.g. when the
+ * browser rotated the endpoint on a service-worker update) without prompting.
+ * No-op when push is unsupported/unconfigured or permission isn't granted, so
+ * it never nags a user who never opted in or who turned push off.
+ */
+export async function resyncPush(): Promise<void> {
+  if (!pushSupported()) return;
+  if (typeof Notification === "undefined" || Notification.permission !== "granted") return;
+  try {
+    const { publicKey } = await fetch("/api/push/subscribe").then((r) => r.json());
+    if (!publicKey) return;
+    const reg = await navigator.serviceWorker.ready;
+    const sub =
+      (await reg.pushManager.getSubscription()) ??
+      (await reg.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(publicKey),
+      }));
+    await fetch("/api/push/subscribe", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(sub),
+    });
+  } catch {
+    // ignore — the settings toggle remains the manual fallback
+  }
+}
+
 /** Remove the local subscription and tell the server to drop it. */
 export async function unsubscribePush(): Promise<void> {
   if (!pushSupported()) return;

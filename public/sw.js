@@ -9,6 +9,42 @@ self.addEventListener("activate", (event) => event.waitUntil(self.clients.claim(
 // installable (Add to Home Screen). We don't cache — just let the network serve.
 self.addEventListener("fetch", () => {});
 
+function urlBase64ToUint8Array(base64String) {
+  const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
+  const base64 = (base64String + padding).replace(/-/g, "+").replace(/_/g, "/");
+  const raw = atob(base64);
+  const out = new Uint8Array(raw.length);
+  for (let i = 0; i < raw.length; i++) out[i] = raw.charCodeAt(i);
+  return out;
+}
+
+// Re-subscribe and re-register with the server when the browser rotates or
+// invalidates the push subscription (this fires on SW updates and spontaneous
+// expiry). Without this, a rotated subscription dies silently and the server
+// prunes it on the next 410 — so push stops until the user manually re-enables.
+self.addEventListener("pushsubscriptionchange", (event) => {
+  event.waitUntil(
+    (async () => {
+      try {
+        const res = await fetch("/api/push/subscribe");
+        const { publicKey } = await res.json();
+        if (!publicKey) return;
+        const sub = await self.registration.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: urlBase64ToUint8Array(publicKey),
+        });
+        await fetch("/api/push/subscribe", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(sub),
+        });
+      } catch {
+        // best-effort — the client also re-syncs on next load
+      }
+    })()
+  );
+});
+
 self.addEventListener("push", (event) => {
   let data = {};
   try {
