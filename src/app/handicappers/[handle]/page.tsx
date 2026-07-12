@@ -77,8 +77,8 @@ export default async function HandicapperProfilePage({
   const pendingPicks = picks.filter((p) => p.result === "PENDING");
   const settledPicks = picks.filter((p) => p.result !== "PENDING");
 
-  // The reorderable sections below the profile header. Order is controlled by
-  // admins from /admin/cms; the cover, identity, and subscribe box stay pinned.
+  // The stacked sections below the profile header; the cover, identity, and
+  // subscribe box stay pinned above them.
   const sections: Record<string, ReactNode> = {
     stats: (
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">

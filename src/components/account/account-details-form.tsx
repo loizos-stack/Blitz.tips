@@ -25,12 +25,14 @@ export function AccountDetailsForm({
   const [country, setCountry] = useState(initialCountry);
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
+  const [emailChanged, setEmailChanged] = useState(false);
   const [loading, setLoading] = useState(false);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
     setSaved(false);
+    setEmailChanged(false);
     setLoading(true);
     const res = await fetch("/api/account/profile", {
       method: "POST",
@@ -38,12 +40,13 @@ export function AccountDetailsForm({
       body: JSON.stringify({ name, email, country }),
     });
     setLoading(false);
+    const body = await res.json().catch(() => ({}));
     if (!res.ok) {
-      const body = await res.json().catch(() => ({}));
       setError(body.error ?? "Could not save your details");
       return;
     }
     setSaved(true);
+    setEmailChanged(Boolean(body.emailChanged));
     // Refresh the session so the email/name in the token stay current.
     await update();
     router.refresh();
@@ -98,7 +101,13 @@ export function AccountDetailsForm({
       </div>
 
       {error && <p className="text-sm text-danger">{error}</p>}
-      {saved && <p className="text-sm text-accent">Saved.</p>}
+      {saved && !emailChanged && <p className="text-sm text-accent">Saved.</p>}
+      {emailChanged && (
+        <p className="text-sm text-accent">
+          Saved. We sent a verification link to your new email — please verify it to keep posting and
+          subscribing.
+        </p>
+      )}
 
       <button
         type="submit"

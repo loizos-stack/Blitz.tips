@@ -137,8 +137,8 @@ export default async function DashboardPage() {
     recentPicks,
   } = await loadDashboard(session.user.id);
 
-  // Reorderable sections, keyed by the CMS catalog. The page heading and verify
-  // banner stay pinned to the top; an admin can rearrange these from /admin/cms.
+  // Stacked sections, keyed by the section catalog. The page heading and verify
+  // banner stay pinned to the top; the rest render in the catalog order.
   const sections: Record<string, ReactNode> = {
     summary: subscriptions.length > 0 && (
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
