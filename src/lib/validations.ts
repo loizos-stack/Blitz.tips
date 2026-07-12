@@ -11,6 +11,21 @@ export const usernameSchema = z
   .regex(/^[a-zA-Z0-9_]+$/, "Use only letters, numbers, and underscores")
   .transform((s) => s.toLowerCase());
 
+// Editing your own account (username is immutable, so it's not here). Email is
+// re-validated + uniqueness-checked in the route.
+export const accountProfileSchema = z.object({
+  name: z.string().min(2, "Name is too short").max(60),
+  email: z.email("Enter a valid email"),
+  country: z.string().min(2, "Select your country").max(60).optional().or(z.literal("")),
+});
+
+// Change/set a password. currentPassword is required only when the account
+// already has one (Google-only accounts set their first password with none).
+export const passwordChangeSchema = z.object({
+  currentPassword: z.string().optional(),
+  newPassword: z.string().min(8, "Password must be at least 8 characters"),
+});
+
 export const registerSchema = z.object({
   name: z.string().min(2, "Name is too short").max(60),
   username: usernameSchema,

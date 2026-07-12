@@ -5,7 +5,7 @@ import Image from "next/image";
 import { useState } from "react";
 import { usePathname } from "next/navigation";
 import { useSession, signOut } from "next-auth/react";
-import { Menu, X } from "lucide-react";
+import { Menu, X, UserCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { NotificationBell } from "@/components/notification-bell";
 
@@ -42,6 +42,16 @@ export function NavBar() {
                     Admin
                   </Link>
                 )}
+                <Link
+                  href="/account"
+                  title="Account settings"
+                  className="flex items-center gap-1.5 text-sm font-medium text-white/90 hover:text-white"
+                >
+                  <UserCircle className="h-5 w-5" />
+                  <span className="max-w-[10rem] truncate">
+                    {session.user.username ?? session.user.name ?? "Account"}
+                  </span>
+                </Link>
                 <Link
                   href={session.user.role === "HANDICAPPER" ? "/dashboard/handicapper" : "/dashboard"}
                   className="rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-accent-foreground hover:opacity-90"
@@ -108,6 +118,16 @@ export function NavBar() {
                       Admin
                     </Link>
                   )}
+                  <Link
+                    href="/account"
+                    className="flex items-center gap-2 rounded-lg px-2 py-2.5 text-sm font-medium text-white/90 hover:bg-white/5 hover:text-white"
+                    onClick={() => setOpen(false)}
+                  >
+                    <UserCircle className="h-5 w-5" />
+                    <span className="truncate">
+                      {session.user.username ?? session.user.name ?? "Account"}
+                    </span>
+                  </Link>
                   <Link
                     href={session.user.role === "HANDICAPPER" ? "/dashboard/handicapper" : "/dashboard"}
                     className="rounded-lg bg-accent px-4 py-2.5 text-center text-sm font-semibold text-accent-foreground"

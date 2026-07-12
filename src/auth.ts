@@ -79,11 +79,12 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       if (trigger === "update" || !token.role) {
         const dbUser = await prisma.user.findUnique({
           where: { id: (token.userId as string | undefined) ?? undefined },
-          select: { email: true, role: true, handicapper: { select: { handle: true } } },
+          select: { email: true, role: true, username: true, handicapper: { select: { handle: true } } },
         });
         if (dbUser) {
           token.role = dbUser.role;
           token.handicapperHandle = dbUser.handicapper?.handle ?? null;
+          token.username = dbUser.username ?? null;
           if (dbUser.email) token.email = dbUser.email;
         }
       }
@@ -118,6 +119,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         session.user.id = token.userId as string;
         session.user.role = (token.role as "SUBSCRIBER" | "HANDICAPPER" | "ADMIN") ?? "SUBSCRIBER";
         session.user.handicapperHandle = (token.handicapperHandle as string | null) ?? null;
+        session.user.username = (token.username as string | null) ?? null;
       }
       return session;
     },
