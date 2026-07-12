@@ -153,13 +153,16 @@ export function SubscribeButton({
                     {selected && <span className="h-2 w-2 rounded-full bg-accent" />}
                   </span>
                   <span className="text-sm font-medium">{INTERVAL_LABEL[i]}</span>
+                </span>
+                {/* Badge centered in the gap between the package name and price. */}
+                <span className="flex flex-1 justify-center">
                   {i === "ANNUAL" && annualSavePct !== null && annualSavePct > 0 && (
-                    <span className="rounded-full bg-gold px-2 py-0.5 text-[10px] font-bold text-white">
+                    <span className="whitespace-nowrap rounded-full bg-gold px-1.5 py-0.5 text-[9px] font-bold text-white">
                       SAVE {annualSavePct}%
                     </span>
                   )}
                   {trialFor(i) && (
-                    <span className="whitespace-nowrap rounded-full bg-danger px-2 py-0.5 text-[10px] font-bold text-white">
+                    <span className="whitespace-nowrap rounded-full bg-danger px-1.5 py-0.5 text-[9px] font-bold text-white">
                       {trialFor(i)}-DAY TRIAL
                     </span>
                   )}
