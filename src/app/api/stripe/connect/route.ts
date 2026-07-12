@@ -58,10 +58,11 @@ export async function POST() {
   try {
     const accountLink = await stripe.accountLinks.create({
       account: accountId,
-      // Markers let the dashboard force a status sync on return and show the
-      // "resume onboarding" state when Stripe expires the link mid-flow.
-      refresh_url: `${appUrl}/dashboard/handicapper?connect=refresh`,
-      return_url: `${appUrl}/dashboard/handicapper?connect=return`,
+      // Return to the Payouts section, which self-heals the Connect status on
+      // load (the account.updated webhook is best-effort). Markers let it show
+      // the right state and force a sync on return / expired-link resume.
+      refresh_url: `${appUrl}/dashboard/handicapper/payouts?connect=refresh`,
+      return_url: `${appUrl}/dashboard/handicapper/payouts?connect=return`,
       type: "account_onboarding",
     });
     return NextResponse.json({ url: accountLink.url });
