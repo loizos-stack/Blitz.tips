@@ -82,6 +82,10 @@ model User {
   id             String    @id @default(cuid())
   name           String?
   email          String    @unique
+  // Login identity chosen at signup; usable in place of email to sign in.
+  // Stored lowercased so uniqueness and lookups are case-insensitive. Nullable
+  // for legacy/Google accounts that predate the field (they sign in by email).
+  username       String?   @unique
   emailVerified  DateTime?
   image          String?
   passwordHash   String?

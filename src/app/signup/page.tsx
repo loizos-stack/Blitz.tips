@@ -63,6 +63,7 @@ function RoleChooser() {
 function SignUpForm({ as }: { as: "subscriber" | "handicapper" }) {
   const router = useRouter();
   const [name, setName] = useState("");
+  const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [country, setCountry] = useState("");
@@ -82,7 +83,7 @@ function SignUpForm({ as }: { as: "subscriber" | "handicapper" }) {
     const res = await fetch("/api/register", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name, email, password, country }),
+      body: JSON.stringify({ name, username, email, password, country }),
     });
 
     if (!res.ok) {
@@ -144,6 +145,20 @@ function SignUpForm({ as }: { as: "subscriber" | "handicapper" }) {
               onChange={(e) => setName(e.target.value)}
               className="mt-1 w-full rounded-lg border border-border bg-surface-raised px-3 py-2 text-sm outline-none focus:border-accent"
             />
+          </div>
+          <div>
+            <label className="text-sm font-medium">Username</label>
+            <input
+              required
+              minLength={3}
+              maxLength={20}
+              pattern="[a-zA-Z0-9_]+"
+              title="3–20 letters, numbers, or underscores"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              className="mt-1 w-full rounded-lg border border-border bg-surface-raised px-3 py-2 text-sm outline-none focus:border-accent"
+            />
+            <p className="mt-1 text-xs text-muted">You can sign in with this or your email.</p>
           </div>
           <div>
             <label className="text-sm font-medium">Email</label>

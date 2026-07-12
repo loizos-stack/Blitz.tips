@@ -24,15 +24,21 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     Credentials({
       name: "Email and password",
       credentials: {
-        email: { label: "Email", type: "email" },
+        // Accepts an email or a username (kept as `email` for wire compat).
+        email: { label: "Email or username", type: "text" },
         password: { label: "Password", type: "password" },
       },
       authorize: async (credentials) => {
-        const email = credentials?.email;
+        const identifier = credentials?.email;
         const password = credentials?.password;
-        if (typeof email !== "string" || typeof password !== "string") return null;
+        if (typeof identifier !== "string" || typeof password !== "string") return null;
 
-        const user = await prisma.user.findUnique({ where: { email: email.toLowerCase() } });
+        // Email and username are both stored lowercased, so a single normalized
+        // lookup matches either — users sign in with whichever they remember.
+        const normalized = identifier.trim().toLowerCase();
+        const user = await prisma.user.findFirst({
+          where: { OR: [{ email: normalized }, { username: normalized }] },
+        });
         if (!user?.passwordHash) return null;
         if (user.suspendedAt) return null;
 

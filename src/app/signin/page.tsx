@@ -38,7 +38,7 @@ function SignInForm() {
 
     setLoading(false);
     if (res?.error) {
-      setError("Invalid email or password");
+      setError("Invalid email/username or password");
       return;
     }
     router.push(callbackUrl);
@@ -67,9 +67,11 @@ function SignInForm() {
 
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
           <div>
-            <label className="text-sm font-medium">Email</label>
+            <label className="text-sm font-medium">Email or username</label>
             <input
-              type="email"
+              type="text"
+              autoCapitalize="none"
+              autoCorrect="off"
               required
               value={email}
               onChange={(e) => setEmail(e.target.value)}

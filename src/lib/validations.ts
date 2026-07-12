@@ -1,7 +1,19 @@
 import { z } from "zod";
 
+// Login username: 3–20 chars, letters/numbers/underscore. Normalized to
+// lowercase so uniqueness and sign-in are case-insensitive. Shared by the
+// registration form and the Google-onboarding basics step.
+export const usernameSchema = z
+  .string()
+  .trim()
+  .min(3, "Username must be at least 3 characters")
+  .max(20, "Username must be at most 20 characters")
+  .regex(/^[a-zA-Z0-9_]+$/, "Use only letters, numbers, and underscores")
+  .transform((s) => s.toLowerCase());
+
 export const registerSchema = z.object({
   name: z.string().min(2, "Name is too short").max(60),
+  username: usernameSchema,
   email: z.email("Enter a valid email"),
   password: z.string().min(8, "Password must be at least 8 characters"),
   country: z.string().min(2, "Select your country").max(60).optional(),

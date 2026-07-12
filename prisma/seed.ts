@@ -114,6 +114,7 @@ async function main() {
       update: {},
       create: {
         email: h.email,
+        username: h.handle,
         name: h.displayName,
         passwordHash,
         role: "HANDICAPPER",
@@ -168,6 +169,7 @@ async function main() {
     update: {},
     create: {
       email: "subscriber@blitz.tips",
+      username: "demofan",
       name: "Demo Subscriber",
       passwordHash,
       role: "SUBSCRIBER",

@@ -22,25 +22,38 @@ export default async function CountryStep({
 
   const user = await prisma.user.findUnique({
     where: { id: session.user.id },
-    select: { country: true },
+    select: { country: true, username: true },
   });
   if (!user) redirect("/signin");
-  // Already provided (e.g. credentials signup or returning) — skip ahead.
-  if (user.country) redirect(nextHref);
 
-  const steps = isHandicapper
-    ? ["Your country"]
-    : ["Your country", "Discover", "Notifications"];
+  const needsCountry = !user.country;
+  const needsUsername = !user.username;
+  // Everything already provided (e.g. credentials signup or returning) — skip.
+  if (!needsCountry && !needsUsername) redirect(nextHref);
+
+  const stepLabel = needsUsername && needsCountry ? "Your details" : needsUsername ? "Username" : "Your country";
+  const steps = isHandicapper ? [stepLabel] : [stepLabel, "Discover", "Notifications"];
 
   return (
     <div className="container-page flex min-h-[calc(100vh-4rem)] items-center justify-center py-16">
       <div className="w-full max-w-sm">
         <OnboardingStepper steps={steps} current={0} />
         <div className="card p-8">
-          <h1 className="text-xl font-bold">Where are you based?</h1>
-          <p className="mt-1 text-sm text-muted">This helps us tailor your experience.</p>
+          <h1 className="text-xl font-bold">
+            {needsUsername ? "Set up your account" : "Where are you based?"}
+          </h1>
+          <p className="mt-1 text-sm text-muted">
+            {needsUsername
+              ? "Pick a username and tell us where you're based."
+              : "This helps us tailor your experience."}
+          </p>
           <div className="mt-4">
-            <CountryForm initial="" nextHref={nextHref} />
+            <CountryForm
+              initialCountry=""
+              needsUsername={needsUsername}
+              needsCountry={needsCountry}
+              nextHref={nextHref}
+            />
           </div>
         </div>
       </div>
