@@ -154,12 +154,12 @@ export function SubscribeButton({
                   </span>
                   <span className="text-sm font-medium">{INTERVAL_LABEL[i]}</span>
                   {i === "ANNUAL" && annualSavePct !== null && annualSavePct > 0 && (
-                    <span className="rounded-full bg-gold/15 px-2 py-0.5 text-[10px] font-bold text-gold">
+                    <span className="rounded-full bg-gold px-2 py-0.5 text-[10px] font-bold text-white">
                       SAVE {annualSavePct}%
                     </span>
                   )}
                   {trialFor(i) && (
-                    <span className="rounded-full bg-danger px-2 py-0.5 text-[10px] font-bold text-black">
+                    <span className="rounded-full bg-danger px-2 py-0.5 text-[10px] font-bold text-white">
                       {trialFor(i)}-day trial
                     </span>
                   )}
