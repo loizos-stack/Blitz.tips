@@ -92,7 +92,7 @@ export function FollowButton({
         "inline-flex shrink-0 items-center gap-1.5 rounded-full border font-semibold transition-colors disabled:opacity-60",
         sizing,
         following
-          ? "border-gold/50 bg-gold/15 text-gold hover:bg-gold/25"
+          ? "border-border bg-surface-raised text-muted hover:text-foreground"
           : "border-danger/40 text-danger hover:border-danger hover:bg-danger/10",
         !ready && "opacity-0",
         className
