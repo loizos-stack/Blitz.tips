@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { ConnectOnboardingBanner, StripePayoutsCard } from "@/components/connect-onboarding-banner";
+import { PayoutWalletsCard } from "@/components/payout-wallets-card";
 import { syncConnectStatus } from "@/lib/connect";
 import { loadDashboardHandicapper } from "@/lib/handicapper-dashboard";
 
@@ -25,9 +26,17 @@ export default async function HandicapperPayoutsPage() {
     select: { stripeAccountId: true },
   });
 
-  return stripeReady ? (
-    <StripePayoutsCard />
-  ) : (
-    <ConnectOnboardingBanner resume={Boolean(current?.stripeAccountId)} />
+  return (
+    <div className="flex flex-col gap-4">
+      {stripeReady ? (
+        <StripePayoutsCard />
+      ) : (
+        <ConnectOnboardingBanner resume={Boolean(current?.stripeAccountId)} />
+      )}
+      <PayoutWalletsCard
+        payoutEthAddress={handicapper.payoutEthAddress}
+        payoutBtcAddress={handicapper.payoutBtcAddress}
+      />
+    </div>
   );
 }

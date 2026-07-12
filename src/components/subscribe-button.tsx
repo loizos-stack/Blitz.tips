@@ -159,8 +159,8 @@ export function SubscribeButton({
                     </span>
                   )}
                   {trialFor(i) && (
-                    <span className="rounded-full bg-accent/15 px-2 py-0.5 text-[10px] font-bold text-accent">
-                      {trialFor(i)}-DAY FREE TRIAL
+                    <span className="rounded-full bg-danger px-2 py-0.5 text-[10px] font-bold text-black">
+                      {trialFor(i)}-day trial
                     </span>
                   )}
                 </span>
@@ -194,21 +194,22 @@ export function SubscribeButton({
           </>
         ) : (
           <>
-            <button
-              onClick={handleClick}
-              disabled={loading || !isReady}
-              className="w-full rounded-lg bg-accent px-6 py-3 text-sm font-semibold text-accent-foreground hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              {!isReady
-                ? cryptoEnabled
-                  ? "Card payments not yet enabled"
-                  : "Subscriptions not yet enabled"
-                : loading
+            {/* Card checkout only once the handicapper's Stripe is live — it
+                sits on top of the crypto option. Until then we simply don't show
+                a card button (no disabled placeholder). */}
+            {isReady && (
+              <button
+                onClick={handleClick}
+                disabled={loading}
+                className="w-full rounded-lg bg-accent px-6 py-3 text-sm font-semibold text-accent-foreground hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {loading
                   ? "Redirecting…"
                   : activeTrial
-                    ? `Start ${activeTrial}-day free trial`
+                    ? `Start ${activeTrial}-day trial`
                     : `Subscribe — ${formatCents(packages[interval]!, currency)}${INTERVAL_SUFFIX[interval]}`}
-            </button>
+              </button>
+            )}
             {cryptoEnabled && (
               <button
                 onClick={handleCrypto}
@@ -223,6 +224,11 @@ export function SubscribeButton({
               <p className="text-center text-[11px] text-muted">
                 Crypto buys a one-time {PASS_LENGTH[interval]} pass — no auto-renew, we&rsquo;ll remind
                 you before it ends.
+              </p>
+            )}
+            {!isReady && !cryptoEnabled && (
+              <p className="text-center text-[11px] text-muted">
+                {displayName} hasn&rsquo;t enabled subscriptions yet.
               </p>
             )}
             {error && <p className="text-sm text-danger">{error}</p>}

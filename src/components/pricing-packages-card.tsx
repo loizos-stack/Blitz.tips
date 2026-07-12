@@ -124,7 +124,7 @@ export function PricingPackagesCard({
           </div>
 
           <div className="mt-3 max-w-md">
-            <span className="text-xs text-muted">Free trial</span>
+            <span className="text-xs text-muted">Trial</span>
             <select
               value={trial}
               onChange={(e) => {
@@ -134,8 +134,8 @@ export function PricingPackagesCard({
               className="mt-1 w-full rounded-lg border border-border bg-surface-raised px-3 py-2 text-sm outline-none focus:border-accent"
             >
               <option value="0">No trial</option>
-              <option value="1">1 day free</option>
-              <option value="2">2 days free</option>
+              <option value="1">1-day trial</option>
+              <option value="2">2-day trial</option>
             </select>
             <p className="mt-1 text-[11px] text-muted">
               Applies to weekly &amp; monthly card subscriptions only — annual and crypto have no trial.
