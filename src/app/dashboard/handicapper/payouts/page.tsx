@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { prisma } from "@/lib/prisma";
 import { ConnectOnboardingBanner, StripePayoutsCard } from "@/components/connect-onboarding-banner";
 import { syncConnectStatus } from "@/lib/connect";
 import { loadDashboardHandicapper } from "@/lib/handicapper-dashboard";
@@ -9,17 +10,24 @@ export default async function HandicapperPayoutsPage() {
   const { handicapper } = await loadDashboardHandicapper();
   if (!handicapper) redirect("/dashboard/handicapper");
 
-  // Self-healing Connect status: when an account exists but isn't marked ready,
-  // check Stripe directly — covers a missing/misconfigured webhook and the
-  // return from onboarding.
-  const stripeReady =
-    handicapper.stripeAccountId && !handicapper.stripeAccountReady
-      ? await syncConnectStatus(handicapper)
-      : handicapper.stripeAccountReady;
+  // Whenever an account is on file, re-check it against Stripe on load. This
+  // covers a missing/misconfigured account.updated webhook, the return from
+  // onboarding, and clears a stale account that no longer exists for the
+  // current key (e.g. a test-mode account after switching to live).
+  const stripeReady = handicapper.stripeAccountId
+    ? await syncConnectStatus(handicapper)
+    : false;
+
+  // syncConnectStatus may have just cleared a dead account id, so read the
+  // current value to decide between "resume" and "set up" copy.
+  const current = await prisma.handicapperProfile.findUnique({
+    where: { id: handicapper.id },
+    select: { stripeAccountId: true },
+  });
 
   return stripeReady ? (
     <StripePayoutsCard />
   ) : (
-    <ConnectOnboardingBanner resume={Boolean(handicapper.stripeAccountId)} />
+    <ConnectOnboardingBanner resume={Boolean(current?.stripeAccountId)} />
   );
 }

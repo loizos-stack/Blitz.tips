@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { stripe } from "@/lib/stripe";
+import { isMissingAccountError } from "@/lib/connect";
 import { ensureSubscriberPrices } from "@/lib/subscriber-pricing";
 import { siteUrl } from "@/lib/site";
 
@@ -16,16 +17,36 @@ export async function POST() {
 
   let accountId = handicapper.stripeAccountId;
 
+  // A stored account that no longer exists for the current key (e.g. a test-mode
+  // account after switching to live keys) would make the link creation below
+  // fail. Verify it first and drop it so a fresh account is created instead.
+  if (accountId) {
+    try {
+      await stripe.accounts.retrieve(accountId);
+    } catch (error) {
+      if (isMissingAccountError(error)) {
+        accountId = null;
+        await prisma.handicapperProfile.update({
+          where: { id: handicapper.id },
+          data: { stripeAccountId: null, stripeAccountReady: false },
+        });
+      }
+    }
+  }
+
   try {
     if (!accountId) {
       const account = await stripe.accounts.create({
         type: "express",
         email: session.user.email ?? undefined,
         business_type: "individual",
-        // Destination charges: the platform is the merchant of record, so the
-        // connected account only needs transfers. Requesting card_payments too
-        // would force a much heavier onboarding for nothing.
+        // Request both card_payments and transfers. We use destination charges
+        // (the platform is merchant of record), which technically only needs
+        // transfers — but Stripe requires special platform approval to request
+        // transfers *without* card_payments, so we request the standard pair to
+        // avoid that gate. Having card_payments doesn't change our charge flow.
         capabilities: {
+          card_payments: { requested: true },
           transfers: { requested: true },
         },
         metadata: { handicapperId: handicapper.id, handle: handicapper.handle },
