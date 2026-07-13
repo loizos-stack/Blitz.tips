@@ -53,7 +53,7 @@ export function NavBar() {
                   </span>
                 </Link>
                 <Link
-                  href={session.user.role === "HANDICAPPER" ? "/dashboard/handicapper" : "/dashboard"}
+                  href="/welcome"
                   className="rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-accent-foreground hover:opacity-90"
                 >
                   Go to Dashboard
@@ -129,7 +129,7 @@ export function NavBar() {
                     </span>
                   </Link>
                   <Link
-                    href={session.user.role === "HANDICAPPER" ? "/dashboard/handicapper" : "/dashboard"}
+                    href="/welcome"
                     className="rounded-lg bg-accent px-4 py-2.5 text-center text-sm font-semibold text-accent-foreground"
                     onClick={() => setOpen(false)}
                   >
