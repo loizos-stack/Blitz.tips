@@ -6,6 +6,7 @@ import { sendTelegram } from "@/lib/telegram";
 import { sendDiscordDM } from "@/lib/discord";
 import { formatOdds } from "@/lib/odds";
 import { siteUrl } from "@/lib/site";
+import { emailWrapper, emailLinkPill, escapeHtml } from "@/lib/email-template";
 
 // Resolved via siteUrl() so a stale *.vercel.app value in NEXT_PUBLIC_APP_URL
 // never leaks into notification links (same rule as emails/Stripe redirects).
@@ -151,21 +152,13 @@ function newPickEmailText(name: string, body: string, path: string): string {
 
 function newPickEmailHtml(name: string, body: string, path: string): string {
   const href = `${SITE_URL}${path}`;
-  return `
-  <div style="font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;max-width:480px;margin:0 auto;padding:24px;color:#13161c">
-    <h1 style="font-size:20px;margin:0 0 12px">${escapeHtml(name)} posted a new pick</h1>
-    <p style="color:#4b5563;line-height:1.5;font-size:15px">${escapeHtml(body)}</p>
-    <p style="margin:24px 0">
-      <a href="${href}" style="background:#16a34a;color:#fff;text-decoration:none;padding:12px 20px;border-radius:8px;font-weight:600;display:inline-block">View the pick</a>
-    </p>
-    <p style="color:#9ca3af;font-size:12px;margin-top:24px">You're receiving this because you follow or subscribe to ${escapeHtml(name)} on Blitz.tips. You can turn these off from your notification settings.</p>
-  </div>`;
-}
-
-function escapeHtml(s: string): string {
-  return s
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
+  return emailWrapper({
+    preheader: `${name} posted a new pick — ${body}`,
+    bodyHtml: `
+      <h1 style="font-size:20px;margin:0 0 12px;color:#13161c;">${escapeHtml(name)} posted a new pick</h1>
+      <p style="color:#4b5563;font-size:15px;margin:0 0 24px;">${escapeHtml(body)}</p>
+      <p style="margin:0 0 24px;text-align:center;">${emailLinkPill(href, "View the pick")}</p>
+      <p style="color:#9ca3af;font-size:12px;margin:0;">You're receiving this because you follow or subscribe to ${escapeHtml(name)} on Blitz.tips. You can turn these off from your notification settings.</p>
+    `,
+  });
 }

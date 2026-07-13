@@ -1,5 +1,6 @@
 import "server-only";
 import { Resend } from "resend";
+import { emailWrapper, emailLinkPill } from "@/lib/email-template";
 
 const apiKey = process.env.RESEND_API_KEY;
 const from = process.env.EMAIL_FROM ?? "Blitz.tips <onboarding@resend.dev>";
@@ -58,26 +59,29 @@ export function verificationCodeEmailText(code: string): string {
 }
 
 export function verificationCodeEmailHtml(code: string): string {
-  return `
-  <div style="font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;max-width:480px;margin:0 auto;padding:24px;color:#13161c">
-    <h1 style="font-size:20px;margin:0 0 12px">Confirm your email</h1>
-    <p style="color:#4b5563;line-height:1.5">Welcome to Blitz.tips! Enter this code on the signup screen to finish setting up your account.</p>
-    <p style="margin:24px 0;text-align:center">
-      <span style="display:inline-block;font-size:34px;font-weight:700;letter-spacing:8px;background:#f3f4f6;color:#13161c;padding:14px 22px;border-radius:10px">${code}</span>
-    </p>
-    <p style="color:#9ca3af;font-size:12px;margin-top:24px">This code expires in 15 minutes. If you didn't create a Blitz.tips account, you can ignore this email.</p>
-  </div>`;
+  return emailWrapper({
+    preheader: `Your verification code is ${code}`,
+    bodyHtml: `
+      <h1 style="font-size:20px;margin:0 0 12px;color:#13161c;">Confirm your email</h1>
+      <p style="color:#4b5563;margin:0 0 20px;">Welcome to Blitz.tips! Enter this code on the signup screen to finish setting up your account.</p>
+      <p style="margin:0 0 20px;text-align:center;">
+        <span style="display:inline-block;font-size:32px;font-weight:700;letter-spacing:8px;background:#f3f4f6;color:#13161c;padding:14px 22px;border-radius:12px;">${code}</span>
+      </p>
+      <p style="color:#9ca3af;font-size:12px;margin:0;">This code expires in 15 minutes. If you didn't create a Blitz.tips account, you can ignore this email.</p>
+    `,
+  });
 }
 
 export function verificationEmailHtml(url: string): string {
-  return `
-  <div style="font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;max-width:480px;margin:0 auto;padding:24px;color:#13161c">
-    <h1 style="font-size:20px;margin:0 0 12px">Confirm your email</h1>
-    <p style="color:#4b5563;line-height:1.5">Welcome to Blitz.tips! Confirm your email address to finish setting up your account.</p>
-    <p style="margin:24px 0">
-      <a href="${url}" style="background:#16a34a;color:#fff;text-decoration:none;padding:12px 20px;border-radius:8px;font-weight:600;display:inline-block">Verify email</a>
-    </p>
-    <p style="color:#6b7280;font-size:13px;line-height:1.5">Or paste this link into your browser:<br><a href="${url}" style="color:#16a34a">${url}</a></p>
-    <p style="color:#9ca3af;font-size:12px;margin-top:24px">This link expires in 24 hours. If you didn't create a Blitz.tips account, you can ignore this email.</p>
-  </div>`;
+  return emailWrapper({
+    preheader: "Confirm your email to finish setting up your Blitz.tips account.",
+    bodyHtml: `
+      <h1 style="font-size:20px;margin:0 0 12px;color:#13161c;">Confirm your email</h1>
+      <p style="color:#4b5563;margin:0 0 24px;">Welcome to Blitz.tips! Confirm your email address to finish setting up your account.</p>
+      <p style="margin:0 0 20px;text-align:center;">${emailLinkPill(url, "Verify email")}</p>
+      <p style="color:#6b7280;font-size:13px;margin:0 0 4px;">Or paste this link into your browser:</p>
+      <p style="font-size:13px;word-break:break-all;margin:0 0 20px;"><a href="${url}" style="color:#16a34a;">${url}</a></p>
+      <p style="color:#9ca3af;font-size:12px;margin:0;">This link expires in 24 hours. If you didn't create a Blitz.tips account, you can ignore this email.</p>
+    `,
+  });
 }
