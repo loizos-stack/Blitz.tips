@@ -6,7 +6,7 @@ import { SportIcon } from "@/components/sport-icon";
 import { TeamLogo } from "@/components/team-logo";
 import { getTeamLogoUrl } from "@/lib/team-logos";
 import { formatOdds } from "@/lib/odds";
-import { SPORT_LABELS, BET_TYPE_LABELS } from "@/lib/utils";
+import { SPORT_LABELS, BET_TYPE_LABELS, usesVsSeparator } from "@/lib/utils";
 import type { PickSport } from "@prisma/client";
 
 // Synchronous ESPN fallback for the away/home crests from a matchup string —
@@ -41,10 +41,12 @@ function CrestPair({
   size?: string;
 }) {
   if (!awayLogo && !homeLogo) return null;
+  // Match the matchup text order: home crest first for "Home vs Away" sports.
+  const [first, second] = usesVsSeparator(sport) ? [homeLogo, awayLogo] : [awayLogo, homeLogo];
   return (
     <span className="flex shrink-0 items-center -space-x-1.5">
-      {awayLogo && <TeamLogo sport={sport} logoUrl={awayLogo} className={`${size} rounded-full ring-2 ring-surface`} />}
-      {homeLogo && <TeamLogo sport={sport} logoUrl={homeLogo} className={`${size} rounded-full ring-2 ring-surface`} />}
+      {first && <TeamLogo sport={sport} logoUrl={first} className={`${size} rounded-full ring-2 ring-surface`} />}
+      {second && <TeamLogo sport={sport} logoUrl={second} className={`${size} rounded-full ring-2 ring-surface`} />}
     </span>
   );
 }
@@ -67,6 +69,11 @@ export function PickCard({ pick, locked = false }: { pick: PickWithLegs; locked?
   const sync = isParlay ? null : matchupCrests(pick.sport, pick.matchup);
   const awayLogo = pick.awayTeamLogo ?? sync?.awayLogo ?? null;
   const homeLogo = pick.homeTeamLogo ?? sync?.homeLogo ?? null;
+  // Order crests to match the matchup text: home crest leads for "Home vs Away"
+  // sports (soccer, etc.), away crest leads for "Away @ Home" (US) sports.
+  const [startLogo, endLogo] = usesVsSeparator(pick.sport)
+    ? [homeLogo, awayLogo]
+    : [awayLogo, homeLogo];
 
   if (locked) {
     return (
@@ -142,12 +149,12 @@ export function PickCard({ pick, locked = false }: { pick: PickWithLegs; locked?
       ) : (
         <>
           <div className="mt-3 flex items-center gap-2">
-            {awayLogo && (
-              <TeamLogo sport={pick.sport} logoUrl={awayLogo} className="h-6 w-6 shrink-0 rounded-full ring-2 ring-surface" />
+            {startLogo && (
+              <TeamLogo sport={pick.sport} logoUrl={startLogo} className="h-6 w-6 shrink-0 rounded-full ring-2 ring-surface" />
             )}
             <p className="font-display font-semibold">{pick.matchup}</p>
-            {homeLogo && (
-              <TeamLogo sport={pick.sport} logoUrl={homeLogo} className="h-6 w-6 shrink-0 rounded-full ring-2 ring-surface" />
+            {endLogo && (
+              <TeamLogo sport={pick.sport} logoUrl={endLogo} className="h-6 w-6 shrink-0 rounded-full ring-2 ring-surface" />
             )}
           </div>
           <div className="mt-2 flex flex-wrap items-center gap-3 text-sm">

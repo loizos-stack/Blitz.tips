@@ -260,11 +260,19 @@ export function CreatePickForm({
                     <span className="flex min-w-0 items-center gap-2">
                       {(event.awayTeamLogo || event.homeTeamLogo) && (
                         <span className="flex shrink-0 items-center -space-x-1.5">
-                          {event.awayTeamLogo && (
-                            <TeamLogo sport={sport as PickSport} logoUrl={event.awayTeamLogo} className="h-5 w-5 rounded-full ring-2 ring-surface" />
-                          )}
-                          {event.homeTeamLogo && (
-                            <TeamLogo sport={sport as PickSport} logoUrl={event.homeTeamLogo} className="h-5 w-5 rounded-full ring-2 ring-surface" />
+                          {[
+                            vsSport ? event.homeTeamLogo : event.awayTeamLogo,
+                            vsSport ? event.awayTeamLogo : event.homeTeamLogo,
+                          ].map(
+                            (logo, idx) =>
+                              logo && (
+                                <TeamLogo
+                                  key={idx}
+                                  sport={sport as PickSport}
+                                  logoUrl={logo}
+                                  className="h-5 w-5 rounded-full ring-2 ring-surface"
+                                />
+                              )
                           )}
                         </span>
                       )}
@@ -311,9 +319,9 @@ export function CreatePickForm({
           {selectedEvent && selectedMarket && (
             <div className="rounded-lg bg-surface-raised p-3 text-sm">
               <div className="flex items-center gap-2">
-                <TeamLogo sport={sport as PickSport} logoUrl={selectedEvent.awayTeamLogo} className="h-5 w-5 shrink-0 rounded-full" />
+                <TeamLogo sport={sport as PickSport} logoUrl={vsSport ? selectedEvent.homeTeamLogo : selectedEvent.awayTeamLogo} className="h-5 w-5 shrink-0 rounded-full" />
                 <p className="font-display font-semibold">{selectedEvent.matchup}</p>
-                <TeamLogo sport={sport as PickSport} logoUrl={selectedEvent.homeTeamLogo} className="h-5 w-5 shrink-0 rounded-full" />
+                <TeamLogo sport={sport as PickSport} logoUrl={vsSport ? selectedEvent.awayTeamLogo : selectedEvent.homeTeamLogo} className="h-5 w-5 shrink-0 rounded-full" />
               </div>
               <p className="mt-0.5 text-muted">
                 {BET_TYPE_LABELS[selectedMarket.betType]} · {selectedMarket.selection} ·{" "}
@@ -356,11 +364,11 @@ export function CreatePickForm({
             {awayTeam.trim() && homeTeam.trim() ? (
               <div className="mt-1.5 flex items-center gap-1.5 text-[11px] text-muted">
                 <span>Reads as</span>
-                <TeamCrest sport={sport} name={awayTeam} className="h-4 w-4 shrink-0 rounded-full" />
+                <TeamCrest sport={sport} name={vsSport ? homeTeam : awayTeam} className="h-4 w-4 shrink-0 rounded-full" />
                 <span className="font-medium text-foreground">
                   {formatMatchup(sport, awayTeam.trim(), homeTeam.trim())}
                 </span>
-                <TeamCrest sport={sport} name={homeTeam} className="h-4 w-4 shrink-0 rounded-full" />
+                <TeamCrest sport={sport} name={vsSport ? awayTeam : homeTeam} className="h-4 w-4 shrink-0 rounded-full" />
               </div>
             ) : (
               teamNames.length > 0 && (

@@ -7,7 +7,7 @@ import type { Pick as PickModel, PickResult } from "@prisma/client";
 import { ResultPill } from "@/components/result-pill";
 import { TeamLogo } from "@/components/team-logo";
 import { formatOdds } from "@/lib/odds";
-import { SPORT_LABELS, BET_TYPE_LABELS, cn } from "@/lib/utils";
+import { SPORT_LABELS, BET_TYPE_LABELS, cn, usesVsSeparator } from "@/lib/utils";
 
 const SETTLE_OPTIONS: PickResult[] = ["WIN", "LOSS", "PUSH", "VOID"];
 
@@ -30,6 +30,12 @@ export function HandicapperPickRow({ pick }: { pick: RowPick }) {
     router.refresh();
   }
 
+  // Order crests to match the matchup text: "Home vs Away" sports show the home
+  // crest first; "Away @ Home" sports show the away crest first.
+  const homeFirst = usesVsSeparator(pick.sport);
+  const startLogo = homeFirst ? pick.homeTeamLogo : pick.awayTeamLogo;
+  const endLogo = homeFirst ? pick.awayTeamLogo : pick.homeTeamLogo;
+
   return (
     <div className="card p-5">
       <div className="flex items-center justify-between text-sm text-muted">
@@ -41,12 +47,12 @@ export function HandicapperPickRow({ pick }: { pick: RowPick }) {
       </div>
 
       <div className="mt-3 flex items-center gap-2">
-        {pick.awayTeamLogo && (
-          <TeamLogo sport={pick.sport} logoUrl={pick.awayTeamLogo} className="h-6 w-6 shrink-0 rounded-full ring-2 ring-surface" />
+        {startLogo && (
+          <TeamLogo sport={pick.sport} logoUrl={startLogo} className="h-6 w-6 shrink-0 rounded-full ring-2 ring-surface" />
         )}
         <p className="font-display font-semibold">{pick.matchup}</p>
-        {pick.homeTeamLogo && (
-          <TeamLogo sport={pick.sport} logoUrl={pick.homeTeamLogo} className="h-6 w-6 shrink-0 rounded-full ring-2 ring-surface" />
+        {endLogo && (
+          <TeamLogo sport={pick.sport} logoUrl={endLogo} className="h-6 w-6 shrink-0 rounded-full ring-2 ring-surface" />
         )}
       </div>
 

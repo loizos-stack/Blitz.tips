@@ -291,8 +291,8 @@ export function CreateParlayForm({
               <span className="flex min-w-0 items-center gap-2">
                 {sides && (
                   <span className="flex shrink-0 items-center -space-x-1.5">
-                    <TeamCrest sport={legSport} name={sides.awayTeam} className="h-5 w-5 rounded-full ring-2 ring-surface" />
-                    <TeamCrest sport={legSport} name={sides.homeTeam} className="h-5 w-5 rounded-full ring-2 ring-surface" />
+                    <TeamCrest sport={legSport} name={usesVsSeparator(legSport) ? sides.homeTeam : sides.awayTeam} className="h-5 w-5 rounded-full ring-2 ring-surface" />
+                    <TeamCrest sport={legSport} name={usesVsSeparator(legSport) ? sides.awayTeam : sides.homeTeam} className="h-5 w-5 rounded-full ring-2 ring-surface" />
                   </span>
                 )}
                 <span className="min-w-0">
@@ -332,9 +332,9 @@ export function CreateParlayForm({
           {mAway.trim() && mHome.trim() && (
             <div className="flex items-center gap-1.5 text-[11px] text-muted">
               <span>Reads as</span>
-              <TeamCrest sport={sport} name={mAway} className="h-4 w-4 shrink-0 rounded-full" />
+              <TeamCrest sport={sport} name={vsSport ? mHome : mAway} className="h-4 w-4 shrink-0 rounded-full" />
               <span className="font-medium text-foreground">{formatMatchup(sport, mAway.trim(), mHome.trim())}</span>
-              <TeamCrest sport={sport} name={mHome} className="h-4 w-4 shrink-0 rounded-full" />
+              <TeamCrest sport={sport} name={vsSport ? mAway : mHome} className="h-4 w-4 shrink-0 rounded-full" />
             </div>
           )}
           <div className="grid grid-cols-[1fr_7rem] gap-2">
@@ -380,11 +380,19 @@ export function CreateParlayForm({
                     <span className="flex min-w-0 items-center gap-2">
                       {(event.awayTeamLogo || event.homeTeamLogo) && (
                         <span className="flex shrink-0 items-center -space-x-1.5">
-                          {event.awayTeamLogo && (
-                            <TeamLogo sport={feedSport as PickSport} logoUrl={event.awayTeamLogo} className="h-5 w-5 rounded-full ring-2 ring-surface" />
-                          )}
-                          {event.homeTeamLogo && (
-                            <TeamLogo sport={feedSport as PickSport} logoUrl={event.homeTeamLogo} className="h-5 w-5 rounded-full ring-2 ring-surface" />
+                          {[
+                            usesVsSeparator(feedSport) ? event.homeTeamLogo : event.awayTeamLogo,
+                            usesVsSeparator(feedSport) ? event.awayTeamLogo : event.homeTeamLogo,
+                          ].map(
+                            (logo, idx) =>
+                              logo && (
+                                <TeamLogo
+                                  key={idx}
+                                  sport={feedSport as PickSport}
+                                  logoUrl={logo}
+                                  className="h-5 w-5 rounded-full ring-2 ring-surface"
+                                />
+                              )
                           )}
                         </span>
                       )}
