@@ -9,6 +9,7 @@ import { formatOdds } from "@/lib/odds";
 import { getTeamNames } from "@/lib/team-logos";
 import { TeamLogo } from "@/components/team-logo";
 import { TeamCrest } from "@/components/team-crest";
+import { EventMarkets } from "@/components/event-markets";
 import type { MarketOption, UpcomingEvent } from "@/lib/odds-api";
 import type { PickSport } from "@prisma/client";
 
@@ -285,30 +286,13 @@ export function CreatePickForm({
 
                   {selectedEvent?.id === event.id && (
                     <div className="border-t border-border p-3">
-                      {event.markets.length === 0 ? (
-                        <p className="text-sm text-muted">No odds posted for this game yet.</p>
-                      ) : (
-                        <div className="flex flex-wrap gap-1.5">
-                          {event.markets.map((market, i) => (
-                            <button
-                              key={i}
-                              type="button"
-                              onClick={() => chooseMarket(event, market)}
-                              className={cn(
-                                "rounded-full border px-2.5 py-1 font-display text-xs font-medium tabular-nums",
-                                selectedMarket === market
-                                  ? "border-accent bg-accent/10 text-accent"
-                                  : "border-border text-muted hover:text-foreground"
-                              )}
-                            >
-                              {market.selection} {formatOdds(market.odds)}
-                            </button>
-                          ))}
-                        </div>
-                      )}
-                      {event.bookmaker && (
-                        <p className="mt-2 text-[11px] text-muted">Odds via {event.bookmaker}</p>
-                      )}
+                      <EventMarkets
+                        key={event.id}
+                        sport={sport}
+                        event={event}
+                        selected={selectedMarket}
+                        onSelect={(market) => chooseMarket(event, market)}
+                      />
                     </div>
                   )}
                 </div>

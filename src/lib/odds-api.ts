@@ -3,6 +3,7 @@ import type { PickSport } from "@prisma/client";
 import { getTeamLogoUrl } from "@/lib/team-logos";
 import { formatMatchup } from "@/lib/utils";
 import { sportsDbConfigured, resolveSportsDbLogo } from "@/lib/sportsdb";
+import { additionalMarketKeys, buildCategories, type MarketCategory, type RawMarket } from "@/lib/odds-markets";
 
 // The Odds API (the-odds-api.com) client.
 //
@@ -258,6 +259,8 @@ interface OddsApiOutcome {
   name: string;
   price: number;
   point?: number;
+  // Present on prop markets — the player (or team) the line is for.
+  description?: string;
 }
 
 interface OddsApiMarket {
@@ -280,7 +283,7 @@ interface OddsApiEvent {
 }
 
 export interface MarketOption {
-  betType: "MONEYLINE" | "SPREAD" | "TOTAL";
+  betType: "MONEYLINE" | "SPREAD" | "TOTAL" | "PROP";
   selection: string;
   odds: number;
   point?: number;
@@ -506,5 +509,74 @@ function normalizeEvent(event: OddsApiEvent, sport: PickSport, sportKey: string)
     bookmaker: bookmaker?.title ?? null,
     markets,
     liveScore: null,
+  };
+}
+
+// The full market set for a single event — game lines plus player props (US
+// sports) or non-player extras (soccer), grouped into categories. Fetched
+// on-demand when a handicapper opens a game (the bulk board only carries game
+// lines), so props are billed only for games someone actually looks at. Cached
+// briefly so re-opening / re-rendering the same game doesn't re-bill.
+const EVENT_MARKETS_REVALIDATE_SECONDS = 5 * 60;
+
+export interface EventMarketsResult {
+  configured: boolean;
+  categories: MarketCategory[];
+  bookmaker: string | null;
+}
+
+interface EventOddsResponse {
+  bookmakers?: { key: string; title: string; markets: RawMarket[] }[];
+}
+
+async function fetchEventOddsJson(url: string): Promise<EventOddsResponse | null> {
+  const res = await fetch(url, { next: { revalidate: EVENT_MARKETS_REVALIDATE_SECONDS } });
+  if (!res.ok) {
+    console.error(`Odds API event markets request failed: ${res.status}`);
+    return null;
+  }
+  return (await res.json()) as EventOddsResponse;
+}
+
+export async function getEventMarkets(
+  sport: PickSport,
+  sportKey: string,
+  eventId: string
+): Promise<EventMarketsResult> {
+  const apiKey = oddsApiKey();
+  if (!apiKey) return { configured: false, categories: [], bookmaker: null };
+
+  const featuredKeys = isMoneylineOnly(sport) ? ["h2h"] : ["h2h", "spreads", "totals"];
+  const wanted = [...featuredKeys, ...additionalMarketKeys(sportKey)];
+  // Props are offered by US books, so this call uses regions=us rather than the
+  // Pinnacle-first bookmaker list the board uses (Pinnacle carries no props).
+  const base =
+    `${API_BASE}/sports/${sportKey}/events/${eventId}/odds` +
+    `?apiKey=${apiKey}&regions=us&oddsFormat=american`;
+
+  // One unknown/unsupported market key 422s the whole request, so if the full
+  // set fails, fall back to just the game lines — the game still shows odds.
+  let data = await fetchEventOddsJson(`${base}&markets=${wanted.join(",")}`);
+  if (!data) data = await fetchEventOddsJson(`${base}&markets=${featuredKeys.join(",")}`);
+  if (!data) return { configured: true, categories: [], bookmaker: null };
+
+  const bookmakers = data.bookmakers ?? [];
+  if (bookmakers.length === 0) return { configured: true, categories: [], bookmaker: null };
+
+  // Pick the book with the widest coverage (most markets), preferring the known
+  // US prop books on ties.
+  const preferred = ["draftkings", "fanduel", "betmgm", "caesars"];
+  const rank = (k: string) => {
+    const i = preferred.indexOf(k);
+    return i === -1 ? preferred.length : i;
+  };
+  const chosen = [...bookmakers].sort(
+    (a, b) => b.markets.length - a.markets.length || rank(a.key) - rank(b.key)
+  )[0];
+
+  return {
+    configured: true,
+    categories: buildCategories(sportKey, chosen.markets),
+    bookmaker: chosen.title,
   };
 }
