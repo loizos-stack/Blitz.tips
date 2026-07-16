@@ -53,6 +53,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         subject: `Re: ${ticket.subject || "Your Blitz.tips support ticket"} (#${ref})`,
         html,
         text,
+        // So the customer's reply lands with support, not the no-reply From.
+        replyTo: process.env.CONTACT_EMAIL ?? "support@blitz.tips",
       });
     });
 

@@ -80,7 +80,9 @@ export async function POST(request: Request) {
 
     await Promise.allSettled([
       sendEmail({ to: CONTACT_TO, subject: `${adminHeading} (#${ticketRef})`, html: adminHtml, text: adminText, replyTo: email }),
-      sendEmail({ to: email, subject: `We received your message — Blitz.tips (#${ticketRef})`, html: customerHtml, text: customerText }),
+      // Reply-to points at support so a customer replying to the confirmation
+      // reaches the team (the From address is a no-reply mailbox).
+      sendEmail({ to: email, subject: `We received your message — Blitz.tips (#${ticketRef})`, html: customerHtml, text: customerText, replyTo: CONTACT_TO }),
     ]);
   });
 

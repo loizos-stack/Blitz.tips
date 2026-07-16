@@ -7,6 +7,7 @@ import { Footer } from "@/components/footer";
 import { AnnouncementBanner } from "@/components/announcement-banner";
 import { RegisterServiceWorker } from "@/components/register-service-worker";
 import { InstallPrompt } from "@/components/install-prompt";
+import { ChatWidget } from "@/components/chat/chat-widget";
 
 // Inter carries body/UI text (excellent tabular figures for odds, units, ROI);
 // Space Grotesk gives headings and the wordmark a sportier, confident edge.
@@ -58,6 +59,7 @@ export default function RootLayout({
           <main className="flex-1">{children}</main>
           <Footer />
           <InstallPrompt />
+          <ChatWidget />
         </Providers>
       </body>
     </html>

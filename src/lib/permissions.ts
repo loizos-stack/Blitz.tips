@@ -32,6 +32,7 @@ export type AdminPermission =
   | "media"
   | "system"
   | "tickets"
+  | "chat"
   | "audit"
   | "permissions";
 
@@ -58,6 +59,7 @@ export const ADMIN_PERMISSIONS: PermissionDef[] = [
   { key: "media", label: "Media", href: "/admin/media", description: "Moderate profile and cover images" },
   { key: "system", label: "System", href: "/admin/system", description: "Announcements, odds quota, auto-settlement" },
   { key: "tickets", label: "Tickets", href: "/admin/tickets", description: "View and reply to support tickets from the contact form" },
+  { key: "chat", label: "Chat", href: "/admin/chats", description: "Answer live visitor chats escalated from the on-site assistant" },
   { key: "audit", label: "Logs", href: "/admin/logs", description: "Search and filter the site-wide activity log" },
   { key: "permissions", label: "Permissions", href: "/admin/permissions", description: "Create admins and grant them permissions", superOnly: true },
 ];

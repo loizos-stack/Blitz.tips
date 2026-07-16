@@ -112,6 +112,11 @@ model User {
   notifications  Notification[]
   pushSubscriptions PushSubscription[]
 
+  // Live-chat support: chats this user (as an agent) is handling + their
+  // online-presence heartbeat.
+  agentChats     Chat[]            @relation("AgentChats")
+  agentPresence  AgentPresence?
+
   // Per-channel notification opt-outs (in-app is always on). Default on.
   notifyEmail    Boolean   @default(true)
   notifyPush     Boolean   @default(true)
@@ -490,4 +495,67 @@ model TicketMessage {
   createdAt DateTime     @default(now())
 
   @@index([ticketId, createdAt])
+}
+
+// ---------------------------------------------------------------------------
+// Live chat + AI chatbot
+//
+// Anonymous visitors open a Chat from the on-site widget. It starts in BOT mode
+// (answered by the FAQ chatbot). If the visitor asks for a human it moves to
+// WAITING; an admin/support agent claiming it moves it to LIVE. When no agent is
+// online the widget falls back to the contact form (which opens a Ticket).
+// ---------------------------------------------------------------------------
+
+enum ChatStatus {
+  BOT      // conversing with the automated assistant
+  WAITING  // visitor asked for a human, awaiting an agent
+  LIVE     // an agent has claimed and is handling it
+  CLOSED
+}
+
+enum ChatAuthor {
+  VISITOR
+  BOT
+  AGENT
+  SYSTEM
+}
+
+model Chat {
+  id           String        @id @default(cuid())
+  // Random secret returned once at creation; the anonymous visitor's browser
+  // must present it to read or post to this chat (keeps threads private).
+  token        String        @default(cuid())
+  visitorName  String?
+  visitorEmail String?
+  status       ChatStatus    @default(BOT)
+  // The agent currently handling a LIVE chat (null while in BOT/WAITING).
+  agentId      String?
+  agent        User?         @relation("AgentChats", fields: [agentId], references: [id], onDelete: SetNull)
+  messages     ChatMessage[]
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  @@index([status, updatedAt])
+}
+
+model ChatMessage {
+  id        String     @id @default(cuid())
+  chatId    String
+  chat      Chat       @relation(fields: [chatId], references: [id], onDelete: Cascade)
+  author    ChatAuthor
+  body      String     @db.Text
+  createdAt DateTime   @default(now())
+
+  @@index([chatId, createdAt])
+}
+
+// Heartbeat table: an admin/support agent is "online" while lastSeen is recent
+// (the admin Chat tab pings it periodically). Drives whether the visitor widget
+// offers live chat or falls back to the contact form.
+model AgentPresence {
+  userId   String   @id
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  lastSeen DateTime @default(now())
+
+  @@index([lastSeen])
 }
