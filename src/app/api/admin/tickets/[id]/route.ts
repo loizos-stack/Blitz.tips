@@ -4,6 +4,7 @@ import { requirePermission } from "@/lib/permissions";
 import { logAdmin } from "@/lib/audit";
 import { sendEmail } from "@/lib/email";
 import { emailWrapper, escapeHtml } from "@/lib/email-template";
+import { ticketReplyAddress } from "@/lib/tickets";
 
 // Reply to a ticket (adds an admin message + emails the customer) or reopen /
 // close it.
@@ -53,8 +54,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         subject: `Re: ${ticket.subject || "Your Blitz.tips support ticket"} (#${ref})`,
         html,
         text,
-        // So the customer's reply lands with support, not the no-reply From.
-        replyTo: process.env.CONTACT_EMAIL ?? "support@blitz.tips",
+        // Reply-to is the ticket's own address so the customer's reply threads
+        // back into this ticket (falls back to support), not the no-reply From.
+        replyTo: ticketReplyAddress(ticket.id),
       });
     });
 

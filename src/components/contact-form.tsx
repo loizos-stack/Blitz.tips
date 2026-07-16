@@ -76,8 +76,8 @@ export function ContactForm() {
         </label>
       </div>
       <label className="block text-sm">
-        <span className="font-medium">Subject <span className="text-muted">(optional)</span></span>
-        <input value={subject} onChange={(e) => setSubject(e.target.value)} className={input} />
+        <span className="font-medium">Subject</span>
+        <input required value={subject} onChange={(e) => setSubject(e.target.value)} className={input} />
       </label>
       <label className="block text-sm">
         <span className="font-medium">Message</span>

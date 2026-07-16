@@ -2,6 +2,7 @@ import { NextResponse, after } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { sendEmail } from "@/lib/email";
 import { emailWrapper, escapeHtml } from "@/lib/email-template";
+import { ticketReplyAddress } from "@/lib/tickets";
 
 const CONTACT_TO = process.env.CONTACT_EMAIL ?? "support@blitz.tips";
 
@@ -18,6 +19,7 @@ export async function POST(request: Request) {
 
   if (!name || name.length > 100) return NextResponse.json({ error: "Please enter your name" }, { status: 400 });
   if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return NextResponse.json({ error: "Please enter a valid email" }, { status: 400 });
+  if (!subject || subject.length > 150) return NextResponse.json({ error: "Please enter a subject" }, { status: 400 });
   if (!message || message.length < 5 || message.length > 4000) {
     return NextResponse.json({ error: "Please enter a message" }, { status: 400 });
   }
@@ -80,9 +82,10 @@ export async function POST(request: Request) {
 
     await Promise.allSettled([
       sendEmail({ to: CONTACT_TO, subject: `${adminHeading} (#${ticketRef})`, html: adminHtml, text: adminText, replyTo: email }),
-      // Reply-to points at support so a customer replying to the confirmation
-      // reaches the team (the From address is a no-reply mailbox).
-      sendEmail({ to: email, subject: `We received your message — Blitz.tips (#${ticketRef})`, html: customerHtml, text: customerText, replyTo: CONTACT_TO }),
+      // Reply-to is the ticket's own address so a customer replying to the
+      // confirmation threads straight back into the ticket (and still reaches the
+      // team) — the From address is a no-reply mailbox.
+      sendEmail({ to: email, subject: `We received your message — Blitz.tips (#${ticketRef})`, html: customerHtml, text: customerText, replyTo: ticketReplyAddress(ticket.id) }),
     ]);
   });
 
