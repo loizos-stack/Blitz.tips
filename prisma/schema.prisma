@@ -455,3 +455,39 @@ model PushSubscription {
 
   @@index([userId])
 }
+
+// Support ticket opened from the contact / FAQ form. Tracks the whole thread of
+// messages between the visitor and admins so the discussion has a record.
+enum TicketStatus {
+  OPEN
+  CLOSED
+}
+
+enum TicketAuthor {
+  CUSTOMER
+  ADMIN
+}
+
+model Ticket {
+  id        String          @id @default(cuid())
+  name      String
+  email     String
+  subject   String?
+  status    TicketStatus    @default(OPEN)
+  messages  TicketMessage[]
+  createdAt DateTime        @default(now())
+  updatedAt DateTime        @updatedAt
+
+  @@index([status, updatedAt])
+}
+
+model TicketMessage {
+  id        String       @id @default(cuid())
+  ticketId  String
+  ticket    Ticket       @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  author    TicketAuthor
+  body      String       @db.Text
+  createdAt DateTime     @default(now())
+
+  @@index([ticketId, createdAt])
+}

@@ -31,6 +31,7 @@ export type AdminPermission =
   | "promos"
   | "media"
   | "system"
+  | "tickets"
   | "audit"
   | "permissions";
 
@@ -56,6 +57,7 @@ export const ADMIN_PERMISSIONS: PermissionDef[] = [
   { key: "promos", label: "Promos", href: "/admin/promos", description: "Create and manage promo codes" },
   { key: "media", label: "Media", href: "/admin/media", description: "Moderate profile and cover images" },
   { key: "system", label: "System", href: "/admin/system", description: "Announcements, odds quota, auto-settlement" },
+  { key: "tickets", label: "Tickets", href: "/admin/tickets", description: "View and reply to support tickets from the contact form" },
   { key: "audit", label: "Logs", href: "/admin/logs", description: "Search and filter the site-wide activity log" },
   { key: "permissions", label: "Permissions", href: "/admin/permissions", description: "Create admins and grant them permissions", superOnly: true },
 ];
