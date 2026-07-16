@@ -161,7 +161,7 @@ export function EventMarkets({
                         </button>
 
                         {sectionOpen && (
-                          <ul className="max-h-56 overflow-y-auto pb-1">
+                          <ul className="pb-1">
                             {section.options.map((market, i) => {
                               const active = selected === market;
                               return (

@@ -247,7 +247,7 @@ export function CreatePickForm({
           )}
 
           {feed.status === "ready" && (
-            <div className="flex max-h-72 flex-col gap-2 overflow-y-auto pr-1">
+            <div className="flex max-h-[32rem] flex-col gap-2 overflow-y-auto overscroll-contain pr-1">
               {feed.events.map((event) => (
                 <div key={event.id} className="rounded-lg border border-border">
                   <button
