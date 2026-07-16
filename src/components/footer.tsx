@@ -13,7 +13,7 @@ const COLUMNS = [
   {
     heading: "Company",
     links: [
-      { href: "/about", label: "About us" },
+      { href: "/about", label: "About Blitz" },
       { href: "/faq", label: "FAQ" },
       { href: "/contact", label: "Contact" },
     ],

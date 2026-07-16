@@ -10,11 +10,13 @@ import { cn } from "@/lib/utils";
 import { NotificationBell } from "@/components/notification-bell";
 
 const links = [
+  { href: "/about", label: "About Blitz" },
   { href: "/leaderboard", label: "Leaderboard" },
   { href: "/handicappers", label: "Handicappers" },
   { href: "/buy-picks", label: "Buy Tips" },
   { href: "/pricing", label: "Sell Tips" },
-  { href: "/about", label: "About us" },
+  { href: "/faq", label: "FAQ" },
+  { href: "/contact", label: "Contact" },
 ];
 
 export function NavBar() {

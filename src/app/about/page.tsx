@@ -3,7 +3,7 @@ import Link from "next/link";
 import { ShieldCheck, LineChart, Users, Scale } from "lucide-react";
 
 export const metadata: Metadata = {
-  title: "About us",
+  title: "About Blitz",
   description:
     "Blitz.tips is a marketplace for verified sports handicappers — every pick timestamped, graded, and ranked so you can follow proven winners.",
 };
