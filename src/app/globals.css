@@ -28,7 +28,7 @@
   --color-silver: var(--silver);
   --color-danger: var(--danger);
   --color-push: var(--push);
-  --font-sans: var(--font-inter);
+  --font-sans: var(--font-display);
   --font-display: var(--font-display);
   --font-mono: var(--font-geist-mono);
 }
