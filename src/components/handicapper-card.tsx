@@ -115,7 +115,7 @@ export function HandicapperCard({ handicapper, rank }: { handicapper: Handicappe
         </div>
       )}
 
-      <p className="text-sm text-muted">
+      <p className="text-sm font-bold text-foreground">
         {[
           handicapper.weeklyPriceCents != null && `${formatCents(handicapper.weeklyPriceCents, handicapper.priceCurrency)}/wk`,
           `${formatCents(handicapper.monthlyPriceCents, handicapper.priceCurrency)}/mo`,
