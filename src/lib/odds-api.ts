@@ -3,7 +3,7 @@ import type { PickSport } from "@prisma/client";
 import { getTeamLogoUrl } from "@/lib/team-logos";
 import { formatMatchup } from "@/lib/utils";
 import { sportsDbConfigured, resolveSportsDbLogo } from "@/lib/sportsdb";
-import { additionalMarketKeys, buildCategories, type MarketCategory, type RawMarket } from "@/lib/odds-markets";
+import { additionalMarketKeys, buildGroups, type MarketGroup, type RawMarket } from "@/lib/odds-markets";
 
 // The Odds API (the-odds-api.com) client.
 //
@@ -521,7 +521,7 @@ const EVENT_MARKETS_REVALIDATE_SECONDS = 5 * 60;
 
 export interface EventMarketsResult {
   configured: boolean;
-  categories: MarketCategory[];
+  groups: MarketGroup[];
   bookmaker: string | null;
 }
 
@@ -544,7 +544,7 @@ export async function getEventMarkets(
   eventId: string
 ): Promise<EventMarketsResult> {
   const apiKey = oddsApiKey();
-  if (!apiKey) return { configured: false, categories: [], bookmaker: null };
+  if (!apiKey) return { configured: false, groups: [], bookmaker: null };
 
   const featuredKeys = isMoneylineOnly(sport) ? ["h2h"] : ["h2h", "spreads", "totals"];
   const wanted = [...featuredKeys, ...additionalMarketKeys(sportKey)];
@@ -558,10 +558,10 @@ export async function getEventMarkets(
   // set fails, fall back to just the game lines — the game still shows odds.
   let data = await fetchEventOddsJson(`${base}&markets=${wanted.join(",")}`);
   if (!data) data = await fetchEventOddsJson(`${base}&markets=${featuredKeys.join(",")}`);
-  if (!data) return { configured: true, categories: [], bookmaker: null };
+  if (!data) return { configured: true, groups: [], bookmaker: null };
 
   const bookmakers = data.bookmakers ?? [];
-  if (bookmakers.length === 0) return { configured: true, categories: [], bookmaker: null };
+  if (bookmakers.length === 0) return { configured: true, groups: [], bookmaker: null };
 
   // Pick the book with the widest coverage (most markets), preferring the known
   // US prop books on ties.
@@ -576,7 +576,7 @@ export async function getEventMarkets(
 
   return {
     configured: true,
-    categories: buildCategories(sportKey, chosen.markets),
+    groups: buildGroups(sportKey, chosen.markets),
     bookmaker: chosen.title,
   };
 }

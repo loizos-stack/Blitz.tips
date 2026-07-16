@@ -1,24 +1,54 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { ChevronDown, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatOdds } from "@/lib/odds";
 import type { MarketOption, UpcomingEvent } from "@/lib/odds-api";
 
-interface Category {
+interface Section {
   key: string;
   label: string;
   options: MarketOption[];
 }
+interface Group {
+  key: string;
+  label: string;
+  sections: Section[];
+}
+
+// Build a provisional tree from the board's game lines so something shows
+// instantly while the full per-event set loads.
+function initialGroups(markets: MarketOption[]): Group[] {
+  const buckets: Record<string, { key: string; label: string; options: MarketOption[] }> = {
+    MONEYLINE: { key: "moneyline", label: "Moneyline", options: [] },
+    SPREAD: { key: "spread", label: "Spread", options: [] },
+    TOTAL: { key: "total", label: "Total", options: [] },
+  };
+  for (const m of markets) buckets[m.betType]?.options.push(m);
+  const sections = ["MONEYLINE", "SPREAD", "TOTAL"]
+    .map((k) => buckets[k])
+    .filter((s) => s.options.length > 0);
+  return sections.length ? [{ key: "game", label: "Game Lines", sections }] : [];
+}
+
+const sectionId = (groupKey: string, sectionKey: string) => `${groupKey}:${sectionKey}`;
+
+function defaultOpen(groups: Group[]) {
+  const g = groups[0];
+  return {
+    groups: new Set<string>(g ? [g.key] : []),
+    sections: new Set<string>(g?.sections[0] ? [sectionId(g.key, g.sections[0].key)] : []),
+  };
+}
 
 /**
- * The categorized market picker shown under an expanded game in the pick form.
- * The bulk board only carries game lines, so on open this fetches the full
- * per-event set (player props for US sports, non-player extras for soccer),
- * groups it into categories, and offers a category nav. Game lines from the
- * board render instantly while the richer set loads.
+ * Nested market picker shown under an expanded game: Game Lines / Player Props
+ * → per-market subsection → individual lines. The board's game lines render
+ * instantly; opening the game fetches the full per-event set (props for US
+ * sports, non-player markets for soccer) and replaces the tree.
  *
- * Mount it with `key={event.id}` so switching games starts fresh.
+ * Mount with `key={event.id}` so switching games starts fresh.
  */
 export function EventMarkets({
   sport,
@@ -31,26 +61,27 @@ export function EventMarkets({
   selected: MarketOption | null;
   onSelect: (market: MarketOption) => void;
 }) {
-  const initial: Category[] = event.markets.length
-    ? [{ key: "game", label: "Game Lines", options: event.markets }]
-    : [];
-  const [categories, setCategories] = useState<Category[]>(initial);
+  const seed = initialGroups(event.markets);
+  const [groups, setGroups] = useState<Group[]>(seed);
   const [bookmaker, setBookmaker] = useState<string | null>(event.bookmaker);
-  const [activeCat, setActiveCat] = useState("game");
   const [loading, setLoading] = useState(true);
+  const [openGroups, setOpenGroups] = useState<Set<string>>(defaultOpen(seed).groups);
+  const [openSections, setOpenSections] = useState<Set<string>>(defaultOpen(seed).sections);
 
   useEffect(() => {
     let active = true;
     const params = new URLSearchParams({ sport, sportKey: event.sportKey });
     fetch(`/api/odds/event/${event.id}?${params.toString()}`)
       .then((r) => (r.ok ? r.json() : Promise.reject(new Error("failed"))))
-      .then((data: { categories?: Category[]; bookmaker?: string | null }) => {
+      .then((data: { groups?: Group[]; bookmaker?: string | null }) => {
         if (!active) return;
-        const cats = data.categories ?? [];
-        if (cats.length > 0) {
-          setCategories(cats);
+        const g = data.groups ?? [];
+        if (g.length > 0) {
+          setGroups(g);
           setBookmaker(data.bookmaker ?? event.bookmaker);
-          setActiveCat((prev) => (cats.some((c) => c.key === prev) ? prev : cats[0].key));
+          const d = defaultOpen(g);
+          setOpenGroups(d.groups);
+          setOpenSections(d.sections);
         }
         setLoading(false);
       })
@@ -62,51 +93,106 @@ export function EventMarkets({
     };
   }, [event.id, event.sportKey, event.bookmaker, sport]);
 
-  const active = categories.find((c) => c.key === activeCat) ?? categories[0] ?? null;
+  const toggle = (setter: React.Dispatch<React.SetStateAction<Set<string>>>, key: string) =>
+    setter((s) => {
+      const n = new Set(s);
+      if (n.has(key)) n.delete(key);
+      else n.add(key);
+      return n;
+    });
+  const toggleGroup = (k: string) => toggle(setOpenGroups, k);
+  const toggleSection = (id: string) => toggle(setOpenSections, id);
+
+  if (groups.length === 0) {
+    return (
+      <div className="space-y-2">
+        {loading ? (
+          <p className="text-sm text-muted">Loading markets…</p>
+        ) : (
+          <p className="text-sm text-muted">No odds posted for this game yet.</p>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-2">
-      {categories.length > 1 && (
-        <div className="-mx-1 flex gap-1 overflow-x-auto px-1 pb-1">
-          {categories.map((c) => (
-            <button
-              key={c.key}
-              type="button"
-              onClick={() => setActiveCat(c.key)}
-              className={cn(
-                "shrink-0 rounded-full px-2.5 py-1 text-xs font-medium transition-colors",
-                c.key === active?.key
-                  ? "bg-accent text-accent-foreground"
-                  : "bg-surface-raised text-muted hover:text-foreground"
-              )}
-            >
-              {c.label}
-            </button>
-          ))}
-        </div>
-      )}
+      <div className="divide-y divide-border overflow-hidden rounded-lg border border-border">
+        {groups.map((group) => {
+          const groupOpen = openGroups.has(group.key);
+          const count = group.sections.reduce((n, s) => n + s.options.length, 0);
+          return (
+            <div key={group.key}>
+              <button
+                type="button"
+                onClick={() => toggleGroup(group.key)}
+                className="flex w-full items-center justify-between gap-2 bg-surface-raised px-3 py-2.5 text-left text-sm font-semibold"
+              >
+                <span className="flex items-center gap-1.5">
+                  {groupOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                  {group.label}
+                </span>
+                <span className="text-xs font-normal text-muted">
+                  {group.sections.length} markets · {count} lines
+                </span>
+              </button>
 
-      {active && active.options.length > 0 ? (
-        <div className="flex max-h-56 flex-wrap gap-1.5 overflow-y-auto">
-          {active.options.map((market, i) => (
-            <button
-              key={`${market.selection}-${i}`}
-              type="button"
-              onClick={() => onSelect(market)}
-              className={cn(
-                "rounded-full border px-2.5 py-1 font-display text-xs font-medium tabular-nums",
-                selected === market
-                  ? "border-accent bg-accent/10 text-accent"
-                  : "border-border text-muted hover:text-foreground"
+              {groupOpen && (
+                <div className="divide-y divide-border">
+                  {group.sections.map((section) => {
+                    const id = sectionId(group.key, section.key);
+                    const sectionOpen = openSections.has(id);
+                    return (
+                      <div key={id} className="bg-surface">
+                        <button
+                          type="button"
+                          onClick={() => toggleSection(id)}
+                          className="flex w-full items-center justify-between gap-2 px-3 py-2 pl-6 text-left text-sm"
+                        >
+                          <span className="flex items-center gap-1.5">
+                            {sectionOpen ? (
+                              <ChevronDown className="h-3.5 w-3.5 text-muted" />
+                            ) : (
+                              <ChevronRight className="h-3.5 w-3.5 text-muted" />
+                            )}
+                            <span className="font-medium">{section.label}</span>
+                          </span>
+                          <span className="text-[11px] text-muted">{section.options.length}</span>
+                        </button>
+
+                        {sectionOpen && (
+                          <ul className="max-h-56 overflow-y-auto pb-1">
+                            {section.options.map((market, i) => {
+                              const active = selected === market;
+                              return (
+                                <li key={`${market.selection}-${i}`}>
+                                  <button
+                                    type="button"
+                                    onClick={() => onSelect(market)}
+                                    className={cn(
+                                      "flex w-full items-center justify-between gap-2 px-3 py-1.5 pl-9 text-left text-xs",
+                                      active ? "bg-accent/10 text-accent" : "hover:bg-surface-raised"
+                                    )}
+                                  >
+                                    <span className="font-display">{market.selection}</span>
+                                    <span className="shrink-0 font-display font-medium tabular-nums">
+                                      {formatOdds(market.odds)}
+                                    </span>
+                                  </button>
+                                </li>
+                              );
+                            })}
+                          </ul>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
               )}
-            >
-              {market.selection} {formatOdds(market.odds)}
-            </button>
-          ))}
-        </div>
-      ) : (
-        !loading && <p className="text-sm text-muted">No odds posted for this game yet.</p>
-      )}
+            </div>
+          );
+        })}
+      </div>
 
       {loading && <p className="text-[11px] text-muted">Loading player props &amp; more markets…</p>}
       {bookmaker && <p className="text-[11px] text-muted">Odds via {bookmaker}</p>}
