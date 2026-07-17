@@ -120,8 +120,11 @@ export async function seedTestData(prisma: PrismaClient): Promise<{ handicappers
       },
     });
 
+    // Picks — one createMany per capper instead of ~20 round-trips. Guarded so
+    // re-runs (e.g. after a gateway timeout) don't duplicate.
     const existingPicks = await prisma.pick.count({ where: { handicapperId: profile.id } });
     if (existingPicks === 0) {
+      const pickRows = [];
       const settledN = between(10, 18);
       const winRate = 0.4 + rng() * 0.35;
       for (let i = 0; i < settledN; i++) {
@@ -132,24 +135,14 @@ export async function seedTestData(prisma: PrismaClient): Promise<{ handicappers
         const betType = pickOf(BET_TYPES);
         const roll = rng();
         const result: PickResult = roll < winRate ? "WIN" : roll < winRate + 0.08 ? "PUSH" : "LOSS";
-        const daysAgo = settledN - i + between(0, 2);
         const startsAt = new Date();
-        startsAt.setDate(startsAt.getDate() - daysAgo);
-        await prisma.pick.create({
-          data: {
-            handicapperId: profile.id,
-            sport, league: sport,
-            matchup: `${away} @ ${home}`,
-            betType,
-            selection: makeSelection(betType, home, away),
-            odds: pickOf([-110, -105, -120, 100, 105, -150, 130, -108]),
-            units: pickOf([1, 1, 1.5, 2, 2, 3]),
-            result,
-            isPremium: rng() > 0.25,
-            eventStartsAt: startsAt,
-            settledAt: startsAt,
-            createdAt: startsAt,
-          },
+        startsAt.setDate(startsAt.getDate() - (settledN - i + between(0, 2)));
+        pickRows.push({
+          handicapperId: profile.id, sport, league: sport, matchup: `${away} @ ${home}`, betType,
+          selection: makeSelection(betType, home, away),
+          odds: pickOf([-110, -105, -120, 100, 105, -150, 130, -108]),
+          units: pickOf([1, 1, 1.5, 2, 2, 3]), result, isPremium: rng() > 0.25,
+          eventStartsAt: startsAt, settledAt: startsAt, createdAt: startsAt,
         });
       }
       const pendingN = between(1, 3);
@@ -161,69 +154,46 @@ export async function seedTestData(prisma: PrismaClient): Promise<{ handicappers
         const betType = pickOf(BET_TYPES);
         const startsAt = new Date();
         startsAt.setDate(startsAt.getDate() + between(0, 2));
-        await prisma.pick.create({
-          data: {
-            handicapperId: profile.id,
-            sport, league: sport,
-            matchup: `${away} @ ${home}`,
-            betType,
-            selection: makeSelection(betType, home, away),
-            odds: pickOf([-110, -105, 100, -130, 120]),
-            units: pickOf([1, 1.5, 2, 3]),
-            result: "PENDING",
-            isPremium: rng() > 0.25,
-            eventStartsAt: startsAt,
-            createdAt: new Date(),
-          },
+        pickRows.push({
+          handicapperId: profile.id, sport, league: sport, matchup: `${away} @ ${home}`, betType,
+          selection: makeSelection(betType, home, away),
+          odds: pickOf([-110, -105, 100, -130, 120]), units: pickOf([1, 1.5, 2, 3]),
+          result: "PENDING" as PickResult, isPremium: rng() > 0.25, eventStartsAt: startsAt, createdAt: new Date(),
         });
       }
+      await prisma.pick.createMany({ data: pickRows });
     }
 
     const popularity = 1 - c / CAPPERS.length;
     const nSubs = Math.round(popularity * (fans.length - 2)) + between(0, 2);
     const shuffled = [...fans].sort(() => rng() - 0.5);
     const subs = shuffled.slice(0, Math.min(nSubs, fans.length));
+    const extraFollowers = shuffled.slice(subs.length, subs.length + between(0, 3));
 
-    for (const fan of subs) {
-      await prisma.subscription.upsert({
-        where: { subscriberId_handicapperId: { subscriberId: fan.id, handicapperId: profile.id } },
-        update: {},
-        create: {
-          subscriberId: fan.id,
-          handicapperId: profile.id,
-          status: "ACTIVE",
-          currentPeriodEnd: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
-        },
-      });
-      await prisma.follow.upsert({
-        where: { followerId_handicapperId: { followerId: fan.id, handicapperId: profile.id } },
-        update: {},
-        create: { followerId: fan.id, handicapperId: profile.id },
-      });
-    }
-    for (const fan of shuffled.slice(subs.length, subs.length + between(0, 3))) {
-      await prisma.follow.upsert({
-        where: { followerId_handicapperId: { followerId: fan.id, handicapperId: profile.id } },
-        update: {},
-        create: { followerId: fan.id, handicapperId: profile.id },
-      });
-    }
+    // Batched, skipDuplicates keeps it idempotent across retries.
+    await prisma.subscription.createMany({
+      data: subs.map((fan) => ({
+        subscriberId: fan.id, handicapperId: profile.id, status: "ACTIVE" as const,
+        currentPeriodEnd: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+      })),
+      skipDuplicates: true,
+    });
+    await prisma.follow.createMany({
+      data: [...subs, ...extraFollowers].map((fan) => ({ followerId: fan.id, handicapperId: profile.id })),
+      skipDuplicates: true,
+    });
 
     const existingReviews = await prisma.review.count({ where: { handicapperId: profile.id } });
     if (existingReviews === 0) {
       const reviewers = subs.slice(0, Math.round(subs.length * (0.5 + rng() * 0.4)));
-      for (const fan of reviewers) {
-        await prisma.review.create({
-          data: {
-            handicapperId: profile.id,
-            authorId: fan.id,
-            rating: pickOf([5, 5, 4, 4, 4, 3]),
-            body: pickOf(REVIEW_BODIES) || null,
-            status: "APPROVED",
-            moderatedAt: new Date(),
-          },
-        });
-      }
+      await prisma.review.createMany({
+        data: reviewers.map((fan) => ({
+          handicapperId: profile.id, authorId: fan.id,
+          rating: pickOf([5, 5, 4, 4, 4, 3]), body: pickOf(REVIEW_BODIES) || null,
+          status: "APPROVED" as const, moderatedAt: new Date(),
+        })),
+        skipDuplicates: true,
+      });
     }
   }
 
