@@ -6,6 +6,7 @@ import { Avatar } from "@/components/avatar";
 import { SportIcon } from "@/components/sport-icon";
 import { SocialLinks } from "@/components/social-links";
 import { FollowButton } from "@/components/follow-button";
+import { Stars } from "@/components/stars";
 import type { HandicapperSummary } from "@/lib/handicappers";
 
 export function HandicapperCard({ handicapper, rank }: { handicapper: HandicapperSummary; rank?: number }) {
@@ -48,7 +49,16 @@ export function HandicapperCard({ handicapper, rank }: { handicapper: Handicappe
             <p className="truncate text-sm text-muted">@{handicapper.handle}</p>
           </div>
 
-          <FollowButton handicapperId={handicapper.id} size="sm" className="ml-auto" />
+          <div className="ml-auto flex flex-col items-end gap-1.5">
+            <FollowButton handicapperId={handicapper.id} size="sm" />
+            {handicapper.reviewsCount > 0 && handicapper.reviewsAverage != null && (
+              <span className="flex items-center gap-1 whitespace-nowrap text-xs text-muted">
+                <Stars value={handicapper.reviewsAverage} className="h-3.5 w-3.5" />
+                <span className="font-medium text-foreground">{handicapper.reviewsAverage.toFixed(1)}</span>
+                <span>({handicapper.reviewsCount})</span>
+              </span>
+            )}
+          </div>
         </div>
 
       <div className="flex flex-wrap gap-1.5">

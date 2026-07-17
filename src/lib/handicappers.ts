@@ -19,6 +19,10 @@ export type HandicapperSummary = HandicapperProfile & {
   /** Current win/loss run (positive = wins, negative = losses); shown on cards. */
   currentStreak: number;
   isFeatured: boolean;
+  /** Number of approved reviews. */
+  reviewsCount: number;
+  /** Mean approved rating (1 decimal), or null when there are none. */
+  reviewsAverage: number | null;
 };
 
 /** Gold handicappers are pinned to the top, per their plan's promised placement; ties broken by the given stat. */
@@ -49,10 +53,14 @@ export function sortPaidFirst<T extends Pick<HandicapperProfile, "plan" | "planS
 
 const STATS_LOOKBACK_DAYS = 30;
 
+const APPROVED_REVIEW_RATINGS = {
+  reviews: { where: { status: "APPROVED" as const }, select: { rating: true } },
+} as const;
+
 export async function listHandicapperSummaries(): Promise<HandicapperSummary[]> {
   const handicappers = await prisma.handicapperProfile.findMany({
     where: { suspendedAt: null },
-    include: { picks: true },
+    include: { picks: true, ...APPROVED_REVIEW_RATINGS },
     orderBy: { createdAt: "asc" },
   });
 
@@ -61,7 +69,6 @@ export async function listHandicapperSummaries(): Promise<HandicapperSummary[]> 
 
 export type DirectoryHandicapper = HandicapperSummary & {
   followersCount: number;
-  reviewsCount: number;
 };
 
 /**
@@ -74,7 +81,8 @@ export async function listHandicapperDirectory(): Promise<DirectoryHandicapper[]
     where: { suspendedAt: null },
     include: {
       picks: true,
-      _count: { select: { followers: true, reviews: { where: { status: "APPROVED" } } } },
+      ...APPROVED_REVIEW_RATINGS,
+      _count: { select: { followers: true } },
     },
     orderBy: { createdAt: "asc" },
   });
@@ -82,7 +90,6 @@ export async function listHandicapperDirectory(): Promise<DirectoryHandicapper[]
   return handicappers.map((h) => ({
     ...toSummary(h),
     followersCount: h._count.followers,
-    reviewsCount: h._count.reviews,
   }));
 }
 
@@ -133,7 +140,7 @@ export async function listHandicapperSummariesByIds(ids: string[]): Promise<Hand
   if (ids.length === 0) return [];
   const handicappers = await prisma.handicapperProfile.findMany({
     where: { id: { in: ids }, suspendedAt: null },
-    include: { picks: true },
+    include: { picks: true, ...APPROVED_REVIEW_RATINGS },
   });
   return handicappers.map(toSummary);
 }
@@ -185,7 +192,7 @@ export async function listHottestHandicappers({
 
   const handicappers = await prisma.handicapperProfile.findMany({
     where: { suspendedAt: null },
-    include: { picks: true },
+    include: { picks: true, ...APPROVED_REVIEW_RATINGS },
   });
 
   const ranked = handicappers
@@ -199,11 +206,20 @@ export async function listHottestHandicappers({
   return ranked.slice(0, limit);
 }
 
-function toSummary(handicapper: HandicapperProfile & { picks: PickModel[] }): HandicapperSummary {
+function toSummary(
+  handicapper: HandicapperProfile & { picks: PickModel[]; reviews?: { rating: number }[] }
+): HandicapperSummary {
   const cutoff = new Date();
   cutoff.setDate(cutoff.getDate() - STATS_LOOKBACK_DAYS);
 
   const recentPicks = handicapper.picks.filter((p) => p.createdAt >= cutoff);
+
+  const ratings = handicapper.reviews ?? [];
+  const reviewsCount = ratings.length;
+  const reviewsAverage =
+    reviewsCount === 0
+      ? null
+      : Math.round((ratings.reduce((sum, r) => sum + r.rating, 0) / reviewsCount) * 10) / 10;
 
   return {
     ...handicapper,
@@ -212,5 +228,7 @@ function toSummary(handicapper: HandicapperProfile & { picks: PickModel[] }): Ha
     last10Stats: lastNStats(handicapper.picks, 10),
     currentStreak: computeStreaks(handicapper.picks).current,
     isFeatured: isFeaturedHandicapper(handicapper.plan, handicapper.planStatus),
+    reviewsCount,
+    reviewsAverage,
   };
 }

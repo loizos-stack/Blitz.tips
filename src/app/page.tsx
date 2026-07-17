@@ -37,11 +37,11 @@ export default async function Home({
 
   const oddsFeed = sport ? await getUpcomingEvents(sport) : null;
 
-  // The "Find a Handicapper" finder: sport chips are the union of sports offered
-  // by any handicapper; the list is filtered/sorted by the active chip + search.
-  const finderSports = [...new Set(handicappers.flatMap((h) => h.sports))].sort((a, b) =>
-    (SPORT_LABELS[a] ?? a).localeCompare(SPORT_LABELS[b] ?? b)
-  );
+  // The "Find a Handicapper" finder: sport chips are the major sports offered by
+  // at least one handicapper; the list is filtered/sorted by the active chip.
+  const MAJOR_SPORTS: PickSport[] = ["NFL", "NBA", "MLB", "NHL", "SOCCER"];
+  const offered = new Set(handicappers.flatMap((h) => h.sports));
+  const finderSports = MAJOR_SPORTS.filter((s) => offered.has(s));
   const activeFilter = params.find ?? "all";
   const query = params.q ?? "";
   const foundHandicappers = applyHandicapperFinder(handicappers, activeFilter, query);
@@ -101,7 +101,16 @@ export default async function Home({
       <div id="lines" />
       <UpcomingGames sport={sport} feed={oddsFeed} availableSports={availableSports} />
 
-      <section id="find" className="container-page scroll-mt-20 py-16">
+      <section id="find" className="relative scroll-mt-20 overflow-hidden border-y border-border py-16">
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-0 bg-[url('/lines-bg.svg')] bg-cover bg-center opacity-[0.07]"
+        />
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-0 bg-gradient-to-br from-accent/[0.07] via-transparent to-gold/[0.07]"
+        />
+        <div className="container-page relative">
         <div className="mb-2 flex items-end justify-between">
           <div>
             <h2 className="text-2xl font-bold">Find a Handicapper</h2>
@@ -129,6 +138,7 @@ export default async function Home({
             ))}
           </div>
         )}
+        </div>
       </section>
 
       <section className="border-t border-border bg-surface/40 py-16">

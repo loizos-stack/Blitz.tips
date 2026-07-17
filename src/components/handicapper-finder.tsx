@@ -1,15 +1,15 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
+import Link from "next/link";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import { Search, Flame, Heart, Star } from "lucide-react";
 import { SportIcon } from "@/components/sport-icon";
-import { SPORT_LABELS } from "@/lib/utils";
-import { cn } from "@/lib/utils";
+import { SPORT_LABELS, cn } from "@/lib/utils";
 import type { PickSport } from "@prisma/client";
 
 interface Props {
-  /** Sports actually offered by at least one handicapper — drives the sport chips. */
+  /** Major sports offered by at least one handicapper — drives the sport chips. */
   sports: PickSport[];
   /** The active filter key ("all" | "hot" | "followed" | "reviewed" | a PickSport). */
   activeFilter: string;
@@ -29,7 +29,7 @@ export function HandicapperFinder({ sports, activeFilter, query }: Props) {
   const [text, setText] = useState(query);
 
   // Build a URL that changes only the finder params, preserving everything else
-  // (e.g. the ?sport= board tab).
+  // (e.g. the ?sport= board tab). Clicking the active chip resets to "all".
   const buildUrl = useCallback(
     (next: { find?: string; q?: string }) => {
       const params = new URLSearchParams(searchParams.toString());
@@ -42,7 +42,7 @@ export function HandicapperFinder({ sports, activeFilter, query }: Props) {
         else params.delete("q");
       }
       const qs = params.toString();
-      return qs ? `${pathname}?${qs}#find` : `${pathname}#find`;
+      return qs ? `${pathname}?${qs}` : pathname;
     },
     [pathname, searchParams]
   );
@@ -54,18 +54,17 @@ export function HandicapperFinder({ sports, activeFilter, query }: Props) {
     return () => clearTimeout(id);
   }, [text, query, router, buildUrl]);
 
-  const setFilter = (key: string) =>
-    router.replace(buildUrl({ find: key === activeFilter ? "all" : key }), { scroll: false });
-
   const isActive = (key: string) =>
     key === activeFilter || (key === "all" && (activeFilter === "all" || !activeFilter));
+
+  const hrefFor = (key: string) => buildUrl({ find: key === activeFilter ? "all" : key });
 
   const chip = (active: boolean) =>
     cn(
       "inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm font-medium transition-colors",
       active
         ? "border-accent bg-accent/10 text-accent"
-        : "border-border text-muted hover:border-muted hover:text-foreground"
+        : "border-border bg-surface/70 text-muted hover:border-muted hover:text-foreground"
     );
 
   return (
@@ -81,20 +80,20 @@ export function HandicapperFinder({ sports, activeFilter, query }: Props) {
       </div>
 
       <div className="flex flex-wrap gap-2">
-        <button type="button" onClick={() => setFilter("all")} className={chip(isActive("all"))}>
+        <Link href={hrefFor("all")} scroll={false} className={chip(isActive("all"))}>
           All
-        </button>
+        </Link>
         {SPECIAL_CHIPS.map(({ key, label, Icon, iconClass }) => (
-          <button key={key} type="button" onClick={() => setFilter(key)} className={chip(isActive(key))}>
+          <Link key={key} href={hrefFor(key)} scroll={false} className={chip(isActive(key))}>
             <Icon className={cn("h-4 w-4", iconClass)} />
             {label}
-          </button>
+          </Link>
         ))}
         {sports.map((sport) => (
-          <button key={sport} type="button" onClick={() => setFilter(sport)} className={chip(isActive(sport))}>
+          <Link key={sport} href={hrefFor(sport)} scroll={false} className={chip(isActive(sport))}>
             <SportIcon sport={sport} className="h-4 w-4" />
             {SPORT_LABELS[sport] ?? sport}
-          </button>
+          </Link>
         ))}
       </div>
     </div>
