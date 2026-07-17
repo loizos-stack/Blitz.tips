@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { ShieldCheck, LineChart, Users, ArrowRight } from "lucide-react";
-import { listHandicapperSummaries, sortFeaturedFirst } from "@/lib/handicappers";
+import { listHandicapperDirectory, applyHandicapperFinder } from "@/lib/handicappers";
 import { HandicapperCard } from "@/components/handicapper-card";
+import { HandicapperFinder } from "@/components/handicapper-finder";
 import { UpcomingGames } from "@/components/upcoming-games";
 import { getUpcomingEvents, getAvailableHomepageSports } from "@/lib/odds-api";
 import { SPORT_LABELS } from "@/lib/utils";
@@ -12,11 +13,11 @@ export const dynamic = "force-dynamic";
 export default async function Home({
   searchParams,
 }: {
-  searchParams: Promise<{ sport?: string }>;
+  searchParams: Promise<{ sport?: string; find?: string; q?: string }>;
 }) {
   const params = await searchParams;
   const [handicappers, unsortedSports] = await Promise.all([
-    listHandicapperSummaries(),
+    listHandicapperDirectory(),
     getAvailableHomepageSports(),
   ]);
 
@@ -35,7 +36,15 @@ export default async function Home({
   const sport: PickSport | null = requested ?? availableSports[0] ?? null;
 
   const oddsFeed = sport ? await getUpcomingEvents(sport) : null;
-  const featured = sortFeaturedFirst(handicappers, (a, b) => b.stats.unitsNet - a.stats.unitsNet).slice(0, 3);
+
+  // The "Find a Handicapper" finder: sport chips are the union of sports offered
+  // by any handicapper; the list is filtered/sorted by the active chip + search.
+  const finderSports = [...new Set(handicappers.flatMap((h) => h.sports))].sort((a, b) =>
+    (SPORT_LABELS[a] ?? a).localeCompare(SPORT_LABELS[b] ?? b)
+  );
+  const activeFilter = params.find ?? "all";
+  const query = params.q ?? "";
+  const foundHandicappers = applyHandicapperFinder(handicappers, activeFilter, query);
 
   const totalPicks = handicappers.reduce((sum, h) => sum + h.stats.totalPicks, 0);
 
@@ -92,26 +101,32 @@ export default async function Home({
       <div id="lines" />
       <UpcomingGames sport={sport} feed={oddsFeed} availableSports={availableSports} />
 
-      <section className="container-page py-16">
-        <div className="mb-8 flex items-end justify-between">
+      <section id="find" className="container-page scroll-mt-20 py-16">
+        <div className="mb-2 flex items-end justify-between">
           <div>
-            <h2 className="text-2xl font-bold">Top performers</h2>
-            <p className="mt-1 text-muted">Ranked by net units over their full tracked history.</p>
+            <h2 className="text-2xl font-bold">Find a Handicapper</h2>
+            <p className="mt-1 text-muted">Search and filter by what matters to you.</p>
           </div>
           <Link href="/leaderboard" className="hidden text-sm font-medium text-accent hover:underline sm:block">
             Full leaderboard →
           </Link>
         </div>
 
-        {featured.length > 0 ? (
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {featured.map((h, i) => (
-              <HandicapperCard key={h.id} handicapper={h} rank={i + 1} />
-            ))}
+        <HandicapperFinder sports={finderSports} activeFilter={activeFilter} query={query} />
+
+        {handicappers.length === 0 ? (
+          <div className="card mt-8 p-8 text-center text-muted">
+            No handicappers yet — be the first to build a public track record.
+          </div>
+        ) : foundHandicappers.length === 0 ? (
+          <div className="card mt-8 p-8 text-center text-muted">
+            No handicappers match your search. Try a different filter.
           </div>
         ) : (
-          <div className="card p-8 text-center text-muted">
-            No handicappers yet — be the first to build a public track record.
+          <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {foundHandicappers.map((h) => (
+              <HandicapperCard key={h.id} handicapper={h} />
+            ))}
           </div>
         )}
       </section>

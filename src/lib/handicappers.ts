@@ -2,7 +2,8 @@ import { prisma } from "@/lib/prisma";
 import { computeStats, type HandicapperStats } from "@/lib/odds";
 import { computeStreaks, lastNStats } from "@/lib/analytics";
 import { isFeaturedHandicapper } from "@/lib/plans";
-import type { HandicapperProfile, Pick as PickModel, Review, ParlayLeg } from "@prisma/client";
+import { SPORT_LABELS } from "@/lib/utils";
+import type { HandicapperProfile, Pick as PickModel, Review, ParlayLeg, PickSport } from "@prisma/client";
 
 export type PickWithLegs = PickModel & { parlayLegs: ParlayLeg[] };
 
@@ -56,6 +57,75 @@ export async function listHandicapperSummaries(): Promise<HandicapperSummary[]> 
   });
 
   return handicappers.map(toSummary);
+}
+
+export type DirectoryHandicapper = HandicapperSummary & {
+  followersCount: number;
+  reviewsCount: number;
+};
+
+/**
+ * All active handicappers with their follower count and approved-review count —
+ * the data the homepage "Find a Handicapper" finder needs to filter (by sport)
+ * and sort (hot, most followed, most reviewed).
+ */
+export async function listHandicapperDirectory(): Promise<DirectoryHandicapper[]> {
+  const handicappers = await prisma.handicapperProfile.findMany({
+    where: { suspendedAt: null },
+    include: {
+      picks: true,
+      _count: { select: { followers: true, reviews: { where: { status: "APPROVED" } } } },
+    },
+    orderBy: { createdAt: "asc" },
+  });
+
+  return handicappers.map((h) => ({
+    ...toSummary(h),
+    followersCount: h._count.followers,
+    reviewsCount: h._count.reviews,
+  }));
+}
+
+// The non-sport quick filters for the homepage finder. Sport keys (NBA, MLB, …)
+// are the other valid filter values.
+export const FINDER_SORTS = ["all", "hot", "followed", "reviewed"] as const;
+export type FinderSort = (typeof FINDER_SORTS)[number];
+
+/**
+ * Filter + sort the directory for the homepage finder. `filter` is one of the
+ * FINDER_SORTS keys or a PickSport value; `query` matches display name / handle.
+ * Featured (gold) cappers stay pinned first only under the default "all" sort —
+ * the explicit sorts (hot / most followed / most reviewed) are respected as-is.
+ */
+export function applyHandicapperFinder(
+  list: DirectoryHandicapper[],
+  filter: string,
+  query: string
+): DirectoryHandicapper[] {
+  let out = [...list];
+
+  if (filter in SPORT_LABELS) {
+    out = out.filter((h) => h.sports.includes(filter as PickSport));
+    out.sort((a, b) => b.stats.unitsNet - a.stats.unitsNet);
+  } else if (filter === "hot") {
+    out.sort(
+      (a, b) => b.currentStreak - a.currentStreak || b.last10Stats.unitsNet - a.last10Stats.unitsNet
+    );
+  } else if (filter === "followed") {
+    out.sort((a, b) => b.followersCount - a.followersCount || b.stats.unitsNet - a.stats.unitsNet);
+  } else if (filter === "reviewed") {
+    out.sort((a, b) => b.reviewsCount - a.reviewsCount || b.stats.unitsNet - a.stats.unitsNet);
+  } else {
+    out = sortFeaturedFirst(out, (a, b) => b.stats.unitsNet - a.stats.unitsNet);
+  }
+
+  const q = query.trim().toLowerCase();
+  if (q) {
+    out = out.filter(
+      (h) => h.displayName.toLowerCase().includes(q) || h.handle.toLowerCase().includes(q)
+    );
+  }
+  return out;
 }
 
 /** Summaries for a specific set of handicapper ids (e.g. the ones a user follows). */
