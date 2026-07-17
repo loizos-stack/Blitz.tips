@@ -478,6 +478,9 @@ model Ticket {
   name      String
   email     String
   subject   String?
+  // Enquiry category chosen in the contact form (see src/lib/ticket-categories).
+  // Nullable for tickets created before the field existed.
+  category  String?
   status    TicketStatus    @default(OPEN)
   messages  TicketMessage[]
   createdAt DateTime        @default(now())

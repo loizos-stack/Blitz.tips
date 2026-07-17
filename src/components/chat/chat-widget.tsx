@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { MessageCircle, X, Send, Headset, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { TICKET_CATEGORIES, DEFAULT_TICKET_CATEGORY } from "@/lib/ticket-categories";
 
 type Author = "VISITOR" | "BOT" | "AGENT" | "SYSTEM";
 type Status = "BOT" | "WAITING" | "LIVE" | "CLOSED";
@@ -306,6 +307,7 @@ export function ChatWidget() {
 function WidgetContactForm({ onDone }: { onDone: () => void }) {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
+  const [category, setCategory] = useState<string>(DEFAULT_TICKET_CATEGORY);
   const [message, setMessage] = useState("");
   const [website, setWebsite] = useState(""); // honeypot
   const [state, setState] = useState<"idle" | "sending" | "sent" | "error">("idle");
@@ -319,7 +321,7 @@ function WidgetContactForm({ onDone }: { onDone: () => void }) {
       const res = await fetch("/api/contact", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, email, subject: "Chat (no agent available)", message, website }),
+        body: JSON.stringify({ name, email, category, subject: "Chat (no agent available)", message, website }),
       });
       const body = await res.json().catch(() => ({}));
       if (!res.ok) {
@@ -356,6 +358,13 @@ function WidgetContactForm({ onDone }: { onDone: () => void }) {
       <input type="text" tabIndex={-1} autoComplete="off" value={website} onChange={(e) => setWebsite(e.target.value)} className="hidden" aria-hidden />
       <input required placeholder="Your name" value={name} onChange={(e) => setName(e.target.value)} className={input} />
       <input type="email" required placeholder="Your email" value={email} onChange={(e) => setEmail(e.target.value)} className={input} />
+      <select required value={category} onChange={(e) => setCategory(e.target.value)} className={input} aria-label="Category">
+        {TICKET_CATEGORIES.map((c) => (
+          <option key={c} value={c}>
+            {c}
+          </option>
+        ))}
+      </select>
       <textarea required rows={4} placeholder="How can we help?" value={message} onChange={(e) => setMessage(e.target.value)} className={input} />
       {error && <p className="text-sm text-danger">{error}</p>}
       <div className="flex gap-2">

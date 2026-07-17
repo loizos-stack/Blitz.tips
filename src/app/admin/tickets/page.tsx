@@ -18,6 +18,7 @@ export default async function AdminTicketsPage() {
     id: t.id,
     name: t.name,
     email: t.email,
+    category: t.category,
     subject: t.subject,
     status: t.status,
     createdAt: t.createdAt.toISOString(),

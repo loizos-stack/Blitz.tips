@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { sendEmail } from "@/lib/email";
 import { emailWrapper, escapeHtml } from "@/lib/email-template";
 import { ticketReplyAddress } from "@/lib/tickets";
+import { isTicketCategory, DEFAULT_TICKET_CATEGORY } from "@/lib/ticket-categories";
 
 const CONTACT_TO = process.env.CONTACT_EMAIL ?? "support@blitz.tips";
 
@@ -12,6 +13,8 @@ export async function POST(request: Request) {
   const email = typeof body.email === "string" ? body.email.trim().toLowerCase() : "";
   const subject = typeof body.subject === "string" ? body.subject.trim() : "";
   const message = typeof body.message === "string" ? body.message.trim() : "";
+  // Validated against the allowed list; falls back to the default if tampered.
+  const category = isTicketCategory(body.category) ? body.category : DEFAULT_TICKET_CATEGORY;
   // Honeypot — real users leave this empty; bots tend to fill every field.
   const website = typeof body.website === "string" ? body.website.trim() : "";
 
@@ -30,6 +33,7 @@ export async function POST(request: Request) {
     data: {
       name,
       email,
+      category,
       subject: subject || null,
       messages: { create: { author: "CUSTOMER", body: message } },
     },
@@ -48,6 +52,7 @@ export async function POST(request: Request) {
         <h1 style="font-size:20px;margin:0 0 4px;color:#13161c;">${escapeHtml(adminHeading)}</h1>
         <p style="margin:0 0 16px;color:#9ca3af;font-size:13px;">Ticket #${ticketRef}</p>
         <p style="margin:0 0 4px;color:#13161c;"><strong>From:</strong> ${escapeHtml(name)} &lt;${escapeHtml(email)}&gt;</p>
+        <p style="margin:0 0 4px;color:#13161c;"><strong>Category:</strong> ${escapeHtml(category)}</p>
         ${subject ? `<p style="margin:0 0 16px;color:#13161c;"><strong>Subject:</strong> ${escapeHtml(subject)}</p>` : ""}
         <div style="white-space:pre-wrap;line-height:1.6;border-top:1px solid #e5e7eb;padding-top:16px;color:#374151;">${escapeHtml(message)}</div>
       `,
@@ -55,6 +60,7 @@ export async function POST(request: Request) {
     const adminText = [
       `New support ticket #${ticketRef}`,
       `From: ${name} <${email}>`,
+      `Category: ${category}`,
       subject ? `Subject: ${subject}` : "",
       "",
       message,
@@ -65,6 +71,7 @@ export async function POST(request: Request) {
       bodyHtml: `
         <h1 style="font-size:20px;margin:0 0 12px;color:#13161c;">Thanks, ${escapeHtml(name)} — we got your message</h1>
         <p style="margin:0 0 16px;color:#4b5563;">Your message has been received and we&rsquo;ve opened support ticket <strong>#${ticketRef}</strong>. Our team will get back to you at this email address as soon as possible.</p>
+        <p style="margin:0 0 4px;color:#13161c;"><strong>Category:</strong> ${escapeHtml(category)}</p>
         ${subject ? `<p style="margin:0 0 4px;color:#13161c;"><strong>Subject:</strong> ${escapeHtml(subject)}</p>` : ""}
         <div style="white-space:pre-wrap;line-height:1.6;border-top:1px solid #e5e7eb;padding-top:16px;color:#374151;">${escapeHtml(message)}</div>
         <p style="margin:20px 0 0;color:#9ca3af;font-size:12px;">You&rsquo;re receiving this because you contacted Blitz.tips. If this wasn&rsquo;t you, you can ignore this email.</p>
@@ -74,6 +81,7 @@ export async function POST(request: Request) {
       `Thanks, ${name} — we got your message.`,
       `We've opened support ticket #${ticketRef} and will get back to you at ${email} as soon as possible.`,
       "",
+      `Category: ${category}`,
       subject ? `Subject: ${subject}` : "",
       "",
       "Your message:",

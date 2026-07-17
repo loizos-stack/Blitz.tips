@@ -2,10 +2,12 @@
 
 import { useState } from "react";
 import { Send } from "lucide-react";
+import { TICKET_CATEGORIES, DEFAULT_TICKET_CATEGORY } from "@/lib/ticket-categories";
 
 export function ContactForm() {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
+  const [category, setCategory] = useState<string>(DEFAULT_TICKET_CATEGORY);
   const [subject, setSubject] = useState("");
   const [message, setMessage] = useState("");
   const [website, setWebsite] = useState(""); // honeypot
@@ -19,7 +21,7 @@ export function ContactForm() {
     const res = await fetch("/api/contact", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name, email, subject, message, website }),
+      body: JSON.stringify({ name, email, category, subject, message, website }),
     });
     const body = await res.json().catch(() => ({}));
     if (!res.ok) {
@@ -30,6 +32,7 @@ export function ContactForm() {
     setState("sent");
     setName("");
     setEmail("");
+    setCategory(DEFAULT_TICKET_CATEGORY);
     setSubject("");
     setMessage("");
   }
@@ -75,6 +78,16 @@ export function ContactForm() {
           <input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} className={input} />
         </label>
       </div>
+      <label className="block text-sm">
+        <span className="font-medium">Category</span>
+        <select required value={category} onChange={(e) => setCategory(e.target.value)} className={input}>
+          {TICKET_CATEGORIES.map((c) => (
+            <option key={c} value={c}>
+              {c}
+            </option>
+          ))}
+        </select>
+      </label>
       <label className="block text-sm">
         <span className="font-medium">Subject</span>
         <input required value={subject} onChange={(e) => setSubject(e.target.value)} className={input} />

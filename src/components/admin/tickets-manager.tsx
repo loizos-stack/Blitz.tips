@@ -18,6 +18,7 @@ interface Ticket {
   id: string;
   name: string;
   email: string;
+  category: string | null;
   subject: string | null;
   status: Status;
   createdAt: string;
@@ -136,8 +137,13 @@ export function TicketsManager({ initialTickets }: { initialTickets: Ticket[] })
                     </span>
                   </div>
                   <p className="truncate text-xs text-muted">{t.subject || "(no subject)"}</p>
-                  <p className="mt-0.5 truncate text-[11px] text-muted">
-                    #{ref(t.id)} · {when(t.updatedAt)}
+                  <p className="mt-0.5 flex items-center gap-1.5 truncate text-[11px] text-muted">
+                    {t.category && (
+                      <span className="shrink-0 rounded bg-surface-raised px-1.5 py-0.5 font-medium text-foreground">
+                        {t.category}
+                      </span>
+                    )}
+                    <span className="truncate">#{ref(t.id)} · {when(t.updatedAt)}</span>
                   </p>
                 </button>
               </li>
@@ -151,9 +157,14 @@ export function TicketsManager({ initialTickets }: { initialTickets: Ticket[] })
         <div className="card flex flex-col p-0">
           <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border p-4">
             <div className="min-w-0">
-              <p className="font-semibold">
+              <p className="flex flex-wrap items-center gap-2 font-semibold">
                 {selected.subject || "(no subject)"}{" "}
                 <span className="text-xs font-normal text-muted">#{ref(selected.id)}</span>
+                {selected.category && (
+                  <span className="rounded-full bg-accent/10 px-2 py-0.5 text-[10px] font-semibold uppercase text-accent">
+                    {selected.category}
+                  </span>
+                )}
               </p>
               <p className="text-sm text-muted">
                 {selected.name} ·{" "}
