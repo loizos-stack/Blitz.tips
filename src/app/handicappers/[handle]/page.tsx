@@ -4,6 +4,7 @@ import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { getHandicapperByHandle } from "@/lib/handicappers";
 import { summarizeRatings } from "@/lib/reviews";
+import { isPickLocked } from "@/lib/pick-visibility";
 import { ReviewsList, type ReviewItem } from "@/components/reviews-list";
 import { Stars } from "@/components/stars";
 import { StatCard } from "@/components/stat-card";
@@ -139,7 +140,7 @@ export default async function HandicapperProfilePage({
         </h2>
         <div className="grid gap-4 sm:grid-cols-2">
           {pendingPicks.map((pick) => (
-            <PickCard key={pick.id} pick={pick} locked={pick.isPremium && !unlocked} />
+            <PickCard key={pick.id} pick={pick} locked={isPickLocked(pick, unlocked)} />
           ))}
         </div>
       </>

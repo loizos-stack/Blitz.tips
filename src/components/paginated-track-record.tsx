@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { PickCard } from "@/components/pick-card";
+import { isPickLocked } from "@/lib/pick-visibility";
 
 type CardPick = React.ComponentProps<typeof PickCard>["pick"];
 
@@ -24,7 +25,7 @@ export function PaginatedTrackRecord({
     <>
       <div className="grid gap-4 sm:grid-cols-2">
         {visible.map((pick) => (
-          <PickCard key={pick.id} pick={pick} locked={pick.isPremium && !unlocked} />
+          <PickCard key={pick.id} pick={pick} locked={isPickLocked(pick, unlocked)} />
         ))}
       </div>
       {remaining > 0 && (

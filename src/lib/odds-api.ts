@@ -4,6 +4,7 @@ import { getTeamLogoUrl } from "@/lib/team-logos";
 import { formatMatchup } from "@/lib/utils";
 import { sportsDbConfigured, resolveSportsDbLogo } from "@/lib/sportsdb";
 import { additionalMarketKeys, buildGroups, type MarketGroup, type RawMarket } from "@/lib/odds-markets";
+import { getLiveGameStates, livePairKey } from "@/lib/espn-scores";
 
 // The Odds API (the-odds-api.com) client.
 //
@@ -293,6 +294,10 @@ export interface LiveScore {
   homeScore: number;
   awayScore: number;
   completed: boolean;
+  // Period + clock for an in-progress game (e.g. "3rd Qtr 5:23", "Top 5th"),
+  // sourced from ESPN. Null when unavailable (final games, unmatched, or sports
+  // ESPN's scoreboard doesn't cover here).
+  detail: string | null;
 }
 
 export interface UpcomingEvent {
@@ -421,6 +426,20 @@ export async function getUpcomingEvents(sport: PickSport): Promise<OddsFeedResul
   );
   const finalEvents = windowEvents.length > 0 ? windowEvents : events;
 
+  // For games in progress, enrich the live score with a period/clock detail from
+  // ESPN (the Odds API doesn't provide one). One free, cached request per sport,
+  // only when something is actually live.
+  if (finalEvents.some((e) => e.liveScore && !e.liveScore.completed)) {
+    const states = await getLiveGameStates(sport);
+    if (states.size > 0) {
+      for (const e of finalEvents) {
+        if (e.liveScore && !e.liveScore.completed) {
+          e.liveScore.detail = states.get(livePairKey(e.awayTeam, e.homeTeam)) ?? null;
+        }
+      }
+    }
+  }
+
   return { configured: true, supported: true, events: finalEvents };
 }
 
@@ -457,6 +476,7 @@ async function getScores(sportKey: string, apiKey: string): Promise<Map<string, 
       homeScore: Number(home.score),
       awayScore: Number(away.score),
       completed: entry.completed,
+      detail: null,
     });
   }
 

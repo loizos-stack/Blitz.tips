@@ -141,8 +141,13 @@ export function UpcomingGames({
                 <div key={event.id} className="card w-80 shrink-0 p-4">
                   <div className="flex items-center justify-between text-xs">
                     {isLive ? (
-                      <span className="flex items-center gap-1 font-semibold text-danger">
-                        <Radio className="h-3 w-3 animate-pulse" /> LIVE
+                      <span className="flex items-center gap-1.5 font-semibold text-danger">
+                        <span className="flex items-center gap-1">
+                          <Radio className="h-3 w-3 animate-pulse" /> LIVE
+                        </span>
+                        {event.liveScore?.detail && (
+                          <span className="font-medium text-muted">· {event.liveScore.detail}</span>
+                        )}
                       </span>
                     ) : isFinal ? (
                       <span className="font-semibold text-muted">FINAL</span>
