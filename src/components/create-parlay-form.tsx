@@ -9,6 +9,7 @@ import { formatOdds, combineParlayOdds } from "@/lib/odds";
 import { getTeamNames } from "@/lib/team-logos";
 import { TeamLogo } from "@/components/team-logo";
 import { TeamCrest } from "@/components/team-crest";
+import { EventMarkets } from "@/components/event-markets";
 import type { MarketOption, UpcomingEvent } from "@/lib/odds-api";
 import type { PickSport } from "@prisma/client";
 
@@ -21,6 +22,10 @@ interface Leg {
   // The sport this leg belongs to (schedule leg's feed sport, else the parlay
   // tag) so its crests resolve against the right league. Not sent to the API.
   sport?: string;
+  // True for a player prop (US sports). Drives the "one player prop per game"
+  // rule; soccer's non-player markets are not player props even though they
+  // share the PROP bet type. Unknown for manual/OCR legs (treated as false).
+  isPlayerProp?: boolean;
 }
 
 function normalizeText(s: string): string {
@@ -39,15 +44,50 @@ function sameGame(a: string, b: string): boolean {
   return key(sa) === key(sb);
 }
 
-// Guard against nonsensical parlays: the same selection twice, or two legs from
-// the same game (e.g. betting both sides). Returns an error message or null.
+type MarketKind = "ou" | "ml" | "spread" | "other";
+// Classify a selection into a market so we can spot contradictory sides. For
+// over/unders the `subject` (player/team/stat, numbers stripped) lets us tell
+// "same market, opposite side" from two unrelated totals.
+function marketId(selection: string): { kind: MarketKind; subject: string; side: "over" | "under" | null } {
+  const s = normalizeText(selection);
+  const ou = s.match(/\b(over|under)\b/);
+  if (ou) {
+    const subject = s
+      .replace(/\b(over|under)\b/g, " ")
+      .replace(/[-+]?\d+(?:\.\d+)?/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+    return { kind: "ou", subject, side: ou[1] as "over" | "under" };
+  }
+  if (/\bml\b/.test(s)) return { kind: "ml", subject: "ml", side: null };
+  if (/[-+]\d/.test(s)) return { kind: "spread", subject: "spread", side: null };
+  return { kind: "other", subject: s, side: null };
+}
+
+// Guard against nonsensical parlays. Same-game legs ARE allowed (same-game
+// parlays), but not: the exact same selection twice, contradictory sides (both
+// over & under of a market, both moneylines, both sides of a spread), or more
+// than one player prop from the same game. Returns an error message or null.
 function legConflict(legs: Leg[], leg: Leg): string | null {
-  const selection = normalizeText(leg.selection);
-  if (legs.some((l) => normalizeText(l.selection) === selection)) {
+  if (legs.some((l) => normalizeText(l.selection) === normalizeText(leg.selection))) {
     return "That selection is already in this parlay.";
   }
-  if (legs.some((l) => sameGame(l.matchup, leg.matchup))) {
-    return "You already have a leg from that game — you can't put two sides of the same matchup in one parlay.";
+  const id = marketId(leg.selection);
+  for (const l of legs) {
+    if (!sameGame(l.matchup, leg.matchup)) continue;
+    const lid = marketId(l.selection);
+    if (id.kind === "ou" && lid.kind === "ou" && id.subject === lid.subject && id.side !== lid.side) {
+      return "You can't have both the over and under of the same market in one parlay.";
+    }
+    if (id.kind === "ml" && lid.kind === "ml") {
+      return "You can't have both teams' moneyline from the same game in one parlay.";
+    }
+    if (id.kind === "spread" && lid.kind === "spread") {
+      return "You can't have both sides of the spread from the same game in one parlay.";
+    }
+    if (leg.isPlayerProp && l.isPlayerProp) {
+      return "You can only include one player prop per game in a parlay.";
+    }
   }
   return null;
 }
@@ -92,9 +132,10 @@ export function CreateParlayForm({
   const [mSelection, setMSelection] = useState("");
   const [mOdds, setMOdds] = useState("-110");
 
-  // Schedule feed
+  // Schedule feed. Sport starts unset so the handicapper picks one before any
+  // matches load (no sport is opened by default).
   const [feed, setFeed] = useState<FeedState>({ status: "idle" });
-  const [feedSport, setFeedSport] = useState(handicapperSports[0] ?? sportKeys[0]);
+  const [feedSport, setFeedSport] = useState("");
   const [openEvent, setOpenEvent] = useState<string | null>(null);
 
   // Upload
@@ -142,7 +183,13 @@ export function CreateParlayForm({
   }
 
   function addScheduleLeg(event: UpcomingEvent, market: MarketOption) {
-    const leg: Leg = { matchup: event.matchup, selection: market.selection, odds: market.odds, sport: feedSport };
+    const leg: Leg = {
+      matchup: event.matchup,
+      selection: market.selection,
+      odds: market.odds,
+      sport: feedSport,
+      isPlayerProp: market.betType === "PROP" && feedSport !== "SOCCER",
+    };
     const conflict = legConflict(legs, leg);
     if (conflict) {
       setError(conflict);
@@ -237,7 +284,7 @@ export function CreateParlayForm({
 
   function openForm() {
     setOpen(true);
-    if (addMode === "schedule" && feed.status === "idle") void loadFeed(feedSport);
+    // No sport is loaded by default — the handicapper picks one first.
   }
 
   if (!open) {
@@ -254,10 +301,7 @@ export function CreateParlayForm({
   const tab = (key: typeof addMode, label: string, Icon: typeof PencilLine) => (
     <button
       type="button"
-      onClick={() => {
-        setAddMode(key);
-        if (key === "schedule" && feed.status === "idle") void loadFeed(feedSport);
-      }}
+      onClick={() => setAddMode(key)}
       className={cn(
         "flex items-center justify-center gap-1.5 rounded-md py-1.5 text-sm font-medium",
         addMode === key ? "bg-surface shadow-sm" : "text-muted hover:text-foreground"
@@ -357,19 +401,28 @@ export function CreateParlayForm({
           <select
             value={feedSport}
             onChange={(e) => {
-              setFeedSport(e.target.value);
-              void loadFeed(e.target.value);
+              const next = e.target.value;
+              setFeedSport(next);
+              setOpenEvent(null);
+              if (next) void loadFeed(next);
+              else setFeed({ status: "idle" });
             }}
             className={input}
           >
+            <option value="">Select a sport…</option>
             {sportKeys.map((s) => (
               <option key={s} value={s}>{SPORT_LABELS[s]}</option>
             ))}
           </select>
+          {!feedSport && (
+            <p className="rounded-lg border border-dashed border-border px-3 py-4 text-center text-sm text-muted">
+              Pick a sport to load its games.
+            </p>
+          )}
           {feed.status === "loading" && <p className="text-sm text-muted">Loading games…</p>}
           {feed.status === "unavailable" && <p className="text-sm text-muted">{feed.reason}.</p>}
           {feed.status === "ready" && (
-            <div className="flex max-h-64 flex-col gap-2 overflow-y-auto pr-1">
+            <div className="flex max-h-[32rem] flex-col gap-2 overflow-y-auto overscroll-contain pr-1">
               {feed.events.map((event) => (
                 <div key={event.id} className="rounded-lg border border-border">
                   <button
@@ -401,21 +454,14 @@ export function CreateParlayForm({
                     <span className="ml-2 shrink-0 text-xs text-muted">{format(new Date(event.commenceTime), "MMM d, h:mm a")}</span>
                   </button>
                   {openEvent === event.id && (
-                    <div className="flex flex-wrap gap-1.5 border-t border-border p-3">
-                      {event.markets.length === 0 ? (
-                        <p className="text-sm text-muted">No odds posted yet.</p>
-                      ) : (
-                        event.markets.map((market, i) => (
-                          <button
-                            key={i}
-                            type="button"
-                            onClick={() => addScheduleLeg(event, market)}
-                            className="rounded-full border border-border px-2.5 py-1 font-display text-xs font-medium tabular-nums text-muted hover:border-accent hover:text-accent"
-                          >
-                            {market.selection} {formatOdds(market.odds)}
-                          </button>
-                        ))
-                      )}
+                    <div className="border-t border-border p-3">
+                      <EventMarkets
+                        key={event.id}
+                        sport={feedSport}
+                        event={event}
+                        selected={null}
+                        onSelect={(market) => addScheduleLeg(event, market)}
+                      />
                     </div>
                   )}
                 </div>

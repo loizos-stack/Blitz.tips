@@ -12,7 +12,6 @@ export function PostTipForms({ handicapperSports }: { handicapperSports: string[
   return (
     <div className="flex flex-col gap-3">
       <CreatePickForm
-        handicapperSports={handicapperSports}
         open={active === "pick"}
         onOpenChange={(open) => setActive(open ? "pick" : null)}
       />

@@ -29,11 +29,9 @@ interface FeedResponse {
 }
 
 export function CreatePickForm({
-  handicapperSports,
   open: openProp,
   onOpenChange,
 }: {
-  handicapperSports: string[];
   // Optional controlled open state so a parent can make the pick and parlay
   // forms mutually exclusive; falls back to internal state when omitted.
   open?: boolean;
@@ -48,7 +46,9 @@ export function CreatePickForm({
   };
   const [mode, setMode] = useState<"schedule" | "manual">("schedule");
 
-  const [sport, setSport] = useState(handicapperSports[0] ?? sportKeys[0]);
+  // Sport starts unset so the handicapper picks one before any matches load
+  // (no sport is opened by default).
+  const [sport, setSport] = useState("");
   const [feed, setFeed] = useState<FeedState>({ status: "idle" });
   const [selectedEvent, setSelectedEvent] = useState<UpcomingEvent | null>(null);
   const [selectedMarket, setSelectedMarket] = useState<MarketOption | null>(null);
@@ -98,17 +98,20 @@ export function CreatePickForm({
 
   function openForm() {
     setOpen(true);
-    if (mode === "schedule") void loadFeed(sport);
+    // No sport is loaded by default — the handicapper picks one first.
   }
 
   function switchMode(next: "schedule" | "manual") {
     setMode(next);
-    if (next === "schedule" && feed.status === "idle") void loadFeed(sport);
+    if (next === "schedule" && sport && feed.status === "idle") void loadFeed(sport);
   }
 
   function changeSport(next: string) {
     setSport(next);
-    if (mode === "schedule") void loadFeed(next);
+    setSelectedEvent(null);
+    setSelectedMarket(null);
+    if (mode === "schedule" && next) void loadFeed(next);
+    else if (!next) setFeed({ status: "idle" });
   }
 
   function chooseMarket(event: UpcomingEvent, market: MarketOption) {
@@ -189,7 +192,7 @@ export function CreatePickForm({
     );
   }
 
-  const readyToSubmit = mode === "manual" || (selectedEvent && selectedMarket);
+  const readyToSubmit = Boolean(sport) && (mode === "manual" || (selectedEvent && selectedMarket));
   const teamNames = getTeamNames(sport as PickSport);
   const vsSport = usesVsSeparator(sport);
 
@@ -225,6 +228,7 @@ export function CreatePickForm({
           onChange={(e) => changeSport(e.target.value)}
           className="mt-1 w-full rounded-lg border border-border bg-surface-raised px-3 py-2 text-sm outline-none focus:border-accent"
         >
+          <option value="">Select a sport…</option>
           {sportKeys.map((s) => (
             <option key={s} value={s}>
               {SPORT_LABELS[s]}
@@ -235,6 +239,11 @@ export function CreatePickForm({
 
       {mode === "schedule" ? (
         <div className="flex flex-col gap-3">
+          {!sport && (
+            <p className="rounded-lg border border-dashed border-border p-3 text-center text-sm text-muted">
+              Pick a sport to load its games.
+            </p>
+          )}
           {feed.status === "loading" && <p className="text-sm text-muted">Loading upcoming games…</p>}
 
           {feed.status === "unavailable" && (
