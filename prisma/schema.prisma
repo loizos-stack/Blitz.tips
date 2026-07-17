@@ -108,6 +108,7 @@ model User {
 
   handicapper    HandicapperProfile?
   subscriptions  Subscription[]        @relation("SubscriberSubscriptions")
+  reviews        Review[]              @relation("UserReviews")
   follows        Follow[]              @relation("UserFollows")
   notifications  Notification[]
   pushSubscriptions PushSubscription[]
@@ -247,7 +248,7 @@ model HandicapperProfile {
   picks         Pick[]
   subscriptions Subscription[] @relation("HandicapperSubscriptions")
   followers     Follow[]       @relation("HandicapperFollowers")
-  testimonials  Testimonial[]
+  reviews       Review[]
 
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -312,17 +313,25 @@ model ParlayLeg {
   @@index([pickId])
 }
 
-// A short quote a handicapper adds from one of their subscribers, shown on the
-// public profile. Curated by the handicapper (not open user reviews).
-model Testimonial {
+// A subscriber's review of a handicapper: a 1–5 star rating with an optional
+// written note, shown on the public profile. Only users who are (or were) paid
+// subscribers of the handicapper can leave one — enforced in the API, not the
+// schema. One review per subscriber per handicapper (they can edit it).
+model Review {
   id            String   @id @default(cuid())
   handicapperId String
   handicapper   HandicapperProfile @relation(fields: [handicapperId], references: [id], onDelete: Cascade)
 
-  author        String
-  quote         String   @db.Text
-  createdAt     DateTime @default(now())
+  authorId      String
+  author        User     @relation("UserReviews", fields: [authorId], references: [id], onDelete: Cascade)
 
+  rating        Int      // 1–5 stars
+  body          String?  @db.Text
+
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@unique([handicapperId, authorId])
   @@index([handicapperId])
 }
 

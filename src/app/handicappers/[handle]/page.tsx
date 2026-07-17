@@ -1,9 +1,11 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { Quote } from "lucide-react";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { getHandicapperByHandle } from "@/lib/handicappers";
+import { canReview, summarizeRatings } from "@/lib/reviews";
+import { ReviewsSection, type ReviewItem } from "@/components/reviews-section";
+import { Stars } from "@/components/stars";
 import { StatCard } from "@/components/stat-card";
 import { PickCard } from "@/components/pick-card";
 import { PaginatedTrackRecord } from "@/components/paginated-track-record";
@@ -77,6 +79,24 @@ export default async function HandicapperProfilePage({
   const pendingPicks = picks.filter((p) => p.result === "PENDING");
   const settledPicks = picks.filter((p) => p.result !== "PENDING");
 
+  // Reviews: only paid subscribers (current or past) may leave one. Compute the
+  // signed-in user's eligibility and pull their existing review out of the list.
+  const ratingSummary = summarizeRatings(handicapper.reviews.map((r) => r.rating));
+  const userCanReview =
+    Boolean(session?.user.id) && !isOwner && (await canReview(session!.user.id, handicapper.id));
+  const myReviewRow = session?.user.id
+    ? handicapper.reviews.find((r) => r.authorId === session.user.id)
+    : undefined;
+  const reviewItems: ReviewItem[] = handicapper.reviews.map((r) => ({
+    id: r.id,
+    rating: r.rating,
+    body: r.body,
+    createdAt: r.createdAt.toISOString(),
+    authorName: r.author.name || r.author.username || "Subscriber",
+    authorAvatarUrl: r.author.image,
+    isOwn: r.authorId === session?.user.id,
+  }));
+
   // The stacked sections below the profile header; the cover, identity, and
   // subscribe box stay pinned above them.
   const sections: Record<string, ReactNode> = {
@@ -130,19 +150,16 @@ export default async function HandicapperProfilePage({
         </div>
       </>
     ),
-    testimonials: handicapper.testimonials.length > 0 && (
-      <>
-        <h2 className="mb-4 text-xl font-bold">What subscribers say</h2>
-        <div className="grid gap-4 sm:grid-cols-2">
-          {handicapper.testimonials.map((t) => (
-            <figure key={t.id} className="card p-5">
-              <Quote className="h-5 w-5 text-accent/60" />
-              <blockquote className="mt-2 text-sm text-muted">&ldquo;{t.quote}&rdquo;</blockquote>
-              <figcaption className="mt-3 text-sm font-medium">— {t.author}</figcaption>
-            </figure>
-          ))}
-        </div>
-      </>
+    reviews: (
+      <ReviewsSection
+        handicapperId={handicapper.id}
+        displayName={handicapper.displayName}
+        average={ratingSummary.average}
+        count={ratingSummary.count}
+        reviews={reviewItems}
+        canReview={userCanReview}
+        myReview={myReviewRow ? { rating: myReviewRow.rating, body: myReviewRow.body } : null}
+      />
     ),
     trackRecord: (
       <>
@@ -191,6 +208,15 @@ export default async function HandicapperProfilePage({
               )}
             </div>
             <p className="text-muted">@{handicapper.handle}</p>
+            {ratingSummary.average !== null && (
+              <div className="mt-2 flex items-center gap-2 text-sm">
+                <Stars value={ratingSummary.average} />
+                <span className="font-semibold">{ratingSummary.average.toFixed(1)}</span>
+                <span className="text-muted">
+                  ({ratingSummary.count} review{ratingSummary.count === 1 ? "" : "s"})
+                </span>
+              </div>
+            )}
             <div className="mt-3 flex flex-wrap gap-1.5">
               {handicapper.sports.map((sport) => (
                 <span

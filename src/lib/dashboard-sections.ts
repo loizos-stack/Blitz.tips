@@ -16,7 +16,7 @@ export const HANDICAPPER_SECTIONS: DashboardSection[] = [
   { key: "breakdowns", label: "Breakdown tables", description: "By-sport and by-bet-type records" },
   { key: "plan", label: "Platform plan", description: "Your Blitz.tips plan and commission" },
   { key: "pricing", label: "Subscriber pricing", description: "Weekly / monthly / annual package prices" },
-  { key: "community", label: "Socials & testimonials", description: "Social links and subscriber testimonials" },
+  { key: "community", label: "Socials & reviews", description: "Social links and your subscriber reviews" },
 ];
 
 export const SUBSCRIBER_SECTIONS: DashboardSection[] = [
@@ -33,7 +33,7 @@ export const PROFILE_SECTIONS: DashboardSection[] = [
   { key: "pendingPlays", label: "Pending tips", description: "The handicapper's pending picks" },
   { key: "stats", label: "Stats", description: "Record, win rate, net units, ROI, plus the L10 / last-30 line" },
   { key: "trackRecord", label: "Track record", description: "Settled picks history" },
-  { key: "testimonials", label: "Testimonials", description: "What subscribers say" },
+  { key: "reviews", label: "Reviews", description: "Subscriber star ratings and written reviews" },
 ];
 
 export const DASHBOARD_ORDER_SETTING = {

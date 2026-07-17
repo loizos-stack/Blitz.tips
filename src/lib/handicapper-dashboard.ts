@@ -3,7 +3,7 @@ import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 
 // Shared loader for the per-section handicapper dashboard pages. Each page pulls
-// the full profile (with picks + testimonials) and computes the slice it needs.
+// the full profile (with picks + reviews) and computes the slice it needs.
 // Redirects to sign-in when signed out; returns handicapper: null when the
 // signed-in user hasn't created a profile yet (the Overview page renders the
 // "become a handicapper" form in that case; other pages bounce to Overview).
@@ -15,7 +15,10 @@ export async function loadDashboardHandicapper() {
     where: { userId: session.user.id },
     include: {
       picks: { orderBy: { eventStartsAt: "desc" } },
-      testimonials: { orderBy: { createdAt: "asc" } },
+      reviews: {
+        orderBy: { createdAt: "desc" },
+        include: { author: { select: { name: true, username: true, image: true } } },
+      },
     },
   });
 
