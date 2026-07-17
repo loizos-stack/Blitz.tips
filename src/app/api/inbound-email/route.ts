@@ -10,25 +10,27 @@ export const dynamic = "force-dynamic";
 const CONTACT_TO = process.env.CONTACT_EMAIL?.trim() || "support@blitz.tips";
 
 /**
- * SendGrid Inbound Parse webhook — threads a customer's email reply back into
- * its ticket so the whole conversation lives in the admin Tickets tab.
+ * Inbound-email webhook — threads a customer's email reply back into its ticket
+ * so the whole conversation lives in the admin Tickets tab.
  *
- * Flow: check the shared secret → parse the multipart form SendGrid posts →
- * find the ticket from the per-ticket reply address (or the #REF in the subject)
- * → append the reply as a CUSTOMER message, reopen the ticket, and email the
- * team a heads-up.
+ * Flow: check the shared secret → read the JSON the inbound source posts → find
+ * the ticket from the per-ticket reply address (or the #REF in the subject) →
+ * append the reply as a CUSTOMER message, reopen the ticket, and email the team.
  *
- * Setup: point MX for INBOUND_EMAIL_DOMAIN (a dedicated subdomain, e.g.
- * "parse.blitz.tips") at `mx.sendgrid.net`, then in SendGrid → Settings →
- * Inbound Parse add that host with the destination URL
- * `https://<your-domain>/api/inbound-email?token=<INBOUND_WEBHOOK_SECRET>`.
- * SendGrid doesn't sign requests, so the secret in the query string is what
- * authenticates the call.
+ * Setup (Cloudflare Email Routing): enable Email Routing on a dedicated
+ * subdomain (INBOUND_EMAIL_DOMAIN, e.g. "parse.blitz.tips") so your root MX /
+ * Google Workspace inbox is untouched, then route that subdomain to the Email
+ * Worker in `workers/inbound-email/`. The Worker parses the message and POSTs
+ * `{ from, to, subject, text, html }` here with an `Authorization: Bearer
+ * <INBOUND_WEBHOOK_SECRET>` header. (A `?token=` query param is also accepted,
+ * so any inbound service that can't send headers still works.)
  */
 function secretOk(request: Request): boolean {
   const expected = process.env.INBOUND_WEBHOOK_SECRET;
   if (!expected) return false;
-  const given = new URL(request.url).searchParams.get("token") ?? "";
+  const bearer = request.headers.get("authorization")?.replace(/^Bearer\s+/i, "") ?? "";
+  const query = new URL(request.url).searchParams.get("token") ?? "";
+  const given = bearer || query;
   const a = Buffer.from(given);
   const b = Buffer.from(expected);
   return a.length === b.length && timingSafeEqual(a, b);
@@ -39,33 +41,24 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  let form: FormData;
+  let payload: { from?: string; to?: string | string[]; subject?: string; text?: string; html?: string };
   try {
-    form = await request.formData();
+    payload = await request.json();
   } catch {
     return NextResponse.json({ error: "Bad payload" }, { status: 400 });
   }
 
-  const str = (k: string) => {
-    const v = form.get(k);
-    return typeof v === "string" ? v : "";
-  };
+  const fromHeader = typeof payload.from === "string" ? payload.from : "";
+  const subject = typeof payload.subject === "string" ? payload.subject : "";
+  const text = typeof payload.text === "string" ? payload.text : "";
+  const html = typeof payload.html === "string" ? payload.html : "";
 
-  const fromHeader = str("from");
-  const subject = str("subject");
-  const text = str("text");
-  const html = str("html");
-
-  // Recipients: the SMTP envelope `to` is the most reliable source of the
-  // per-ticket address; fall back to the header `to`.
-  const recipients: string[] = [];
-  try {
-    const env = JSON.parse(str("envelope") || "{}");
-    if (Array.isArray(env.to)) recipients.push(...env.to);
-  } catch {
-    /* envelope missing or malformed — fall back to the header below */
-  }
-  recipients.push(...str("to").split(","));
+  // The recipient carries the per-ticket reply token (reply+<id>@domain).
+  const recipients: string[] = Array.isArray(payload.to)
+    ? payload.to
+    : typeof payload.to === "string"
+      ? payload.to.split(",")
+      : [];
 
   // Which ticket? The per-ticket reply address carries the id; fall back to the
   // #REF in the subject.
@@ -76,7 +69,7 @@ export async function POST(request: Request) {
     const ref = subject.match(/#([A-Z0-9]{8})\b/i);
     if (ref) ticket = await prisma.ticket.findFirst({ where: { id: { endsWith: ref[1].toLowerCase() } } });
   }
-  // 200 even when unmatched, so SendGrid doesn't retry a message we can't place.
+  // 200 even when unmatched, so the sender doesn't retry a message we can't place.
   if (!ticket) {
     console.warn("[inbound-email] no matching ticket for", recipients, subject);
     return NextResponse.json({ ok: true });
