@@ -42,6 +42,22 @@ const BETTORS: QA[] = [
     q: "Are picks guaranteed to win?",
     a: "No. Sports betting always carries risk and no handicapper wins every time. Blitz.tips makes past performance transparent so you can make informed choices, but nothing here is a guarantee of future results.",
   },
+  {
+    q: "Can I pay with crypto?",
+    a: "Yes, when the handicapper has crypto enabled you'll see a “Pay with crypto” button on their subscribe card. It buys a one-time access pass for a fixed length — 7 days (weekly), 30 days (monthly), or 365 days (annual) — at the same package price as card checkout.",
+  },
+  {
+    q: "How does paying with crypto work?",
+    a: "Tap “Pay with crypto” and you're taken to a secure hosted checkout (powered by NOWPayments). Choose your coin — BTC, ETH, USDC and 300+ others — and send the amount shown. Once the payment confirms on-chain, your access to that handicapper's premium picks unlocks automatically. Prices are set in the handicapper's currency and converted to crypto at checkout.",
+  },
+  {
+    q: "Does a crypto payment auto-renew?",
+    a: "No. Unlike a card subscription, a crypto pass is a single payment for a fixed period and does not renew on its own. When it's about to expire, just pay again to extend — paying again while a pass is still active adds the new days on top of your current end date.",
+  },
+  {
+    q: "Crypto vs card — is there any difference in what I get?",
+    a: "None in access — both unlock the same premium picks. Card subscriptions renew automatically and can offer a short free trial; crypto is a one-time pass with no trial and no auto-renew. Crypto also works even if a handicapper hasn't set up card payments yet.",
+  },
 ];
 
 const HANDICAPPERS: QA[] = [
@@ -73,6 +89,28 @@ const HANDICAPPERS: QA[] = [
   {
     q: "How and when do I get paid?",
     a: "Subscriber payments are processed through Stripe Connect and paid out to your connected bank account on Stripe's standard payout schedule, minus the platform commission for your plan.",
+  },
+  {
+    q: "How do crypto payouts work for handicappers?",
+    a: (
+      <>
+        Add your payout wallet addresses in the{" "}
+        <Link href="/dashboard/handicapper/payouts" className="text-accent hover:underline">
+          Payouts tab
+        </Link>{" "}
+        of your dashboard — an ETH (ERC-20) and/or a BTC address. When a subscriber pays you in crypto,
+        your share (the package price minus your plan&rsquo;s commission) is sent to that wallet on our
+        regular payout schedule. Your wallet addresses are private and never shown on your profile.
+      </>
+    ),
+  },
+  {
+    q: "Do I need to set up Stripe to accept crypto?",
+    a: "No. Crypto works independently of Stripe — as long as you've added a payout wallet, subscribers can pay you in crypto even if you haven't started or finished Stripe onboarding. Setting up Stripe as well simply lets card-paying subscribers check out too.",
+  },
+  {
+    q: "Which coins can subscribers pay me with?",
+    a: "Subscribers pay on a hosted checkout that accepts BTC, ETH, USDC and 300+ other coins. You're paid out to the ETH and/or BTC wallet you set, so you receive it in the currency of the address you provide.",
   },
   {
     q: "Can I edit or delete a pick after posting?",

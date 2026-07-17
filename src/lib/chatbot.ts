@@ -36,7 +36,10 @@ Key facts:
 - Subscriptions: each handicapper sets their own weekly, monthly and/or annual price. Bettors subscribe via secure Stripe checkout and instantly unlock premium picks. Subscriptions renew automatically until cancelled.
 - Cancelling: bettors can cancel any subscription from their dashboard at any time and keep access until the end of the paid period.
 - Some handicappers offer a short free trial (e.g. a 1-day or 2-day trial) on a package.
-- Payment methods: card (via Stripe) and, where a handicapper has set up crypto payout wallets, crypto (via NOWPayments).
+- Payment methods: card (via Stripe) and, where a handicapper has crypto enabled, crypto (via NOWPayments).
+- Paying with crypto (subscribers): when available, a "Pay with crypto" button appears on the handicapper's subscribe card. It's a one-time payment that buys a fixed-length access pass — 7 days (weekly), 30 days (monthly), or 365 days (annual) — at the same price as the card package. You're taken to a secure hosted checkout, pick your coin (BTC, ETH, USDC and 300+ others), and send the amount; access unlocks automatically once the payment confirms on-chain. Prices are set in the handicapper's currency and converted to crypto at checkout.
+- Crypto passes do NOT auto-renew (unlike card subscriptions) and have no free trial. To keep access, pay again before it expires; paying again while still active extends from the current end date. Crypto also works even if the handicapper hasn't set up card payments.
+- Crypto payouts (handicappers): add an ETH (ERC-20) and/or BTC payout wallet in the Payouts tab of the dashboard. When a subscriber pays in crypto, your share (package price minus your plan's commission) is sent to that wallet on the regular payout schedule. Wallet addresses are private and never shown on your profile. You don't need Stripe set up to accept crypto.
 - Sports covered: NFL, NBA, WNBA, MLB, NHL, college football and basketball, soccer, golf, tennis, UFC/MMA and more — it depends on the handicapper.
 - No pick is guaranteed to win; sports betting carries risk. Blitz.tips makes past performance transparent but guarantees nothing.
 - Becoming a handicapper: create an account, open the handicapper dashboard, set up a public profile and pricing, and start posting picks. It's free to start.
@@ -64,9 +67,9 @@ const CANNED_RULES: CannedRule[] = [
       "Handicappers are paid via Stripe Connect to their connected bank account on Stripe's standard payout schedule, minus the platform commission for their plan. You set up payouts from the Payouts tab of your dashboard.",
   },
   {
-    test: /\b(crypto|bitcoin|btc|eth|usdt|nowpayments)\b/i,
+    test: /\b(crypto|bitcoin|btc|eth|usdt|usdc|nowpayments|wallet|payout|withdraw)\b/i,
     answer:
-      "Where a handicapper has set up crypto payout wallets, subscribers can pay with crypto via NOWPayments in addition to card. You'll see a “Pay with crypto” option on their subscribe card when it's available.",
+      "You can pay with crypto when a handicapper has it enabled — tap “Pay with crypto” on their subscribe card. It's a one-time payment for a fixed access pass (7, 30, or 365 days) at the same price as card; you pick your coin (BTC, ETH, USDC and 300+ others) on a hosted checkout and access unlocks once it confirms on-chain. Crypto passes don't auto-renew, so pay again to extend. Handicappers get paid to the ETH/BTC payout wallet they set in their dashboard's Payouts tab, minus their plan's commission.",
   },
   {
     test: /\b(trial|free trial)\b/i,
