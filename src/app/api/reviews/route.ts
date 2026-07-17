@@ -32,10 +32,12 @@ export async function POST(request: Request) {
     );
   }
 
+  // A new or edited review is held for moderation — it only goes public once an
+  // admin approves it, so foul/hate language can be caught first.
   const review = await prisma.review.upsert({
     where: { handicapperId_authorId: { handicapperId, authorId: session.user.id } },
-    create: { handicapperId, authorId: session.user.id, rating, body: text || null },
-    update: { rating, body: text || null },
+    create: { handicapperId, authorId: session.user.id, rating, body: text || null, status: "PENDING" },
+    update: { rating, body: text || null, status: "PENDING", moderatedAt: null, moderatedBy: null },
   });
 
   await logActivity({
@@ -44,7 +46,7 @@ export async function POST(request: Request) {
     action: "review.upsert",
     targetType: "Review",
     targetId: review.id,
-    detail: `${rating}★ review of handicapper ${handicapperId}`,
+    detail: `${rating}★ review of handicapper ${handicapperId} (pending moderation)`,
   });
 
   return NextResponse.json({ review });

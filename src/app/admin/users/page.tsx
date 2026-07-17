@@ -1,6 +1,8 @@
+import { after } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { AdminSelect, AdminButton } from "@/components/admin/admin-actions";
 import { guardAdminPage } from "@/lib/permissions";
+import { markAdminTabSeen } from "@/lib/admin-badges";
 
 export const dynamic = "force-dynamic";
 
@@ -11,7 +13,9 @@ const ROLE_OPTIONS = [
 ];
 
 export default async function AdminUsersPage() {
-  await guardAdminPage("users");
+  const ctx = await guardAdminPage("users");
+  // Opening the tab clears its "new signups" bubble.
+  after(() => markAdminTabSeen(ctx.userId, "users"));
   const users = await prisma.user.findMany({
     orderBy: { createdAt: "desc" },
     take: 200,

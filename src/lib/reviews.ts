@@ -1,5 +1,6 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
+import type { ReviewStatus } from "@prisma/client";
 
 /**
  * Whether a user is eligible to review a handicapper. Reviews are limited to
@@ -28,6 +29,56 @@ export async function canReview(userId: string, handicapperId: string): Promise<
     }),
   ]);
   return Boolean(sub || crypto);
+}
+
+export interface ReviewableHandicapper {
+  id: string;
+  handle: string;
+  displayName: string;
+  avatarUrl: string | null;
+  /** The user's existing review of this handicapper, if any (with its moderation status). */
+  review: { rating: number; body: string | null; status: ReviewStatus } | null;
+}
+
+/**
+ * The handicappers a user is allowed to review: everyone whose paid package
+ * they've held (current or past) — a Stripe/comped subscription past INCOMPLETE
+ * or a confirmed crypto pass — with their existing review attached. Suspended
+ * handicappers are excluded (their profiles are hidden). Empty array = the user
+ * has never paid for any package, so they can't leave a review at all.
+ */
+export async function reviewableHandicappers(userId: string): Promise<ReviewableHandicapper[]> {
+  const [subs, cryptos] = await Promise.all([
+    prisma.subscription.findMany({
+      where: { subscriberId: userId, status: { not: "INCOMPLETE" } },
+      select: { handicapperId: true },
+    }),
+    prisma.cryptoPayment.findMany({
+      where: { subscriberId: userId, status: "CONFIRMED" },
+      select: { handicapperId: true },
+    }),
+  ]);
+
+  const ids = [...new Set([...subs.map((s) => s.handicapperId), ...cryptos.map((c) => c.handicapperId)])];
+  if (ids.length === 0) return [];
+
+  const [profiles, reviews] = await Promise.all([
+    prisma.handicapperProfile.findMany({
+      where: { id: { in: ids }, suspendedAt: null },
+      select: { id: true, handle: true, displayName: true, avatarUrl: true },
+    }),
+    prisma.review.findMany({
+      where: { authorId: userId, handicapperId: { in: ids } },
+      select: { handicapperId: true, rating: true, body: true, status: true },
+    }),
+  ]);
+
+  const byHandicapper = new Map(
+    reviews.map((r) => [r.handicapperId, { rating: r.rating, body: r.body, status: r.status }])
+  );
+  return profiles
+    .map((p) => ({ ...p, review: byHandicapper.get(p.id) ?? null }))
+    .sort((a, b) => a.displayName.localeCompare(b.displayName));
 }
 
 export interface RatingSummary {

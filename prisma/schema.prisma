@@ -109,6 +109,7 @@ model User {
   handicapper    HandicapperProfile?
   subscriptions  Subscription[]        @relation("SubscriberSubscriptions")
   reviews        Review[]              @relation("UserReviews")
+  adminTabViews  AdminTabView[]        @relation("AdminTabViews")
   follows        Follow[]              @relation("UserFollows")
   notifications  Notification[]
   pushSubscriptions PushSubscription[]
@@ -317,6 +318,10 @@ model ParlayLeg {
 // written note, shown on the public profile. Only users who are (or were) paid
 // subscribers of the handicapper can leave one — enforced in the API, not the
 // schema. One review per subscriber per handicapper (they can edit it).
+//
+// Reviews are held for admin moderation: a new or edited review lands as PENDING
+// and only appears publicly once an admin marks it APPROVED (so foul/hate
+// language can be caught first). REJECTED reviews stay hidden.
 model Review {
   id            String   @id @default(cuid())
   handicapperId String
@@ -328,11 +333,36 @@ model Review {
   rating        Int      // 1–5 stars
   body          String?  @db.Text
 
+  status        ReviewStatus @default(PENDING)
+  moderatedAt   DateTime?
+  moderatedBy   String?  // admin userId who approved/rejected it
+
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
   @@unique([handicapperId, authorId])
-  @@index([handicapperId])
+  @@index([handicapperId, status])
+  @@index([status, createdAt])
+}
+
+enum ReviewStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+// Per-admin "last viewed" marker for an admin tab. Powers the number bubbles in
+// the admin nav for tabs whose badge means "new since you last looked"
+// (users, handicappers, subscriptions). Queue tabs (tickets/chats/reviews) badge
+// off live state instead and don't need a marker.
+model AdminTabView {
+  id      String   @id @default(cuid())
+  userId  String
+  user    User     @relation("AdminTabViews", fields: [userId], references: [id], onDelete: Cascade)
+  tab     String
+  seenAt  DateTime @default(now())
+
+  @@unique([userId, tab])
 }
 
 // One row per admin mutation — who did what to which record, when.

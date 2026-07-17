@@ -1,12 +1,15 @@
+import { after } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { AdminButton } from "@/components/admin/admin-actions";
 import { GrantSubscriptionForm } from "@/components/admin/grant-subscription-form";
 import { guardAdminPage } from "@/lib/permissions";
+import { markAdminTabSeen } from "@/lib/admin-badges";
 
 export const dynamic = "force-dynamic";
 
 export default async function AdminSubscriptionsPage() {
   const ctx = await guardAdminPage("subscriptions");
+  after(() => markAdminTabSeen(ctx.userId, "subscriptions"));
   const subscriptions = await prisma.subscription.findMany({
     orderBy: { createdAt: "desc" },
     take: 200,

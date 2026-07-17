@@ -3,8 +3,8 @@ import { notFound } from "next/navigation";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { getHandicapperByHandle } from "@/lib/handicappers";
-import { canReview, summarizeRatings } from "@/lib/reviews";
-import { ReviewsSection, type ReviewItem } from "@/components/reviews-section";
+import { summarizeRatings } from "@/lib/reviews";
+import { ReviewsList, type ReviewItem } from "@/components/reviews-list";
 import { Stars } from "@/components/stars";
 import { StatCard } from "@/components/stat-card";
 import { PickCard } from "@/components/pick-card";
@@ -79,14 +79,9 @@ export default async function HandicapperProfilePage({
   const pendingPicks = picks.filter((p) => p.result === "PENDING");
   const settledPicks = picks.filter((p) => p.result !== "PENDING");
 
-  // Reviews: only paid subscribers (current or past) may leave one. Compute the
-  // signed-in user's eligibility and pull their existing review out of the list.
+  // Reviews are display-only here (writing happens in the subscriber dashboard).
+  // Only APPROVED reviews are loaded, so the summary reflects the public set.
   const ratingSummary = summarizeRatings(handicapper.reviews.map((r) => r.rating));
-  const userCanReview =
-    Boolean(session?.user.id) && !isOwner && (await canReview(session!.user.id, handicapper.id));
-  const myReviewRow = session?.user.id
-    ? handicapper.reviews.find((r) => r.authorId === session.user.id)
-    : undefined;
   const reviewItems: ReviewItem[] = handicapper.reviews.map((r) => ({
     id: r.id,
     rating: r.rating,
@@ -94,7 +89,6 @@ export default async function HandicapperProfilePage({
     createdAt: r.createdAt.toISOString(),
     authorName: r.author.name || r.author.username || "Subscriber",
     authorAvatarUrl: r.author.image,
-    isOwn: r.authorId === session?.user.id,
   }));
 
   // The stacked sections below the profile header; the cover, identity, and
@@ -151,14 +145,11 @@ export default async function HandicapperProfilePage({
       </>
     ),
     reviews: (
-      <ReviewsSection
-        handicapperId={handicapper.id}
+      <ReviewsList
         displayName={handicapper.displayName}
         average={ratingSummary.average}
         count={ratingSummary.count}
         reviews={reviewItems}
-        canReview={userCanReview}
-        myReview={myReviewRow ? { rating: myReviewRow.rating, body: myReviewRow.body } : null}
       />
     ),
     trackRecord: (

@@ -16,6 +16,7 @@ export async function loadDashboardHandicapper() {
     include: {
       picks: { orderBy: { eventStartsAt: "desc" } },
       reviews: {
+        where: { status: "APPROVED" },
         orderBy: { createdAt: "desc" },
         include: { author: { select: { name: true, username: true, image: true } } },
       },

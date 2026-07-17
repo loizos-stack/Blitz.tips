@@ -79,6 +79,7 @@ export async function getHandicapperByHandle(
         include: { parlayLegs: { orderBy: { order: "asc" } } },
       },
       reviews: {
+        where: { status: "APPROVED" },
         orderBy: { createdAt: "desc" },
         include: { author: { select: { id: true, name: true, username: true, image: true } } },
       },

@@ -33,6 +33,7 @@ export type AdminPermission =
   | "system"
   | "tickets"
   | "chat"
+  | "reviews"
   | "audit"
   | "permissions";
 
@@ -60,6 +61,7 @@ export const ADMIN_PERMISSIONS: PermissionDef[] = [
   { key: "system", label: "System", href: "/admin/system", description: "Announcements, odds quota, auto-settlement" },
   { key: "tickets", label: "Tickets", href: "/admin/tickets", description: "View and reply to support tickets from the contact form" },
   { key: "chat", label: "Chat", href: "/admin/chats", description: "Answer live visitor chats escalated from the on-site assistant" },
+  { key: "reviews", label: "Reviews", href: "/admin/reviews", description: "Moderate subscriber reviews before they appear on public profiles" },
   { key: "audit", label: "Logs", href: "/admin/logs", description: "Search and filter the site-wide activity log" },
   { key: "permissions", label: "Permissions", href: "/admin/permissions", description: "Create admins and grant them permissions", superOnly: true },
 ];

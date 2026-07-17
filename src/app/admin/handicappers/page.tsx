@@ -1,7 +1,9 @@
+import { after } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { formatCents } from "@/lib/utils";
 import { AdminSelect, AdminButton } from "@/components/admin/admin-actions";
 import { guardAdminPage } from "@/lib/permissions";
+import { markAdminTabSeen } from "@/lib/admin-badges";
 
 export const dynamic = "force-dynamic";
 
@@ -12,7 +14,8 @@ const PLAN_OPTIONS = [
 ];
 
 export default async function AdminHandicappersPage() {
-  await guardAdminPage("handicappers");
+  const ctx = await guardAdminPage("handicappers");
+  after(() => markAdminTabSeen(ctx.userId, "handicappers"));
   const handicappers = await prisma.handicapperProfile.findMany({
     orderBy: { createdAt: "desc" },
     take: 200,

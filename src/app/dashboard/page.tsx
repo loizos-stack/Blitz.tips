@@ -15,6 +15,8 @@ import { Avatar } from "@/components/avatar";
 import { StatCard } from "@/components/stat-card";
 import { UnitsChart } from "@/components/dashboard/units-chart";
 import { listHandicapperSummariesByIds, sortPaidFirst } from "@/lib/handicappers";
+import { reviewableHandicappers } from "@/lib/reviews";
+import { SubscriberReviews } from "@/components/dashboard/subscriber-reviews";
 import { enrichPickCrests } from "@/lib/pick-logos";
 import { getSetting } from "@/lib/settings";
 import { DASHBOARD_ORDER_SETTING, resolveSectionOrder } from "@/lib/dashboard-sections";
@@ -37,13 +39,14 @@ async function loadDashboard(userId: string) {
     }),
   ]);
 
-  const [subscriptions, followRows] = await Promise.all([
+  const [subscriptions, followRows, reviewable] = await Promise.all([
     prisma.subscription.findMany({
       where: { subscriberId: userId, status: "ACTIVE" },
       include: { handicapper: true },
       orderBy: { createdAt: "desc" },
     }),
     prisma.follow.findMany({ where: { followerId: userId }, select: { handicapperId: true } }),
+    reviewableHandicappers(userId),
   ]);
 
   // Followed handicappers, paid plans first then alphabetical by name.
@@ -111,6 +114,7 @@ async function loadDashboard(userId: string) {
     handicapperProfile,
     subscriptions,
     followed,
+    reviewable,
     feedPicks,
     combined,
     monthlySpendCents,
@@ -129,6 +133,7 @@ export default async function DashboardPage() {
     handicapperProfile,
     subscriptions,
     followed,
+    reviewable,
     feedPicks,
     combined,
     monthlySpendCents,
@@ -220,6 +225,16 @@ export default async function DashboardPage() {
             <HandicapperCard key={h.id} handicapper={h} />
           ))}
         </div>
+      </section>
+    ),
+    reviews: (
+      <section>
+        <h2 className="mb-1 font-semibold">Reviews</h2>
+        <p className="mb-3 text-sm text-muted">
+          Rate the handicappers whose paid packages you subscribe to. Reviews are checked by our team
+          before they appear on the handicapper&apos;s public profile.
+        </p>
+        <SubscriberReviews handicappers={reviewable} />
       </section>
     ),
     feed: (
