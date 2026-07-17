@@ -69,28 +69,56 @@ export async function listHandicapperSummaries(): Promise<HandicapperSummary[]> 
 
 export type DirectoryHandicapper = HandicapperSummary & {
   followersCount: number;
+  /** Has posted at least one player-prop pick. */
+  hasProps: boolean;
+  /** Has posted at least one parlay. */
+  hasParlays: boolean;
+  /** Lowercased haystack of everything on the profile the finder search matches. */
+  searchText: string;
 };
 
 /**
- * All active handicappers with their follower count and approved-review count —
- * the data the homepage "Find a Handicapper" finder needs to filter (by sport)
- * and sort (hot, most followed, most reviewed).
+ * All active handicappers with their follower count, approved-review count, and
+ * the flags/haystack the homepage "Find a Handicapper" finder needs to filter
+ * (sport, player props, parlays), sort (hot, most followed, most reviewed), and
+ * search across everything on the profile.
  */
 export async function listHandicapperDirectory(): Promise<DirectoryHandicapper[]> {
   const handicappers = await prisma.handicapperProfile.findMany({
     where: { suspendedAt: null },
     include: {
-      picks: true,
+      picks: { include: { parlayLegs: true } },
       ...APPROVED_REVIEW_RATINGS,
       _count: { select: { followers: true } },
     },
     orderBy: { createdAt: "asc" },
   });
 
-  return handicappers.map((h) => ({
-    ...toSummary(h),
-    followersCount: h._count.followers,
-  }));
+  return handicappers.map((h) => {
+    const searchText = [
+      h.displayName,
+      h.handle,
+      h.bio ?? "",
+      ...h.sports.map((s) => SPORT_LABELS[s] ?? s),
+      ...h.picks.flatMap((p) => [
+        p.matchup,
+        p.selection,
+        p.league ?? "",
+        p.analysis ?? "",
+        ...p.parlayLegs.flatMap((l) => [l.matchup, l.selection]),
+      ]),
+    ]
+      .join(" ")
+      .toLowerCase();
+
+    return {
+      ...toSummary(h),
+      followersCount: h._count.followers,
+      hasProps: h.picks.some((p) => p.betType === "PROP"),
+      hasParlays: h.picks.some((p) => p.betType === "PARLAY"),
+      searchText,
+    };
+  });
 }
 
 // The non-sport quick filters for the homepage finder. Sport keys (NBA, MLB, …)
@@ -114,6 +142,10 @@ export function applyHandicapperFinder(
   if (filter in SPORT_LABELS) {
     out = out.filter((h) => h.sports.includes(filter as PickSport));
     out.sort((a, b) => b.stats.unitsNet - a.stats.unitsNet);
+  } else if (filter === "props") {
+    out = out.filter((h) => h.hasProps).sort((a, b) => b.stats.unitsNet - a.stats.unitsNet);
+  } else if (filter === "parlays") {
+    out = out.filter((h) => h.hasParlays).sort((a, b) => b.stats.unitsNet - a.stats.unitsNet);
   } else if (filter === "hot") {
     out.sort(
       (a, b) => b.currentStreak - a.currentStreak || b.last10Stats.unitsNet - a.last10Stats.unitsNet
@@ -126,12 +158,10 @@ export function applyHandicapperFinder(
     out = sortFeaturedFirst(out, (a, b) => b.stats.unitsNet - a.stats.unitsNet);
   }
 
+  // Search matches everything on the profile (name, @handle, bio, sports, and
+  // every pick's matchup / selection / league / analysis / parlay legs).
   const q = query.trim().toLowerCase();
-  if (q) {
-    out = out.filter(
-      (h) => h.displayName.toLowerCase().includes(q) || h.handle.toLowerCase().includes(q)
-    );
-  }
+  if (q) out = out.filter((h) => h.searchText.includes(q));
   return out;
 }
 

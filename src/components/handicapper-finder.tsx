@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
-import { Search, Flame, Heart, Star } from "lucide-react";
+import { Search, Flame, Heart, Star, PersonStanding, BookText } from "lucide-react";
 import { SportIcon } from "@/components/sport-icon";
 import { SPORT_LABELS, cn } from "@/lib/utils";
 import type { PickSport } from "@prisma/client";
@@ -20,6 +20,8 @@ const SPECIAL_CHIPS = [
   { key: "hot", label: "Hot", Icon: Flame, iconClass: "text-orange-500" },
   { key: "followed", label: "Most followed", Icon: Heart, iconClass: "text-danger" },
   { key: "reviewed", label: "Most reviewed", Icon: Star, iconClass: "text-gold" },
+  { key: "props", label: "Player Props", Icon: PersonStanding, iconClass: "text-accent" },
+  { key: "parlays", label: "Parlays", Icon: BookText, iconClass: "text-accent" },
 ] as const;
 
 export function HandicapperFinder({ sports, activeFilter, query }: Props) {
@@ -61,25 +63,26 @@ export function HandicapperFinder({ sports, activeFilter, query }: Props) {
 
   const chip = (active: boolean) =>
     cn(
-      "inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm font-medium transition-colors",
+      "inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border px-3 py-1.5 text-sm font-medium transition-colors",
       active
         ? "border-accent bg-accent/10 text-accent"
         : "border-border bg-surface/70 text-muted hover:border-muted hover:text-foreground"
     );
 
   return (
-    <div className="mt-5 space-y-3">
-      <div className="relative max-w-md">
+    <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:items-center">
+      <div className="relative shrink-0 sm:w-60 lg:w-72">
         <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" />
         <input
           value={text}
           onChange={(e) => setText(e.target.value)}
-          placeholder="Search handicappers by name or @handle…"
+          placeholder="Search handicappers, picks, teams…"
           className="w-full rounded-lg border border-border bg-surface-raised py-2.5 pl-9 pr-3 text-sm outline-none focus:border-accent"
         />
       </div>
 
-      <div className="flex flex-wrap gap-2">
+      {/* Horizontal carousel of filters, sitting next to the search bar. */}
+      <div className="flex gap-2 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:thin] sm:flex-1">
         <Link href={hrefFor("all")} scroll={false} className={chip(isActive("all"))}>
           All
         </Link>

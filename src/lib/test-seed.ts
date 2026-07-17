@@ -60,6 +60,15 @@ const CAPPERS: TestCapper[] = [
   { handle: "touchlinetips", displayName: "Touchline Tips", sports: ["SOCCER"], plan: "FREE", verified: false, monthly: 1699, bio: "Weekend football multibets and singles." },
 ];
 
+const PROP_PLAYERS = ["J. Allen", "P. Mahomes", "N. Jokic", "L. James", "A. Judge", "S. Ohtani", "C. McDavid", "N. MacKinnon", "E. Haaland", "K. Mbappé"];
+const PROP_STATS: Partial<Record<PickSport, string[]>> = {
+  NFL: ["Passing Yds", "Rushing Yds", "Receptions", "Pass TDs"],
+  NBA: ["Points", "Rebounds", "Assists", "3PM"],
+  MLB: ["Total Bases", "Hits", "Strikeouts", "RBIs"],
+  NHL: ["Shots on Goal", "Points", "Saves"],
+  SOCCER: ["Shots", "Shots on Target", "Assists"],
+};
+
 const REVIEW_BODIES = [
   "Up big following these plays — best value on the platform.",
   "Consistent and transparent. Every pick posted before lock.",
@@ -194,6 +203,68 @@ export async function seedTestData(prisma: PrismaClient): Promise<{ handicappers
         })),
         skipDuplicates: true,
       });
+    }
+
+    // Player props for ~half the cappers (idempotent top-up so existing cappers
+    // get them on a re-run). Powers the finder's "Player Props" filter.
+    if (c % 2 === 0 && (await prisma.pick.count({ where: { handicapperId: profile.id, betType: "PROP" } })) === 0) {
+      const stats = PROP_STATS[h.sports[0]] ?? ["Points"];
+      const propRows = [];
+      const n = between(2, 4);
+      for (let i = 0; i < n; i++) {
+        const sport = pickOf(h.sports);
+        const home = pickOf(TEAMS[sport]);
+        let away = pickOf(TEAMS[sport]);
+        while (away === home) away = pickOf(TEAMS[sport]);
+        const isPending = i === 0;
+        const startsAt = new Date();
+        startsAt.setDate(startsAt.getDate() + (isPending ? between(0, 2) : -between(1, 15)));
+        propRows.push({
+          handicapperId: profile.id, sport, league: sport, matchup: `${away} @ ${home}`,
+          betType: "PROP" as const,
+          selection: `${pickOf(PROP_PLAYERS)} ${rng() > 0.5 ? "Over" : "Under"} ${between(1, 30)}.5 ${pickOf(stats)}`,
+          odds: pickOf([-115, -110, 100, -120, 105]), units: pickOf([1, 1, 1.5, 2]),
+          result: (isPending ? "PENDING" : pickOf(["WIN", "WIN", "LOSS"])) as PickResult,
+          isPremium: rng() > 0.3, eventStartsAt: startsAt,
+          settledAt: isPending ? null : startsAt, createdAt: startsAt,
+        });
+      }
+      await prisma.pick.createMany({ data: propRows });
+    }
+
+    // Parlays for ~every third capper. Powers the "Parlays" filter.
+    if (c % 3 === 0 && (await prisma.pick.count({ where: { handicapperId: profile.id, betType: "PARLAY" } })) === 0) {
+      const parlaysN = between(1, 2);
+      for (let p = 0; p < parlaysN; p++) {
+        const legN = between(2, 3);
+        const legs = [];
+        for (let i = 0; i < legN; i++) {
+          const sport = pickOf(h.sports);
+          const home = pickOf(TEAMS[sport]);
+          let away = pickOf(TEAMS[sport]);
+          while (away === home) away = pickOf(TEAMS[sport]);
+          const betType = pickOf(BET_TYPES);
+          legs.push({
+            sport, league: sport, matchup: `${away} @ ${home}`,
+            selection: makeSelection(betType, home, away), odds: pickOf([-110, -105, 100, 120]), order: i,
+          });
+        }
+        const isPending = p === 0;
+        const startsAt = new Date();
+        startsAt.setDate(startsAt.getDate() + (isPending ? between(0, 2) : -between(1, 20)));
+        await prisma.pick.create({
+          data: {
+            handicapperId: profile.id, sport: legs[0].sport, league: legs[0].league,
+            matchup: `${legN}-leg parlay`, betType: "PARLAY",
+            selection: legs.map((l) => l.selection).join(" + "),
+            odds: pickOf([260, 385, 540, 610]), units: pickOf([1, 1, 2]),
+            result: (isPending ? "PENDING" : pickOf(["WIN", "LOSS", "LOSS"])) as PickResult,
+            isPremium: rng() > 0.3, eventStartsAt: startsAt,
+            settledAt: isPending ? null : startsAt, createdAt: startsAt,
+            parlayLegs: { create: legs },
+          },
+        });
+      }
     }
   }
 
