@@ -3,7 +3,7 @@ import { timingSafeEqual } from "crypto";
 import { prisma } from "@/lib/prisma";
 import { sendEmail } from "@/lib/email";
 import { emailWrapper, escapeHtml } from "@/lib/email-template";
-import { ticketIdFromAddresses, parseEmailAddress, stripQuotedReply, htmlToText } from "@/lib/tickets";
+import { ticketIdFromAddresses, ticketRefFromText, parseEmailAddress, stripQuotedReply, htmlToText } from "@/lib/tickets";
 
 export const dynamic = "force-dynamic";
 
@@ -84,14 +84,15 @@ export async function POST(request: Request) {
       ? payload.to.split(",")
       : [];
 
-  // Which ticket? The per-ticket reply address carries the id; fall back to the
-  // #REF in the subject.
+  // Which ticket? A per-ticket plus address carries the id (if the inbound
+  // setup can route one); otherwise match on the #REF that every ticket email
+  // carries — first the subject, then the quoted body of the reply.
   let ticket = null;
   const tokenId = ticketIdFromAddresses(recipients);
   if (tokenId) ticket = await prisma.ticket.findUnique({ where: { id: tokenId } });
   if (!ticket) {
-    const ref = subject.match(/#([A-Z0-9]{8})\b/i);
-    if (ref) ticket = await prisma.ticket.findFirst({ where: { id: { endsWith: ref[1].toLowerCase() } } });
+    const ref = ticketRefFromText(subject, text, htmlToText(html));
+    if (ref) ticket = await prisma.ticket.findFirst({ where: { id: { endsWith: ref } } });
   }
   // 200 even when unmatched, so the sender doesn't retry a message we can't place.
   if (!ticket) {

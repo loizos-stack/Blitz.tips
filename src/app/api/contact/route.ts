@@ -85,7 +85,7 @@ export async function POST(request: Request) {
       // Reply-to is the ticket's own address so a customer replying to the
       // confirmation threads straight back into the ticket (and still reaches the
       // team) — the From address is a no-reply mailbox.
-      sendEmail({ to: email, subject: `We received your message — Blitz.tips (#${ticketRef})`, html: customerHtml, text: customerText, replyTo: ticketReplyAddress(ticket.id) }),
+      sendEmail({ to: email, subject: `We received your message — Blitz.tips (#${ticketRef})`, html: customerHtml, text: customerText, replyTo: ticketReplyAddress() }),
     ]);
   });
 

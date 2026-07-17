@@ -5,24 +5,39 @@ const CONTACT_TO = process.env.CONTACT_EMAIL?.trim() || "support@blitz.tips";
 /**
  * The address a customer replies to for a ticket email.
  *
- * When INBOUND_EMAIL_DOMAIN is configured (a subdomain whose MX points at Resend
- * Inbound, e.g. "parse.blitz.tips"), we use a per-ticket plus-address so the
- * reply can be threaded back into the ticket automatically. The token after the
- * "+" is the ticket id itself, so matching an incoming reply is exact and needs
- * no guessing. Without an inbound domain we fall back to the support mailbox.
+ * When INBOUND_EMAIL_DOMAIN is configured (a dedicated subdomain that receives
+ * via Cloudflare Email Routing, e.g. "parse.blitz.tips"), replies go to a single
+ * fixed address on it — the local part defaults to "replies" and must match the
+ * custom address you created in Cloudflare (override with INBOUND_EMAIL_LOCALPART
+ * if you used a different name). The ticket is then matched from the #REF that
+ * every ticket email carries in its subject and body. Without an inbound domain
+ * we fall back to the support mailbox.
  */
-export function ticketReplyAddress(ticketId: string): string {
+export function ticketReplyAddress(): string {
   const domain = process.env.INBOUND_EMAIL_DOMAIN?.trim();
-  return domain ? `reply+${ticketId}@${domain}` : CONTACT_TO;
+  if (!domain) return CONTACT_TO;
+  const localPart = process.env.INBOUND_EMAIL_LOCALPART?.trim() || "replies";
+  return `${localPart}@${domain}`;
 }
 
 /** Extract a ticket id from a plus-addressed recipient like
- *  `reply+<ticketId>@parse.blitz.tips`. Returns null if none match. */
+ *  `reply+<ticketId>@parse.blitz.tips`. Returns null if none match. Kept for
+ *  setups that can route a per-ticket plus address; the fixed-address flow
+ *  matches on the #REF instead. */
 export function ticketIdFromAddresses(addresses: string[]): string | null {
   for (const raw of addresses) {
     const addr = parseEmailAddress(raw);
     const m = addr.match(/\+([a-z0-9]+)@/i);
     if (m) return m[1];
+  }
+  return null;
+}
+
+/** Find the 8-char ticket #REF in some text (subject or quoted body). */
+export function ticketRefFromText(...texts: (string | undefined)[]): string | null {
+  for (const t of texts) {
+    const m = t?.match(/#([A-Za-z0-9]{8})\b/);
+    if (m) return m[1].toLowerCase();
   }
   return null;
 }

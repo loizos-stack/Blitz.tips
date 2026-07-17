@@ -56,7 +56,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         text,
         // Reply-to is the ticket's own address so the customer's reply threads
         // back into this ticket (falls back to support), not the no-reply From.
-        replyTo: ticketReplyAddress(ticket.id),
+        replyTo: ticketReplyAddress(),
       });
     });
 
