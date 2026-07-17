@@ -7,6 +7,7 @@ import { sendDiscordDM } from "@/lib/discord";
 import { formatOdds } from "@/lib/odds";
 import { siteUrl } from "@/lib/site";
 import { emailWrapper, emailLinkPill, escapeHtml } from "@/lib/email-template";
+import { unsubscribeUrl, unsubscribePostUrl } from "@/lib/unsubscribe";
 
 // Resolved via siteUrl() so a stale *.vercel.app value in NEXT_PUBLIC_APP_URL
 // never leaks into notification links (same rule as emails/Stripe redirects).
@@ -89,7 +90,8 @@ export async function notifyNewPick(pick: NewPickInput): Promise<void> {
           to: u.email,
           subject: title,
           text: newPickEmailText(handicapper.displayName, body, url),
-          html: newPickEmailHtml(handicapper.displayName, body, url),
+          html: newPickEmailHtml(handicapper.displayName, body, url, unsubscribeUrl(u.id)),
+          listUnsubscribeUrl: unsubscribePostUrl(u.id),
         });
       })
     );
@@ -150,10 +152,11 @@ function newPickEmailText(name: string, body: string, path: string): string {
   ].join("\n");
 }
 
-function newPickEmailHtml(name: string, body: string, path: string): string {
+function newPickEmailHtml(name: string, body: string, path: string, unsubscribeHref: string): string {
   const href = `${SITE_URL}${path}`;
   return emailWrapper({
     preheader: `${name} posted a new pick — ${body}`,
+    unsubscribeUrl: unsubscribeHref,
     bodyHtml: `
       <h1 style="font-size:20px;margin:0 0 12px;color:#13161c;">${escapeHtml(name)} posted a new pick</h1>
       <p style="color:#4b5563;font-size:15px;margin:0 0 24px;">${escapeHtml(body)}</p>

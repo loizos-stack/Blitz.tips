@@ -20,6 +20,9 @@ export async function sendEmail(opts: {
   html: string;
   text: string;
   replyTo?: string;
+  // One-click unsubscribe endpoint (RFC 8058) for non-operational mail — adds
+  // the List-Unsubscribe headers so mail clients show a native Unsubscribe.
+  listUnsubscribeUrl?: string;
 }): Promise<void> {
   if (!resend) {
     console.warn(`[email] RESEND_API_KEY not set — would send "${opts.subject}" to ${opts.to}`);
@@ -32,6 +35,14 @@ export async function sendEmail(opts: {
     html: opts.html,
     text: opts.text,
     ...(opts.replyTo ? { replyTo: opts.replyTo } : {}),
+    ...(opts.listUnsubscribeUrl
+      ? {
+          headers: {
+            "List-Unsubscribe": `<${opts.listUnsubscribeUrl}>`,
+            "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
+          },
+        }
+      : {}),
   });
   if (error) throw new Error(error.message);
 }

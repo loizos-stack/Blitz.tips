@@ -26,7 +26,17 @@ export function emailLinkPill(url: string, label: string): string {
  * Wraps email body content in the branded card: centered logo header on top,
  * the given HTML in the middle, and a standard footer below.
  */
-export function emailWrapper({ preheader, bodyHtml }: { preheader?: string; bodyHtml: string }): string {
+export function emailWrapper({
+  preheader,
+  bodyHtml,
+  unsubscribeUrl,
+}: {
+  preheader?: string;
+  bodyHtml: string;
+  // Only set for non-operational (marketing/notification) emails — adds an
+  // unsubscribe line to the footer. Transactional mail leaves it undefined.
+  unsubscribeUrl?: string;
+}): string {
   return `<!DOCTYPE html>
 <html>
   <head>
@@ -57,6 +67,11 @@ export function emailWrapper({ preheader, bodyHtml }: { preheader?: string; body
                 <p style="color:#9ca3af;font-size:12px;line-height:1.6;margin:0;">
                   Blitz.tips &mdash; the marketplace for verified sports handicappers.<br />
                   You&rsquo;re receiving this because you have an account on blitz.tips.
+                  ${
+                    unsubscribeUrl
+                      ? `<br /><a href="${unsubscribeUrl}" style="color:#9ca3af;text-decoration:underline;">Unsubscribe from these emails</a>`
+                      : ""
+                  }
                 </p>
               </td>
             </tr>
