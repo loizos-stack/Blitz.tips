@@ -41,17 +41,41 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  let payload: { from?: string; to?: string | string[]; subject?: string; text?: string; html?: string };
+  let payload: {
+    from?: string;
+    to?: string | string[];
+    subject?: string;
+    text?: string;
+    html?: string;
+    // Full raw MIME — sent by the dependency-free Cloudflare Worker so parsing
+    // happens here (lets the Worker be pasted straight into the dashboard).
+    raw?: string;
+  };
   try {
     payload = await request.json();
   } catch {
     return NextResponse.json({ error: "Bad payload" }, { status: 400 });
   }
 
-  const fromHeader = typeof payload.from === "string" ? payload.from : "";
-  const subject = typeof payload.subject === "string" ? payload.subject : "";
-  const text = typeof payload.text === "string" ? payload.text : "";
-  const html = typeof payload.html === "string" ? payload.html : "";
+  let fromHeader = typeof payload.from === "string" ? payload.from : "";
+  let subject = typeof payload.subject === "string" ? payload.subject : "";
+  let text = typeof payload.text === "string" ? payload.text : "";
+  let html = typeof payload.html === "string" ? payload.html : "";
+
+  // If the source forwarded the raw message, parse it for the body (and fill any
+  // missing envelope bits). Envelope from/to already provided by the Worker win.
+  if (typeof payload.raw === "string" && payload.raw.length > 0) {
+    try {
+      const { default: PostalMime } = await import("postal-mime");
+      const parsed = await PostalMime.parse(payload.raw);
+      text = text || parsed.text || "";
+      html = html || parsed.html || "";
+      subject = subject || parsed.subject || "";
+      if (!fromHeader && parsed.from?.address) fromHeader = parsed.from.address;
+    } catch (err) {
+      console.error("[inbound-email] raw MIME parse failed:", err);
+    }
+  }
 
   // The recipient carries the per-ticket reply token (reply+<id>@domain).
   const recipients: string[] = Array.isArray(payload.to)
