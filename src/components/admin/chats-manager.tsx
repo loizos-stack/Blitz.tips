@@ -26,6 +26,9 @@ interface Chat {
 
 const HEARTBEAT_MS = 20_000;
 const POLL_MS = 4000;
+// How often to pull fresh server data so the chat LIST (new chats, status
+// changes, ordering) updates on its own — the open thread already polls faster.
+const LIST_REFRESH_MS = 10_000;
 
 function ref(id: string) {
   return id.slice(-6).toUpperCase();
@@ -105,6 +108,33 @@ export function ChatsManager({ initialChats, onlineAgents }: { initialChats: Cha
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight });
   }, [selected?.messages.length, selectedId]);
+
+  // Keep the list fresh as the server data reloads (new chats, status changes)
+  // without dropping messages the fast poll already merged in. Deferred a tick
+  // to stay clear of the set-state-in-effect rule.
+  useEffect(() => {
+    const t = setTimeout(() => {
+      setChats((prev) =>
+        initialChats.map((fresh) => {
+          const existing = prev.find((c) => c.id === fresh.id);
+          if (!existing) return fresh;
+          const map = new Map(fresh.messages.map((m) => [m.id, m] as const));
+          for (const m of existing.messages) if (!map.has(m.id)) map.set(m.id, m);
+          return {
+            ...fresh,
+            messages: [...map.values()].sort((a, b) => a.createdAt.localeCompare(b.createdAt)),
+          };
+        })
+      );
+    }, 0);
+    return () => clearTimeout(t);
+  }, [initialChats]);
+
+  // Pull fresh server data periodically so new/updated chats surface on their own.
+  useEffect(() => {
+    const id = setInterval(() => router.refresh(), LIST_REFRESH_MS);
+    return () => clearInterval(id);
+  }, [router]);
 
   async function call(id: string, init: RequestInit) {
     setBusy(true);

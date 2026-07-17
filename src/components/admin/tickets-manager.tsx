@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Mail, Send, Trash2, CheckCircle2, RotateCcw } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -32,13 +32,25 @@ function when(iso: string) {
   return new Date(iso).toLocaleString();
 }
 
+// How often to reload tickets so new customer replies (threaded in from inbound
+// email) surface without a manual refresh.
+const REFRESH_MS = 15_000;
+
 export function TicketsManager({ initialTickets }: { initialTickets: Ticket[] }) {
   const router = useRouter();
-  const [tickets] = useState(initialTickets);
+  // Render straight from the server data so router.refresh() updates the list.
+  const tickets = initialTickets;
   const [selectedId, setSelectedId] = useState<string | null>(initialTickets[0]?.id ?? null);
   const [reply, setReply] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Auto-refresh so replies appear on their own. Your reply draft and which
+  // ticket is selected are client state, so they survive the refresh.
+  useEffect(() => {
+    const id = setInterval(() => router.refresh(), REFRESH_MS);
+    return () => clearInterval(id);
+  }, [router]);
 
   const selected = tickets.find((t) => t.id === selectedId) ?? null;
 
