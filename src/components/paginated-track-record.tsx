@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { PickCard } from "@/components/pick-card";
 import { isPickLocked } from "@/lib/pick-visibility";
+import { pickShareInfo } from "@/lib/pick-share";
 
 type CardPick = React.ComponentProps<typeof PickCard>["pick"];
 
@@ -12,10 +13,13 @@ export function PaginatedTrackRecord({
   picks,
   unlocked,
   pageSize = 6,
+  share,
 }: {
   picks: CardPick[];
   unlocked: boolean;
   pageSize?: number;
+  // When set, each pick gets a share button (post to X / download the card).
+  share?: { baseUrl: string; handle: string; displayName: string };
 }) {
   const [count, setCount] = useState(pageSize);
   const visible = picks.slice(0, count);
@@ -24,9 +28,17 @@ export function PaginatedTrackRecord({
   return (
     <>
       <div className="grid gap-4 sm:grid-cols-2">
-        {visible.map((pick) => (
-          <PickCard key={pick.id} pick={pick} locked={isPickLocked(pick, unlocked)} />
-        ))}
+        {visible.map((pick) => {
+          const locked = isPickLocked(pick, unlocked);
+          return (
+            <PickCard
+              key={pick.id}
+              pick={pick}
+              locked={locked}
+              share={share ? pickShareInfo({ ...share, pick, locked }) : undefined}
+            />
+          );
+        })}
       </div>
       {remaining > 0 && (
         <div className="mt-6 flex justify-center">

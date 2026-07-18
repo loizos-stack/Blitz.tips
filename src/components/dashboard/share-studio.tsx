@@ -10,6 +10,9 @@ export interface SharePick {
   selection: string;
   result: PickResult;
   sportLabel: string;
+  // A still-locked premium pick: the public card is a teaser, so the text/preview
+  // reveal nothing about the play.
+  locked?: boolean;
 }
 
 function xIntent(text: string, url: string): string {
@@ -74,6 +77,7 @@ export function ShareStudio({
   unitsNet,
   roi,
   picks,
+  pendingPicks = [],
 }: {
   baseUrl: string;
   handle: string;
@@ -82,6 +86,7 @@ export function ShareStudio({
   unitsNet: number;
   roi: number | null;
   picks: SharePick[];
+  pendingPicks?: SharePick[];
 }) {
   const profileUrl = `${baseUrl}/handicappers/${handle}`;
   const recordImageUrl = `${baseUrl}/handicappers/${handle}/opengraph-image`;
@@ -125,7 +130,19 @@ export function ShareStudio({
         </div>
       </div>
 
-      {/* Pick cards */}
+      {/* Pending pick cards */}
+      {pendingPicks.length > 0 && (
+        <div>
+          <h3 className="mb-1 font-semibold">Pending pick cards</h3>
+          <p className="mb-3 text-sm text-muted">
+            Hype a play before it starts. Premium picks share as a locked teaser that reveals nothing —
+            perfect for pulling in subscribers.
+          </p>
+          <PickGrid picks={pendingPicks} baseUrl={baseUrl} handle={handle} displayName={displayName} profileUrl={profileUrl} />
+        </div>
+      )}
+
+      {/* Settled pick cards */}
       <div>
         <h3 className="mb-3 font-semibold">Settled pick cards</h3>
         {picks.length === 0 ? (
@@ -133,29 +150,56 @@ export function ShareStudio({
             Once your picks are graded they&apos;ll show here as shareable cards.
           </div>
         ) : (
-          <div className="grid gap-4 lg:grid-cols-2">
-            {picks.map((p) => {
-              const imageUrl = `${baseUrl}/api/share/pick/${p.id}`;
-              const text = `${p.result === "WIN" ? "✅ " : ""}${p.selection} — ${p.matchup}. Tracked & graded on Blitz.tips.`;
-              return (
-                <div key={p.id} className="card overflow-hidden">
-                  <div className="overflow-hidden border-b border-border">
-                    {/* eslint-disable-next-line @next/next/no-img-element -- dynamic OG PNG, sized fluidly */}
-                    <img src={imageUrl} alt={`${p.selection} share card`} className="block w-full" />
-                  </div>
-                  <div className="space-y-3 p-4">
-                    <p className="text-sm">
-                      <span className="font-semibold">{p.selection}</span>{" "}
-                      <span className="text-muted">· {p.sportLabel} · {p.matchup}</span>
-                    </p>
-                    <ShareActions text={text} url={profileUrl} imageUrl={imageUrl} download={`${handle}-${p.id}.png`} />
-                  </div>
-                </div>
-              );
-            })}
-          </div>
+          <PickGrid picks={picks} baseUrl={baseUrl} handle={handle} displayName={displayName} profileUrl={profileUrl} />
         )}
       </div>
+    </div>
+  );
+}
+
+function PickGrid({
+  picks,
+  baseUrl,
+  handle,
+  displayName,
+  profileUrl,
+}: {
+  picks: SharePick[];
+  baseUrl: string;
+  handle: string;
+  displayName: string;
+  profileUrl: string;
+}) {
+  return (
+    <div className="grid gap-4 lg:grid-cols-2">
+      {picks.map((p) => {
+        const imageUrl = `${baseUrl}/api/share/pick/${p.id}`;
+        const decided = p.result !== "PENDING";
+        const text = p.locked
+          ? `New premium pick is live from ${displayName} on Blitz.tips — subscribe to tail it before it starts.`
+          : `${p.selection} — ${p.matchup}. ${decided ? "Tracked & graded" : "Posted before kickoff"} on Blitz.tips.`;
+        return (
+          <div key={p.id} className="card overflow-hidden">
+            <div className="overflow-hidden border-b border-border">
+              {/* eslint-disable-next-line @next/next/no-img-element -- dynamic OG PNG, sized fluidly */}
+              <img src={imageUrl} alt="Pick share card" className="block w-full" />
+            </div>
+            <div className="space-y-3 p-4">
+              <p className="text-sm">
+                {p.locked ? (
+                  <span className="font-semibold text-gold">Premium pick · {p.sportLabel}</span>
+                ) : (
+                  <>
+                    <span className="font-semibold">{p.selection}</span>{" "}
+                    <span className="text-muted">· {p.sportLabel} · {p.matchup}</span>
+                  </>
+                )}
+              </p>
+              <ShareActions text={text} url={profileUrl} imageUrl={imageUrl} download={`${handle}-${p.id}.png`} />
+            </div>
+          </div>
+        );
+      })}
     </div>
   );
 }

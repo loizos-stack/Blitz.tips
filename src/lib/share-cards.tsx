@@ -255,6 +255,63 @@ export interface PickCardData {
   odds: number;
   units: number;
   result: PickResult;
+  // A still-locked premium pick renders a teaser that reveals nothing about the
+  // play (no matchup/selection/odds) — just that a premium pick is live.
+  locked?: boolean;
+}
+
+const GOLD = "#b45309";
+
+function lockedPickCard(d: PickCardData): ReactElement {
+  return (
+    <CardFrame>
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          height: 104,
+          padding: "0 44px",
+          background: COVER,
+          borderTopLeftRadius: 27,
+          borderTopRightRadius: 27,
+        }}
+      >
+        <Wordmark />
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            background: "rgba(180,83,9,0.10)",
+            border: "1px solid rgba(180,83,9,0.35)",
+            borderRadius: 999,
+            padding: "8px 22px",
+            fontSize: 24,
+            fontWeight: 800,
+            color: GOLD,
+            letterSpacing: 1,
+          }}
+        >
+          PREMIUM
+        </div>
+      </div>
+
+      <div style={{ display: "flex", flexDirection: "column", flex: 1, padding: "44px 60px 52px 60px" }}>
+        <span style={{ display: "flex", fontSize: 26, color: MUTED }}>
+          {d.displayName} · @{d.handle} · {d.sportLabel}
+        </span>
+        <span style={{ display: "flex", fontSize: 66, fontWeight: 800, color: FG, marginTop: 16, lineHeight: 1.08 }}>
+          New premium pick is live
+        </span>
+        <span style={{ display: "flex", fontSize: 34, color: MUTED, marginTop: 16 }}>
+          Subscribe on Blitz.tips to unlock the play before it starts.
+        </span>
+        <div style={{ display: "flex", marginTop: "auto", fontSize: 22, color: MUTED }}>
+          <span>Posted before kickoff · tracked &amp; graded on Blitz.tips</span>
+        </div>
+      </div>
+    </CardFrame>
+  );
 }
 
 const RESULT_STYLE: Record<PickResult, { label: string; color: string; bg: string; border: string }> = {
@@ -266,6 +323,7 @@ const RESULT_STYLE: Record<PickResult, { label: string; color: string; bg: strin
 };
 
 export function pickCard(d: PickCardData): ReactElement {
+  if (d.locked) return lockedPickCard(d);
   const r = RESULT_STYLE[d.result];
 
   return (

@@ -2,6 +2,8 @@ import { Lock, Layers } from "lucide-react";
 import { format } from "date-fns";
 import type { Pick as PickModel, ParlayLeg } from "@prisma/client";
 import { ResultPill } from "@/components/result-pill";
+import { PickShareButton } from "@/components/pick-share-button";
+import type { PickShareInfo } from "@/lib/pick-share";
 import { SportIcon } from "@/components/sport-icon";
 import { TeamLogo } from "@/components/team-logo";
 import { getTeamLogoUrl } from "@/lib/team-logos";
@@ -61,7 +63,15 @@ function UnitsBadge({ units }: { units: number }) {
   );
 }
 
-export function PickCard({ pick, locked = false }: { pick: PickWithLegs; locked?: boolean }) {
+export function PickCard({
+  pick,
+  locked = false,
+  share,
+}: {
+  pick: PickWithLegs;
+  locked?: boolean;
+  share?: PickShareInfo;
+}) {
   const isParlay = pick.betType === "PARLAY";
   const legs = pick.parlayLegs ?? [];
   // Prefer server-enriched crests (covers TheSportsDB); fall back to the
@@ -78,12 +88,17 @@ export function PickCard({ pick, locked = false }: { pick: PickWithLegs; locked?
   if (locked) {
     return (
       <div className="card relative overflow-hidden p-5">
-        <div className="flex items-center justify-between text-sm text-muted">
+        <div className="relative z-20 flex items-center justify-between text-sm text-muted">
           <span className="flex items-center gap-1.5">
             {isParlay ? <Layers className="h-4 w-4" /> : <SportIcon sport={pick.sport} className="h-4 w-4" />}
             {isParlay ? `${legs.length}-leg parlay` : SPORT_LABELS[pick.sport]}
           </span>
-          <span>{format(pick.eventStartsAt, "MMM d, h:mm a")}</span>
+          <div className="flex items-center gap-2">
+            <span>{format(pick.eventStartsAt, "MMM d, h:mm a")}</span>
+            {share && (
+              <PickShareButton text={share.text} url={share.url} imageUrl={share.imageUrl} downloadName={share.downloadName} />
+            )}
+          </div>
         </div>
         <div className="mt-3 flex items-center gap-2 blur-sm select-none">
           <p className="font-display font-semibold">{pick.matchup}</p>
@@ -170,15 +185,20 @@ export function PickCard({ pick, locked = false }: { pick: PickWithLegs; locked?
 
       <div className="mt-4 flex items-center justify-between">
         <ResultPill result={pick.result} />
-        {pick.isPremium ? (
-          <span className="rounded-full bg-gold/15 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-gold">
-            Premium
-          </span>
-        ) : (
-          <span className="rounded-full bg-accent/10 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-accent">
-            Free
-          </span>
-        )}
+        <div className="flex items-center gap-2">
+          {pick.isPremium ? (
+            <span className="rounded-full bg-gold/15 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-gold">
+              Premium
+            </span>
+          ) : (
+            <span className="rounded-full bg-accent/10 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-accent">
+              Free
+            </span>
+          )}
+          {share && (
+            <PickShareButton text={share.text} url={share.url} imageUrl={share.imageUrl} downloadName={share.downloadName} />
+          )}
+        </div>
       </div>
     </div>
   );
