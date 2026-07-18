@@ -14,6 +14,7 @@ const COLUMNS = [
     heading: "Company",
     links: [
       { href: "/about", label: "About Blitz" },
+      { href: "/blog", label: "Blog" },
       { href: "/faq", label: "FAQ" },
       { href: "/contact", label: "Contact" },
     ],

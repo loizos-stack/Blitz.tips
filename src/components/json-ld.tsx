@@ -68,6 +68,47 @@ export function FaqJsonLd({ items }: { items: { question: string; answer: string
   );
 }
 
+export function ArticleJsonLd({
+  title,
+  description,
+  slug,
+  image,
+  publishedAt,
+  updatedAt,
+  authorName,
+}: {
+  title: string;
+  description: string;
+  slug: string;
+  image?: string | null;
+  publishedAt: string;
+  updatedAt: string;
+  authorName: string;
+}) {
+  const base = siteUrl();
+  return (
+    <JsonLd
+      data={{
+        "@context": "https://schema.org",
+        "@type": "BlogPosting",
+        headline: title,
+        description,
+        url: `${base}/blog/${slug}`,
+        mainEntityOfPage: `${base}/blog/${slug}`,
+        datePublished: publishedAt,
+        dateModified: updatedAt,
+        author: { "@type": "Organization", name: authorName },
+        publisher: {
+          "@type": "Organization",
+          name: "Blitz.tips",
+          logo: { "@type": "ImageObject", url: `${base}/icon.svg` },
+        },
+        ...(image ? { image: [image] } : {}),
+      }}
+    />
+  );
+}
+
 export function HandicapperJsonLd({
   handle,
   displayName,

@@ -76,3 +76,54 @@ h3,
   border-radius: 9999px;
   letter-spacing: 0.02em;
 }
+
+/* Rendered blog-post body (public post page) and the admin rich-text editor,
+   so authoring and reading look the same. */
+.prose-blog {
+  font-size: 1.0625rem;
+  color: var(--foreground);
+}
+.prose-blog > * + * {
+  margin-top: 1.15rem;
+}
+.prose-blog h2 {
+  font-size: 1.6rem;
+  font-weight: 700;
+  line-height: 1.25;
+  margin-top: 2rem;
+}
+.prose-blog h3 {
+  font-size: 1.3rem;
+  font-weight: 700;
+  margin-top: 1.75rem;
+}
+.prose-blog p {
+  color: var(--foreground);
+}
+.prose-blog a {
+  color: var(--accent);
+  text-decoration: underline;
+}
+.prose-blog ul,
+.prose-blog ol {
+  padding-left: 1.5rem;
+}
+.prose-blog ul {
+  list-style: disc;
+}
+.prose-blog ol {
+  list-style: decimal;
+}
+.prose-blog li + li {
+  margin-top: 0.4rem;
+}
+.prose-blog blockquote {
+  border-left: 3px solid var(--border);
+  padding-left: 1rem;
+  color: var(--muted);
+  font-style: italic;
+}
+.prose-blog img {
+  border-radius: 0.75rem;
+  max-width: 100%;
+}
