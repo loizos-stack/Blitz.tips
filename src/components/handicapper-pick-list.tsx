@@ -7,7 +7,15 @@ type RowPick = React.ComponentProps<typeof HandicapperPickRow>["pick"];
 
 // The handicapper's own picks, split into pending (shown first, in full) and
 // graded (paginated with "Load more" so a long history stays manageable).
-export function HandicapperPickList({ picks, pageSize = 6 }: { picks: RowPick[]; pageSize?: number }) {
+export function HandicapperPickList({
+  picks,
+  pageSize = 6,
+  share,
+}: {
+  picks: RowPick[];
+  pageSize?: number;
+  share?: { baseUrl: string; handle: string; displayName: string };
+}) {
   const pending = picks.filter((p) => p.result === "PENDING");
   const graded = picks.filter((p) => p.result !== "PENDING");
   const [count, setCount] = useState(pageSize);
@@ -22,7 +30,7 @@ export function HandicapperPickList({ picks, pageSize = 6 }: { picks: RowPick[];
           </h3>
           <div className="grid gap-3">
             {pending.map((pick) => (
-              <HandicapperPickRow key={pick.id} pick={pick} />
+              <HandicapperPickRow key={pick.id} pick={pick} share={share} />
             ))}
           </div>
         </div>
@@ -35,7 +43,7 @@ export function HandicapperPickList({ picks, pageSize = 6 }: { picks: RowPick[];
           </h3>
           <div className="grid gap-3">
             {graded.slice(0, count).map((pick) => (
-              <HandicapperPickRow key={pick.id} pick={pick} />
+              <HandicapperPickRow key={pick.id} pick={pick} share={share} />
             ))}
           </div>
           {remaining > 0 && (

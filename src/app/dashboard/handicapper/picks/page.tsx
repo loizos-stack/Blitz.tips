@@ -3,6 +3,7 @@ import { PostTipForms } from "@/components/post-tip-forms";
 import { HandicapperPickList } from "@/components/handicapper-pick-list";
 import { enrichPickCrests } from "@/lib/pick-logos";
 import { loadDashboardHandicapper } from "@/lib/handicapper-dashboard";
+import { siteUrl } from "@/lib/site";
 
 export const dynamic = "force-dynamic";
 
@@ -24,7 +25,10 @@ export default async function HandicapperPicksPage() {
         {displayPicks.length === 0 ? (
           <p className="text-muted">You haven&apos;t posted any picks yet.</p>
         ) : (
-          <HandicapperPickList picks={displayPicks} />
+          <HandicapperPickList
+            picks={displayPicks}
+            share={{ baseUrl: siteUrl(), handle: handicapper.handle, displayName: handicapper.displayName }}
+          />
         )}
       </div>
     </div>

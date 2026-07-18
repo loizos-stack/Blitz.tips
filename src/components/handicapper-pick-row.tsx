@@ -7,6 +7,9 @@ import { Lock } from "lucide-react";
 import type { Pick as PickModel, PickResult } from "@prisma/client";
 import { ResultPill } from "@/components/result-pill";
 import { TeamLogo } from "@/components/team-logo";
+import { PickShareButton } from "@/components/pick-share-button";
+import { isPickLocked } from "@/lib/pick-visibility";
+import { pickShareInfo } from "@/lib/pick-share";
 import { formatOdds } from "@/lib/odds";
 import { SPORT_LABELS, BET_TYPE_LABELS, usesVsSeparator } from "@/lib/utils";
 
@@ -16,7 +19,13 @@ const SETTLE_OPTIONS: PickResult[] = ["WIN", "LOSS", "PUSH", "VOID"];
 // this client row; a parlay's placeholder matchup resolves to neither side.
 type RowPick = PickModel & { awayTeamLogo?: string | null; homeTeamLogo?: string | null };
 
-export function HandicapperPickRow({ pick }: { pick: RowPick }) {
+export function HandicapperPickRow({
+  pick,
+  share,
+}: {
+  pick: RowPick;
+  share?: { baseUrl: string; handle: string; displayName: string };
+}) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
 
@@ -36,6 +45,12 @@ export function HandicapperPickRow({ pick }: { pick: RowPick }) {
   const homeFirst = usesVsSeparator(pick.sport);
   const startLogo = homeFirst ? pick.homeTeamLogo : pick.awayTeamLogo;
   const endLogo = homeFirst ? pick.awayTeamLogo : pick.homeTeamLogo;
+
+  // Share info reflects the public card: a still-locked premium pick shares as a
+  // teaser that reveals nothing (isPickLocked from an anonymous viewpoint).
+  const shareInfo = share
+    ? pickShareInfo({ ...share, pick, locked: isPickLocked(pick, false) })
+    : null;
 
   return (
     <div className="card p-5">
@@ -91,6 +106,18 @@ export function HandicapperPickRow({ pick }: { pick: RowPick }) {
           </span>
         )}
       </div>
+
+      {shareInfo && (
+        <div className="mt-3 flex items-center justify-between border-t border-border pt-3">
+          <span className="text-xs text-muted">Share this pick</span>
+          <PickShareButton
+            text={shareInfo.text}
+            url={shareInfo.url}
+            imageUrl={shareInfo.imageUrl}
+            downloadName={shareInfo.downloadName}
+          />
+        </div>
+      )}
     </div>
   );
 }
