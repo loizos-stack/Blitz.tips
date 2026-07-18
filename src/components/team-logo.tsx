@@ -1,36 +1,53 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
+import Image from "next/image";
 import type { PickSport } from "@prisma/client";
 import { SportIcon } from "@/components/sport-icon";
+import { cn } from "@/lib/utils";
 
-export function TeamLogo({ sport, logoUrl, className }: { sport: PickSport; logoUrl: string | null; className?: string }) {
-  // Preload in a controlled effect rather than relying on the rendered <img>'s
-  // native onError: a very fast failure (e.g. blocked host, instant 404) can
-  // fire before React finishes hydrating and attaches the handler, leaving a
-  // broken-image glyph stuck on screen instead of falling back.
-  const [status, setStatus] = useState<"loading" | "ok" | "failed">(logoUrl ? "loading" : "failed");
+// Hosts we've whitelisted in next.config's images.remotePatterns. Only these get
+// routed through next/image; any other host renders as a plain <img> so an
+// unconfigured source can never throw at render time.
+const OPTIMIZABLE_HOST = /(^|\.)(espncdn\.com|thesportsdb\.com)$/i;
 
-  useEffect(() => {
-    if (!logoUrl) return;
-    const img = new window.Image();
-    img.onload = () => setStatus("ok");
-    img.onerror = () => setStatus("failed");
-    img.src = logoUrl;
-    return () => {
-      img.onload = null;
-      img.onerror = null;
-    };
-  }, [logoUrl]);
+function isOptimizable(url: string): boolean {
+  try {
+    return OPTIMIZABLE_HOST.test(new URL(url).hostname);
+  } catch {
+    return false;
+  }
+}
 
-  if (status !== "ok") {
+export function TeamLogo({
+  sport,
+  logoUrl,
+  className,
+}: {
+  sport: PickSport;
+  logoUrl: string | null;
+  className?: string;
+}) {
+  const [failed, setFailed] = useState(false);
+
+  if (!logoUrl || failed) {
     return (
-      <span className={`flex items-center justify-center rounded-full bg-surface-raised text-muted ${className ?? ""}`}>
+      <span className={cn("flex items-center justify-center rounded-full bg-surface-raised text-muted", className)}>
         <SportIcon sport={sport} className="h-1/2 w-1/2" />
       </span>
     );
   }
 
-  // eslint-disable-next-line @next/next/no-img-element -- external, unofficial CDN; next/image would need remotePatterns and adds no value for a tiny badge
-  return <img src={logoUrl ?? undefined} alt="" className={`object-contain ${className ?? ""}`} />;
+  // Optimized (resized to a small badge, WebP/AVIF, long-cached) for the known
+  // logo CDNs; a plain lazy <img> otherwise. onError degrades to the sport icon.
+  if (isOptimizable(logoUrl)) {
+    return (
+      <span className={cn("relative inline-block overflow-hidden", className)}>
+        <Image src={logoUrl} alt="" fill sizes="40px" className="object-contain" onError={() => setFailed(true)} />
+      </span>
+    );
+  }
+
+  // eslint-disable-next-line @next/next/no-img-element -- external, non-whitelisted CDN badge (rare fallback host)
+  return <img src={logoUrl} alt="" loading="lazy" decoding="async" onError={() => setFailed(true)} className={cn("object-contain", className)} />;
 }

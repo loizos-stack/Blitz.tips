@@ -6,7 +6,8 @@
   --surface-raised: #f1f3f6;
   --border: #e3e6eb;
   --foreground: #13161c;
-  --muted: #626b7a;
+  /* Darkened from #626b7a to clear WCAG AA contrast on white and raised surfaces. */
+  --muted: #4b5563;
   --accent: #16a34a;
   --accent-foreground: #ffffff;
   --gold: #b45309;
