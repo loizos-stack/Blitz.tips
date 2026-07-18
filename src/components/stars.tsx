@@ -10,7 +10,7 @@ export function Stars({ value, className = "h-4 w-4" }: { value: number; classNa
       {[1, 2, 3, 4, 5].map((n) => (
         <Star
           key={n}
-          className={cn(className, n <= filled ? "fill-gold text-gold" : "text-border")}
+          className={cn(className, n <= filled ? "fill-yellow-400 text-yellow-400" : "text-border")}
         />
       ))}
     </span>

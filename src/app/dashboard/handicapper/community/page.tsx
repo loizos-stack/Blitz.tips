@@ -31,7 +31,7 @@ export default async function HandicapperCommunityPage() {
       <div className="card p-5">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <p className="flex items-center gap-2 font-semibold">
-            <Star className="h-4 w-4 text-gold" /> Reviews
+            <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" /> Reviews
           </p>
           {summary.average !== null && (
             <span className="flex items-center gap-2 text-sm">

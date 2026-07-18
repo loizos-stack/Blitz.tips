@@ -29,7 +29,7 @@ function StarPicker({ value, onChange }: { value: number; onChange: (n: number) 
           aria-label={`${n} star${n > 1 ? "s" : ""}`}
           className="rounded p-0.5 outline-none focus-visible:ring-2 focus-visible:ring-accent"
         >
-          <Star className={cn("h-7 w-7", n <= active ? "fill-gold text-gold" : "text-border")} />
+          <Star className={cn("h-7 w-7", n <= active ? "fill-yellow-400 text-yellow-400" : "text-border")} />
         </button>
       ))}
     </div>

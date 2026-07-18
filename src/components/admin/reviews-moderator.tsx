@@ -40,7 +40,7 @@ function ReviewStars({ rating }: { rating: number }) {
   return (
     <span className="inline-flex items-center gap-0.5">
       {[1, 2, 3, 4, 5].map((n) => (
-        <Star key={n} className={cn("h-4 w-4", n <= rating ? "fill-gold text-gold" : "text-border")} />
+        <Star key={n} className={cn("h-4 w-4", n <= rating ? "fill-yellow-400 text-yellow-400" : "text-border")} />
       ))}
     </span>
   );

@@ -19,7 +19,7 @@ interface Props {
 const SPECIAL_CHIPS = [
   { key: "hot", label: "Hot", Icon: Flame, iconClass: "text-orange-500" },
   { key: "followed", label: "Most followed", Icon: Heart, iconClass: "text-danger" },
-  { key: "reviewed", label: "Most reviewed", Icon: Star, iconClass: "text-gold" },
+  { key: "reviewed", label: "Most reviewed", Icon: Star, iconClass: "text-yellow-400" },
   { key: "props", label: "Player Props", Icon: PersonStanding, iconClass: "text-accent" },
   { key: "parlays", label: "Parlays", Icon: BookText, iconClass: "text-accent" },
 ] as const;
