@@ -52,9 +52,9 @@ export function UpcomingGames({
   feed,
   availableSports,
 }: {
-  // Null until the visitor picks a tab — odds are fetched on demand to
-  // conserve API credits, so the initial homepage render shows the tab bar
-  // with a prompt instead of a pre-fetched board.
+  // Null on the default "all sports" view — the board merges every sport's
+  // games sorted by start time. A non-null value means the visitor narrowed to
+  // a single sport via a pill.
   sport: PickSport | null;
   feed: OddsFeedResult | null;
   availableSports: PickSport[];
@@ -63,12 +63,11 @@ export function UpcomingGames({
   if (availableSports.length === 0) return null;
   if (feed && !feed.configured) return null;
 
-  // Fight sports (UFC/MMA) are moneyline-only and carry a dozen-plus bouts, so
-  // they drop the spread/total columns and show more of the card. Soccer lists
-  // the home side first; other team sports list the away side first.
-  const moneylineOnly = sport ? isMoneylineOnly(sport) : false;
-  const homeFirst = sport === "SOCCER";
-  const eventCap = moneylineOnly ? 16 : 8;
+  // The all-sports view shows a mixed board, so which sport each card is for is
+  // decided per event; a single-sport view just repeats the selected sport.
+  const mixed = sport === null;
+  // A single sport shows a full card each; the merged board caps at a round 16.
+  const eventCap = sport ? (isMoneylineOnly(sport) ? 16 : 8) : 16;
 
   return (
     <section className="relative overflow-hidden border-b border-border bg-surface/60 py-14">
@@ -83,6 +82,18 @@ export function UpcomingGames({
             <p className="mt-1 text-muted">Live moneyline, spread, and total odds from the board.</p>
           </div>
           <div className="flex flex-wrap gap-2">
+            <Link
+              href="/#lines"
+              scroll={false}
+              className={cn(
+                "flex items-center gap-1.5 rounded-full border px-3 py-1.5 font-display text-sm font-medium",
+                sport === null
+                  ? "border-accent bg-accent/10 text-accent"
+                  : "border-border text-muted hover:text-foreground"
+              )}
+            >
+              All
+            </Link>
             {availableSports.map((s) => (
               <Link
                 key={s}
@@ -102,18 +113,25 @@ export function UpcomingGames({
           </div>
         </div>
 
-        {!sport || !feed ? (
-          <p className="text-muted">Pick a sport above to see the latest lines.</p>
-        ) : !feed.supported ? (
-          <p className="text-muted">Live odds for {SPORT_LABELS[sport]} aren&apos;t available.</p>
+        {!feed ? null : !feed.supported ? (
+          <p className="text-muted">
+            Live odds for {sport ? SPORT_LABELS[sport] : "these games"} aren&apos;t available.
+          </p>
         ) : feed.events.length === 0 ? (
-          <p className="text-muted">No upcoming {SPORT_LABELS[sport]} games on the board right now.</p>
+          <p className="text-muted">
+            No upcoming {sport ? `${SPORT_LABELS[sport]} ` : ""}games on the board right now.
+          </p>
         ) : (
           <div className="flex gap-4 overflow-x-auto pb-2">
             {feed.events.slice(0, eventCap).map((event) => {
               const board = buildOddsBoard(event);
               const isLive = Boolean(event.liveScore) && !event.liveScore?.completed;
               const isFinal = event.liveScore?.completed;
+
+              // Layout follows each card's own sport: fight cards are
+              // moneyline-only, soccer lists the home side first.
+              const moneylineOnly = isMoneylineOnly(event.sport);
+              const homeFirst = event.sport === "SOCCER";
 
               // The two competitors, ordered per sport (home-first for soccer),
               // each carrying its own line so the rows can be reordered together.
@@ -157,6 +175,15 @@ export function UpcomingGames({
                         <LocalTime iso={event.commenceTime} />
                       </span>
                     )}
+
+                    {/* In the merged board, tag each card with its sport so a
+                        mixed slate stays legible at a glance. */}
+                    {mixed && (
+                      <span className="flex items-center gap-1 font-medium text-muted">
+                        <SportIcon sport={event.sport} className="h-3.5 w-3.5" />
+                        {SPORT_LABELS[event.sport]}
+                      </span>
+                    )}
                   </div>
 
                   {moneylineOnly ? (
@@ -164,7 +191,7 @@ export function UpcomingGames({
                     <div className="mt-3 flex flex-col gap-2">
                       {sides.map((s) => (
                         <div key={s.key} className="flex items-center gap-2">
-                          <TeamLogo sport={sport} logoUrl={s.logo} className="h-7 w-7 shrink-0" />
+                          <TeamLogo sport={event.sport} logoUrl={s.logo} className="h-7 w-7 shrink-0" />
                           <p className="min-w-0 flex-1 truncate font-display text-sm font-semibold">{s.team}</p>
                           <span className="shrink-0 text-sm font-semibold tabular-nums">{cell(s.moneyline)}</span>
                         </div>
@@ -175,7 +202,7 @@ export function UpcomingGames({
                       <div className="mt-3 grid grid-cols-[auto_1fr_auto] items-center gap-x-2 gap-y-1.5">
                         {sides.map((s) => (
                           <Fragment key={s.key}>
-                            <TeamLogo sport={sport} logoUrl={s.logo} className="h-7 w-7 shrink-0" />
+                            <TeamLogo sport={event.sport} logoUrl={s.logo} className="h-7 w-7 shrink-0" />
                             <p className="min-w-0 truncate font-display text-sm font-semibold">{s.team}</p>
                             <p className="text-sm font-bold tabular-nums">{s.score ?? ""}</p>
                           </Fragment>

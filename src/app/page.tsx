@@ -4,7 +4,7 @@ import { listHandicapperDirectory, applyHandicapperFinder } from "@/lib/handicap
 import { HandicapperCard } from "@/components/handicapper-card";
 import { HandicapperFinder } from "@/components/handicapper-finder";
 import { UpcomingGames } from "@/components/upcoming-games";
-import { getUpcomingEvents, getAvailableHomepageSports } from "@/lib/odds-api";
+import { getUpcomingEvents, getAllUpcomingEvents, getAvailableHomepageSports } from "@/lib/odds-api";
 import { SPORT_LABELS } from "@/lib/utils";
 import type { PickSport } from "@prisma/client";
 
@@ -27,15 +27,17 @@ export default async function Home({
     (SPORT_LABELS[a] ?? a).localeCompare(SPORT_LABELS[b] ?? b)
   );
 
-  // Default to the first (alphabetical) sport's board so visitors land on a
-  // populated board, not an empty prompt; an explicit ?sport=... tab wins.
-  // Each sport's feed is cached for an hour, so this stays within quota.
-  const requested = availableSports.includes(params.sport as PickSport)
+  // Default view merges every sport's games sorted by start time; picking a
+  // sport pill (?sport=...) narrows to just that sport. Each sport's feed is
+  // cached for an hour and the "all" view reuses those caches, so no extra
+  // billed calls.
+  const sport: PickSport | null = availableSports.includes(params.sport as PickSport)
     ? (params.sport as PickSport)
     : null;
-  const sport: PickSport | null = requested ?? availableSports[0] ?? null;
 
-  const oddsFeed = sport ? await getUpcomingEvents(sport) : null;
+  const oddsFeed = sport
+    ? await getUpcomingEvents(sport)
+    : await getAllUpcomingEvents(availableSports);
 
   // The "Find a Handicapper" finder: sport chips are the major sports offered by
   // at least one handicapper; the list is filtered/sorted by the active chip.

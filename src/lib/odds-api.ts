@@ -302,6 +302,9 @@ export interface LiveScore {
 
 export interface UpcomingEvent {
   id: string;
+  // The PickSport this event belongs to — lets a mixed (all-sports) board render
+  // each card with its own sport's icon/logos and market layout.
+  sport: PickSport;
   // Upstream league key (e.g. "americanfootball_nfl", "soccer_epl") — stored
   // on picks created from the schedule so auto-settlement can look up scores.
   sportKey: string;
@@ -443,6 +446,26 @@ export async function getUpcomingEvents(sport: PickSport): Promise<OddsFeedResul
   return { configured: true, supported: true, events: finalEvents };
 }
 
+/**
+ * A single board of the upcoming games across every given sport, merged and
+ * sorted by start time — the homepage's default "all sports" view. Reuses each
+ * sport's cached feed (getUpcomingEvents), so it adds no extra billed calls
+ * beyond what the individual sport tabs already cost.
+ */
+export async function getAllUpcomingEvents(sports: PickSport[]): Promise<OddsFeedResult> {
+  const apiKey = oddsApiKey();
+  if (!apiKey) return { configured: false, supported: false, events: [] };
+  if (sports.length === 0) return { configured: true, supported: true, events: [] };
+
+  const feeds = await Promise.all(sports.map((s) => getUpcomingEvents(s)));
+  const events = feeds
+    .flatMap((f) => (f.configured && f.supported ? f.events : []))
+    .sort((a, b) => new Date(a.commenceTime).getTime() - new Date(b.commenceTime).getTime())
+    .slice(0, 16);
+
+  return { configured: true, supported: true, events };
+}
+
 interface OddsApiScoreEntry {
   id: string;
   completed: boolean;
@@ -519,6 +542,7 @@ function normalizeEvent(event: OddsApiEvent, sport: PickSport, sportKey: string)
 
   return {
     id: event.id,
+    sport,
     sportKey,
     matchup: formatMatchup(sport, event.away_team, event.home_team),
     homeTeam: event.home_team,
