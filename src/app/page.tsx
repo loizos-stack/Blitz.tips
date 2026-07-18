@@ -41,7 +41,7 @@ export default async function Home({
 
   // The "Find a Handicapper" finder: sport chips are the major sports offered by
   // at least one handicapper; the list is filtered/sorted by the active chip.
-  const MAJOR_SPORTS: PickSport[] = ["NFL", "NBA", "MLB", "NHL", "SOCCER"];
+  const MAJOR_SPORTS: PickSport[] = ["NFL", "NBA", "MLB", "NHL", "SOCCER", "NCAAF", "NCAAB"];
   const offered = new Set(handicappers.flatMap((h) => h.sports));
   const finderSports = MAJOR_SPORTS.filter((s) => offered.has(s));
   const activeFilter = params.find ?? "all";
