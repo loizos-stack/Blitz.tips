@@ -1,5 +1,6 @@
 import { ImageResponse } from "next/og";
-import { getHandicapperByHandle } from "@/lib/handicappers";
+import { prisma } from "@/lib/prisma";
+import { computeStats } from "@/lib/odds";
 import { SPORT_LABELS } from "@/lib/utils";
 import { recordCard, SHARE_CARD_SIZE } from "@/lib/share-cards";
 
@@ -10,39 +11,58 @@ import { recordCard, SHARE_CARD_SIZE } from "@/lib/share-cards";
 export const alt = "Verified record on Blitz.tips";
 export const size = SHARE_CARD_SIZE;
 export const contentType = "image/png";
-export const dynamic = "force-dynamic";
+
+// Cache the generated card (ISR) rather than regenerating on every request:
+// social crawlers (Twitterbot, etc.) have short fetch timeouts, so a fast,
+// pre-cached image is far more reliable than a per-request dynamic render.
+// Records only move as picks settle, so an hour is plenty fresh.
+export const revalidate = 3600;
+
+const fallback = {
+  displayName: "Blitz.tips",
+  handle: "blitz",
+  record: "—",
+  unitsNet: 0,
+  roi: null,
+  winRate: null,
+  totalPicks: 0,
+  sports: [] as string[],
+};
 
 export default async function Image({ params }: { params: Promise<{ handle: string }> }) {
   const { handle } = await params;
-  const handicapper = await getHandicapperByHandle(handle);
 
-  if (!handicapper) {
-    return new ImageResponse(
-      recordCard({
-        displayName: "Blitz.tips",
-        handle: "blitz",
-        record: "—",
-        unitsNet: 0,
-        roi: null,
-        winRate: null,
-        totalPicks: 0,
-        sports: [],
-      }),
-      size
-    );
-  }
+  // Lightweight query: only the fields the card needs (no parlay legs, reviews,
+  // or analysis text), so the image renders quickly for crawlers.
+  const profile = await prisma.handicapperProfile
+    .findUnique({
+      where: { handle },
+      select: {
+        displayName: true,
+        handle: true,
+        sports: true,
+        suspendedAt: true,
+        picks: { select: { odds: true, units: true, result: true } },
+      },
+    })
+    .catch(() => null);
 
-  return new ImageResponse(
-    recordCard({
-      displayName: handicapper.displayName,
-      handle: handicapper.handle,
-      record: handicapper.stats.record,
-      unitsNet: handicapper.stats.unitsNet,
-      roi: handicapper.stats.roi,
-      winRate: handicapper.stats.winRate,
-      totalPicks: handicapper.stats.totalPicks,
-      sports: handicapper.sports.map((s) => SPORT_LABELS[s] ?? s),
-    }),
-    size
-  );
+  const data =
+    !profile || profile.suspendedAt
+      ? fallback
+      : (() => {
+          const stats = computeStats(profile.picks);
+          return {
+            displayName: profile.displayName,
+            handle: profile.handle,
+            record: stats.record,
+            unitsNet: stats.unitsNet,
+            roi: stats.roi,
+            winRate: stats.winRate,
+            totalPicks: stats.totalPicks,
+            sports: profile.sports.map((s) => SPORT_LABELS[s] ?? s),
+          };
+        })();
+
+  return new ImageResponse(recordCard(data), size);
 }

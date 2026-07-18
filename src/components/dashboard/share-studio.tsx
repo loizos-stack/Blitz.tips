@@ -13,7 +13,10 @@ export interface SharePick {
 }
 
 function xIntent(text: string, url: string): string {
-  return `https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}&url=${encodeURIComponent(url)}`;
+  // Tag the shared URL so X re-crawls our OG card (rather than serving a stale
+  // "no preview" cache) and we get referral attribution.
+  const shareUrl = `${url}${url.includes("?") ? "&" : "?"}utm_source=twitter`;
+  return `https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}&url=${encodeURIComponent(shareUrl)}`;
 }
 
 function CopyButton({ value }: { value: string }) {

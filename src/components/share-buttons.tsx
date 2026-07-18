@@ -7,7 +7,11 @@ import { Copy, Check, Share2 } from "lucide-react";
 // Used on the public leaderboard and reusable anywhere a shareable URL exists.
 export function ShareButtons({ url, text }: { url: string; text: string }) {
   const [copied, setCopied] = useState(false);
-  const intent = `https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}&url=${encodeURIComponent(url)}`;
+  // Tag the shared URL so X treats it as its own link (forces a fresh crawl of
+  // our OG card instead of serving a stale "no preview" cache) and we get the
+  // referral attribution. The copied link stays clean/canonical.
+  const shareUrl = `${url}${url.includes("?") ? "&" : "?"}utm_source=twitter`;
+  const intent = `https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}&url=${encodeURIComponent(shareUrl)}`;
 
   return (
     <div className="flex items-center gap-2">
