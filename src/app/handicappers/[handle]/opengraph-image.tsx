@@ -19,6 +19,25 @@ export const contentType = "image/png";
 // Records only move as picks settle, so an hour is plenty fresh.
 export const revalidate = 3600;
 
+// Fetch an image (avatar/cover) and inline it as a data URI so Satori never has
+// to fetch it itself (a failed Satori fetch throws and breaks the whole card).
+// Any failure — bad URL, non-image, oversized, network — degrades to null so the
+// card falls back to the monogram/gradient.
+async function toDataUri(url: string | null): Promise<string | null> {
+  if (!url) return null;
+  try {
+    const res = await fetch(url);
+    if (!res.ok) return null;
+    const type = res.headers.get("content-type") ?? "";
+    if (!type.startsWith("image/")) return null;
+    const buf = Buffer.from(await res.arrayBuffer());
+    if (buf.byteLength === 0 || buf.byteLength > 3_000_000) return null;
+    return `data:${type};base64,${buf.toString("base64")}`;
+  } catch {
+    return null;
+  }
+}
+
 const fallback = {
   displayName: "Blitz.tips",
   handle: "blitz",
@@ -45,6 +64,8 @@ export default async function Image({ params }: { params: Promise<{ handle: stri
         handle: true,
         sports: true,
         suspendedAt: true,
+        avatarUrl: true,
+        coverUrl: true,
         picks: {
           select: { odds: true, units: true, result: true, eventStartsAt: true, settledAt: true },
         },
@@ -52,24 +73,32 @@ export default async function Image({ params }: { params: Promise<{ handle: stri
     })
     .catch(() => null);
 
-  const data =
-    !profile || profile.suspendedAt
-      ? fallback
-      : (() => {
-          const stats = computeStats(profile.picks);
-          return {
-            displayName: profile.displayName,
-            handle: profile.handle,
-            record: stats.record,
-            unitsNet: stats.unitsNet,
-            roi: stats.roi,
-            winRate: stats.winRate,
-            streak: computeStreaks(profile.picks).current,
-            l10: lastNStats(profile.picks, 10).record,
-            totalPicks: stats.totalPicks,
-            sports: profile.sports.map((s) => SPORT_LABELS[s] ?? s),
-          };
-        })();
+  if (!profile || profile.suspendedAt) {
+    return new ImageResponse(recordCard(fallback), size);
+  }
 
-  return new ImageResponse(recordCard(data), size);
+  // Pull the real profile photo + cover in parallel; each degrades to null.
+  const [avatarDataUri, coverDataUri] = await Promise.all([
+    toDataUri(profile.avatarUrl),
+    toDataUri(profile.coverUrl),
+  ]);
+
+  const stats = computeStats(profile.picks);
+  return new ImageResponse(
+    recordCard({
+      displayName: profile.displayName,
+      handle: profile.handle,
+      record: stats.record,
+      unitsNet: stats.unitsNet,
+      roi: stats.roi,
+      winRate: stats.winRate,
+      streak: computeStreaks(profile.picks).current,
+      l10: lastNStats(profile.picks, 10).record,
+      totalPicks: stats.totalPicks,
+      sports: profile.sports.map((s) => SPORT_LABELS[s] ?? s),
+      avatarDataUri,
+      coverDataUri,
+    }),
+    size
+  );
 }

@@ -100,6 +100,10 @@ export interface RecordCardData {
   l10: string;
   totalPicks: number;
   sports: string[];
+  // The handicapper's real profile photo and cover, pre-fetched to data URIs by
+  // the route. Null → fall back to the initials monogram / gradient cover.
+  avatarDataUri?: string | null;
+  coverDataUri?: string | null;
 }
 
 export function recordCard(d: RecordCardData): ReactElement {
@@ -108,31 +112,70 @@ export function recordCard(d: RecordCardData): ReactElement {
 
   return (
     <CardFrame>
-      {/* Cover strip */}
-      <div style={{ display: "flex", height: 156, background: COVER, borderTopLeftRadius: 27, borderTopRightRadius: 27 }} />
-
-      {/* Avatar overlapping the cover */}
+      {/* Cover strip — the real cover image if present, else the brand gradient */}
       <div
         style={{
-          position: "absolute",
-          top: 92,
-          left: 60,
-          width: 128,
-          height: 128,
-          borderRadius: 64,
-          background: ACCENT,
-          border: "8px solid #ffffff",
+          position: "relative",
           display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          fontSize: 52,
-          fontWeight: 800,
-          color: "#ffffff",
-          textTransform: "uppercase",
+          height: 156,
+          overflow: "hidden",
+          background: COVER,
+          borderTopLeftRadius: 27,
+          borderTopRightRadius: 27,
         }}
       >
-        {d.displayName.slice(0, 2)}
+        {d.coverDataUri && (
+          // eslint-disable-next-line @next/next/no-img-element -- Satori (next/og); data URI, no network
+          <img
+            src={d.coverDataUri}
+            alt=""
+            style={{ position: "absolute", top: 0, left: 0, width: "100%", height: "100%", objectFit: "cover" }}
+          />
+        )}
       </div>
+
+      {/* Avatar overlapping the cover — the real photo if present, else initials */}
+      {d.avatarDataUri ? (
+        // eslint-disable-next-line @next/next/no-img-element -- Satori (next/og); data URI, no network
+        <img
+          src={d.avatarDataUri}
+          alt=""
+          width={128}
+          height={128}
+          style={{
+            position: "absolute",
+            top: 92,
+            left: 60,
+            width: 128,
+            height: 128,
+            borderRadius: 64,
+            border: "8px solid #ffffff",
+            objectFit: "cover",
+          }}
+        />
+      ) : (
+        <div
+          style={{
+            position: "absolute",
+            top: 92,
+            left: 60,
+            width: 128,
+            height: 128,
+            borderRadius: 64,
+            background: ACCENT,
+            border: "8px solid #ffffff",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            fontSize: 52,
+            fontWeight: 800,
+            color: "#ffffff",
+            textTransform: "uppercase",
+          }}
+        >
+          {d.displayName.slice(0, 2)}
+        </div>
+      )}
 
       {/* Body */}
       <div style={{ display: "flex", flexDirection: "column", flex: 1, padding: "0 60px 52px 60px" }}>
