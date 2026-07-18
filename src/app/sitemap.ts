@@ -2,9 +2,10 @@ import type { MetadataRoute } from "next";
 import { prisma } from "@/lib/prisma";
 import { siteUrl } from "@/lib/site";
 
-// Refresh hourly so newly published handicapper profiles get discovered without
-// a redeploy.
-export const revalidate = 3600;
+// Generated at request time (not prerendered at build) so it can never fail the
+// build or ship a broken static copy; the DB read is best-effort and the route
+// always returns at least the static routes.
+export const dynamic = "force-dynamic";
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const base = siteUrl();
@@ -22,23 +23,22 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     { url: `${base}/refunds`, lastModified: now, changeFrequency: "yearly", priority: 0.2 },
   ];
 
-  // Every public handicapper profile. A DB hiccup at build time degrades to the
-  // static routes rather than failing the whole sitemap.
-  let handicapperEntries: MetadataRoute.Sitemap = [];
   try {
     const handicappers = await prisma.handicapperProfile.findMany({
       where: { suspendedAt: null },
       select: { handle: true, updatedAt: true },
     });
-    handicapperEntries = handicappers.map((h) => ({
-      url: `${base}/handicappers/${h.handle}`,
-      lastModified: h.updatedAt,
-      changeFrequency: "daily" as const,
-      priority: 0.7,
-    }));
+    return [
+      ...staticEntries,
+      ...handicappers.map((h) => ({
+        url: `${base}/handicappers/${h.handle}`,
+        lastModified: h.updatedAt,
+        changeFrequency: "daily" as const,
+        priority: 0.7,
+      })),
+    ];
   } catch {
-    handicapperEntries = [];
+    // A DB hiccup degrades to the static routes rather than 404-ing the sitemap.
+    return staticEntries;
   }
-
-  return [...staticEntries, ...handicapperEntries];
 }

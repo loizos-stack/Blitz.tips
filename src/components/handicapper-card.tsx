@@ -31,8 +31,10 @@ export function HandicapperCard({ handicapper, rank }: { handicapper: Handicappe
         )}
       </div>
 
-      <div className="flex flex-1 flex-col gap-4 px-5 pb-5">
-        <div className="flex items-center gap-3">
+      <div className="flex flex-1 flex-col gap-4 px-5 pb-5 pt-2">
+        <div className="flex items-start gap-3">
+          {/* items-start so the follow button + rating grow downward and keep
+              clear of the cover image instead of hugging it. */}
           <Avatar
             src={handicapper.avatarUrl}
             name={handicapper.displayName}

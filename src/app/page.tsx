@@ -59,7 +59,7 @@ export default async function Home({
           aria-hidden
           className="pointer-events-none absolute inset-0 bg-gradient-to-r from-background via-background/55 to-transparent"
         />
-        <div className="container-page relative py-20 md:py-28">
+        <div className="container-page relative pb-20 pt-10 md:pb-28 md:pt-14">
           <div className="max-w-2xl">
             <span className="inline-flex items-center gap-2 rounded-full border border-border bg-surface px-3 py-1 text-xs font-medium text-muted">
               Every pick. Every result. No cherry-picking.
