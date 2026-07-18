@@ -12,6 +12,7 @@ import {
   Wallet,
   Award,
   MessageSquare,
+  Share2,
   type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -26,6 +27,7 @@ const NAV: { href: string; label: string; icon: LucideIcon }[] = [
   { href: "/dashboard/handicapper/payouts", label: "Payouts", icon: Wallet },
   { href: "/dashboard/handicapper/plan", label: "Plan", icon: Award },
   { href: "/dashboard/handicapper/community", label: "Community", icon: MessageSquare },
+  { href: "/dashboard/handicapper/share", label: "Share", icon: Share2 },
 ];
 
 export function HandicapperDashboardNav() {

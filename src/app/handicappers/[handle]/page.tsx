@@ -54,10 +54,11 @@ export async function generateMetadata({
       title: `${handicapper.displayName} — verified record on Blitz.tips`,
       description,
       url: path,
-      ...(handicapper.avatarUrl ? { images: [{ url: handicapper.avatarUrl }] } : {}),
+      // Social preview image comes from the sibling opengraph-image.tsx (the
+      // verified-record card), so we intentionally don't set images here.
     },
     twitter: {
-      card: "summary",
+      card: "summary_large_image",
       title: `${handicapper.displayName} (@${handicapper.handle})`,
       description,
     },
