@@ -77,6 +77,21 @@ export function NotificationBell() {
     }).catch(() => {});
   }
 
+  // Mark a single notification read when it's opened/clicked, so its unread
+  // highlight clears immediately (optimistic) and the badge count drops.
+  async function markOneRead(n: NotificationItem) {
+    if (n.readAt) return;
+    setItems((prev) =>
+      prev.map((it) => (it.id === n.id ? { ...it, readAt: new Date().toISOString() } : it))
+    );
+    setUnread((u) => Math.max(0, u - 1));
+    await fetch("/api/notifications", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id: n.id }),
+    }).catch(() => {});
+  }
+
   async function toggleEmail(next: boolean) {
     setEmailOn(next);
     await fetch("/api/notifications/preferences", {
@@ -155,11 +170,25 @@ export function NotificationBell() {
                   </div>
                 );
                 return n.url ? (
-                  <Link key={n.id} href={n.url} onClick={() => setOpen(false)}>
+                  <Link
+                    key={n.id}
+                    href={n.url}
+                    onClick={() => {
+                      void markOneRead(n);
+                      setOpen(false);
+                    }}
+                  >
                     {inner}
                   </Link>
                 ) : (
-                  <div key={n.id}>{inner}</div>
+                  <button
+                    key={n.id}
+                    type="button"
+                    onClick={() => void markOneRead(n)}
+                    className="block w-full text-left"
+                  >
+                    {inner}
+                  </button>
                 );
               })
             )}
