@@ -7,6 +7,8 @@ import { PlanBadge } from "@/components/plan-badge";
 import { formatStreak } from "@/lib/analytics";
 import { SPORT_LABELS } from "@/lib/utils";
 import { cn } from "@/lib/utils";
+import { siteUrl } from "@/lib/site";
+import { ShareButtons } from "@/components/share-buttons";
 import type { PickSport } from "@prisma/client";
 
 export const metadata: Metadata = {
@@ -18,6 +20,11 @@ export const metadata: Metadata = {
     title: "Handicapper Leaderboard — Blitz.tips",
     description: "Verified handicappers ranked by net units, ROI, win rate, and streak.",
     url: "/leaderboard",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Handicapper Leaderboard — Blitz.tips",
+    description: "Verified handicappers ranked by net units, ROI, win rate, and streak.",
   },
 };
 export const dynamic = "force-dynamic";
@@ -58,11 +65,17 @@ export default async function LeaderboardPage({
         className="pointer-events-none absolute inset-0 bg-[url('/auth-bg.svg')] bg-cover bg-center"
       />
       <div className="container-page relative py-12">
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold">Leaderboard</h1>
-        <p className="mt-2 text-muted">
-          Every handicapper on Blitz.tips, ranked by their full, unedited pick history.
-        </p>
+      <div className="mb-8 flex flex-wrap items-end justify-between gap-4">
+        <div>
+          <h1 className="text-3xl font-bold">Leaderboard</h1>
+          <p className="mt-2 text-muted">
+            Every handicapper on Blitz.tips, ranked by their full, unedited pick history.
+          </p>
+        </div>
+        <ShareButtons
+          url={`${siteUrl()}/leaderboard`}
+          text="The sharpest verified sports handicappers on Blitz.tips, ranked by net units, ROI, and win rate 📈"
+        />
       </div>
 
       <div className="mb-6 flex flex-wrap items-center gap-2">
