@@ -142,6 +142,9 @@ export function applyHandicapperFinder(
     out = out.filter((h) => h.hasProps).sort((a, b) => b.stats.unitsNet - a.stats.unitsNet);
   } else if (filter === "parlays") {
     out = out.filter((h) => h.hasParlays).sort((a, b) => b.stats.unitsNet - a.stats.unitsNet);
+  } else if (filter === "gold") {
+    // Only GOLD-plan (featured) handicappers, best net units first.
+    out = out.filter((h) => h.isFeatured).sort((a, b) => b.stats.unitsNet - a.stats.unitsNet);
   } else if (filter === "hot") {
     out.sort(
       (a, b) => b.currentStreak - a.currentStreak || b.last10Stats.unitsNet - a.last10Stats.unitsNet

@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
-import { Search, Flame, Heart, Star, PersonStanding, BookText, ChevronLeft, ChevronRight } from "lucide-react";
+import { Search, Flame, Heart, Star, Target, BookText, Crown, ChevronLeft, ChevronRight } from "lucide-react";
 import { SportIcon } from "@/components/sport-icon";
 import { SPORT_LABELS, cn } from "@/lib/utils";
 import type { PickSport } from "@prisma/client";
@@ -17,10 +17,11 @@ interface Props {
 }
 
 const SPECIAL_CHIPS = [
+  { key: "gold", label: "Gold", Icon: Crown, iconClass: "text-yellow-500" },
   { key: "hot", label: "Hot", Icon: Flame, iconClass: "text-orange-500" },
   { key: "followed", label: "Most followed", Icon: Heart, iconClass: "text-danger" },
   { key: "reviewed", label: "Most reviewed", Icon: Star, iconClass: "text-yellow-400" },
-  { key: "props", label: "Player Props", Icon: PersonStanding, iconClass: "text-accent" },
+  { key: "props", label: "Player Props", Icon: Target, iconClass: "text-sky-500" },
   { key: "parlays", label: "Parlays", Icon: BookText, iconClass: "text-accent" },
 ] as const;
 
