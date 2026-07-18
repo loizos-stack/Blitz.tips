@@ -6,8 +6,6 @@ import { prisma } from "@/lib/prisma";
 import { getHandicapperByHandle } from "@/lib/handicappers";
 import { summarizeRatings } from "@/lib/reviews";
 import { isPickLocked } from "@/lib/pick-visibility";
-import { pickShareInfo } from "@/lib/pick-share";
-import { siteUrl } from "@/lib/site";
 import { ReviewsList, type ReviewItem } from "@/components/reviews-list";
 import { Stars } from "@/components/stars";
 import { HandicapperJsonLd } from "@/components/json-ld";
@@ -106,7 +104,6 @@ export default async function HandicapperProfilePage({
   const picks = await enrichPickCrests(handicapper.picksList);
   const pendingPicks = picks.filter((p) => p.result === "PENDING");
   const settledPicks = picks.filter((p) => p.result !== "PENDING");
-  const baseUrl = siteUrl();
 
   // Reviews are display-only here (writing happens in the subscriber dashboard).
   // Only APPROVED reviews are loaded, so the summary reflects the public set.
@@ -167,23 +164,9 @@ export default async function HandicapperProfilePage({
           </span>
         </h2>
         <div className="grid gap-4 sm:grid-cols-2">
-          {pendingPicks.map((pick) => {
-            const locked = isPickLocked(pick, unlocked);
-            return (
-              <PickCard
-                key={pick.id}
-                pick={pick}
-                locked={locked}
-                share={pickShareInfo({
-                  baseUrl,
-                  handle: handicapper.handle,
-                  displayName: handicapper.displayName,
-                  pick,
-                  locked,
-                })}
-              />
-            );
-          })}
+          {pendingPicks.map((pick) => (
+            <PickCard key={pick.id} pick={pick} locked={isPickLocked(pick, unlocked)} />
+          ))}
         </div>
       </>
     ),
@@ -205,11 +188,7 @@ export default async function HandicapperProfilePage({
         ) : settledPicks.length === 0 ? (
           <p className="text-muted">No settled picks yet — see the pending tips above.</p>
         ) : (
-          <PaginatedTrackRecord
-            picks={settledPicks}
-            unlocked={unlocked}
-            share={{ baseUrl, handle: handicapper.handle, displayName: handicapper.displayName }}
-          />
+          <PaginatedTrackRecord picks={settledPicks} unlocked={unlocked} />
         )}
       </>
     ),
