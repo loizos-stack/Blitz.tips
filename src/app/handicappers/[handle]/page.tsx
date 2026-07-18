@@ -222,7 +222,7 @@ export default async function HandicapperProfilePage({
           <Avatar
             src={handicapper.avatarUrl}
             name={handicapper.displayName}
-            className="-mt-12 h-24 w-24 shrink-0 rounded-full border-4 border-surface text-2xl sm:-mt-16"
+            className="relative z-10 -mt-12 h-24 w-24 shrink-0 rounded-full border-4 border-surface text-2xl sm:-mt-16"
           />
           <div className="pt-2">
             <div className="flex flex-wrap items-center gap-2">
