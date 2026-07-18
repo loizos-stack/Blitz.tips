@@ -8,7 +8,9 @@
   --foreground: #13161c;
   /* Darkened from #626b7a to clear WCAG AA contrast on white and raised surfaces. */
   --muted: #4b5563;
-  --accent: #16a34a;
+  /* green-700, darkened from #16a34a so white text on the accent (buttons) and
+     accent-colored text on white both clear WCAG AA (~5:1). */
+  --accent: #15803d;
   --accent-foreground: #ffffff;
   --gold: #b45309;
   --silver: #8b93a1;

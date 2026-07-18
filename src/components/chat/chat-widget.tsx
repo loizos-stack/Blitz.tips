@@ -292,9 +292,9 @@ export function ChatWidget() {
             onClick={dismiss}
             aria-label="Dismiss chat for 3 days"
             title="Hide for 3 days"
-            className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full border border-border bg-surface text-muted shadow hover:text-foreground"
+            className="absolute -right-1.5 -top-1.5 flex h-6 w-6 items-center justify-center rounded-full border border-border bg-surface text-muted shadow hover:text-foreground"
           >
-            <X className="h-3 w-3" />
+            <X className="h-3.5 w-3.5" />
           </button>
         )}
       </div>
