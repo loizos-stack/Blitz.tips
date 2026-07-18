@@ -1,5 +1,6 @@
 import { ImageResponse } from "next/og";
 import { listHandicapperSummaries } from "@/lib/handicappers";
+import { Wordmark } from "@/lib/share-cards";
 
 // Dynamic social card for the leaderboard: the current top verified handicappers
 // by net units. Shareable "link-bait" — the preview itself shows the ranking, so
@@ -44,35 +45,13 @@ export default async function Image() {
         }}
       >
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-          <div style={{ display: "flex", alignItems: "center" }}>
-            <div
-              style={{
-                width: 56,
-                height: 56,
-                borderRadius: 14,
-                background: "#16a34a",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                fontSize: 34,
-                fontWeight: 800,
-                color: "#0a1410",
-              }}
-            >
-              B
-            </div>
-            <div style={{ display: "flex", marginLeft: 16, fontSize: 34, fontWeight: 800, letterSpacing: -1 }}>
-              <span>Blitz</span>
-              <span style={{ color: ACCENT }}>.tips</span>
-            </div>
-          </div>
+          <Wordmark />
           <span style={{ display: "flex", fontSize: 26, color: MUTED }}>Verified leaderboard</span>
         </div>
 
-        <div style={{ display: "flex", fontSize: 52, fontWeight: 800, marginTop: 28, lineHeight: 1.05 }}>
-          <span>
-            Top handicappers by <span style={{ color: ACCENT }}>net units</span>
-          </span>
+        <div style={{ display: "flex", gap: 14, fontSize: 52, fontWeight: 800, marginTop: 28, lineHeight: 1.05 }}>
+          <span>Top handicappers by</span>
+          <span style={{ color: ACCENT }}>net units</span>
         </div>
 
         <div style={{ display: "flex", flexDirection: "column", marginTop: 32, gap: 14 }}>

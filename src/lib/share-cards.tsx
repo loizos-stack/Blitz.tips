@@ -13,25 +13,17 @@ const BG = "linear-gradient(135deg, #0a1410 0%, #0d1f16 55%, #123524 100%)";
 const ACCENT = "#22c55e";
 const MUTED = "#94a3b8";
 
-function Wordmark(): ReactElement {
+// The real Blitz.tips logo mark (kept in sync with public/logo-mark.svg): a green
+// rounded square with the gold bolt. Inlined as a data URI so the card renders
+// with zero network fetches (Satori rasterizes the SVG).
+const LOGO_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40" fill="none"><defs><linearGradient id="gold" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#fde047"/><stop offset="100%" stop-color="#eab308"/></linearGradient></defs><rect width="40" height="40" rx="10" fill="#16a34a"/><path d="M22 6 L11 23 H18.5 L16 35 L29 19 H21.5 L24 6 Z" fill="#fde047" fill-opacity="0.14" stroke="url(#gold)" stroke-width="2.6" stroke-linejoin="round"/></svg>`;
+export const LOGO_MARK = `data:image/svg+xml;base64,${Buffer.from(LOGO_SVG).toString("base64")}`;
+
+export function Wordmark(): ReactElement {
   return (
     <div style={{ display: "flex", alignItems: "center" }}>
-      <div
-        style={{
-          width: 56,
-          height: 56,
-          borderRadius: 14,
-          background: "#16a34a",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          fontSize: 34,
-          fontWeight: 800,
-          color: "#0a1410",
-        }}
-      >
-        B
-      </div>
+      {/* eslint-disable-next-line @next/next/no-img-element -- Satori (next/og) renders a plain <img>; data URI, no network */}
+      <img src={LOGO_MARK} width={56} height={56} alt="" />
       <div style={{ display: "flex", marginLeft: 16, fontSize: 38, fontWeight: 800, letterSpacing: -1 }}>
         <span>Blitz</span>
         <span style={{ color: ACCENT }}>.tips</span>
