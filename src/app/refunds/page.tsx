@@ -5,6 +5,7 @@ import { LegalShell, Section, Bullets } from "@/components/legal";
 export const metadata: Metadata = {
   title: "Refund Policy",
   description: "How subscriptions, cancellations, and refunds work on Blitz.tips.",
+  alternates: { canonical: "/refunds" },
 };
 
 export default function RefundsPage() {

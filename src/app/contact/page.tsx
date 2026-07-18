@@ -5,6 +5,7 @@ import { ContactForm } from "@/components/contact-form";
 export const metadata: Metadata = {
   title: "Contact us",
   description: "Get in touch with the Blitz.tips team.",
+  alternates: { canonical: "/contact" },
 };
 
 export default function ContactPage() {

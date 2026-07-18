@@ -9,7 +9,17 @@ import { SPORT_LABELS } from "@/lib/utils";
 import { cn } from "@/lib/utils";
 import type { PickSport } from "@prisma/client";
 
-export const metadata: Metadata = { title: "Leaderboard" };
+export const metadata: Metadata = {
+  title: "Leaderboard",
+  description:
+    "The Blitz.tips leaderboard ranks verified sports handicappers by net units, ROI, win rate, and current streak. Find the sharpest cappers across the NFL, NBA, MLB, NHL, and soccer.",
+  alternates: { canonical: "/leaderboard" },
+  openGraph: {
+    title: "Handicapper Leaderboard — Blitz.tips",
+    description: "Verified handicappers ranked by net units, ROI, win rate, and streak.",
+    url: "/leaderboard",
+  },
+};
 export const dynamic = "force-dynamic";
 
 const SORTS = {

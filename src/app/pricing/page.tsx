@@ -9,6 +9,7 @@ export const metadata: Metadata = {
   title: "Sell Tips",
   description:
     "Sell your sports tips on Blitz.tips. Build a verified track record, set your own prices, and get paid by card or crypto while we handle billing and payouts.",
+  alternates: { canonical: "/pricing" },
 };
 
 const PLAN_ORDER: HandicapperPlan[] = ["FREE", "SILVER", "GOLD"];

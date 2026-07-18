@@ -7,6 +7,7 @@ import { summarizeRatings } from "@/lib/reviews";
 import { isPickLocked } from "@/lib/pick-visibility";
 import { ReviewsList, type ReviewItem } from "@/components/reviews-list";
 import { Stars } from "@/components/stars";
+import { HandicapperJsonLd } from "@/components/json-ld";
 import { StatCard } from "@/components/stat-card";
 import { PickCard } from "@/components/pick-card";
 import { PaginatedTrackRecord } from "@/components/paginated-track-record";
@@ -33,10 +34,32 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const { handle } = await params;
   const handicapper = await getHandicapperByHandle(handle);
-  if (!handicapper) return {};
+  if (!handicapper) return { title: "Handicapper not found" };
+
+  const units = `${handicapper.stats.unitsNet >= 0 ? "+" : ""}${handicapper.stats.unitsNet.toFixed(1)} units`;
+  const roi = handicapper.stats.roi !== null ? `, ${handicapper.stats.roi.toFixed(0)}% ROI` : "";
+  const sports = handicapper.sports.map((s) => SPORT_LABELS[s] ?? s).join(", ");
+  const description =
+    `${handicapper.displayName}'s verified sports betting record on Blitz.tips: ${handicapper.stats.record}, ${units}${roi}` +
+    `${sports ? ` across ${sports}` : ""}. Follow their picks and subscribe.`;
+  const path = `/handicappers/${handicapper.handle}`;
+
   return {
-    title: handicapper.displayName,
-    description: `${handicapper.displayName}'s verified sports betting record on Blitz.tips: ${handicapper.stats.record}, ${handicapper.stats.unitsNet >= 0 ? "+" : ""}${handicapper.stats.unitsNet.toFixed(1)} units.`,
+    title: `${handicapper.displayName} (@${handicapper.handle})`,
+    description,
+    alternates: { canonical: path },
+    openGraph: {
+      type: "profile",
+      title: `${handicapper.displayName} — verified record on Blitz.tips`,
+      description,
+      url: path,
+      ...(handicapper.avatarUrl ? { images: [{ url: handicapper.avatarUrl }] } : {}),
+    },
+    twitter: {
+      card: "summary",
+      title: `${handicapper.displayName} (@${handicapper.handle})`,
+      description,
+    },
   };
 }
 
@@ -171,6 +194,16 @@ export default async function HandicapperProfilePage({
 
   return (
     <div>
+      {!handicapper.suspendedAt && (
+        <HandicapperJsonLd
+          handle={handicapper.handle}
+          displayName={handicapper.displayName}
+          bio={handicapper.bio}
+          avatarUrl={handicapper.avatarUrl}
+          ratingValue={ratingSummary.average}
+          reviewCount={ratingSummary.count}
+        />
+      )}
       <div className="h-40 w-full overflow-hidden bg-gradient-to-r from-accent/20 via-surface-raised to-gold/15 sm:h-56">
         {handicapper.coverUrl && (
           // eslint-disable-next-line @next/next/no-img-element -- user-uploaded cover (Vercel Blob URL)

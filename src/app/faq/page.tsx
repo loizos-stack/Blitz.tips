@@ -2,10 +2,12 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { ChevronDown } from "lucide-react";
 import { ContactForm } from "@/components/contact-form";
+import { FaqJsonLd } from "@/components/json-ld";
 
 export const metadata: Metadata = {
   title: "FAQ",
   description: "Answers to common questions about following handicappers and selling picks on Blitz.tips.",
+  alternates: { canonical: "/faq" },
 };
 
 interface QA {
@@ -134,9 +136,15 @@ function FaqItem({ item }: { item: QA }) {
   );
 }
 
+// Only string answers go into the FAQ structured data (some rich answers are JSX).
+const FAQ_JSONLD = [...BETTORS, ...HANDICAPPERS]
+  .filter((it): it is { q: string; a: string } => typeof it.a === "string")
+  .map((it) => ({ question: it.q, answer: it.a }));
+
 export default function FaqPage() {
   return (
     <div className="container-page py-16">
+      <FaqJsonLd items={FAQ_JSONLD} />
       <div className="mx-auto max-w-3xl">
         <h1 className="text-3xl font-bold">Frequently asked questions</h1>
         <p className="mt-4 text-muted">

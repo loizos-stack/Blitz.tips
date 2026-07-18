@@ -6,7 +6,17 @@ import { SportFilterSelect } from "@/components/sport-filter-select";
 import { SPORT_LABELS, cn } from "@/lib/utils";
 import type { PickSport } from "@prisma/client";
 
-export const metadata: Metadata = { title: "Handicappers" };
+export const metadata: Metadata = {
+  title: "Handicappers",
+  description:
+    "Browse every verified handicapper on Blitz.tips. Compare records, units, ROI, reviews, and prices, then subscribe to the cappers who consistently beat the market.",
+  alternates: { canonical: "/handicappers" },
+  openGraph: {
+    title: "Browse Handicappers — Blitz.tips",
+    description: "Compare verified records, units, ROI, reviews, and prices across every handicapper.",
+    url: "/handicappers",
+  },
+};
 export const dynamic = "force-dynamic";
 
 const SORTS = {

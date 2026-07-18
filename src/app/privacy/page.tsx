@@ -4,6 +4,7 @@ import { LegalShell, Section, Bullets } from "@/components/legal";
 export const metadata: Metadata = {
   title: "Privacy Policy",
   description: "How Blitz.tips collects, uses, and protects your personal information.",
+  alternates: { canonical: "/privacy" },
 };
 
 export default function PrivacyPage() {
