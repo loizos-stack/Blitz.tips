@@ -14,9 +14,8 @@ export function HandicapperCard({ handicapper, rank }: { handicapper: Handicappe
   const { stats, currentStreak } = handicapper;
 
   return (
-    <Link
-      href={`/handicappers/${handicapper.handle}`}
-      className={`card group flex flex-col overflow-hidden p-0 transition-colors hover:border-accent/60 ${
+    <div
+      className={`card group relative flex flex-col overflow-hidden p-0 transition-colors hover:border-accent/60 ${
         handicapper.isFeatured ? "border-gold/50 bg-gold/5" : ""
       }`}
     >
@@ -47,17 +46,25 @@ export function HandicapperCard({ handicapper, rank }: { handicapper: Handicappe
             // relative z-10: the cover banner above is position:relative (for
             // the rank badge), which would otherwise paint over this avatar's
             // overlapping top half.
-            className="relative z-10 -mt-8 h-16 w-16 shrink-0 rounded-full border-4 border-surface text-base"
+            className="pointer-events-none relative z-10 -mt-8 h-16 w-16 shrink-0 rounded-full border-4 border-surface text-base"
           />
           <div className="min-w-0 pt-1">
             <div className="flex items-center gap-1.5">
-              <p className="truncate font-semibold group-hover:text-accent">{handicapper.displayName}</p>
+              {/* Stretched link: the ::after covers the whole card so clicking
+                  anywhere (except the interactive z-10 elements below) opens the
+                  profile — lets the social icons be real, independent links. */}
+              <Link
+                href={`/handicappers/${handicapper.handle}`}
+                className="truncate font-semibold group-hover:text-accent after:absolute after:inset-0 after:content-['']"
+              >
+                {handicapper.displayName}
+              </Link>
               <PlanBadge plan={handicapper.plan} planStatus={handicapper.planStatus} />
             </div>
             <p className="truncate text-sm text-muted">@{handicapper.handle}</p>
           </div>
 
-          <div className="ml-auto flex flex-col items-end gap-1.5">
+          <div className="relative z-10 ml-auto flex flex-col items-end gap-1.5">
             <FollowButton handicapperId={handicapper.id} size="sm" />
             {handicapper.reviewsCount > 0 && handicapper.reviewsAverage != null && (
               <span className="flex items-center gap-1 whitespace-nowrap text-xs text-muted">
@@ -143,8 +150,10 @@ export function HandicapperCard({ handicapper, rank }: { handicapper: Handicappe
           .join(" · ")}
       </p>
 
-      <SocialLinks profile={handicapper} linked={false} />
+      {/* Real, independent links (new tab) sitting above the stretched profile
+          link so they open the handicapper's socials instead of the profile. */}
+      <SocialLinks profile={handicapper} className="relative z-10" />
       </div>
-    </Link>
+    </div>
   );
 }
