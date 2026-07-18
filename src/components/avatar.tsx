@@ -12,8 +12,8 @@ export function Avatar({
   className?: string;
 }) {
   if (src) {
-    // eslint-disable-next-line @next/next/no-img-element -- user-uploaded avatar (Vercel Blob URL); next/image would need remotePatterns for no real benefit here
-    return <img src={src} alt={name} className={cn("object-cover", className)} />;
+    // eslint-disable-next-line @next/next/no-img-element -- user-uploaded avatar; kept as a plain <img> (varied sizes across call sites) with lazy loading
+    return <img src={src} alt={name} loading="lazy" decoding="async" className={cn("object-cover", className)} />;
   }
 
   return (

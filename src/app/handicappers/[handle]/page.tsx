@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Image from "next/image";
 import { notFound } from "next/navigation";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
@@ -204,10 +205,9 @@ export default async function HandicapperProfilePage({
           reviewCount={ratingSummary.count}
         />
       )}
-      <div className="h-40 w-full overflow-hidden bg-gradient-to-r from-accent/20 via-surface-raised to-gold/15 sm:h-56">
+      <div className="relative h-40 w-full overflow-hidden bg-gradient-to-r from-accent/20 via-surface-raised to-gold/15 sm:h-56">
         {handicapper.coverUrl && (
-          // eslint-disable-next-line @next/next/no-img-element -- user-uploaded cover (Vercel Blob URL)
-          <img src={handicapper.coverUrl} alt="" className="h-full w-full object-cover" />
+          <Image src={handicapper.coverUrl} alt="" fill priority sizes="100vw" className="object-cover" />
         )}
       </div>
       <div className="container-page pb-12">

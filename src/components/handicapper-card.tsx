@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Image from "next/image";
 import { formatCents, SPORT_LABELS } from "@/lib/utils";
 import { formatStreak } from "@/lib/analytics";
 import { PlanBadge } from "@/components/plan-badge";
@@ -21,8 +22,13 @@ export function HandicapperCard({ handicapper, rank }: { handicapper: Handicappe
     >
       <div className="relative h-20 w-full overflow-hidden bg-gradient-to-r from-accent/20 via-surface-raised to-gold/15">
         {handicapper.coverUrl && (
-          // eslint-disable-next-line @next/next/no-img-element -- user-uploaded cover (Vercel Blob URL)
-          <img src={handicapper.coverUrl} alt="" className="h-full w-full object-cover" />
+          <Image
+            src={handicapper.coverUrl}
+            alt=""
+            fill
+            sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
+            className="object-cover"
+          />
         )}
         {rank !== undefined && (
           <span className="absolute left-2 top-2 rounded-full bg-black/55 px-2 py-0.5 text-xs font-bold text-white">

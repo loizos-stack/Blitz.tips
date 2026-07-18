@@ -87,7 +87,9 @@ export async function listHandicapperDirectory(): Promise<DirectoryHandicapper[]
   const handicappers = await prisma.handicapperProfile.findMany({
     where: { suspendedAt: null },
     include: {
-      picks: { include: { parlayLegs: true } },
+      // No parlayLegs join — a parlay's parent `selection` already concatenates
+      // its legs, so the search haystack keeps them without the extra query.
+      picks: true,
       ...APPROVED_REVIEW_RATINGS,
       _count: { select: { followers: true } },
     },
@@ -100,13 +102,7 @@ export async function listHandicapperDirectory(): Promise<DirectoryHandicapper[]
       h.handle,
       h.bio ?? "",
       ...h.sports.map((s) => SPORT_LABELS[s] ?? s),
-      ...h.picks.flatMap((p) => [
-        p.matchup,
-        p.selection,
-        p.league ?? "",
-        p.analysis ?? "",
-        ...p.parlayLegs.flatMap((l) => [l.matchup, l.selection]),
-      ]),
+      ...h.picks.flatMap((p) => [p.matchup, p.selection, p.league ?? "", p.analysis ?? ""]),
     ]
       .join(" ")
       .toLowerCase();
