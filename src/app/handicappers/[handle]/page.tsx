@@ -170,7 +170,9 @@ export default async function HandicapperProfilePage({
         </div>
       </>
     ),
-    reviews: (
+    // Hide the reviews section entirely until the handicapper has at least one
+    // (approved) review — no empty "no reviews yet" placeholder.
+    reviews: ratingSummary.count > 0 && (
       <ReviewsList
         displayName={handicapper.displayName}
         average={ratingSummary.average}
