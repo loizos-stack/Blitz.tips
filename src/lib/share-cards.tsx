@@ -1,17 +1,24 @@
 import type { ReactElement } from "react";
 import type { PickResult } from "@prisma/client";
 
-// Branded 1200×630 social cards, rendered to PNG via next/og (Satori). Shared by
-// the profile's opengraph-image (a handicapper's verified record) and the pick
-// share route (a single settled play). Satori rules to keep in mind here: every
-// element with more than one child needs an explicit `display: "flex"`, and we
-// avoid emoji/remote fonts so nothing triggers a network fetch at render time.
+// Branded 1200×630 social cards, rendered to PNG via next/og (Satori). Styled to
+// mirror the on-site handicapper cards: a light surface with a cover strip, the
+// avatar overlapping it, sport chips, and the same six-stat grid. Satori rules:
+// every element with >1 child needs display:flex, no negative margins (we use
+// absolute positioning for the avatar overlap), and no emoji/remote fonts.
 
 export const SHARE_CARD_SIZE = { width: 1200, height: 630 };
 
-const BG = "linear-gradient(135deg, #0a1410 0%, #0d1f16 55%, #123524 100%)";
-const ACCENT = "#22c55e";
-const MUTED = "#94a3b8";
+// Site theme (globals.css).
+const CANVAS = "#eef1f5";
+const SURFACE = "#ffffff";
+const RAISED = "#f1f3f6";
+const BORDER = "#e3e6eb";
+const FG = "#13161c";
+const MUTED = "#4b5563";
+const ACCENT = "#16a34a";
+const DANGER = "#dc2626";
+const COVER = "linear-gradient(90deg, rgba(22,163,74,0.22) 0%, #eef2f6 55%, rgba(180,83,9,0.18) 100%)";
 
 // The real Blitz.tips logo mark (kept in sync with public/logo-mark.svg): a green
 // rounded square with the gold bolt. Inlined as a data URI so the card renders
@@ -19,38 +26,15 @@ const MUTED = "#94a3b8";
 const LOGO_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40" fill="none"><defs><linearGradient id="gold" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#fde047"/><stop offset="100%" stop-color="#eab308"/></linearGradient></defs><rect width="40" height="40" rx="10" fill="#16a34a"/><path d="M22 6 L11 23 H18.5 L16 35 L29 19 H21.5 L24 6 Z" fill="#fde047" fill-opacity="0.14" stroke="url(#gold)" stroke-width="2.6" stroke-linejoin="round"/></svg>`;
 export const LOGO_MARK = `data:image/svg+xml;base64,${Buffer.from(LOGO_SVG).toString("base64")}`;
 
-export function Wordmark(): ReactElement {
+export function Wordmark({ size = 44 }: { size?: number }): ReactElement {
   return (
     <div style={{ display: "flex", alignItems: "center" }}>
       {/* eslint-disable-next-line @next/next/no-img-element -- Satori (next/og) renders a plain <img>; data URI, no network */}
-      <img src={LOGO_MARK} width={56} height={56} alt="" />
-      <div style={{ display: "flex", marginLeft: 16, fontSize: 38, fontWeight: 800, letterSpacing: -1 }}>
+      <img src={LOGO_MARK} width={size} height={size} alt="" />
+      <div style={{ display: "flex", marginLeft: 12, fontSize: size * 0.62, fontWeight: 800, letterSpacing: -1, color: FG }}>
         <span>Blitz</span>
         <span style={{ color: ACCENT }}>.tips</span>
       </div>
-    </div>
-  );
-}
-
-function Monogram({ name }: { name: string }): ReactElement {
-  return (
-    <div
-      style={{
-        width: 120,
-        height: 120,
-        borderRadius: 60,
-        background: "#16a34a",
-        border: "4px solid rgba(255,255,255,0.14)",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        fontSize: 52,
-        fontWeight: 800,
-        color: "#0a1410",
-        textTransform: "uppercase",
-      }}
-    >
-      {name.slice(0, 2)}
     </div>
   );
 }
@@ -62,20 +46,47 @@ function StatTile({ label, value, tone }: { label: string; value: string; tone?:
         display: "flex",
         flexDirection: "column",
         flex: 1,
-        background: "rgba(255,255,255,0.05)",
-        border: "1px solid rgba(255,255,255,0.08)",
-        borderRadius: 18,
-        padding: "24px 26px",
+        background: RAISED,
+        border: `1px solid ${BORDER}`,
+        borderRadius: 14,
+        padding: "18px 18px",
       }}
     >
-      <span style={{ fontSize: 24, color: MUTED }}>{label}</span>
-      <span style={{ fontSize: 52, fontWeight: 800, color: tone ?? "#f8fafc", marginTop: 6 }}>{value}</span>
+      <span style={{ fontSize: 20, color: MUTED }}>{label}</span>
+      <span style={{ fontSize: 40, fontWeight: 800, color: tone ?? FG, marginTop: 4 }}>{value}</span>
+    </div>
+  );
+}
+
+function CardFrame({ children }: { children: ReactElement | ReactElement[] }): ReactElement {
+  return (
+    <div style={{ width: "100%", height: "100%", display: "flex", padding: 48, background: CANVAS, fontFamily: "sans-serif" }}>
+      <div
+        style={{
+          position: "relative",
+          display: "flex",
+          flexDirection: "column",
+          width: "100%",
+          height: "100%",
+          background: SURFACE,
+          border: `1px solid ${BORDER}`,
+          borderRadius: 28,
+          boxShadow: "0 2px 10px rgba(16,24,40,0.06)",
+        }}
+      >
+        {children}
+      </div>
     </div>
   );
 }
 
 function americanOdds(odds: number): string {
   return odds > 0 ? `+${odds}` : `${odds}`;
+}
+
+function formatStreak(streak: number): string {
+  if (streak === 0) return "—";
+  return streak > 0 ? `W${streak}` : `L${Math.abs(streak)}`;
 }
 
 export interface RecordCardData {
@@ -85,58 +96,110 @@ export interface RecordCardData {
   unitsNet: number;
   roi: number | null;
   winRate: number | null;
+  streak: number;
+  l10: string;
   totalPicks: number;
   sports: string[];
 }
 
 export function recordCard(d: RecordCardData): ReactElement {
   const units = `${d.unitsNet >= 0 ? "+" : ""}${d.unitsNet.toFixed(1)}u`;
-  const tone = d.unitsNet >= 0 ? ACCENT : "#f87171";
-  const subtitle = [d.sports.slice(0, 4).join(" · "), `${d.totalPicks} tracked picks`]
-    .filter(Boolean)
-    .join("   •   ");
+  const unitsTone = d.unitsNet >= 0 ? ACCENT : DANGER;
 
   return (
-    <div style={{ width: "100%", height: "100%", display: "flex", flexDirection: "column", padding: 72, background: BG, color: "#f8fafc", fontFamily: "sans-serif" }}>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-        <Wordmark />
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            background: "rgba(34,197,94,0.14)",
-            border: "1px solid rgba(34,197,94,0.4)",
-            borderRadius: 999,
-            padding: "10px 20px",
-            fontSize: 22,
-            fontWeight: 700,
-            color: ACCENT,
-            letterSpacing: 1,
-          }}
-        >
-          VERIFIED RECORD
+    <CardFrame>
+      {/* Cover strip */}
+      <div style={{ display: "flex", height: 156, background: COVER, borderTopLeftRadius: 27, borderTopRightRadius: 27 }} />
+
+      {/* Avatar overlapping the cover */}
+      <div
+        style={{
+          position: "absolute",
+          top: 92,
+          left: 60,
+          width: 128,
+          height: 128,
+          borderRadius: 64,
+          background: ACCENT,
+          border: "8px solid #ffffff",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          fontSize: 52,
+          fontWeight: 800,
+          color: "#ffffff",
+          textTransform: "uppercase",
+        }}
+      >
+        {d.displayName.slice(0, 2)}
+      </div>
+
+      {/* Body */}
+      <div style={{ display: "flex", flexDirection: "column", flex: 1, padding: "0 60px 52px 60px" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginTop: 78 }}>
+          <div style={{ display: "flex", flexDirection: "column", marginLeft: 150 }}>
+            <span style={{ fontSize: 50, fontWeight: 800, color: FG, lineHeight: 1.05 }}>{d.displayName}</span>
+            <span style={{ fontSize: 28, color: MUTED, marginTop: 2 }}>@{d.handle}</span>
+          </div>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              background: "rgba(22,163,74,0.10)",
+              border: "1px solid rgba(22,163,74,0.35)",
+              borderRadius: 999,
+              padding: "8px 18px",
+              fontSize: 20,
+              fontWeight: 700,
+              color: ACCENT,
+              letterSpacing: 1,
+            }}
+          >
+            VERIFIED
+          </div>
+        </div>
+
+        {/* Sport chips */}
+        {d.sports.length > 0 && (
+          <div style={{ display: "flex", gap: 10, marginTop: 22 }}>
+            {d.sports.slice(0, 5).map((s) => (
+              <div
+                key={s}
+                style={{
+                  display: "flex",
+                  background: RAISED,
+                  border: `1px solid ${BORDER}`,
+                  borderRadius: 999,
+                  padding: "6px 16px",
+                  fontSize: 22,
+                  color: MUTED,
+                }}
+              >
+                {s}
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Six-stat grid — matches the on-site handicapper card */}
+        <div style={{ display: "flex", gap: 12, marginTop: 28 }}>
+          <StatTile label="Record" value={d.record} />
+          <StatTile label="Win %" value={d.winRate !== null ? `${d.winRate.toFixed(0)}%` : "—"} />
+          <StatTile label="Units" value={units} tone={unitsTone} />
+          <StatTile label="ROI" value={d.roi !== null ? `${d.roi.toFixed(0)}%` : "—"} />
+          <StatTile label="Streak" value={formatStreak(d.streak)} />
+          <StatTile label="L10" value={d.l10} />
+        </div>
+
+        {/* Footer */}
+        <div style={{ display: "flex", marginTop: "auto", alignItems: "center", justifyContent: "space-between" }}>
+          <Wordmark />
+          <span style={{ display: "flex", fontSize: 22, color: MUTED }}>
+            {`${d.totalPicks} picks tracked & graded — verified`}
+          </span>
         </div>
       </div>
-
-      <div style={{ display: "flex", alignItems: "center", marginTop: 40 }}>
-        <Monogram name={d.displayName} />
-        <div style={{ display: "flex", flexDirection: "column", marginLeft: 28 }}>
-          <span style={{ fontSize: 56, fontWeight: 800, lineHeight: 1.05 }}>{d.displayName}</span>
-          <span style={{ fontSize: 30, color: MUTED, marginTop: 4 }}>@{d.handle}</span>
-        </div>
-      </div>
-
-      <div style={{ display: "flex", gap: 20, marginTop: 44 }}>
-        <StatTile label="Record" value={d.record} />
-        <StatTile label="Net units" value={units} tone={tone} />
-        <StatTile label="ROI" value={d.roi !== null ? `${d.roi.toFixed(0)}%` : "—"} />
-        <StatTile label="Win rate" value={d.winRate !== null ? `${d.winRate.toFixed(0)}%` : "—"} />
-      </div>
-
-      <div style={{ display: "flex", marginTop: "auto", fontSize: 24, color: MUTED }}>
-        <span>{subtitle || "Every pick tracked & graded on Blitz.tips"}</span>
-      </div>
-    </div>
+    </CardFrame>
   );
 }
 
@@ -152,19 +215,31 @@ export interface PickCardData {
 }
 
 const RESULT_STYLE: Record<PickResult, { label: string; color: string; bg: string; border: string }> = {
-  WIN: { label: "WIN", color: "#22c55e", bg: "rgba(34,197,94,0.14)", border: "rgba(34,197,94,0.4)" },
-  LOSS: { label: "LOSS", color: "#f87171", bg: "rgba(248,113,113,0.14)", border: "rgba(248,113,113,0.4)" },
-  PUSH: { label: "PUSH", color: MUTED, bg: "rgba(148,163,184,0.14)", border: "rgba(148,163,184,0.4)" },
-  VOID: { label: "VOID", color: MUTED, bg: "rgba(148,163,184,0.14)", border: "rgba(148,163,184,0.4)" },
-  PENDING: { label: "PENDING", color: "#fbbf24", bg: "rgba(251,191,36,0.14)", border: "rgba(251,191,36,0.4)" },
+  WIN: { label: "WIN", color: ACCENT, bg: "rgba(22,163,74,0.10)", border: "rgba(22,163,74,0.35)" },
+  LOSS: { label: "LOSS", color: DANGER, bg: "rgba(220,38,38,0.10)", border: "rgba(220,38,38,0.35)" },
+  PUSH: { label: "PUSH", color: MUTED, bg: RAISED, border: BORDER },
+  VOID: { label: "VOID", color: MUTED, bg: RAISED, border: BORDER },
+  PENDING: { label: "PENDING", color: "#b45309", bg: "rgba(180,83,9,0.10)", border: "rgba(180,83,9,0.35)" },
 };
 
 export function pickCard(d: PickCardData): ReactElement {
   const r = RESULT_STYLE[d.result];
 
   return (
-    <div style={{ width: "100%", height: "100%", display: "flex", flexDirection: "column", padding: 72, background: BG, color: "#f8fafc", fontFamily: "sans-serif" }}>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+    <CardFrame>
+      {/* Cover strip with logo + result badge */}
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          height: 104,
+          padding: "0 44px",
+          background: COVER,
+          borderTopLeftRadius: 27,
+          borderTopRightRadius: 27,
+        }}
+      >
         <Wordmark />
         <div
           style={{
@@ -173,8 +248,8 @@ export function pickCard(d: PickCardData): ReactElement {
             background: r.bg,
             border: `1px solid ${r.border}`,
             borderRadius: 999,
-            padding: "10px 24px",
-            fontSize: 26,
+            padding: "8px 22px",
+            fontSize: 24,
             fontWeight: 800,
             color: r.color,
             letterSpacing: 1,
@@ -184,22 +259,25 @@ export function pickCard(d: PickCardData): ReactElement {
         </div>
       </div>
 
-      <div style={{ display: "flex", flexDirection: "column", marginTop: 44 }}>
-        <span style={{ fontSize: 26, color: MUTED }}>
+      {/* Body */}
+      <div style={{ display: "flex", flexDirection: "column", flex: 1, padding: "40px 60px 52px 60px" }}>
+        <span style={{ display: "flex", fontSize: 26, color: MUTED }}>
           {d.displayName} · @{d.handle} · {d.sportLabel}
         </span>
-        <span style={{ fontSize: 40, fontWeight: 700, color: "#cbd5e1", marginTop: 18 }}>{d.matchup}</span>
-        <span style={{ fontSize: 68, fontWeight: 800, lineHeight: 1.08, marginTop: 10 }}>{d.selection}</span>
-      </div>
+        <span style={{ display: "flex", fontSize: 38, fontWeight: 700, color: MUTED, marginTop: 16 }}>{d.matchup}</span>
+        <span style={{ display: "flex", fontSize: 66, fontWeight: 800, color: FG, lineHeight: 1.08, marginTop: 8 }}>
+          {d.selection}
+        </span>
 
-      <div style={{ display: "flex", gap: 20, marginTop: 40 }}>
-        <StatTile label="Odds" value={americanOdds(d.odds)} />
-        <StatTile label="Units" value={`${d.units}u`} />
-      </div>
+        <div style={{ display: "flex", gap: 12, marginTop: 36 }}>
+          <StatTile label="Odds" value={americanOdds(d.odds)} />
+          <StatTile label="Units" value={`${d.units}u`} />
+        </div>
 
-      <div style={{ display: "flex", marginTop: "auto", fontSize: 24, color: MUTED }}>
-        <span>Posted before kickoff · tracked & graded on Blitz.tips</span>
+        <div style={{ display: "flex", marginTop: "auto", fontSize: 22, color: MUTED }}>
+          <span>Posted before kickoff · tracked &amp; graded on Blitz.tips</span>
+        </div>
       </div>
-    </div>
+    </CardFrame>
   );
 }

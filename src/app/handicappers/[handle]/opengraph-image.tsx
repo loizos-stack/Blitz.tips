@@ -1,6 +1,7 @@
 import { ImageResponse } from "next/og";
 import { prisma } from "@/lib/prisma";
 import { computeStats } from "@/lib/odds";
+import { computeStreaks, lastNStats } from "@/lib/analytics";
 import { SPORT_LABELS } from "@/lib/utils";
 import { recordCard, SHARE_CARD_SIZE } from "@/lib/share-cards";
 
@@ -25,6 +26,8 @@ const fallback = {
   unitsNet: 0,
   roi: null,
   winRate: null,
+  streak: 0,
+  l10: "—",
   totalPicks: 0,
   sports: [] as string[],
 };
@@ -42,7 +45,9 @@ export default async function Image({ params }: { params: Promise<{ handle: stri
         handle: true,
         sports: true,
         suspendedAt: true,
-        picks: { select: { odds: true, units: true, result: true } },
+        picks: {
+          select: { odds: true, units: true, result: true, eventStartsAt: true, settledAt: true },
+        },
       },
     })
     .catch(() => null);
@@ -59,6 +64,8 @@ export default async function Image({ params }: { params: Promise<{ handle: stri
             unitsNet: stats.unitsNet,
             roi: stats.roi,
             winRate: stats.winRate,
+            streak: computeStreaks(profile.picks).current,
+            l10: lastNStats(profile.picks, 10).record,
             totalPicks: stats.totalPicks,
             sports: profile.sports.map((s) => SPORT_LABELS[s] ?? s),
           };
