@@ -197,10 +197,12 @@ export function CreateParlayForm({
     }
     setError(null);
     addLeg(leg);
-    if (!eventStartsAt) {
-      // Prefill the parlay start with the earliest chosen game.
-      setEventStartsAt(format(new Date(event.commenceTime), "yyyy-MM-dd'T'HH:mm"));
-    }
+    // Track the parlay's start as the *latest* chosen game — the whole slip
+    // unlocks two hours after its final game kicks off, so we keep the last one.
+    const startStr = format(new Date(event.commenceTime), "yyyy-MM-dd'T'HH:mm");
+    setEventStartsAt((prev) =>
+      !prev || new Date(event.commenceTime).getTime() > new Date(prev).getTime() ? startStr : prev
+    );
   }
 
   async function handleUpload(file: File) {
@@ -255,7 +257,7 @@ export function CreateParlayForm({
     e.preventDefault();
     setError(null);
     if (legs.length < 2) return setError("Add at least 2 legs");
-    if (!eventStartsAt) return setError("Set when the first game starts");
+    if (!eventStartsAt) return setError("Set when the last game starts");
     setLoading(true);
     const res = await fetch("/api/picks", {
       method: "POST",
@@ -504,7 +506,7 @@ export function CreateParlayForm({
           </select>
         </div>
         <div>
-          <label className="text-xs font-medium text-muted">First game starts</label>
+          <label className="text-xs font-medium text-muted">Last game starts</label>
           <input type="datetime-local" value={eventStartsAt} onChange={(e) => setEventStartsAt(e.target.value)} className={`${input} mt-1 w-full`} />
         </div>
       </div>
