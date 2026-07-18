@@ -4,7 +4,7 @@ import { getTeamLogoUrl } from "@/lib/team-logos";
 import { formatMatchup } from "@/lib/utils";
 import { sportsDbConfigured, resolveSportsDbLogo } from "@/lib/sportsdb";
 import { additionalMarketKeys, buildGroups, type MarketGroup, type RawMarket } from "@/lib/odds-markets";
-import { getLiveGameStates, livePairKey } from "@/lib/espn-scores";
+import { getLiveGameStates, livePairKey, getUfcFighterSet, fighterKey } from "@/lib/espn-scores";
 
 // The Odds API (the-odds-api.com) client.
 //
@@ -427,7 +427,21 @@ export async function getUpcomingEvents(sport: PickSport): Promise<OddsFeedResul
   const windowEvents = events.filter(
     (e) => isWithinUpcomingWindow(new Date(e.commenceTime), now) || Boolean(e.liveScore)
   );
-  const finalEvents = windowEvents.length > 0 ? windowEvents : events;
+  let finalEvents = windowEvents.length > 0 ? windowEvents : events;
+
+  // UFC-only: The Odds API's MMA feed carries every promotion (UFC, PFL, etc.)
+  // with no promotion tag, but the site only surfaces UFC. Cross-reference
+  // ESPN's UFC card and keep only bouts where both fighters are on it. If ESPN
+  // can't be reached (empty set) we leave the feed untouched rather than blank
+  // the board.
+  if (sport === "UFC_MMA") {
+    const ufc = await getUfcFighterSet();
+    if (ufc.size > 0) {
+      finalEvents = finalEvents.filter(
+        (e) => ufc.has(fighterKey(e.awayTeam)) && ufc.has(fighterKey(e.homeTeam))
+      );
+    }
+  }
 
   // For games in progress, enrich the live score with a period/clock detail from
   // ESPN (the Odds API doesn't provide one). One free, cached request per sport,

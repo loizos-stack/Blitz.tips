@@ -23,7 +23,7 @@ export const SPORT_LABELS: Record<string, string> = {
   SOCCER: "Soccer",
   GOLF: "Golf",
   TENNIS: "Tennis",
-  UFC_MMA: "UFC / MMA",
+  UFC_MMA: "UFC",
   OTHER: "Other",
 };
 

@@ -25,6 +25,55 @@ export function livePairKey(away: string, home: string): string {
   return `${norm(away)}|${norm(home)}`;
 }
 
+// Fighter-name key: folds diacritics (José → jose) before stripping to
+// alphanumerics, so Odds API vs ESPN spellings line up.
+export function fighterKey(name: string): string {
+  return name
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, "");
+}
+
+interface EspnMmaCompetitor {
+  athlete?: { displayName?: string; fullName?: string; shortName?: string };
+}
+interface EspnMmaEvent {
+  competitions?: { competitors?: EspnMmaCompetitor[] }[];
+}
+
+/**
+ * Set of fighter-name keys appearing on ESPN's *UFC* card. The Odds API's MMA
+ * feed (`mma_mixed_martial_arts`) covers every promotion with no per-event
+ * promotion tag, so we use this to keep only UFC bouts on the board and in the
+ * pick forms. Best-effort and cached: an empty set (fetch failed / off week)
+ * means "don't filter" so the board never goes unexpectedly dark.
+ */
+export async function getUfcFighterSet(): Promise<Set<string>> {
+  const set = new Set<string>();
+  try {
+    const res = await fetch("https://site.api.espn.com/apis/site/v2/sports/mma/ufc/scoreboard", {
+      next: { revalidate: 60 * 60 },
+    });
+    if (!res.ok) return set;
+    const data = (await res.json()) as { events?: EspnMmaEvent[] };
+
+    for (const event of data.events ?? []) {
+      for (const comp of event.competitions ?? []) {
+        for (const c of comp.competitors ?? []) {
+          const a = c.athlete;
+          for (const n of [a?.displayName, a?.fullName, a?.shortName]) {
+            if (n) set.add(fighterKey(n));
+          }
+        }
+      }
+    }
+  } catch {
+    // best-effort — never let a UFC-roster fetch break the board
+  }
+  return set;
+}
+
 interface EspnCompetitor {
   homeAway: "home" | "away";
   team?: { displayName?: string; shortDisplayName?: string; name?: string; location?: string; nickname?: string };

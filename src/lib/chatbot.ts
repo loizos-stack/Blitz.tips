@@ -40,7 +40,7 @@ Key facts:
 - Paying with crypto (subscribers): when available, a "Pay with crypto" button appears on the handicapper's subscribe card. It's a one-time payment that buys a fixed-length access pass — 7 days (weekly), 30 days (monthly), or 365 days (annual) — at the same price as the card package. You're taken to a secure hosted checkout, pick your coin (BTC, ETH, USDC and 300+ others), and send the amount; access unlocks automatically once the payment confirms on-chain. Prices are set in the handicapper's currency and converted to crypto at checkout.
 - Crypto passes do NOT auto-renew (unlike card subscriptions) and have no free trial. To keep access, pay again before it expires; paying again while still active extends from the current end date. Crypto also works even if the handicapper hasn't set up card payments.
 - Crypto payouts (handicappers): add an ETH (ERC-20) and/or BTC payout wallet in the Payouts tab of the dashboard. When a subscriber pays in crypto, your share (package price minus your plan's commission) is sent to that wallet on the regular payout schedule. Wallet addresses are private and never shown on your profile. You don't need Stripe set up to accept crypto.
-- Sports covered: NFL, NBA, WNBA, MLB, NHL, college football and basketball, soccer, golf, tennis, UFC/MMA and more — it depends on the handicapper.
+- Sports covered: NFL, NBA, WNBA, MLB, NHL, college football and basketball, soccer, golf, tennis, UFC and more — it depends on the handicapper.
 - No pick is guaranteed to win; sports betting carries risk. Blitz.tips makes past performance transparent but guarantees nothing.
 - Becoming a handicapper: create an account, open the handicapper dashboard, set up a public profile and pricing, and start posting picks. It's free to start.
 - Handicappers get paid via Stripe Connect to their connected bank account on Stripe's standard payout schedule, minus the platform commission for their plan (Silver or Gold).
@@ -99,7 +99,7 @@ const CANNED_RULES: CannedRule[] = [
   {
     test: /\b(sport|which (games|leagues)|nfl|nba|mlb|nhl|soccer|football|tennis|ufc|mma|golf)\b/i,
     answer:
-      "Coverage includes NFL, NBA, WNBA, MLB, NHL, college football and basketball, soccer, golf, tennis, UFC/MMA and more — it depends on what each handicapper covers.",
+      "Coverage includes NFL, NBA, WNBA, MLB, NHL, college football and basketball, soccer, golf, tennis, UFC and more — it depends on what each handicapper covers.",
   },
   {
     test: /\b(guarantee|will i win|sure thing|lock)\b/i,

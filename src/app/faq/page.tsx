@@ -38,7 +38,7 @@ const BETTORS: QA[] = [
   },
   {
     q: "Which sports are covered?",
-    a: "NFL, NBA, WNBA, MLB, NHL, college football and basketball, soccer, golf, tennis, UFC/MMA and more — it depends on what each handicapper covers.",
+    a: "NFL, NBA, WNBA, MLB, NHL, college football and basketball, soccer, golf, tennis, UFC and more — it depends on what each handicapper covers.",
   },
   {
     q: "Are picks guaranteed to win?",
