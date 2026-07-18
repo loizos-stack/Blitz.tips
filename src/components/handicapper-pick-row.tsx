@@ -3,11 +3,12 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { format } from "date-fns";
+import { Lock } from "lucide-react";
 import type { Pick as PickModel, PickResult } from "@prisma/client";
 import { ResultPill } from "@/components/result-pill";
 import { TeamLogo } from "@/components/team-logo";
 import { formatOdds } from "@/lib/odds";
-import { SPORT_LABELS, BET_TYPE_LABELS, cn, usesVsSeparator } from "@/lib/utils";
+import { SPORT_LABELS, BET_TYPE_LABELS, usesVsSeparator } from "@/lib/utils";
 
 const SETTLE_OPTIONS: PickResult[] = ["WIN", "LOSS", "PUSH", "VOID"];
 
@@ -69,27 +70,26 @@ export function HandicapperPickRow({ pick }: { pick: RowPick }) {
 
       <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-border pt-4">
         <ResultPill result={pick.result} />
-        <div className="flex flex-wrap gap-2">
-          {SETTLE_OPTIONS.map((option) => (
-            <button
-              key={option}
-              disabled={loading}
-              onClick={() => settle(option)}
-              className={cn(
-                "rounded-full border px-3 py-1 text-xs font-medium disabled:opacity-50",
-                pick.result === option
-                  ? option === "WIN"
-                    ? "border-accent bg-accent/10 text-accent"
-                    : option === "LOSS"
-                      ? "border-danger bg-danger/10 text-danger"
-                      : "border-push bg-push/10 text-push"
-                  : "border-border text-muted hover:text-foreground"
-              )}
-            >
-              {option}
-            </button>
-          ))}
-        </div>
+        {pick.result === "PENDING" ? (
+          <div className="flex flex-wrap gap-2">
+            {SETTLE_OPTIONS.map((option) => (
+              <button
+                key={option}
+                disabled={loading}
+                onClick={() => settle(option)}
+                className="rounded-full border border-border px-3 py-1 text-xs font-medium text-muted hover:text-foreground disabled:opacity-50"
+              >
+                {option}
+              </button>
+            ))}
+          </div>
+        ) : (
+          // A grade is final — no re-grading once settled. Corrections go through
+          // an admin, keeping records tamper-proof.
+          <span className="inline-flex items-center gap-1.5 text-xs font-medium text-muted">
+            <Lock className="h-3.5 w-3.5" /> Graded — final
+          </span>
+        )}
       </div>
     </div>
   );

@@ -16,6 +16,16 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
+  // A grade is final: once a pick has been settled it can't be re-graded or
+  // reverted by the handicapper — that's the integrity promise (no editing
+  // records after the fact). Corrections go through an admin.
+  if (pick.result !== "PENDING") {
+    return NextResponse.json(
+      { error: "This tip has already been graded and can't be changed. Contact support if it needs correcting." },
+      { status: 409 }
+    );
+  }
+
   const body = await request.json().catch(() => null);
   const parsed = settlePickSchema.safeParse(body);
   if (!parsed.success) {
