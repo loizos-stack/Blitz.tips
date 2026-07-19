@@ -25,6 +25,69 @@ export async function POST(request: Request) {
 
   // "finished" = fully paid and settled to the merchant balance.
   if (status === "finished") {
+    // Handicapper plan payments (handicapper → platform) use a distinct order
+    // prefix and activate the plan for one fixed term (never auto-renews).
+    if (orderId.startsWith("blitzplan_")) {
+      const planPayment = await prisma.planCryptoPayment.findUnique({ where: { chargeCode: orderId } });
+      if (planPayment && planPayment.status !== "CONFIRMED") {
+        await prisma.planCryptoPayment.update({
+          where: { id: planPayment.id },
+          data: { status: "CONFIRMED", confirmedAt: new Date() },
+        });
+
+        const hc = await prisma.handicapperProfile.findUnique({
+          where: { id: planPayment.handicapperId },
+          select: { userId: true, planCurrentPeriodEnd: true, planStripeSubscriptionId: true },
+        });
+        if (hc) {
+          // Extend from the current crypto plan end if one is still running (and
+          // it's not a Stripe recurring plan), otherwise from now.
+          const base =
+            !hc.planStripeSubscriptionId &&
+            hc.planCurrentPeriodEnd &&
+            hc.planCurrentPeriodEnd > new Date()
+              ? hc.planCurrentPeriodEnd
+              : new Date();
+          const days = planPayment.interval === "ANNUAL" ? 365 : 30;
+          const periodEnd = new Date(base.getTime() + days * 24 * 60 * 60 * 1000);
+          const label = planPayment.plan === "GOLD" ? "Gold" : "Silver";
+
+          await prisma.handicapperProfile.update({
+            where: { id: planPayment.handicapperId },
+            data: {
+              plan: planPayment.plan,
+              planInterval: planPayment.interval,
+              planStatus: "ACTIVE",
+              planStripeSubscriptionId: null,
+              planCurrentPeriodEnd: periodEnd,
+              planCancelAtPeriodEnd: true, // crypto plans never auto-renew
+            },
+          });
+
+          await prisma.notification
+            .create({
+              data: {
+                userId: hc.userId,
+                type: "plan.crypto",
+                title: `${label} plan active`,
+                body: `Your crypto payment cleared — your ${label} plan is active until ${periodEnd.toLocaleDateString()}.`,
+                url: "/dashboard/handicapper/plan",
+              },
+            })
+            .catch(() => null);
+
+          await logActivity({
+            actorId: hc.userId,
+            action: "plan.crypto.confirmed",
+            targetType: "PlanCryptoPayment",
+            targetId: planPayment.id,
+            detail: `${planPayment.plan} ${planPayment.interval} via crypto ($${(planPayment.amountCents / 100).toFixed(2)})`,
+          });
+        }
+      }
+      return NextResponse.json({ received: true });
+    }
+
     const payment = await prisma.cryptoPayment.findUnique({ where: { chargeCode: orderId } });
     if (payment && payment.status !== "CONFIRMED") {
       await prisma.cryptoPayment.update({
@@ -99,9 +162,15 @@ export async function POST(request: Request) {
       });
     }
   } else if (status === "failed" || status === "expired" || status === "refunded") {
-    await prisma.cryptoPayment
-      .updateMany({ where: { chargeCode: orderId, status: "PENDING" }, data: { status: "EXPIRED" } })
-      .catch(() => null);
+    if (orderId.startsWith("blitzplan_")) {
+      await prisma.planCryptoPayment
+        .updateMany({ where: { chargeCode: orderId, status: "PENDING" }, data: { status: "EXPIRED" } })
+        .catch(() => null);
+    } else {
+      await prisma.cryptoPayment
+        .updateMany({ where: { chargeCode: orderId, status: "PENDING" }, data: { status: "EXPIRED" } })
+        .catch(() => null);
+    }
   }
 
   return NextResponse.json({ received: true });

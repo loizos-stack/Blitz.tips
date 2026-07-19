@@ -41,15 +41,27 @@ export async function POST(request: Request) {
 
   const priceId = await getOrCreatePlanPrice(plan, interval);
 
+  // One-time 1-month free trial on Silver/Gold, granted only if this handicapper
+  // hasn't used it before (so cancel + re-subscribe can't farm free months).
+  const trialEligible = !handicapper.planTrialUsed;
+  const planMeta = {
+    kind: "handicapper_plan",
+    handicapperProfileId: handicapper.id,
+    plan,
+    interval,
+    trial: trialEligible ? "1" : "0",
+  };
+
   const checkoutSession = await stripe.checkout.sessions.create({
     mode: "subscription",
     customer: customerId,
     allow_promotion_codes: true,
     line_items: [{ price: priceId, quantity: 1 }],
     subscription_data: {
-      metadata: { kind: "handicapper_plan", handicapperProfileId: handicapper.id, plan, interval },
+      metadata: planMeta,
+      ...(trialEligible ? { trial_period_days: 30 } : {}),
     },
-    metadata: { kind: "handicapper_plan", handicapperProfileId: handicapper.id, plan, interval },
+    metadata: planMeta,
     success_url: `${appUrl}/dashboard/handicapper?plan=updated`,
     cancel_url: `${appUrl}/dashboard/handicapper`,
   });

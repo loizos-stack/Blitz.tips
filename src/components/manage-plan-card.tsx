@@ -11,11 +11,15 @@ export function ManagePlanCard({
   planStatus,
   planInterval,
   planCurrentPeriodEnd,
+  trialEligible = false,
+  cryptoEnabled = false,
 }: {
   plan: HandicapperPlan;
   planStatus: SubscriptionStatus;
   planInterval: BillingInterval | null;
   planCurrentPeriodEnd: Date | null;
+  trialEligible?: boolean;
+  cryptoEnabled?: boolean;
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -54,6 +58,23 @@ export function ManagePlanCard({
     if (body.url) window.location.href = body.url;
   }
 
+  async function handleCrypto(newPlan: HandicapperPlan, interval: BillingInterval) {
+    setError(null);
+    setLoading(true);
+    const res = await fetch("/api/handicapper/plan/crypto-checkout", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ plan: newPlan, interval }),
+    });
+    const body = await res.json().catch(() => ({}));
+    setLoading(false);
+    if (!res.ok) {
+      setError(body.error ?? "Could not start crypto checkout");
+      return;
+    }
+    if (body.url) window.location.href = body.url;
+  }
+
   const def = PLAN_DEFINITIONS[plan];
 
   return (
@@ -83,7 +104,14 @@ export function ManagePlanCard({
 
       {open && (
         <div className="mt-5 border-t border-border pt-5">
-          <PlanPicker currentPlan={plan} onSelect={handleSelect} disabled={loading} />
+          <PlanPicker
+            currentPlan={plan}
+            onSelect={handleSelect}
+            onSelectCrypto={cryptoEnabled ? handleCrypto : undefined}
+            disabled={loading}
+            trialEligible={trialEligible}
+            cryptoEnabled={cryptoEnabled}
+          />
           {error && <p className="mt-3 text-center text-sm text-danger">{error}</p>}
         </div>
       )}

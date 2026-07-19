@@ -248,6 +248,10 @@ model HandicapperProfile {
   planStripeSubscriptionId String?           @unique
   planCurrentPeriodEnd    DateTime?
   planCancelAtPeriodEnd   Boolean            @default(false)
+  // Whether this handicapper has already consumed their one-time 1-month free
+  // trial on a paid (Silver/Gold) plan — set the first time a trial starts, so
+  // canceling and re-subscribing doesn't grant another free month.
+  planTrialUsed           Boolean            @default(false)
 
   picks         Pick[]
   subscriptions Subscription[] @relation("HandicapperSubscriptions")
@@ -636,4 +640,24 @@ model BlogPost {
   updatedAt   DateTime   @updatedAt
 
   @@index([status, publishedAt])
+}
+
+// A one-time crypto payment (NOWPayments) for a handicapper's own Silver/Gold
+// plan — the crypto alternative to the recurring Stripe plan subscription.
+// Prepaid and fixed-term: it activates the plan for one interval and never
+// auto-renews (paying again extends from the current end date).
+model PlanCryptoPayment {
+  id            String   @id @default(cuid())
+  chargeCode    String   @unique // our order id (blitzplan_…), echoed by the IPN
+  handicapperId String
+
+  plan          HandicapperPlan
+  interval      BillingInterval
+  amountCents   Int
+
+  status        CryptoPaymentStatus @default(PENDING)
+  confirmedAt   DateTime?
+  createdAt     DateTime @default(now())
+
+  @@index([handicapperId, status])
 }

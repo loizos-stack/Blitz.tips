@@ -20,11 +20,19 @@ const PLAN_BUTTON_STYLES: Record<HandicapperPlan, string> = {
 export function PlanPicker({
   currentPlan,
   onSelect,
+  onSelectCrypto,
   disabled,
+  trialEligible = false,
+  cryptoEnabled = false,
 }: {
   currentPlan?: HandicapperPlan;
   onSelect: (plan: HandicapperPlan, interval: BillingInterval) => void;
+  /** When provided, paid plans show a "Pay with crypto" option. */
+  onSelectCrypto?: (plan: HandicapperPlan, interval: BillingInterval) => void;
   disabled?: boolean;
+  /** Show the one-time 1-month free trial on Silver/Gold. */
+  trialEligible?: boolean;
+  cryptoEnabled?: boolean;
 }) {
   const [interval, setInterval] = useState<BillingInterval>("MONTHLY");
 
@@ -54,6 +62,8 @@ export function PlanPicker({
           const def = PLAN_DEFINITIONS[plan];
           const priceCents = interval === "ANNUAL" ? def.annualPriceCents : def.monthlyPriceCents;
           const isCurrent = currentPlan === plan;
+          const isPaid = plan !== "FREE";
+          const showTrial = isPaid && trialEligible && !isCurrent;
 
           return (
             <div
@@ -75,6 +85,9 @@ export function PlanPicker({
                   </span>
                 </p>
                 <p className="text-sm text-muted">{def.commissionPercent}% commission</p>
+                {showTrial && (
+                  <p className="mt-1 text-sm font-semibold text-accent">1-month free trial</p>
+                )}
               </div>
 
               <ul className="flex flex-1 flex-col gap-2.5 text-[15px] leading-snug text-foreground">
@@ -95,8 +108,24 @@ export function PlanPicker({
                   PLAN_BUTTON_STYLES[plan]
                 )}
               >
-                {isCurrent ? "Current plan" : plan === "FREE" ? "Choose Free" : `Choose ${def.label}`}
+                {isCurrent
+                  ? "Current plan"
+                  : plan === "FREE"
+                    ? "Choose Free"
+                    : showTrial
+                      ? "Start free trial"
+                      : `Choose ${def.label}`}
               </button>
+              {isPaid && !isCurrent && cryptoEnabled && onSelectCrypto && (
+                <button
+                  type="button"
+                  disabled={disabled}
+                  onClick={() => onSelectCrypto(plan, interval)}
+                  className="-mt-2 rounded-lg border border-border py-2 text-sm font-medium text-muted hover:border-accent hover:text-accent disabled:opacity-60"
+                >
+                  Pay with crypto
+                </button>
+              )}
             </div>
           );
         })}

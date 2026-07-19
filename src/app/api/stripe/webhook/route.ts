@@ -70,6 +70,12 @@ async function syncHandicapperPlanSubscription(subscription: Stripe.Subscription
 
   const status = mapStatus(subscription.status);
   const periodEndUnix = subscription.items.data[0]?.current_period_end;
+  // Mark the one-time free trial consumed the moment a trialing subscription
+  // exists (or the checkout flagged one), so it can't be claimed twice.
+  const trialConsumed =
+    subscription.status === "trialing" ||
+    Boolean(subscription.trial_end) ||
+    subscription.metadata?.trial === "1";
 
   await prisma.handicapperProfile
     .update({
@@ -84,6 +90,7 @@ async function syncHandicapperPlanSubscription(subscription: Stripe.Subscription
         planStripeSubscriptionId: status === "CANCELED" ? null : subscription.id,
         planCurrentPeriodEnd: periodEndUnix ? new Date(periodEndUnix * 1000) : null,
         planCancelAtPeriodEnd: subscription.cancel_at_period_end,
+        ...(trialConsumed ? { planTrialUsed: true } : {}),
       },
     })
     .catch(() => undefined);
