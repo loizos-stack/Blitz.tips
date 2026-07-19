@@ -17,7 +17,7 @@ export default async function HandicapperPicksPage() {
     <div className="flex flex-col gap-10">
       <div className="flex flex-col gap-3">
         <h2 className="font-semibold">Post a tip</h2>
-        <PostTipForms handicapperSports={handicapper.sports} />
+        <PostTipForms handicapperSports={handicapper.sports} hasPosted={handicapper.picks.length > 0} />
       </div>
 
       <div>
