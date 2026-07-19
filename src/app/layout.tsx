@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import Script from "next/script";
 import { Inter, Space_Grotesk, Geist_Mono } from "next/font/google";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 import { Analytics } from "@vercel/analytics/next";
@@ -117,6 +118,17 @@ export default function RootLayout({
         </Providers>
         <SpeedInsights />
         <Analytics />
+        {/* Google tag (gtag.js) — loaded after the page is interactive so it
+            never blocks first paint. */}
+        <Script src="https://www.googletagmanager.com/gtag/js?id=G-Z43Z20YSYL" strategy="afterInteractive" />
+        <Script id="google-analytics" strategy="afterInteractive">
+          {`
+            window.dataLayer = window.dataLayer || [];
+            function gtag(){dataLayer.push(arguments);}
+            gtag('js', new Date());
+            gtag('config', 'G-Z43Z20YSYL');
+          `}
+        </Script>
       </body>
     </html>
   );
