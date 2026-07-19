@@ -8,6 +8,7 @@ import type { OddsFeedResult, UpcomingEvent, MarketOption } from "@/lib/odds-api
 import { SportIcon } from "@/components/sport-icon";
 import { TeamLogo } from "@/components/team-logo";
 import { LocalTime } from "@/components/local-time";
+import { Carousel } from "@/components/carousel";
 import type { PickSport } from "@prisma/client";
 
 interface OddsBoard {
@@ -122,7 +123,7 @@ export function UpcomingGames({
             No upcoming {sport ? `${SPORT_LABELS[sport]} ` : ""}games on the board right now.
           </p>
         ) : (
-          <div className="flex gap-4 overflow-x-auto pb-2">
+          <Carousel gapClass="gap-4" fadeFromClass="from-surface" step={340}>
             {feed.events.slice(0, eventCap).map((event) => {
               const board = buildOddsBoard(event);
               const isLive = Boolean(event.liveScore) && !event.liveScore?.completed;
@@ -156,7 +157,7 @@ export function UpcomingGames({
               const sides = homeFirst ? [home, away] : [away, home];
 
               return (
-                <div key={event.id} className="card w-80 shrink-0 p-4">
+                <div key={event.id} className="card w-80 shrink-0 snap-start p-4">
                   <div className="flex items-center justify-between text-xs">
                     {isLive ? (
                       <span className="flex items-center gap-1.5 font-semibold text-danger">
@@ -233,7 +234,7 @@ export function UpcomingGames({
                 </div>
               );
             })}
-          </div>
+          </Carousel>
         )}
       </div>
     </section>
