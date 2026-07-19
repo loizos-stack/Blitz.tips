@@ -2,20 +2,11 @@
 
 import { useState } from "react";
 import { Check } from "lucide-react";
-import { PLAN_DEFINITIONS } from "@/lib/plans";
+import { PLAN_DEFINITIONS, PLAN_BUTTON_STYLES } from "@/lib/plans";
 import { formatCents, cn } from "@/lib/utils";
 import type { BillingInterval, HandicapperPlan } from "@prisma/client";
 
 const PLAN_ORDER: HandicapperPlan[] = ["FREE", "SILVER", "GOLD"];
-
-// Metallic button treatments so Silver reads as silver and Gold as gold,
-// rather than both using the default green accent.
-const PLAN_BUTTON_STYLES: Record<HandicapperPlan, string> = {
-  FREE: "bg-accent text-accent-foreground hover:opacity-90",
-  SILVER:
-    "bg-gradient-to-b from-slate-100 to-slate-400 text-slate-900 ring-1 ring-inset ring-slate-300/70 shadow-sm hover:brightness-[1.03]",
-  GOLD: "bg-gradient-to-b from-amber-300 to-amber-500 text-[#3a2600] ring-1 ring-inset ring-amber-400/70 shadow-sm hover:brightness-[1.03]",
-};
 
 export function PlanPicker({
   currentPlan,

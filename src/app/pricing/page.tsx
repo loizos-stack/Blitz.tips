@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Check, ShieldCheck, Wallet, LineChart, Tags, Trophy, Layers } from "lucide-react";
-import { PLAN_DEFINITIONS } from "@/lib/plans";
+import { PLAN_DEFINITIONS, PLAN_BUTTON_STYLES } from "@/lib/plans";
 import { formatCents, cn } from "@/lib/utils";
 import type { HandicapperPlan } from "@prisma/client";
 
@@ -133,8 +133,10 @@ export default function PricingPage() {
         <div className="mx-auto mt-16 max-w-2xl text-center">
           <h2 className="text-2xl font-bold">Pick a plan</h2>
           <p className="mt-3 text-muted">
-            The lower your commission, the more you keep on every subscription. Start free and
-            upgrade whenever you&rsquo;re ready — you can change plans any time from your dashboard.
+            The lower your commission, the more you keep on every subscription. Silver and Gold come
+            with a <span className="font-semibold text-accent">1-month free trial</span> — start free
+            and upgrade whenever you&rsquo;re ready, and change plans any time from your dashboard.
+            Pay by card or crypto.
           </p>
         </div>
 
@@ -159,6 +161,9 @@ export default function PricingPage() {
                     <p className="mt-1 text-xs text-muted">or {formatCents(def.annualPriceCents)}/yr</p>
                   )}
                   <p className="mt-4 text-sm font-medium text-accent">{def.commissionPercent}% commission</p>
+                  {plan !== "FREE" && (
+                    <p className="mt-1 text-sm font-semibold text-accent">Start with a 1-month free trial</p>
+                  )}
                 </div>
 
                 <ul className="mt-6 flex flex-1 flex-col gap-3 text-[15px] leading-snug text-foreground">
@@ -173,8 +178,8 @@ export default function PricingPage() {
                 <Link
                   href="/signup?as=handicapper"
                   className={cn(
-                    "mt-8 block rounded-lg py-3 text-center text-sm font-semibold hover:opacity-90",
-                    plan === "GOLD" ? "bg-gold text-[#1a1204]" : "bg-accent text-accent-foreground"
+                    "mt-8 block rounded-lg py-3 text-center text-sm font-semibold",
+                    PLAN_BUTTON_STYLES[plan]
                   )}
                 >
                   Get started

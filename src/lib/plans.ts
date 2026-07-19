@@ -41,6 +41,16 @@ export const PLAN_DEFINITIONS: Record<HandicapperPlan, PlanDefinition> = {
   },
 };
 
+// Metallic button/CTA treatments so Silver reads as silver and Gold as gold,
+// rather than both using the default green accent. Shared by the plan picker
+// (registration/dashboard) and the /pricing page so the tiers look identical.
+export const PLAN_BUTTON_STYLES: Record<HandicapperPlan, string> = {
+  FREE: "bg-accent text-accent-foreground hover:opacity-90",
+  SILVER:
+    "bg-gradient-to-b from-slate-100 to-slate-400 text-slate-900 ring-1 ring-inset ring-slate-300/70 shadow-sm hover:brightness-[1.03]",
+  GOLD: "bg-gradient-to-b from-amber-300 to-amber-500 text-[#3a2600] ring-1 ring-inset ring-amber-400/70 shadow-sm hover:brightness-[1.03]",
+};
+
 export function commissionPercentForPlan(plan: HandicapperPlan): number {
   return PLAN_DEFINITIONS[plan].commissionPercent;
 }

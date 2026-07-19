@@ -88,7 +88,7 @@ export function BecomeHandicapperForm() {
           <p className="mt-1 text-sm text-muted">You can change this anytime from your dashboard.</p>
         </div>
         <div className="mt-6">
-          <PlanPicker onSelect={handlePlanSelect} disabled={loading} />
+          <PlanPicker onSelect={handlePlanSelect} disabled={loading} trialEligible />
         </div>
         {error && <p className="mt-4 text-center text-sm text-danger">{error}</p>}
         <button

@@ -36,7 +36,9 @@ export function HandicapperPlanStep({ currentPlan }: { currentPlan: HandicapperP
 
   return (
     <div>
-      <PlanPicker currentPlan={currentPlan} onSelect={select} disabled={loading} />
+      {/* New handicappers are always eligible for the one-time trial; the
+          checkout route is the authority and re-checks planTrialUsed. */}
+      <PlanPicker currentPlan={currentPlan} onSelect={select} disabled={loading} trialEligible />
       {error && <p className="mt-4 text-center text-sm text-danger">{error}</p>}
       <p className="mt-6 text-center">
         <Link href="/dashboard/handicapper" className="text-sm text-muted hover:text-foreground">
