@@ -45,7 +45,7 @@ export function NavBar() {
       <div className="container-page flex h-16 items-center justify-between">
         <Link href="/" className="flex items-center gap-2 font-display font-bold text-lg tracking-tight text-white">
           <Image src="/logo-mark.svg" alt="" width={28} height={28} className="h-7 w-7" priority />
-          <span>Blitz<span className="text-accent">.tips</span></span>
+          <span>Blitz<span className="text-green-400">.tips</span></span>
         </Link>
 
         <div className="flex items-center gap-2">
@@ -119,9 +119,11 @@ export function NavBar() {
         )}
       />
 
-      {/* Left slide-in drawer */}
+      {/* Slide-in drawer. `inert` while closed keeps its links out of the tab
+          order and the accessibility tree (aria-hidden alone would leave the
+          descendants focusable). */}
       <aside
-        aria-hidden={!open}
+        inert={!open}
         className={cn(
           "fixed right-0 top-0 z-50 flex h-full w-72 max-w-[82vw] flex-col border-l border-white/10 bg-[#0b0f14] shadow-2xl transition-transform duration-300 ease-out",
           open ? "translate-x-0" : "translate-x-full"
@@ -134,7 +136,7 @@ export function NavBar() {
             className="flex items-center gap-2 font-display text-lg font-bold tracking-tight text-white"
           >
             <Image src="/logo-mark.svg" alt="" width={26} height={26} className="h-6 w-6" />
-            <span>Blitz<span className="text-accent">.tips</span></span>
+            <span>Blitz<span className="text-green-400">.tips</span></span>
           </Link>
           <button onClick={() => setOpen(false)} aria-label="Close menu" className="text-white/80 hover:text-white">
             <X className="h-6 w-6" />

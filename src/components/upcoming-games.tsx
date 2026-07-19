@@ -100,6 +100,7 @@ export function UpcomingGames({
                 key={s}
                 href={`/?sport=${s}#lines`}
                 scroll={false}
+                aria-label={`Show ${SPORT_LABELS[s]} lines`}
                 className={cn(
                   "flex items-center gap-1.5 rounded-full border px-3 py-1.5 font-display text-sm font-medium",
                   s === sport

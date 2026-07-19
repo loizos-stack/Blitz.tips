@@ -6,7 +6,7 @@ import { cn } from "@/lib/utils";
 export function Stars({ value, className = "h-4 w-4" }: { value: number; className?: string }) {
   const filled = Math.round(value);
   return (
-    <span className="inline-flex items-center gap-0.5" aria-label={`${value} out of 5 stars`}>
+    <span role="img" className="inline-flex items-center gap-0.5" aria-label={`${value} out of 5 stars`}>
       {[1, 2, 3, 4, 5].map((n) => (
         <Star
           key={n}

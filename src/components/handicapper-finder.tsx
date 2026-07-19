@@ -98,7 +98,13 @@ export function HandicapperFinder({ sports, activeFilter, query }: Props) {
           </Link>
         ))}
         {sports.map((sport) => (
-          <Link key={sport} href={hrefFor(sport)} scroll={false} className={chip(isActive(sport))}>
+          <Link
+            key={sport}
+            href={hrefFor(sport)}
+            scroll={false}
+            aria-label={`Filter handicappers by ${SPORT_LABELS[sport] ?? sport}`}
+            className={chip(isActive(sport))}
+          >
             <SportIcon sport={sport} className="h-4 w-4" />
             {SPORT_LABELS[sport] ?? sport}
           </Link>
