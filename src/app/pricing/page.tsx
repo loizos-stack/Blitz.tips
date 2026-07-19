@@ -134,7 +134,7 @@ export default function PricingPage() {
           <h2 className="text-2xl font-bold">Pick a plan</h2>
           <p className="mt-3 text-muted">
             The lower your commission, the more you keep on every subscription. Silver and Gold come
-            with a <span className="font-semibold text-accent">1-month free trial</span> — start free
+            with a <span className="font-semibold text-danger">1-month free trial</span> — start free
             and upgrade whenever you&rsquo;re ready, and change plans any time from your dashboard.
             Pay by card or crypto.
           </p>

@@ -77,7 +77,7 @@ export function PlanPicker({
                 </p>
                 <p className="text-sm text-muted">{def.commissionPercent}% commission</p>
                 {showTrial && (
-                  <p className="mt-1 text-sm font-semibold text-accent">1-month free trial</p>
+                  <p className="mt-1 text-sm font-semibold text-danger">1-month free trial</p>
                 )}
               </div>
 

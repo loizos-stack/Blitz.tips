@@ -24,7 +24,11 @@ export const PLAN_DEFINITIONS: Record<HandicapperPlan, PlanDefinition> = {
     commissionPercent: 15,
     monthlyPriceCents: 999,
     annualPriceCents: 9999,
-    perks: ["Everything in Free", "Lower 15% commission — keep 85%"],
+    perks: [
+      "Everything in Free",
+      "Lower 15% commission — keep 85%",
+      "Promoted on Blitz.tips social media and newsletter",
+    ],
   },
   GOLD: {
     plan: "GOLD",
@@ -36,7 +40,7 @@ export const PLAN_DEFINITIONS: Record<HandicapperPlan, PlanDefinition> = {
       "Everything in Silver",
       "Lowest 10% commission — keep 90%",
       "Featured at the top of the homepage and leaderboard",
-      "Promoted on Blitz.tips social media",
+      "Promoted on Blitz.tips social media and newsletter",
     ],
   },
 };
