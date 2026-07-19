@@ -24,7 +24,7 @@ export function FirstPostNotice({
       aria-labelledby="first-post-title"
     >
       <div className="card w-full max-w-md p-6" onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-center gap-2 text-accent">
+        <div className="flex items-center justify-center gap-2 text-danger">
           <AlertTriangle className="h-5 w-5" />
           <h2 id="first-post-title" className="text-lg font-bold">
             Before you post
