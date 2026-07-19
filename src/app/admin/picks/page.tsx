@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { formatOdds } from "@/lib/odds";
 import { AdminSelect, AdminButton } from "@/components/admin/admin-actions";
+import { LocalTime } from "@/components/local-time";
 import { guardAdminPage } from "@/lib/permissions";
 
 export const dynamic = "force-dynamic";
@@ -15,8 +16,9 @@ const RESULT_OPTIONS = [
 
 export default async function AdminPicksPage() {
   await guardAdminPage("picks");
+  // Newest picks first (by when they were posted) so the latest activity is on top.
   const picks = await prisma.pick.findMany({
-    orderBy: { eventStartsAt: "desc" },
+    orderBy: { createdAt: "desc" },
     take: 150,
     include: { handicapper: { select: { handle: true, userId: true } } },
   });
@@ -44,6 +46,7 @@ export default async function AdminPicksPage() {
             <th className="px-4 py-3">Selection</th>
             <th className="px-4 py-3">Odds</th>
             <th className="px-4 py-3">Units</th>
+            <th className="px-4 py-3">Posted</th>
             <th className="px-4 py-3">Event</th>
             <th className="px-4 py-3">Result</th>
             <th className="px-4 py-3">Settled by</th>
@@ -58,7 +61,12 @@ export default async function AdminPicksPage() {
               <td className="max-w-48 truncate px-4 py-2.5 font-display text-muted">{p.selection}</td>
               <td className="px-4 py-2.5 tabular-nums">{formatOdds(p.odds)}</td>
               <td className="px-4 py-2.5 tabular-nums">{p.units}u</td>
-              <td className="px-4 py-2.5 text-muted">{p.eventStartsAt.toLocaleDateString()}</td>
+              <td className="whitespace-nowrap px-4 py-2.5 text-muted">
+                <LocalTime iso={p.createdAt.toISOString()} />
+              </td>
+              <td className="whitespace-nowrap px-4 py-2.5 text-muted">
+                <LocalTime iso={p.eventStartsAt.toISOString()} />
+              </td>
               <td className="px-4 py-2.5">
                 <AdminSelect
                   endpoint={`/api/admin/picks/${p.id}`}
