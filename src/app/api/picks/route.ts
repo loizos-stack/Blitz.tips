@@ -8,6 +8,27 @@ import { notifyNewPick } from "@/lib/notifications";
 import { combineParlayOdds } from "@/lib/odds";
 import type { BetType, PickSport } from "@prisma/client";
 
+// Keep a handicapper searchable/rankable for every sport they actually post in:
+// if a tip (or parlay leg) covers a sport that isn't yet on their profile, add
+// it. Best-effort — a failure here must never block the pick from being saved.
+async function ensureProfileSports(
+  handicapperId: string,
+  current: PickSport[],
+  incoming: (PickSport | null | undefined)[]
+) {
+  const have = new Set(current);
+  const toAdd = [...new Set(incoming.filter((s): s is PickSport => s != null && !have.has(s)))];
+  if (toAdd.length === 0) return;
+  try {
+    await prisma.handicapperProfile.update({
+      where: { id: handicapperId },
+      data: { sports: { push: toAdd } },
+    });
+  } catch {
+    // Non-fatal: the pick is already created; the sport just won't be added.
+  }
+}
+
 export async function POST(request: Request) {
   const session = await auth();
   if (!session) return NextResponse.json({ error: "Sign in required" }, { status: 401 });
@@ -65,6 +86,8 @@ export async function POST(request: Request) {
     },
   });
 
+  await ensureProfileSports(handicapper.id, handicapper.sports, [parsed.data.sport as PickSport]);
+
   await logActivity({
     actorId: session.user.id,
     actorEmail: session.user.email,
@@ -98,7 +121,7 @@ export async function POST(request: Request) {
 // combined (multiplied) American odds.
 async function createParlay(
   body: unknown,
-  handicapper: { id: string; userId: string; handle: string; displayName: string },
+  handicapper: { id: string; userId: string; handle: string; displayName: string; sports: PickSport[] },
   actorEmail: string | null | undefined
 ) {
   const handicapperId = handicapper.id;
@@ -147,6 +170,12 @@ async function createParlay(
     },
     include: { parlayLegs: { orderBy: { order: "asc" } } },
   });
+
+  // Cover the parlay's own sport tag plus any per-leg sports.
+  await ensureProfileSports(handicapperId, handicapper.sports, [
+    sport as PickSport,
+    ...legs.map((l) => (l.sport as PickSport | undefined) ?? null),
+  ]);
 
   await logActivity({
     actorId,

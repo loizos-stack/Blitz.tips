@@ -34,6 +34,10 @@ export const registerSchema = z.object({
   country: z.string().min(2, "Select your country").max(60).optional(),
 });
 
+export const updateSportsSchema = z.object({
+  sports: z.array(z.string()).min(1, "Pick at least one sport"),
+});
+
 export const becomeHandicapperSchema = z.object({
   handle: z
     .string()
