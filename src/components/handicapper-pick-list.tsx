@@ -28,7 +28,7 @@ export function HandicapperPickList({
           <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted">
             Pending ({pending.length})
           </h3>
-          <div className="grid gap-3">
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
             {pending.map((pick) => (
               <HandicapperPickRow key={pick.id} pick={pick} share={share} />
             ))}
@@ -41,7 +41,7 @@ export function HandicapperPickList({
           <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted">
             Graded ({graded.length})
           </h3>
-          <div className="grid gap-3">
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
             {graded.slice(0, count).map((pick) => (
               <HandicapperPickRow key={pick.id} pick={pick} share={share} />
             ))}

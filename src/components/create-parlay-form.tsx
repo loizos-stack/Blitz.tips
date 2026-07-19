@@ -3,7 +3,7 @@
 import { useCallback, useState } from "react";
 import { useRouter } from "next/navigation";
 import { format } from "date-fns";
-import { CalendarSearch, PencilLine, ImageUp, Trash2, Layers, Plus } from "lucide-react";
+import { CalendarSearch, PencilLine, ImageUp, Trash2, Layers, Plus, X } from "lucide-react";
 import { SPORT_LABELS, cn, formatMatchup, usesVsSeparator, parseMatchupSides } from "@/lib/utils";
 import { formatOdds, combineParlayOdds } from "@/lib/odds";
 import { getTeamNames } from "@/lib/team-logos";
@@ -319,11 +319,21 @@ export function CreateParlayForm({
         <p className="flex items-center gap-2 font-semibold">
           <Layers className="h-4 w-4 text-accent" /> Build a parlay
         </p>
-        {combined !== null && (
-          <span className="rounded-full bg-accent/10 px-3 py-1 text-sm font-bold tabular-nums text-accent">
-            {formatOdds(combined)}
-          </span>
-        )}
+        <div className="flex items-center gap-2">
+          {combined !== null && (
+            <span className="rounded-full bg-accent/10 px-3 py-1 text-sm font-bold tabular-nums text-accent">
+              {formatOdds(combined)}
+            </span>
+          )}
+          <button
+            type="button"
+            onClick={() => setOpen(false)}
+            aria-label="Close"
+            className="rounded-full p-1 text-muted hover:bg-surface-raised hover:text-foreground"
+          >
+            <X className="h-5 w-5" />
+          </button>
+        </div>
       </div>
 
       {/* Current legs */}

@@ -3,7 +3,7 @@
 import { useCallback, useState } from "react";
 import { useRouter } from "next/navigation";
 import { format } from "date-fns";
-import { CalendarSearch, PencilLine, Plus } from "lucide-react";
+import { CalendarSearch, PencilLine, Plus, X } from "lucide-react";
 import { SPORT_LABELS, BET_TYPE_LABELS, cn, formatMatchup, usesVsSeparator } from "@/lib/utils";
 import { formatOdds } from "@/lib/odds";
 import { getTeamNames } from "@/lib/team-logos";
@@ -198,6 +198,20 @@ export function CreatePickForm({
 
   return (
     <form onSubmit={handleSubmit} className="card flex flex-col gap-4 p-5">
+      <div className="flex items-center justify-between">
+        <p className="flex items-center gap-2 font-semibold">
+          <PencilLine className="h-4 w-4 text-accent" /> Post a tip
+        </p>
+        <button
+          type="button"
+          onClick={() => setOpen(false)}
+          aria-label="Close"
+          className="rounded-full p-1 text-muted hover:bg-surface-raised hover:text-foreground"
+        >
+          <X className="h-5 w-5" />
+        </button>
+      </div>
+
       <div className="grid grid-cols-2 gap-2 rounded-lg bg-surface-raised p-1 text-sm font-medium">
         <button
           type="button"
