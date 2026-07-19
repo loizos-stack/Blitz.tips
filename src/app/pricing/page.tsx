@@ -162,7 +162,7 @@ export default function PricingPage() {
                   )}
                   <p className="mt-4 text-sm font-medium text-accent">{def.commissionPercent}% commission</p>
                   {plan !== "FREE" && (
-                    <p className="mt-1 text-sm font-semibold text-accent">Start with a 1-month free trial</p>
+                    <p className="mt-1 text-sm font-semibold text-danger">Start with a 1-month free trial</p>
                   )}
                 </div>
 
