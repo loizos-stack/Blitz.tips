@@ -123,8 +123,8 @@ export function NavBar() {
       <aside
         aria-hidden={!open}
         className={cn(
-          "fixed left-0 top-0 z-50 flex h-full w-72 max-w-[82vw] flex-col border-r border-white/10 bg-[#0b0f14] shadow-2xl transition-transform duration-300 ease-out",
-          open ? "translate-x-0" : "-translate-x-full"
+          "fixed right-0 top-0 z-50 flex h-full w-72 max-w-[82vw] flex-col border-l border-white/10 bg-[#0b0f14] shadow-2xl transition-transform duration-300 ease-out",
+          open ? "translate-x-0" : "translate-x-full"
         )}
       >
         <div className="flex h-16 shrink-0 items-center justify-between border-b border-white/10 px-4">
