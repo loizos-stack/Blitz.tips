@@ -220,6 +220,18 @@ export async function getAvailableHomepageSports(): Promise<PickSport[]> {
   const now = new Date();
   const results = await Promise.all(
     HOMEPAGE_SPORTS.map(async (sport) => {
+      // Fight sports (UFC): the free /events schedule lists bouts weeks before
+      // any sportsbook posts a price, and the board only surfaces *priced* UFC
+      // bouts (it fetches /odds and cross-checks ESPN's UFC card). Gate the pill
+      // on that same board so it never shows with an empty slate. This reuses
+      // the board's cached odds response — getAllUpcomingEvents fetches the very
+      // same feed — so it adds no billed calls beyond what the board already does.
+      if (isMoneylineOnly(sport)) {
+        const feed = await getUpcomingEvents(sport);
+        const hasPriced = feed.events.some((e) => e.markets.length > 0);
+        return { sport, hasSoon: hasPriced, hasUpcoming: hasPriced };
+      }
+
       const sportKeys = await resolveSportKeys(sport, apiKey);
       if (sportKeys.length === 0) return { sport, hasSoon: false, hasUpcoming: false };
 
@@ -441,6 +453,12 @@ export async function getUpcomingEvents(sport: PickSport): Promise<OddsFeedResul
         (e) => ufc.has(fighterKey(e.awayTeam)) && ufc.has(fighterKey(e.homeTeam))
       );
     }
+  }
+
+  // Fight sports only get moneyline lines close to fight night; drop any bout
+  // that has no priced market yet so the board never shows an empty "—/—" row.
+  if (isMoneylineOnly(sport)) {
+    finalEvents = finalEvents.filter((e) => e.markets.length > 0);
   }
 
   // For games in progress, enrich the live score with a period/clock detail from
