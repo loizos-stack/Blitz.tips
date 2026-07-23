@@ -89,6 +89,8 @@ export default async function ContestDashboardPage() {
                 winners: prizeLadder.length,
                 prizeLabel: formatCents(contest.prizePoolCents),
                 dateRange: `${format(contest.startsAt, "MMM d, yyyy")} – ${format(contest.endsAt, "MMM d, yyyy")}`,
+                registrationCloses: format(registrationClosesAt, "MMM d, yyyy"),
+                dynamicPayouts: contest.dynamicPayouts,
               }}
             />
           </div>

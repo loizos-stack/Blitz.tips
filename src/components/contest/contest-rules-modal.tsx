@@ -10,6 +10,8 @@ export interface ContestRulesInfo {
   winners: number;
   prizeLabel: string;
   dateRange: string;
+  registrationCloses: string;
+  dynamicPayouts: boolean;
 }
 
 // Rules a user must read and accept before entering a contest. The "Accept &
@@ -32,6 +34,7 @@ export function ContestRulesModal({
   const items = [
     "Free to enter. One entry per person — duplicate or multiple accounts are disqualified.",
     "Open to registered users who are of legal age to participate where they live.",
+    `Registration closes ${rules.registrationCloses}. After that no new entries are accepted, and the number of paid places is locked for the rest of the contest.`,
     "Single picks only — parlays are not allowed in the contest.",
     `Daily limit: up to ${MAX_PICKS_PER_DAY} picks and ${MAX_UNITS_PER_DAY} total units per day.`,
     `Weekly limit: up to ${MAX_PICKS_PER_WEEK} picks per week. Both quotas reset automatically — daily at midnight UTC, weekly on Monday.`,
@@ -39,8 +42,11 @@ export function ContestRulesModal({
     "Entrants are ranked by ROI — net units won divided by units risked — across their settled picks.",
     "Every pick must be submitted before the event starts; you can't post on a game already underway or one after the contest ends.",
     "Results are graded by Blitz.tips and are final.",
-    `The top ${rules.winners} finishers split the ${rules.prizeLabel} guaranteed prize pool. Contest runs ${rules.dateRange}.`,
-    "Blitz.tips may disqualify any entry for manipulation, collusion, or abuse, and may adjust the rules if needed.",
+    rules.dynamicPayouts
+      ? `Paid places scale with the field: the top 3 are paid, plus one more place for every 10 entrants who join. The full ${rules.prizeLabel} guaranteed pool is split across those places by ICM, re-calculated as people join and locked when registration closes. Contest runs ${rules.dateRange}.`
+      : `The top ${rules.winners} finishers split the ${rules.prizeLabel} guaranteed prize pool. Contest runs ${rules.dateRange}.`,
+    "Integrity: we log the IP address and device used for every entry and every pick. Multiple accounts, entries sharing an IP or device, collusion, or any manipulation lead to disqualification and forfeiture of any prize.",
+    "Blitz.tips may disqualify any entry, remove an entrant, or adjust the rules to protect the integrity of the contest. All decisions are final.",
   ];
 
   return (

@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { format } from "date-fns";
-import { Trophy, ShieldCheck, Coins, ListChecks, Gift, ArrowRight } from "lucide-react";
+import { Trophy, ShieldCheck, Coins, ListChecks, Gift, ArrowRight, CalendarClock, Gauge } from "lucide-react";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import {
@@ -15,6 +15,7 @@ import {
 } from "@/lib/contest";
 import { startOfUtcDay } from "@/lib/contest-limits";
 import { formatCents } from "@/lib/utils";
+import { MAX_PICKS_PER_DAY, MAX_PICKS_PER_WEEK, MAX_UNITS_PER_DAY } from "@/lib/contest-limits";
 import { ContestCountdown } from "@/components/contest/contest-countdown";
 import { ContestJoinButton } from "@/components/contest/contest-join-button";
 import { ContestStandings } from "@/components/contest/contest-standings";
@@ -173,6 +174,8 @@ export default async function SupercapperPage() {
                 winners,
                 prizeLabel: formatCents(contest.prizePoolCents),
                 dateRange,
+                registrationCloses: regClosesLabel,
+                dynamicPayouts: contest.dynamicPayouts,
               }}
             />
             {myEntry && (
@@ -203,6 +206,38 @@ export default async function SupercapperPage() {
                   ? `The ${formatCents(contest.prizePoolCents)} pool starts across the top 3 and adds a place for every 10 cappers who join. Currently ${winners} paid.`
                   : `The ${formatCents(contest.prizePoolCents)} pool is split across the top ${winners} finishers.`
               }
+            />
+          </div>
+        </div>
+      </section>
+
+      {/* Key rules */}
+      <section className="border-b border-border py-14">
+        <div className="container-page">
+          <h2 className="text-center text-2xl font-bold">Contest rules</h2>
+          <p className="mt-2 text-center text-sm text-muted">
+            The essentials — you agree to the full rules when you enter.
+          </p>
+          <div className="mx-auto mt-8 grid max-w-4xl gap-4 sm:grid-cols-2">
+            <Rule
+              icon={<CalendarClock className="h-5 w-5" />}
+              title={`Registration closes ${regClosesLabel}`}
+              body="Enter before then. Once entries close, the field — and the number of paid places — is locked for the rest of the contest."
+            />
+            <Rule
+              icon={<Gauge className="h-5 w-5" />}
+              title="Daily & weekly limits"
+              body={`Max ${MAX_PICKS_PER_DAY} picks and ${MAX_UNITS_PER_DAY} units per day, and ${MAX_PICKS_PER_WEEK} picks per week. Limits reset daily at midnight UTC and weekly on Monday.`}
+            />
+            <Rule
+              icon={<ListChecks className="h-5 w-5" />}
+              title={`${contest.minPicks}-pick minimum · singles only`}
+              body={`Post at least ${contest.minPicks} graded single picks to qualify. Parlays aren't allowed, and you can't post on a game that has already started.`}
+            />
+            <Rule
+              icon={<ShieldCheck className="h-5 w-5" />}
+              title="One account · fair play"
+              body="One entry per person. We log the IP and device on every entry and pick — duplicate accounts, shared IPs, or collusion are disqualified and forfeit any prize."
             />
           </div>
         </div>
