@@ -20,6 +20,7 @@ import { LocalTime } from "@/components/local-time";
 import { ContestCountdown } from "@/components/contest/contest-countdown";
 import { ContestJoinButton } from "@/components/contest/contest-join-button";
 import { ContestPickForm } from "@/components/contest/contest-pick-form";
+import { SupercapperLogo } from "@/components/contest/supercapper-logo";
 
 export const dynamic = "force-dynamic";
 
@@ -97,8 +98,12 @@ export default async function ContestDashboardPage() {
       {/* Header */}
       <div className="mt-4 flex flex-wrap items-center justify-between gap-4">
         <div>
-          <h1 className="flex items-center gap-2 text-2xl font-bold">
-            <Trophy className="h-6 w-6 text-gold" /> {contest.name}
+          <h1 className="flex flex-wrap items-center gap-x-2 text-2xl">
+            <SupercapperLogo />
+            {(() => {
+              const rest = contest.name.replace(/^supercapper\s*/i, "").trim();
+              return rest ? <span className="font-display font-bold">{rest}</span> : null;
+            })()}
           </h1>
           <p className="mt-1 text-sm text-muted">
             {PHASE_LABEL[phase]} · {format(contest.startsAt, "MMM d")}–{format(contest.endsAt, "MMM d, yyyy")} ·{" "}

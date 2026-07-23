@@ -5,6 +5,7 @@ import { formatCents } from "@/lib/utils";
 import { commissionPercentForPlan } from "@/lib/plans";
 import { StatCard } from "@/components/stat-card";
 import { BecomeHandicapperForm } from "@/components/become-handicapper-form";
+import { ContestPromoBanner } from "@/components/contest/contest-promo-banner";
 import { loadDashboardHandicapper } from "@/lib/handicapper-dashboard";
 
 export const dynamic = "force-dynamic";
@@ -51,6 +52,8 @@ export default async function HandicapperOverviewPage() {
         />
         <StatCard label="Pending" value={stats.pending.toString()} />
       </div>
+
+      <ContestPromoBanner className="mt-2" />
     </div>
   );
 }
