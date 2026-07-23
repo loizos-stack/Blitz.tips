@@ -5,7 +5,13 @@ import { format } from "date-fns";
 import { ArrowLeft, Trophy } from "lucide-react";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
-import { computeStandings, contestPhase, entrantRankHistory } from "@/lib/contest";
+import {
+  computeStandings,
+  contestPhase,
+  entrantRankHistory,
+  effectivePrizeLadderCents,
+  activeEntrantCount,
+} from "@/lib/contest";
 import { formatCents } from "@/lib/utils";
 import { EntrantDetail } from "@/components/contest/entrant-detail";
 import { RankChart } from "@/components/contest/rank-chart";
@@ -34,7 +40,8 @@ export default async function EntrantPage({ params }: { params: Promise<{ entryI
   const entry = contest.entries.find((e) => e.id === entryId);
   if (!entry) notFound();
 
-  const standings = computeStandings(contest.entries, contest);
+  const prizeLadder = effectivePrizeLadderCents(contest, activeEntrantCount(contest.entries));
+  const standings = computeStandings(contest.entries, { minPicks: contest.minPicks, prizeSplitCents: prizeLadder });
   const standing = standings.find((s) => s.entryId === entry.id);
   const history = entrantRankHistory(contest.entries, entry.id, contest.startsAt, contest.endsAt);
   const phase = contestPhase(contest);

@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { ArrowRight, Trophy } from "lucide-react";
 import { prisma } from "@/lib/prisma";
-import { contestPhase } from "@/lib/contest";
+import { contestPhase, payoutSpotsForEntrants } from "@/lib/contest";
 import { formatCents } from "@/lib/utils";
 import { SupercapperLogo } from "@/components/contest/supercapper-logo";
 
@@ -13,7 +13,13 @@ export async function ContestPromoBanner({ className }: { className?: string }) 
   const phase = contestPhase(contest);
   if (phase === "ended" || phase === "settled") return null;
 
-  const winners = contest.prizeSplitCents.length;
+  let winners = contest.prizeSplitCents.length;
+  if (contest.dynamicPayouts) {
+    const activeCount = await prisma.contestEntry.count({
+      where: { contestId: contest.id, disqualifiedAt: null },
+    });
+    winners = payoutSpotsForEntrants(activeCount);
+  }
 
   return (
     <div

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requirePermission } from "@/lib/permissions";
-import { computeStandings } from "@/lib/contest";
+import { computeStandings, effectivePrizeLadderCents, activeEntrantCount } from "@/lib/contest";
 import { logAdmin } from "@/lib/audit";
 
 // Finalize a contest: compute the ROI standings, write each entry's final rank
@@ -21,7 +21,10 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
   });
   if (!contest) return NextResponse.json({ error: "Contest not found" }, { status: 404 });
 
-  const standings = computeStandings(contest.entries, contest);
+  // Pay the number of places the field earned (dynamic contests scale places
+  // with entrant count); ICM chops the guaranteed pool across them.
+  const prizeLadder = effectivePrizeLadderCents(contest, activeEntrantCount(contest.entries));
+  const standings = computeStandings(contest.entries, { minPicks: contest.minPicks, prizeSplitCents: prizeLadder });
 
   await prisma.$transaction([
     // Reset everyone first so a demoted entry doesn't keep a stale rank/prize.

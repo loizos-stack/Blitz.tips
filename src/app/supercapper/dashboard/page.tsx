@@ -5,7 +5,14 @@ import { format } from "date-fns";
 import { Trophy, ArrowLeft } from "lucide-react";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
-import { computeStandings, computeStandingsAsOf, contestPhase, isContestAcceptingPicks } from "@/lib/contest";
+import {
+  computeStandings,
+  computeStandingsAsOf,
+  contestPhase,
+  isContestAcceptingPicks,
+  effectivePrizeLadderCents,
+  activeEntrantCount,
+} from "@/lib/contest";
 import {
   computeQuotaUsage,
   startOfUtcDay,
@@ -52,8 +59,11 @@ export default async function ContestDashboardPage() {
 
   const phase = contestPhase(contest);
   const accepting = isContestAcceptingPicks(contest);
-  const canJoin = contest.status === "OPEN" && new Date() <= contest.endsAt;
-  const standings = computeStandings(contest.entries, contest);
+  const registrationClosesAt = contest.registrationClosesAt ?? contest.endsAt;
+  const canJoin = contest.status === "OPEN" && new Date() <= registrationClosesAt;
+  const prizeLadder = effectivePrizeLadderCents(contest, activeEntrantCount(contest.entries));
+  const contestForStandings = { minPicks: contest.minPicks, prizeSplitCents: prizeLadder };
+  const standings = computeStandings(contest.entries, contestForStandings);
   const myEntry = contest.entries.find((e) => e.userId === session.user.id);
 
   // Not entered yet: prompt to join from here.
@@ -76,7 +86,7 @@ export default async function ContestDashboardPage() {
               rules={{
                 name: contest.name,
                 minPicks: contest.minPicks,
-                winners: contest.prizeSplitCents.length,
+                winners: prizeLadder.length,
                 prizeLabel: formatCents(contest.prizePoolCents),
                 dateRange: `${format(contest.startsAt, "MMM d, yyyy")} – ${format(contest.endsAt, "MMM d, yyyy")}`,
               }}
@@ -89,7 +99,10 @@ export default async function ContestDashboardPage() {
 
   const myStanding = standings.find((s) => s.entryId === myEntry.id);
   const prevRankByEntry = new Map(
-    computeStandingsAsOf(contest.entries, contest, startOfUtcDay(new Date()).getTime()).map((s) => [s.entryId, s.rank])
+    computeStandingsAsOf(contest.entries, contestForStandings, startOfUtcDay(new Date()).getTime()).map((s) => [
+      s.entryId,
+      s.rank,
+    ])
   );
   const overallStandings = standings.map((s) => ({
     entryId: s.entryId,

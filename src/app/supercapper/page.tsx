@@ -4,7 +4,15 @@ import { format } from "date-fns";
 import { Trophy, ShieldCheck, Coins, ListChecks, Gift, ArrowRight } from "lucide-react";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
-import { computeStandings, computeStandingsAsOf, contestPhase, contestIcmPayoutsCents } from "@/lib/contest";
+import {
+  computeStandings,
+  computeStandingsAsOf,
+  contestPhase,
+  contestIcmPayoutsCents,
+  effectivePrizeLadderCents,
+  activeEntrantCount,
+  entrantsUntilNextSpot,
+} from "@/lib/contest";
 import { startOfUtcDay } from "@/lib/contest-limits";
 import { formatCents } from "@/lib/utils";
 import { ContestCountdown } from "@/components/contest/contest-countdown";
@@ -54,13 +62,23 @@ export default async function SupercapperPage() {
   }
 
   const phase = contestPhase(contest);
-  // Entries (pre-registration) open as soon as the contest is OPEN and before it
-  // ends — even during the pre-start window. Submitting picks waits for kickoff.
-  const canJoin = contest.status === "OPEN" && new Date() <= contest.endsAt;
-  const standings = computeStandings(contest.entries, contest);
-  const winners = contest.prizeSplitCents.length;
-  // The published payout ladder is the ICM chop for a full field.
-  const payoutLadder = contestIcmPayoutsCents(winners, contest.prizeSplitCents);
+  // Registration closes on its own date (Sep 27 for Supercapper); joining stays
+  // open until then even though the contest itself runs longer.
+  const registrationClosesAt = contest.registrationClosesAt ?? contest.endsAt;
+  // Entries (pre-registration) open as soon as the contest is OPEN and before
+  // registration closes — even during the pre-start window. Picks wait for kickoff.
+  const canJoin = contest.status === "OPEN" && new Date() <= registrationClosesAt;
+
+  // Paid places (and the prize ladder) scale with how many people have joined.
+  const activeCount = activeEntrantCount(contest.entries);
+  const prizeLadder = effectivePrizeLadderCents(contest, activeCount);
+  const contestForStandings = { minPicks: contest.minPicks, prizeSplitCents: prizeLadder };
+  const standings = computeStandings(contest.entries, contestForStandings);
+  const winners = prizeLadder.length;
+  // The published payout ladder is the ICM chop across the currently open places.
+  const payoutLadder = contestIcmPayoutsCents(winners, prizeLadder);
+  const registrationOpen = contest.status === "OPEN" && new Date() <= registrationClosesAt;
+  const untilNextSpot = contest.dynamicPayouts ? entrantsUntilNextSpot(activeCount) : 0;
 
   const myEntry = session?.user?.id
     ? contest.entries.find((e) => e.userId === session.user.id)
@@ -68,7 +86,10 @@ export default async function SupercapperPage() {
 
   // Where each entrant stood as of the start of today, to show rank movement.
   const prevRankByEntry = new Map(
-    computeStandingsAsOf(contest.entries, contest, startOfUtcDay(new Date()).getTime()).map((s) => [s.entryId, s.rank])
+    computeStandingsAsOf(contest.entries, contestForStandings, startOfUtcDay(new Date()).getTime()).map((s) => [
+      s.entryId,
+      s.rank,
+    ])
   );
 
   // Serializable data for the interactive (window-filtered) standings table.
@@ -98,6 +119,7 @@ export default async function SupercapperPage() {
     }));
 
   const dateRange = `${format(contest.startsAt, "MMM d, yyyy")} – ${format(contest.endsAt, "MMM d, yyyy")}`;
+  const regClosesLabel = format(registrationClosesAt, "MMM d, yyyy");
 
   return (
     <div>
@@ -122,6 +144,19 @@ export default async function SupercapperPage() {
             <p className="mt-2 text-sm text-muted">
               {dateRange} · Top {winners} paid · Free to enter
             </p>
+            {contest.dynamicPayouts && (
+              <p className="mt-1 text-xs text-muted">
+                {registrationOpen ? (
+                  <>
+                    Paid places grow as cappers join — one more for every 10 entrants.{" "}
+                    <span className="font-semibold text-foreground">{activeCount} in</span>, {untilNextSpot} more opens place #
+                    {winners + 1}. Registration closes {regClosesLabel}.
+                  </>
+                ) : (
+                  <>Registration closed {regClosesLabel} — {winners} paid places locked in.</>
+                )}
+              </p>
+            )}
           </div>
 
           <div className="mt-8 flex flex-col items-center gap-6">
@@ -160,7 +195,15 @@ export default async function SupercapperPage() {
             <Rule icon={<Gift className="h-5 w-5" />} title="Free to enter" body="No buy-in, no catch. Sign in, hit enter, and start posting picks." />
             <Rule icon={<Coins className="h-5 w-5" />} title="Best ROI wins" body="You're ranked by return on units risked across your settled picks — not just raw wins." />
             <Rule icon={<ListChecks className="h-5 w-5" />} title={`${contest.minPicks}-pick minimum`} body={`Post at least ${contest.minPicks} graded singles to qualify, so nobody wins on a lucky one-off.`} />
-            <Rule icon={<ShieldCheck className="h-5 w-5" />} title={`Top ${winners} get paid`} body={`The ${formatCents(contest.prizePoolCents)} pool is split across the top ${winners} finishers.`} />
+            <Rule
+              icon={<ShieldCheck className="h-5 w-5" />}
+              title={contest.dynamicPayouts ? "Paid places grow" : `Top ${winners} get paid`}
+              body={
+                contest.dynamicPayouts
+                  ? `The ${formatCents(contest.prizePoolCents)} pool starts across the top 3 and adds a place for every 10 cappers who join. Currently ${winners} paid.`
+                  : `The ${formatCents(contest.prizePoolCents)} pool is split across the top ${winners} finishers.`
+              }
+            />
           </div>
         </div>
       </section>
@@ -170,9 +213,16 @@ export default async function SupercapperPage() {
         <div className="container-page">
           <h2 className="text-center text-2xl font-bold">Prize breakdown</h2>
           <p className="mt-2 text-center text-sm text-muted">
-            {formatCents(contest.prizePoolCents)} guaranteed across {winners} places · payouts
+            {formatCents(contest.prizePoolCents)} guaranteed across {winners} place{winners === 1 ? "" : "s"} · payouts
             auto-calculated per ICM by finishing rank.
           </p>
+          {contest.dynamicPayouts && (
+            <p className="mx-auto mt-1 max-w-2xl text-center text-xs text-muted">
+              {registrationOpen
+                ? `Places scale with entries — ${activeCount} joined, ${untilNextSpot} more opens place #${winners + 1}. Prizes re-calculate as cappers join and lock when registration closes ${regClosesLabel}.`
+                : `Registration closed ${regClosesLabel}. Final places and prizes are locked.`}
+            </p>
+          )}
           <div className="mx-auto mt-8 grid max-w-4xl grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
             {payoutLadder.map((cents, i) => (
               <div
@@ -182,7 +232,7 @@ export default async function SupercapperPage() {
                 }`}
               >
                 <span className="text-sm font-semibold text-muted">
-                  {i === 0 ? "🥇 1st" : i === 1 ? "🥈 2nd" : i === 2 ? "🥉 3rd" : `${i + 1}th`}
+                  {i === 0 ? "🥇 1st" : i === 1 ? "🥈 2nd" : i === 2 ? "🥉 3rd" : ordinal(i + 1)}
                 </span>
                 <span className="font-display font-bold tabular-nums">{formatCents(cents)}</span>
               </div>
@@ -220,6 +270,22 @@ export default async function SupercapperPage() {
       </section>
     </div>
   );
+}
+
+// Correct ordinal suffix (1st, 2nd, 3rd, 4th … 21st, 22nd, 23rd …).
+function ordinal(n: number): string {
+  const mod100 = n % 100;
+  if (mod100 >= 11 && mod100 <= 13) return `${n}th`;
+  switch (n % 10) {
+    case 1:
+      return `${n}st`;
+    case 2:
+      return `${n}nd`;
+    case 3:
+      return `${n}rd`;
+    default:
+      return `${n}th`;
+  }
 }
 
 function Rule({ icon, title, body }: { icon: React.ReactNode; title: string; body: string }) {

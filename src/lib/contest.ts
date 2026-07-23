@@ -31,6 +31,62 @@ export const DEFAULT_SUPERCAPPER_SPLIT_CENTS: number[] = [
   50000, 45000, 40000, 35000, 30000, 25000, 20000, 15000, 10000, 5000,
 ];
 
+// Dynamic payout structure: paid places scale with how many people have joined.
+// Start at 3 places and add one for every 10 entrants — so the 30th joiner adds
+// a 4th place, the 40th a 5th, and so on.
+export const MIN_PAYOUT_SPOTS = 3;
+export const ENTRANTS_PER_EXTRA_SPOT = 10;
+
+export function payoutSpotsForEntrants(entrantCount: number): number {
+  return Math.max(MIN_PAYOUT_SPOTS, Math.floor(entrantCount / ENTRANTS_PER_EXTRA_SPOT) + 1);
+}
+
+// How many more entrants are needed before the next paid place opens up. The
+// next place opens when the entrant count reaches currentSpots × 10 (place #4
+// at 30, #5 at 40, …), so it's that threshold minus the current count.
+export function entrantsUntilNextSpot(entrantCount: number): number {
+  return payoutSpotsForEntrants(entrantCount) * ENTRANTS_PER_EXTRA_SPOT - entrantCount;
+}
+
+/**
+ * A top-heavy base prize ladder of `spots` places that sums to exactly
+ * `poolCents`. Weights decay geometrically (each place ~72% of the one above),
+ * then are scaled to the pool with the rounding remainder folded into 1st. This
+ * is the ladder ICM then smooths, so the guaranteed pool is always fully paid
+ * out across however many places are currently open.
+ */
+export function contestPrizeLadderCents(poolCents: number, spots: number): number[] {
+  const n = Math.max(1, spots);
+  const decay = 0.72;
+  const weights = Array.from({ length: n }, (_, i) => decay ** i);
+  const totalWeight = weights.reduce((a, b) => a + b, 0);
+  const ladder = weights.map((w) => Math.round((w / totalWeight) * poolCents));
+  // Reconcile rounding so the ladder sums to the pool to the cent.
+  const drift = poolCents - ladder.reduce((a, b) => a + b, 0);
+  ladder[0] += drift;
+  return ladder;
+}
+
+/**
+ * The prize ladder actually in effect for a contest right now. For a
+ * dynamic-payout contest it's derived from the pool and the live entrant count;
+ * otherwise it's the stored split. Length = number of paid places.
+ */
+export function effectivePrizeLadderCents(
+  contest: Pick<Contest, "dynamicPayouts" | "prizePoolCents" | "prizeSplitCents">,
+  activeEntrantCount: number
+): number[] {
+  if (contest.dynamicPayouts) {
+    return contestPrizeLadderCents(contest.prizePoolCents, payoutSpotsForEntrants(activeEntrantCount));
+  }
+  return contest.prizeSplitCents;
+}
+
+/** Count entrants that count toward payout scaling (excludes disqualified). */
+export function activeEntrantCount(entries: { disqualifiedAt: Date | null }[]): number {
+  return entries.reduce((n, e) => (e.disqualifiedAt ? n : n + 1), 0);
+}
+
 // The ICM payout ladder is a pure function of how many places are paid and the
 // prize split, so cache it (the DP is cheap but not free, and it's re-derived
 // on every standings render).

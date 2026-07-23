@@ -25,6 +25,11 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   if (new Date() > contest.endsAt) {
     return NextResponse.json({ error: "This contest has already ended." }, { status: 400 });
   }
+  // Registration can close before the contest itself ends.
+  const registrationClosesAt = contest.registrationClosesAt ?? contest.endsAt;
+  if (new Date() > registrationClosesAt) {
+    return NextResponse.json({ error: "Registration for this contest has closed." }, { status: 400 });
+  }
 
   const entry = await prisma.contestEntry.upsert({
     where: { contestId_userId: { contestId: id, userId: session.user.id } },

@@ -703,6 +703,13 @@ model Contest {
   minPicks        Int           @default(20)
   startsAt        DateTime
   endsAt          DateTime
+  // Entries close on this date (defaults to endsAt when null). After it, the
+  // field — and therefore the number of paid places — is locked.
+  registrationClosesAt DateTime?
+  // When true, paid places scale with the number of entrants (one extra place
+  // per 10 joiners, min 3) and the ladder is derived from prizePoolCents rather
+  // than the stored prizeSplitCents.
+  dynamicPayouts  Boolean       @default(false)
   status          ContestStatus @default(DRAFT)
   settledAt       DateTime?
   createdAt       DateTime      @default(now())

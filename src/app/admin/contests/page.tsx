@@ -1,6 +1,12 @@
 import { guardAdminPage } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
-import { computeStandings, DEFAULT_SUPERCAPPER_SPLIT_CENTS } from "@/lib/contest";
+import {
+  computeStandings,
+  DEFAULT_SUPERCAPPER_SPLIT_CENTS,
+  effectivePrizeLadderCents,
+  activeEntrantCount,
+  payoutSpotsForEntrants,
+} from "@/lib/contest";
 import { contestFraudReport } from "@/lib/contest-fraud";
 import { ContestManager } from "@/components/admin/contest-manager";
 
@@ -17,7 +23,9 @@ export default async function AdminContestsPage() {
   });
 
   const data = await Promise.all(contests.map(async (c) => {
-    const standings = computeStandings(c.entries, c);
+    const activeCount = activeEntrantCount(c.entries);
+    const prizeLadder = effectivePrizeLadderCents(c, activeCount);
+    const standings = computeStandings(c.entries, { minPicks: c.minPicks, prizeSplitCents: prizeLadder });
     const byEntry = new Map(standings.map((s) => [s.entryId, s]));
 
     const entryNames = new Map(c.entries.map((e) => [e.id, e.user.username ?? e.user.name ?? "Entrant"]));
@@ -49,6 +57,9 @@ export default async function AdminContestsPage() {
       minPicks: c.minPicks,
       startsAt: c.startsAt.toISOString(),
       endsAt: c.endsAt.toISOString(),
+      registrationClosesAt: c.registrationClosesAt?.toISOString() ?? null,
+      dynamicPayouts: c.dynamicPayouts,
+      paidSpots: c.dynamicPayouts ? payoutSpotsForEntrants(activeCount) : c.prizeSplitCents.length,
       prizePoolCents: c.prizePoolCents,
       prizeSplitDollars: c.prizeSplitCents.map((x) => x / 100),
       entryCount: c.entries.length,

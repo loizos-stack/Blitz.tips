@@ -50,6 +50,9 @@ type Contest = {
   minPicks: number;
   startsAt: string;
   endsAt: string;
+  registrationClosesAt: string | null;
+  dynamicPayouts: boolean;
+  paidSpots: number;
   prizePoolCents: number;
   prizeSplitDollars: number[];
   entryCount: number;
@@ -287,6 +290,15 @@ export function ContestManager({
                 /{c.slug} · {format(new Date(c.startsAt), "MMM d, yyyy")}–{format(new Date(c.endsAt), "MMM d, yyyy")} ·{" "}
                 {formatCents(c.prizePoolCents)} · {c.entryCount} entries · {c.pendingPicks.length} picks to grade
               </p>
+              {c.dynamicPayouts && (
+                <p className="mt-0.5 text-xs text-accent">
+                  Dynamic payouts: {c.paidSpots} paid place{c.paidSpots === 1 ? "" : "s"} (auto-scales +1 per 10 entrants,
+                  ICM-chopped from the pool)
+                  {c.registrationClosesAt
+                    ? ` · registration closes ${format(new Date(c.registrationClosesAt), "MMM d, yyyy")}`
+                    : ""}
+                </p>
+              )}
             </div>
             <div className="flex gap-2">
               <button type="button" onClick={() => openEditor(c)} className="rounded-lg border border-border px-3 py-1.5 text-sm font-medium hover:border-muted">
