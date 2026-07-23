@@ -23,11 +23,11 @@ export function isContestAcceptingPicks(
   return contest.status === "OPEN" && now >= contest.startsAt && now <= contest.endsAt;
 }
 
-// A sensible default $50k / top-20 payout curve (cents), used to prefill the
-// admin form. Sums to 5,000,000 cents.
+// A sensible default $25k / top-20 payout curve (cents), used to prefill the
+// admin form. Sums to 2,500,000 cents.
 export const DEFAULT_SUPERCAPPER_SPLIT_CENTS: number[] = [
-  1550000, 800000, 500000, 400000, 300000, 250000, 200000, 175000, 150000, 125000,
-  100000, 90000, 80000, 70000, 60000, 50000, 40000, 30000, 20000, 10000,
+  775000, 400000, 250000, 200000, 150000, 125000, 100000, 87500, 75000, 62500,
+  50000, 45000, 40000, 35000, 30000, 25000, 20000, 15000, 10000, 5000,
 ];
 
 // The ICM payout ladder is a pure function of how many places are paid and the

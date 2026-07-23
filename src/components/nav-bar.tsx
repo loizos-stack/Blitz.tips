@@ -11,7 +11,7 @@ import { NotificationBell } from "@/components/notification-bell";
 
 const links = [
   { href: "/about", label: "About Blitz" },
-  { href: "/supercapper", label: "$50K Contest" },
+  { href: "/supercapper", label: "$25K Contest" },
   { href: "/leaderboard", label: "Leaderboard" },
   { href: "/handicappers", label: "Handicappers" },
   { href: "/buy-picks", label: "Buy Tips" },
