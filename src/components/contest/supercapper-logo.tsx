@@ -18,8 +18,8 @@ export function SupercapperLogo({
       role="img"
       aria-label={withContest ? "Supercapper Contest" : "Supercapper"}
     >
-      <span className="inline-flex items-baseline font-display font-extrabold tracking-tight">
-        <svg viewBox="0 0 40 40" className="mr-[0.02em] h-[0.92em] w-[0.6em] self-center" fill="none" aria-hidden>
+      <span className="inline-flex items-center font-display font-extrabold tracking-tight">
+        <svg viewBox="0 0 40 40" className="-mr-[0.02em] h-[1.18em] w-[0.78em]" fill="none" aria-hidden>
           <defs>
             <linearGradient id="sc-bolt" x1="0" y1="0" x2="0" y2="1">
               <stop offset="0%" stopColor="#fde047" />
@@ -39,7 +39,7 @@ export function SupercapperLogo({
       {withContest && (
         <span
           aria-hidden
-          className="mt-[0.04em] pl-[52%] text-[0.24em] font-semibold uppercase tracking-[0.45em] text-current opacity-80"
+          className="mt-[0.06em] self-center text-[0.24em] font-semibold uppercase tracking-[0.5em] text-current opacity-80"
         >
           contest
         </span>
