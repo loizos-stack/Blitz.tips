@@ -33,15 +33,15 @@ export function ContestCountdown({ target, label }: { target: string; label: str
   })();
 
   return (
-    <div className="inline-flex flex-col items-center gap-1">
-      <span className="text-xs font-semibold uppercase tracking-wide text-muted">{label}</span>
-      <div className="flex items-center gap-2 tabular-nums">
+    <div className="inline-flex flex-col items-center gap-2">
+      <span className="text-sm font-semibold uppercase tracking-wide text-muted">{label}</span>
+      <div className="flex items-center gap-2.5 tabular-nums sm:gap-3.5">
         {(["d", "h", "m", "s"] as const).map((k) => (
           <div key={k} className="flex flex-col items-center">
-            <span className="min-w-[2.5rem] rounded-lg bg-surface-raised px-2 py-1.5 text-center text-xl font-bold">
+            <span className="min-w-[3.75rem] rounded-xl bg-surface-raised px-3 py-3 text-center text-4xl font-extrabold leading-none shadow-sm sm:min-w-[4.75rem] sm:px-4 sm:py-4 sm:text-6xl">
               {parts ? String(parts[k]).padStart(2, "0") : "––"}
             </span>
-            <span className="mt-1 text-[10px] font-medium uppercase text-muted">
+            <span className="mt-2 text-xs font-semibold uppercase tracking-wide text-muted">
               {k === "d" ? "days" : k === "h" ? "hrs" : k === "m" ? "min" : "sec"}
             </span>
           </div>

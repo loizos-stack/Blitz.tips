@@ -6,6 +6,13 @@ import { Trophy, ArrowLeft } from "lucide-react";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { computeStandings, contestPhase, isContestAcceptingPicks } from "@/lib/contest";
+import {
+  computeQuotaUsage,
+  MAX_PICKS_PER_DAY,
+  MAX_PICKS_PER_WEEK,
+  MAX_UNITS_PER_DAY,
+  type QuotaUsage,
+} from "@/lib/contest-limits";
 import { unitProfit } from "@/lib/odds";
 import { formatCents, SPORT_LABELS } from "@/lib/utils";
 import { ResultPill } from "@/components/result-pill";
@@ -78,6 +85,7 @@ export default async function ContestDashboardPage() {
   }
 
   const myStanding = standings.find((s) => s.entryId === myEntry.id);
+  const quota = computeQuotaUsage(myEntry.picks);
   const picks = [...myEntry.picks].sort((a, b) => b.eventStartsAt.getTime() - a.eventStartsAt.getTime());
   const pending = picks.filter((p) => p.result === "PENDING");
   const graded = picks.filter((p) => p.result !== "PENDING");
@@ -152,6 +160,8 @@ export default async function ContestDashboardPage() {
               </p>
             )}
           </div>
+
+          <QuotaCard quota={quota} />
         </div>
 
         {/* Your picks + leaderboard */}
@@ -257,6 +267,46 @@ function PickGroup({ title, picks, showProfit }: { title: string; picks: RowPick
           );
         })}
       </div>
+    </div>
+  );
+}
+
+function QuotaCard({ quota }: { quota: QuotaUsage }) {
+  const rows = [
+    { label: "Picks today", used: quota.picksToday, max: MAX_PICKS_PER_DAY, suffix: "" },
+    { label: "Units today", used: quota.unitsToday, max: MAX_UNITS_PER_DAY, suffix: "u" },
+    { label: "Picks this week", used: quota.picksThisWeek, max: MAX_PICKS_PER_WEEK, suffix: "" },
+  ];
+  return (
+    <div className="card p-5">
+      <p className="font-semibold">Your limits</p>
+      <p className="mt-0.5 text-xs text-muted">
+        Max {MAX_PICKS_PER_DAY} picks &amp; {MAX_UNITS_PER_DAY}u per day, {MAX_PICKS_PER_WEEK} picks per week.
+      </p>
+      <div className="mt-4 flex flex-col gap-3">
+        {rows.map((r) => {
+          const pct = Math.min(100, r.max > 0 ? (r.used / r.max) * 100 : 0);
+          const full = r.used >= r.max;
+          return (
+            <div key={r.label}>
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-muted">{r.label}</span>
+                <span className={`font-semibold tabular-nums ${full ? "text-danger" : ""}`}>
+                  {r.used}
+                  {r.suffix} / {r.max}
+                  {r.suffix}
+                </span>
+              </div>
+              <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-surface-raised">
+                <div className={`h-full rounded-full ${full ? "bg-danger" : "bg-accent"}`} style={{ width: `${pct}%` }} />
+              </div>
+            </div>
+          );
+        })}
+      </div>
+      <p className="mt-3 text-[11px] text-muted">
+        Daily resets at midnight UTC · weekly resets Monday.
+      </p>
     </div>
   );
 }

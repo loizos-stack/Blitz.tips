@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { ScrollText } from "lucide-react";
+import { MAX_PICKS_PER_DAY, MAX_PICKS_PER_WEEK, MAX_UNITS_PER_DAY } from "@/lib/contest-limits";
 
 export interface ContestRulesInfo {
   name: string;
@@ -32,6 +33,8 @@ export function ContestRulesModal({
     "Free to enter. One entry per person — duplicate or multiple accounts are disqualified.",
     "Open to registered users who are of legal age to participate where they live.",
     "Single picks only — parlays are not allowed in the contest.",
+    `Daily limit: up to ${MAX_PICKS_PER_DAY} picks and ${MAX_UNITS_PER_DAY} total units per day.`,
+    `Weekly limit: up to ${MAX_PICKS_PER_WEEK} picks per week. Both quotas reset automatically — daily at midnight UTC, weekly on Monday.`,
     `You must post at least ${rules.minPicks} graded (settled) picks to qualify for the leaderboard and prizes.`,
     "Entrants are ranked by ROI — net units won divided by units risked — across their settled picks.",
     "Every pick must be submitted before the event starts; you can't post on a game already underway or one after the contest ends.",

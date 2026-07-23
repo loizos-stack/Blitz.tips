@@ -3,6 +3,13 @@ import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { createContestPickSchema } from "@/lib/validations";
 import { isContestAcceptingPicks } from "@/lib/contest";
+import {
+  MAX_PICKS_PER_DAY,
+  MAX_PICKS_PER_WEEK,
+  MAX_UNITS_PER_DAY,
+  startOfUtcDay,
+  startOfUtcWeek,
+} from "@/lib/contest-limits";
 import { SPORT_LABELS } from "@/lib/utils";
 import { logActivity } from "@/lib/audit";
 import type { PickSport } from "@prisma/client";
@@ -49,6 +56,42 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   }
   if (eventStartsAt > contest.endsAt) {
     return NextResponse.json({ error: "That game is after the contest ends." }, { status: 400 });
+  }
+
+  // Enforce the daily/weekly quotas (counted by submission time, UTC windows).
+  const dayStart = startOfUtcDay();
+  const weekStart = startOfUtcWeek();
+  const [todayAgg, weekCount] = await Promise.all([
+    prisma.contestPick.aggregate({
+      where: { entryId: entry.id, createdAt: { gte: dayStart } },
+      _count: true,
+      _sum: { units: true },
+    }),
+    prisma.contestPick.count({ where: { entryId: entry.id, createdAt: { gte: weekStart } } }),
+  ]);
+  const picksToday = todayAgg._count;
+  const unitsToday = todayAgg._sum.units ?? 0;
+
+  if (picksToday >= MAX_PICKS_PER_DAY) {
+    return NextResponse.json(
+      { error: `Daily limit reached — ${MAX_PICKS_PER_DAY} picks per day. Resets at midnight UTC.` },
+      { status: 400 }
+    );
+  }
+  if (weekCount >= MAX_PICKS_PER_WEEK) {
+    return NextResponse.json(
+      { error: `Weekly limit reached — ${MAX_PICKS_PER_WEEK} picks per week. Resets Monday.` },
+      { status: 400 }
+    );
+  }
+  if (unitsToday + parsed.data.units > MAX_UNITS_PER_DAY) {
+    const left = Math.max(0, Math.round((MAX_UNITS_PER_DAY - unitsToday) * 100) / 100);
+    return NextResponse.json(
+      {
+        error: `That would exceed your ${MAX_UNITS_PER_DAY}-unit daily limit — you have ${left}u left today.`,
+      },
+      { status: 400 }
+    );
   }
 
   const pick = await prisma.contestPick.create({
