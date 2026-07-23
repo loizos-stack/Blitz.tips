@@ -1,13 +1,13 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { requirePermission } from "@/lib/permissions";
+import { requireAnyPermission } from "@/lib/permissions";
 import { logAdmin } from "@/lib/audit";
 
 // Update an entry's payout or disqualification status. Body may include:
 //   { paid: boolean }                       — mark a winner paid / unpaid
 //   { disqualified: boolean, reason?: str } — DQ (fraud) or reinstate an entry
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
-  const ctx = await requirePermission("contests");
+  const ctx = await requireAnyPermission(["contests", "integrity"]);
   if (!ctx) return NextResponse.json({ error: "Not permitted" }, { status: 403 });
 
   const { id } = await params;
@@ -36,4 +36,25 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   });
   await logAdmin(ctx.session, "contest.payout", "ContestEntry", id, paid ? "marked paid" : "marked unpaid");
   return NextResponse.json({ entry });
+}
+
+// Remove an entry entirely — used when someone opted in by mistake. Unlike a
+// disqualification (which keeps the record), this deletes the entry and, by
+// cascade, all of its picks and IP logs, so the user's opt-in is fully reset and
+// they can join the contest again from scratch.
+export async function DELETE(_request: Request, { params }: { params: Promise<{ id: string }> }) {
+  const ctx = await requireAnyPermission(["contests", "integrity"]);
+  if (!ctx) return NextResponse.json({ error: "Not permitted" }, { status: 403 });
+
+  const { id } = await params;
+  const existing = await prisma.contestEntry.findUnique({
+    where: { id },
+    select: { user: { select: { username: true, name: true } } },
+  });
+  if (!existing) return NextResponse.json({ error: "Entry not found" }, { status: 404 });
+
+  await prisma.contestEntry.delete({ where: { id } });
+  const who = existing.user.username ?? existing.user.name ?? "entrant";
+  await logAdmin(ctx.session, "contest.remove", "ContestEntry", id, `removed ${who} (opt-in reset)`);
+  return NextResponse.json({ ok: true });
 }

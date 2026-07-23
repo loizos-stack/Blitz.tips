@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { format } from "date-fns";
-import { Trophy, Plus, Check, ShieldAlert, Ban } from "lucide-react";
+import { Trophy, Plus, Check, ShieldAlert, Ban, Trash2 } from "lucide-react";
 import { formatCents, SPORT_LABELS, cn } from "@/lib/utils";
 
 type PendingPick = {
@@ -189,6 +189,19 @@ export function ContestManager({
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ disqualified, reason }),
     });
+    setBusy(false);
+    router.refresh();
+  }
+
+  // Remove an entry entirely (e.g. someone joined by mistake). Deletes the entry
+  // and, by cascade, its picks and IP logs — the user's opt-in is fully reset so
+  // they can join again. Unlike disqualify, nothing is kept.
+  async function removeEntry(entryId: string, name: string) {
+    if (!confirm(`Remove ${name}'s entry entirely? This deletes their picks and resets their opt-in so they can join again.`)) {
+      return;
+    }
+    setBusy(true);
+    await fetch(`/api/admin/contest-entries/${entryId}`, { method: "DELETE" });
     setBusy(false);
     router.refresh();
   }
@@ -395,21 +408,32 @@ export function ContestManager({
                             "—"
                           )}
                         </td>
-                        <td className="px-3 py-2 text-right">
-                          <button
-                            type="button"
-                            disabled={busy}
-                            onClick={() => toggleDisqualified(e.id, !e.disqualified)}
-                            title={e.disqualifiedReason ?? undefined}
-                            className={cn(
-                              "inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-semibold",
-                              e.disqualified
-                                ? "border border-border text-muted hover:text-foreground"
-                                : "text-danger hover:bg-danger/10"
-                            )}
-                          >
-                            {e.disqualified ? "Reinstate" : <><Ban className="h-3 w-3" /> Disqualify</>}
-                          </button>
+                        <td className="px-3 py-2">
+                          <div className="flex justify-end gap-1.5">
+                            <button
+                              type="button"
+                              disabled={busy}
+                              onClick={() => toggleDisqualified(e.id, !e.disqualified)}
+                              title={e.disqualifiedReason ?? undefined}
+                              className={cn(
+                                "inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-semibold",
+                                e.disqualified
+                                  ? "border border-border text-muted hover:text-foreground"
+                                  : "text-danger hover:bg-danger/10"
+                              )}
+                            >
+                              {e.disqualified ? "Reinstate" : <><Ban className="h-3 w-3" /> Disqualify</>}
+                            </button>
+                            <button
+                              type="button"
+                              disabled={busy}
+                              onClick={() => removeEntry(e.id, e.name)}
+                              title="Delete this entry and reset the user's opt-in"
+                              className="inline-flex items-center gap-1 rounded-full border border-border px-2.5 py-1 text-xs font-semibold text-muted hover:border-danger hover:text-danger"
+                            >
+                              <Trash2 className="h-3 w-3" /> Remove
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     );

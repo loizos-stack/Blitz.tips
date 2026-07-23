@@ -36,6 +36,7 @@ export type AdminPermission =
   | "reviews"
   | "blog"
   | "contests"
+  | "integrity"
   | "audit"
   | "permissions";
 
@@ -66,6 +67,7 @@ export const ADMIN_PERMISSIONS: PermissionDef[] = [
   { key: "reviews", label: "Reviews", href: "/admin/reviews", description: "Moderate subscriber reviews before they appear on public profiles" },
   { key: "blog", label: "Blog", href: "/admin/blog", description: "Write, edit, and publish blog posts" },
   { key: "contests", label: "Contests", href: "/admin/contests", description: "Manage contests, grade picks, settle winners and mark prizes paid" },
+  { key: "integrity", label: "Integrity", href: "/admin/integrity", description: "Anti-fraud: IP/device logs, shared-IP clusters, and flagged or disqualified contest entries" },
   { key: "audit", label: "Logs", href: "/admin/logs", description: "Search and filter the site-wide activity log" },
   { key: "permissions", label: "Permissions", href: "/admin/permissions", description: "Create admins and grant them permissions", superOnly: true },
 ];
