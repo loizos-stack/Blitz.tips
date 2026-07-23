@@ -25,9 +25,8 @@ export async function ContestPromoBanner({ className }: { className?: string }) 
           <span className="inline-flex items-center gap-1.5 rounded-full border border-gold/40 bg-gold/10 px-2.5 py-1 text-xs font-semibold text-gold">
             <Trophy className="h-3.5 w-3.5" /> {phase === "live" ? "Live now" : "Now open"}
           </span>
-          <div className="mt-3 flex items-baseline gap-2">
-            <SupercapperLogo className="text-2xl sm:text-3xl" />
-            <span className="font-display text-2xl font-bold sm:text-3xl">Contest</span>
+          <div className="mt-3">
+            <SupercapperLogo withContest className="text-2xl sm:text-3xl" />
           </div>
           <p className="mt-2 text-sm text-white/70">
             Post your picks and compete for the{" "}

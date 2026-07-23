@@ -98,12 +98,8 @@ export default async function ContestDashboardPage() {
       {/* Header */}
       <div className="mt-4 flex flex-wrap items-center justify-between gap-4">
         <div>
-          <h1 className="flex flex-wrap items-center gap-x-2 text-2xl">
-            <SupercapperLogo />
-            {(() => {
-              const rest = contest.name.replace(/^supercapper\s*/i, "").trim();
-              return rest ? <span className="font-display font-bold">{rest}</span> : null;
-            })()}
+          <h1 className="flex text-3xl">
+            <SupercapperLogo withContest />
           </h1>
           <p className="mt-1 text-sm text-muted">
             {PHASE_LABEL[phase]} · {format(contest.startsAt, "MMM d")}–{format(contest.endsAt, "MMM d, yyyy")} ·{" "}

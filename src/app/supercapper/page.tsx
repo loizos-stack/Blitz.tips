@@ -74,12 +74,8 @@ export default async function SupercapperPage() {
           <span className="inline-flex items-center gap-2 rounded-full border border-gold/40 bg-gold/10 px-3 py-1 text-xs font-semibold text-gold">
             <Trophy className="h-3.5 w-3.5" /> {PHASE_LABEL[phase]}
           </span>
-          <h1 className="mt-6 flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-4xl md:text-6xl">
-            <SupercapperLogo />
-            {(() => {
-              const rest = contest.name.replace(/^supercapper\s*/i, "").trim();
-              return rest ? <span className="font-display font-bold tracking-tight">{rest}</span> : null;
-            })()}
+          <h1 className="mt-6 flex justify-center text-5xl md:text-7xl">
+            <SupercapperLogo withContest />
           </h1>
           {contest.tagline && <p className="mt-4 text-lg text-muted">{contest.tagline}</p>}
 
