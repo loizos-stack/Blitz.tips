@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
+import { ArrowUp, ArrowDown, Minus } from "lucide-react";
 import { computeStats } from "@/lib/odds";
 import { CONTEST_WINDOWS, filterPicksByWindow, type ContestWindowKey } from "@/lib/contest-windows";
 import { formatCents, cn } from "@/lib/utils";
@@ -27,6 +28,8 @@ export interface OverallStanding {
   entryId: string;
   name: string;
   rank: number | null;
+  // The entrant's rank as of the start of today (null if unranked then).
+  previousRank: number | null;
   qualified: boolean;
   roi: number | null;
   unitsNet: number;
@@ -39,6 +42,8 @@ interface Row {
   entryId: string;
   name: string;
   rank: number | null;
+  // Movement vs. the start of today; undefined in windowed views (no baseline).
+  previousRank?: number | null;
   roi: number | null;
   unitsNet: number;
   record: string;
@@ -70,6 +75,7 @@ export function ContestStandings({
         entryId: s.entryId,
         name: s.name,
         rank: s.rank,
+        previousRank: s.previousRank,
         roi: s.roi,
         unitsNet: s.unitsNet,
         record: s.record,
@@ -120,6 +126,7 @@ export function ContestStandings({
 
   return (
     <div>
+      {/* window pills */}
       <div className="mb-4 flex flex-wrap gap-1.5">
         {CONTEST_WINDOWS.map((w) => (
           <button
@@ -163,7 +170,12 @@ export function ContestStandings({
                     myEntryId && r.entryId === myEntryId && "bg-accent/5"
                   )}
                 >
-                  <td className="px-4 py-2.5 font-semibold text-muted">{r.rank ?? "—"}</td>
+                  <td className="px-4 py-2.5 font-semibold text-muted">
+                    <span className="inline-flex items-center gap-1.5">
+                      {r.rank ?? "—"}
+                      {window === "overall" && r.rank != null && <RankMove rank={r.rank} previousRank={r.previousRank} />}
+                    </span>
+                  </td>
                   <td className="px-4 py-2.5 font-medium">
                     <Link href={`${linkBase}/${r.entryId}`} className="hover:text-accent hover:underline">
                       {r.name}
@@ -198,6 +210,18 @@ export function ContestStandings({
         </div>
       )}
 
+      {window === "overall" && (
+        <p className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted">
+          <span className="inline-flex items-center gap-1">
+            <ArrowUp className="h-3 w-3 text-accent" /> up
+          </span>
+          <span className="inline-flex items-center gap-1">
+            <ArrowDown className="h-3 w-3 text-danger" /> down
+          </span>
+          <span>vs. yesterday&apos;s standing.</span>
+        </p>
+      )}
+
       {window !== "overall" && (
         <p className="mt-3 text-xs text-muted">
           {hasRankedRows
@@ -206,5 +230,32 @@ export function ContestStandings({
         </p>
       )}
     </div>
+  );
+}
+
+// Rank-movement indicator vs. the start of today: green ▲ when the entrant
+// climbed, red ▼ when they slipped, a muted dash when unchanged, and "NEW" when
+// they weren't ranked yesterday.
+function RankMove({ rank, previousRank }: { rank: number; previousRank?: number | null }) {
+  if (previousRank == null) {
+    return <span className="rounded bg-surface-raised px-1 text-[10px] font-semibold text-muted">NEW</span>;
+  }
+  const delta = previousRank - rank; // >0 means moved up the board
+  if (delta === 0) {
+    return <Minus className="h-3 w-3 text-muted" aria-label="No change" />;
+  }
+  if (delta > 0) {
+    return (
+      <span className="inline-flex items-center text-accent" title={`Up ${delta} from #${previousRank}`}>
+        <ArrowUp className="h-3 w-3" />
+        <span className="text-[10px] font-semibold tabular-nums">{delta}</span>
+      </span>
+    );
+  }
+  return (
+    <span className="inline-flex items-center text-danger" title={`Down ${-delta} from #${previousRank}`}>
+      <ArrowDown className="h-3 w-3" />
+      <span className="text-[10px] font-semibold tabular-nums">{-delta}</span>
+    </span>
   );
 }

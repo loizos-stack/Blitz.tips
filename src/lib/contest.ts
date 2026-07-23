@@ -144,6 +144,23 @@ export function computeStandings(
   return [...ranked, ...rest];
 }
 
+/**
+ * The overall standings as they stood at an earlier moment — every entry's picks
+ * are truncated to those whose game had started before `cutoffMs`, then ranked
+ * the same way. Used to show each contestant's rank movement (vs. yesterday).
+ */
+export function computeStandingsAsOf(
+  entries: EntryWithPicks[],
+  contest: Pick<Contest, "minPicks" | "prizeSplitCents">,
+  cutoffMs: number
+): ContestStanding[] {
+  const asOf = entries.map((e) => ({
+    ...e,
+    picks: e.picks.filter((p) => p.eventStartsAt.getTime() < cutoffMs),
+  }));
+  return computeStandings(asOf, contest);
+}
+
 export interface RankPoint {
   // ISO timestamp of the cutoff this rank was measured at.
   t: string;

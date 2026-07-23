@@ -4,7 +4,8 @@ import { format } from "date-fns";
 import { Trophy, ShieldCheck, Coins, ListChecks, Gift, ArrowRight } from "lucide-react";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
-import { computeStandings, contestPhase, contestIcmPayoutsCents } from "@/lib/contest";
+import { computeStandings, computeStandingsAsOf, contestPhase, contestIcmPayoutsCents } from "@/lib/contest";
+import { startOfUtcDay } from "@/lib/contest-limits";
 import { formatCents } from "@/lib/utils";
 import { ContestCountdown } from "@/components/contest/contest-countdown";
 import { ContestJoinButton } from "@/components/contest/contest-join-button";
@@ -65,11 +66,17 @@ export default async function SupercapperPage() {
     ? contest.entries.find((e) => e.userId === session.user.id)
     : undefined;
 
+  // Where each entrant stood as of the start of today, to show rank movement.
+  const prevRankByEntry = new Map(
+    computeStandingsAsOf(contest.entries, contest, startOfUtcDay(new Date()).getTime()).map((s) => [s.entryId, s.rank])
+  );
+
   // Serializable data for the interactive (window-filtered) standings table.
   const overallStandings = standings.map((s) => ({
     entryId: s.entryId,
     name: s.name,
     rank: s.rank,
+    previousRank: prevRankByEntry.get(s.entryId) ?? null,
     qualified: s.qualified,
     roi: s.roi,
     unitsNet: s.unitsNet,

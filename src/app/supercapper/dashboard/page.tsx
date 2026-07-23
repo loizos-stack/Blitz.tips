@@ -5,9 +5,10 @@ import { format } from "date-fns";
 import { Trophy, ArrowLeft } from "lucide-react";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
-import { computeStandings, contestPhase, isContestAcceptingPicks } from "@/lib/contest";
+import { computeStandings, computeStandingsAsOf, contestPhase, isContestAcceptingPicks } from "@/lib/contest";
 import {
   computeQuotaUsage,
+  startOfUtcDay,
   MAX_PICKS_PER_DAY,
   MAX_PICKS_PER_WEEK,
   MAX_UNITS_PER_DAY,
@@ -87,10 +88,14 @@ export default async function ContestDashboardPage() {
   }
 
   const myStanding = standings.find((s) => s.entryId === myEntry.id);
+  const prevRankByEntry = new Map(
+    computeStandingsAsOf(contest.entries, contest, startOfUtcDay(new Date()).getTime()).map((s) => [s.entryId, s.rank])
+  );
   const overallStandings = standings.map((s) => ({
     entryId: s.entryId,
     name: s.name,
     rank: s.rank,
+    previousRank: prevRankByEntry.get(s.entryId) ?? null,
     qualified: s.qualified,
     roi: s.roi,
     unitsNet: s.unitsNet,
