@@ -4,7 +4,7 @@ import { format } from "date-fns";
 import { Trophy, ShieldCheck, Coins, ListChecks, Gift, ArrowRight } from "lucide-react";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
-import { computeStandings, contestPhase } from "@/lib/contest";
+import { computeStandings, contestPhase, contestIcmPayoutsCents } from "@/lib/contest";
 import { formatCents } from "@/lib/utils";
 import { ContestCountdown } from "@/components/contest/contest-countdown";
 import { ContestJoinButton } from "@/components/contest/contest-join-button";
@@ -57,6 +57,8 @@ export default async function SupercapperPage() {
   const canJoin = contest.status === "OPEN" && new Date() <= contest.endsAt;
   const standings = computeStandings(contest.entries, contest);
   const winners = contest.prizeSplitCents.length;
+  // The published payout ladder is the ICM chop for a full field.
+  const payoutLadder = contestIcmPayoutsCents(winners, contest.prizeSplitCents);
 
   const myEntry = session?.user?.id
     ? contest.entries.find((e) => e.userId === session.user.id)
@@ -134,9 +136,12 @@ export default async function SupercapperPage() {
       <section className="border-b border-border py-14">
         <div className="container-page">
           <h2 className="text-center text-2xl font-bold">Prize breakdown</h2>
-          <p className="mt-2 text-center text-sm text-muted">{formatCents(contest.prizePoolCents)} guaranteed across {winners} places.</p>
+          <p className="mt-2 text-center text-sm text-muted">
+            {formatCents(contest.prizePoolCents)} guaranteed across {winners} places · payouts
+            auto-calculated per ICM by finishing rank.
+          </p>
           <div className="mx-auto mt-8 grid max-w-4xl grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
-            {contest.prizeSplitCents.map((cents, i) => (
+            {payoutLadder.map((cents, i) => (
               <div
                 key={i}
                 className={`flex items-center justify-between rounded-lg border px-4 py-3 ${
@@ -161,6 +166,7 @@ export default async function SupercapperPage() {
               <h2 className="text-2xl font-bold">Standings</h2>
               <p className="mt-1 text-sm text-muted">
                 Ranked by ROI over settled picks. Entrants need {contest.minPicks} graded picks to qualify.
+                Prizes are auto-calculated per ICM by finishing rank.
               </p>
             </div>
             {myEntry && (

@@ -215,7 +215,7 @@ export function ContestManager({
             <Field label="Min picks to qualify">
               <input type="number" min={1} className={inp} value={form.minPicks} onChange={(e) => setForm({ ...form, minPicks: Number(e.target.value) })} />
             </Field>
-            <Field label={`Prize split — $ per place, one per line (pool: ${formatCents(poolPreview * 100)})`}>
+            <Field label={`Prize ladder — $ per place, one per line (pool: ${formatCents(poolPreview * 100)}). Payouts are ICM-smoothed from this at settle.`}>
               <textarea rows={4} className={inp} value={form.splitText} onChange={(e) => setForm({ ...form, splitText: e.target.value })} />
             </Field>
           </div>

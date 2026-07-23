@@ -1,6 +1,7 @@
 import "server-only";
 import type { Contest, ContestEntry, ContestPick } from "@prisma/client";
 import { computeStats } from "@/lib/odds";
+import { icmEquityCents, ICM_MAX_FIELD } from "@/lib/icm";
 
 // The lifecycle phase shown to visitors, derived from the contest's dates and
 // status (so a DRAFT/CLOSED admin state overrides the calendar).
@@ -28,6 +29,40 @@ export const DEFAULT_SUPERCAPPER_SPLIT_CENTS: number[] = [
   1550000, 800000, 500000, 400000, 300000, 250000, 200000, 175000, 150000, 125000,
   100000, 90000, 80000, 70000, 60000, 50000, 40000, 30000, 20000, 10000,
 ];
+
+// The ICM payout ladder is a pure function of how many places are paid and the
+// prize split, so cache it (the DP is cheap but not free, and it's re-derived
+// on every standings render).
+const icmCache = new Map<string, number[]>();
+
+/**
+ * Auto-calculated payouts per ICM. The full guaranteed pool (the prize split)
+ * is distributed across the top `paidCount` finishers using the Independent
+ * Chip Model, with each finisher's "stack" set by their finishing rank (1st
+ * biggest) — so payouts follow rank but are smoothed the way an ICM deal
+ * smooths a rigid ladder. Returns cents indexed by rank (index 0 = 1st).
+ */
+export function contestIcmPayoutsCents(paidCount: number, prizeSplitCents: number[]): number[] {
+  const n = Math.min(paidCount, prizeSplitCents.length);
+  if (n <= 0) return [];
+  const prizes = prizeSplitCents.slice(0, n);
+  // Beyond the exact-DP cap, fall back to the raw ladder rather than blow up.
+  if (n > ICM_MAX_FIELD) return prizes;
+
+  const key = `${n}:${prizeSplitCents.join(",")}`;
+  const cached = icmCache.get(key);
+  if (cached) return cached;
+
+  // Rank stacks follow the prize ladder's own shape (1st biggest), so ICM keeps
+  // the payouts top-heavy while smoothing the ladder the way an ICM deal does —
+  // trimming the top places and lifting the lower ones. Falls back to a linear
+  // ramp if a ladder somehow has a non-positive amount (ICM needs positive
+  // stacks).
+  const stacks = prizes.map((c, i) => (c > 0 ? c : n - i));
+  const payouts = icmEquityCents(stacks, prizes);
+  icmCache.set(key, payouts);
+  return payouts;
+}
 
 export interface ContestStanding {
   entryId: string;
@@ -89,10 +124,15 @@ export function computeStandings(
     .filter((r) => !r.qualified)
     .sort((a, b) => b.settledPicks - a.settledPicks || a.name.localeCompare(b.name));
 
+  // Payouts are ICM-calculated: the pool is chopped across however many
+  // finishers qualified (capped at the number of paid places) by their rank.
+  const paidCount = Math.min(qualified.length, contest.prizeSplitCents.length);
+  const icmPayouts = contestIcmPayoutsCents(paidCount, contest.prizeSplitCents);
+
   const ranked: ContestStanding[] = qualified.map((r, i) => ({
     ...r,
     rank: i + 1,
-    prizeCents: contest.prizeSplitCents[i] ?? 0,
+    prizeCents: icmPayouts[i] ?? 0,
   }));
 
   const rest: ContestStanding[] = unqualified.map((r) => ({ ...r, rank: null, prizeCents: 0 }));
