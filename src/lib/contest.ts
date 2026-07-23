@@ -2,6 +2,7 @@ import "server-only";
 import type { Contest, ContestEntry, ContestPick } from "@prisma/client";
 import { computeStats } from "@/lib/odds";
 import { icmEquityCents, ICM_MAX_FIELD } from "@/lib/icm";
+import { startOfUtcDay } from "@/lib/contest-limits";
 
 // The lifecycle phase shown to visitors, derived from the contest's dates and
 // status (so a DRAFT/CLOSED admin state overrides the calendar).
@@ -141,4 +142,74 @@ export function computeStandings(
   const rest: ContestStanding[] = unqualified.map((r) => ({ ...r, rank: null, prizeCents: 0 }));
 
   return [...ranked, ...rest];
+}
+
+export interface RankPoint {
+  // ISO timestamp of the cutoff this rank was measured at.
+  t: string;
+  // The entrant's ROI rank (1 = best) among entrants with a graded pick by then.
+  rank: number;
+  // How many entrants were ranked at that point (the field size).
+  of: number;
+  roi: number | null;
+}
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * Reconstruct an entrant's ROI rank over the life of the contest, sampled at
+ * daily cutoffs (adaptively coarsened so a long contest stays under ~90 points).
+ * At each cutoff every non-disqualified entrant is ranked by ROI over the picks
+ * whose game had started by then — there's no min-pick floor here, so the line
+ * is populated from the entrant's first graded pick. A point is emitted only for
+ * cutoffs at which the target entrant is actually ranked.
+ */
+export function entrantRankHistory(
+  entries: EntryWithPicks[],
+  targetEntryId: string,
+  startsAt: Date,
+  endsAt: Date,
+  now = new Date()
+): RankPoint[] {
+  const active = entries.filter((e) => !e.disqualifiedAt);
+  const end = now < endsAt ? now : endsAt;
+  const firstCutoff = startOfUtcDay(startsAt).getTime() + DAY_MS;
+  const endMs = end.getTime();
+  if (endMs < firstCutoff) {
+    // Contest just started — fall back to a single "now" sample.
+    return rankAt(active, targetEntryId, endMs);
+  }
+
+  const totalDays = Math.ceil((endMs - firstCutoff) / DAY_MS) + 1;
+  const stepDays = Math.max(1, Math.ceil(totalDays / 90));
+  const step = stepDays * DAY_MS;
+
+  const cutoffs: number[] = [];
+  for (let c = firstCutoff; c < endMs; c += step) cutoffs.push(c);
+  cutoffs.push(endMs); // always finish at "now"
+
+  const points: RankPoint[] = [];
+  for (const cutoff of cutoffs) points.push(...rankAt(active, targetEntryId, cutoff));
+  return points;
+}
+
+// Rank the field by ROI over picks started before `cutoff`; return the target's
+// point (or nothing if it isn't ranked yet).
+function rankAt(active: EntryWithPicks[], targetEntryId: string, cutoff: number): RankPoint[] {
+  const ranked = active
+    .map((e) => {
+      const picks = e.picks.filter((p) => p.eventStartsAt.getTime() < cutoff);
+      const stats = computeStats(picks);
+      const settled = stats.wins + stats.losses + stats.pushes;
+      return { entryId: e.id, roi: stats.roi, unitsNet: stats.unitsNet, settled };
+    })
+    .filter((r) => r.settled > 0)
+    .sort(
+      (a, b) =>
+        (b.roi ?? -Infinity) - (a.roi ?? -Infinity) || b.unitsNet - a.unitsNet || b.settled - a.settled
+    );
+
+  const idx = ranked.findIndex((r) => r.entryId === targetEntryId);
+  if (idx < 0) return [];
+  return [{ t: new Date(cutoff).toISOString(), rank: idx + 1, of: ranked.length, roi: ranked[idx].roi }];
 }

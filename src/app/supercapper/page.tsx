@@ -8,6 +8,7 @@ import { computeStandings, contestPhase, contestIcmPayoutsCents } from "@/lib/co
 import { formatCents } from "@/lib/utils";
 import { ContestCountdown } from "@/components/contest/contest-countdown";
 import { ContestJoinButton } from "@/components/contest/contest-join-button";
+import { ContestStandings } from "@/components/contest/contest-standings";
 import { SupercapperLogo } from "@/components/contest/supercapper-logo";
 
 export const dynamic = "force-dynamic";
@@ -63,6 +64,31 @@ export default async function SupercapperPage() {
   const myEntry = session?.user?.id
     ? contest.entries.find((e) => e.userId === session.user.id)
     : undefined;
+
+  // Serializable data for the interactive (window-filtered) standings table.
+  const overallStandings = standings.map((s) => ({
+    entryId: s.entryId,
+    name: s.name,
+    rank: s.rank,
+    qualified: s.qualified,
+    roi: s.roi,
+    unitsNet: s.unitsNet,
+    record: s.record,
+    settledPicks: s.settledPicks,
+    prizeCents: s.prizeCents,
+  }));
+  const standingEntries = contest.entries
+    .filter((e) => !e.disqualifiedAt)
+    .map((e) => ({
+      entryId: e.id,
+      name: e.user.username ?? e.user.name ?? "Entrant",
+      picks: e.picks.map((p) => ({
+        odds: p.odds,
+        units: p.units,
+        result: p.result,
+        eventStartsAt: p.eventStartsAt.toISOString(),
+      })),
+    }));
 
   const dateRange = `${format(contest.startsAt, "MMM d, yyyy")} – ${format(contest.endsAt, "MMM d, yyyy")}`;
 
@@ -175,53 +201,14 @@ export default async function SupercapperPage() {
               </Link>
             )}
           </div>
-          {standings.length === 0 ? (
-            <div className="card mt-6 p-8 text-center text-muted">
-              No entries yet — be the first to enter and set the pace.
-            </div>
-          ) : (
-            <div className="card mt-6 overflow-x-auto p-0">
-              <table className="w-full min-w-[42rem] text-sm">
-                <thead>
-                  <tr className="border-b border-border text-left text-xs uppercase tracking-wide text-muted">
-                    <th className="px-4 py-3">#</th>
-                    <th className="px-4 py-3">Entrant</th>
-                    <th className="px-4 py-3 text-right">ROI</th>
-                    <th className="px-4 py-3 text-right">Units</th>
-                    <th className="px-4 py-3 text-right">Record</th>
-                    <th className="px-4 py-3 text-right">Graded</th>
-                    <th className="px-4 py-3 text-right">Prize</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {standings.map((s) => (
-                    <tr
-                      key={s.entryId}
-                      className={`border-b border-border last:border-b-0 ${
-                        myEntry && s.entryId === myEntry.id ? "bg-accent/5" : ""
-                      }`}
-                    >
-                      <td className="px-4 py-2.5 font-semibold text-muted">{s.rank ? s.rank : "—"}</td>
-                      <td className="px-4 py-2.5 font-medium">{s.name}</td>
-                      <td className="px-4 py-2.5 text-right tabular-nums">
-                        {s.roi != null ? `${s.roi > 0 ? "+" : ""}${s.roi.toFixed(1)}%` : "—"}
-                      </td>
-                      <td className={`px-4 py-2.5 text-right tabular-nums ${s.unitsNet > 0 ? "text-accent" : s.unitsNet < 0 ? "text-danger" : ""}`}>
-                        {s.unitsNet > 0 ? "+" : ""}{s.unitsNet}u
-                      </td>
-                      <td className="px-4 py-2.5 text-right tabular-nums text-muted">{s.record}</td>
-                      <td className="px-4 py-2.5 text-right tabular-nums text-muted">
-                        {s.qualified ? s.settledPicks : `${s.settledPicks}/${contest.minPicks}`}
-                      </td>
-                      <td className="px-4 py-2.5 text-right font-semibold tabular-nums text-gold">
-                        {s.prizeCents > 0 ? formatCents(s.prizeCents) : "—"}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
+          <div className="mt-6">
+            <ContestStandings
+              overall={overallStandings}
+              entries={standingEntries}
+              minPicks={contest.minPicks}
+              myEntryId={myEntry?.id}
+            />
+          </div>
         </div>
       </section>
     </div>

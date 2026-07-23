@@ -20,6 +20,7 @@ import { LocalTime } from "@/components/local-time";
 import { ContestCountdown } from "@/components/contest/contest-countdown";
 import { ContestJoinButton } from "@/components/contest/contest-join-button";
 import { ContestPickForm } from "@/components/contest/contest-pick-form";
+import { ContestStandings } from "@/components/contest/contest-standings";
 import { SupercapperLogo } from "@/components/contest/supercapper-logo";
 
 export const dynamic = "force-dynamic";
@@ -86,6 +87,29 @@ export default async function ContestDashboardPage() {
   }
 
   const myStanding = standings.find((s) => s.entryId === myEntry.id);
+  const overallStandings = standings.map((s) => ({
+    entryId: s.entryId,
+    name: s.name,
+    rank: s.rank,
+    qualified: s.qualified,
+    roi: s.roi,
+    unitsNet: s.unitsNet,
+    record: s.record,
+    settledPicks: s.settledPicks,
+    prizeCents: s.prizeCents,
+  }));
+  const standingEntries = contest.entries
+    .filter((e) => !e.disqualifiedAt)
+    .map((e) => ({
+      entryId: e.id,
+      name: e.user.username ?? e.user.name ?? "Entrant",
+      picks: e.picks.map((p) => ({
+        odds: p.odds,
+        units: p.units,
+        result: p.result,
+        eventStartsAt: p.eventStartsAt.toISOString(),
+      })),
+    }));
   const quota = computeQuotaUsage(myEntry.picks);
   const picks = [...myEntry.picks].sort((a, b) => b.eventStartsAt.getTime() - a.eventStartsAt.getTime());
   const pending = picks.filter((p) => p.result === "PENDING");
@@ -179,48 +203,14 @@ export default async function ContestDashboardPage() {
             )}
           </div>
 
-          <div className="card p-0">
-            <p className="px-5 pt-5 font-semibold">Leaderboard</p>
-            <div className="mt-3 overflow-x-auto">
-              <table className="w-full min-w-[34rem] text-sm">
-                <thead>
-                  <tr className="border-b border-border text-left text-xs uppercase tracking-wide text-muted">
-                    <th className="px-4 py-2.5">#</th>
-                    <th className="px-4 py-2.5">Entrant</th>
-                    <th className="px-4 py-2.5 text-right">ROI</th>
-                    <th className="px-4 py-2.5 text-right">Units</th>
-                    <th className="px-4 py-2.5 text-right">Graded</th>
-                    <th className="px-4 py-2.5 text-right">Prize</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {standings.map((s) => (
-                    <tr
-                      key={s.entryId}
-                      className={`border-b border-border last:border-b-0 ${s.entryId === myEntry.id ? "bg-accent/10" : ""}`}
-                    >
-                      <td className="px-4 py-2 font-semibold text-muted">{s.rank ?? "—"}</td>
-                      <td className="px-4 py-2 font-medium">
-                        {s.name}
-                        {s.entryId === myEntry.id && <span className="ml-1.5 text-xs font-semibold text-accent">You</span>}
-                      </td>
-                      <td className="px-4 py-2 text-right tabular-nums">
-                        {s.roi != null ? `${s.roi > 0 ? "+" : ""}${s.roi.toFixed(1)}%` : "—"}
-                      </td>
-                      <td className={`px-4 py-2 text-right tabular-nums ${s.unitsNet > 0 ? "text-accent" : s.unitsNet < 0 ? "text-danger" : ""}`}>
-                        {s.unitsNet > 0 ? "+" : ""}{s.unitsNet}u
-                      </td>
-                      <td className="px-4 py-2 text-right tabular-nums text-muted">
-                        {s.qualified ? s.settledPicks : `${s.settledPicks}/${contest.minPicks}`}
-                      </td>
-                      <td className="px-4 py-2 text-right font-semibold tabular-nums text-gold">
-                        {s.prizeCents > 0 ? formatCents(s.prizeCents) : "—"}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+          <div>
+            <p className="mb-3 font-semibold">Leaderboard</p>
+            <ContestStandings
+              overall={overallStandings}
+              entries={standingEntries}
+              minPicks={contest.minPicks}
+              myEntryId={myEntry.id}
+            />
           </div>
         </div>
       </div>
@@ -245,7 +235,7 @@ function PickGroup({ title, picks, showProfit }: { title: string; picks: RowPick
       <p className="px-5 pb-1 pt-3 text-xs font-semibold uppercase tracking-wide text-muted">{title}</p>
       <div className="divide-y divide-border">
         {picks.map((p) => {
-          const profit = showProfit ? unitProfit(p.odds, p.units, p.result) : null;
+          const profit = showProfit ? Math.round(unitProfit(p.odds, p.units, p.result) * 100) / 100 : null;
           return (
             <div key={p.id} className="flex items-center justify-between gap-3 px-5 py-3">
               <div className="min-w-0">
