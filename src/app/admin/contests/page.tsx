@@ -1,6 +1,7 @@
 import { guardAdminPage } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { computeStandings, DEFAULT_SUPERCAPPER_SPLIT_CENTS } from "@/lib/contest";
+import { contestFraudReport } from "@/lib/contest-fraud";
 import { ContestManager } from "@/components/admin/contest-manager";
 
 export const dynamic = "force-dynamic";
@@ -15,9 +16,12 @@ export default async function AdminContestsPage() {
     },
   });
 
-  const data = contests.map((c) => {
+  const data = await Promise.all(contests.map(async (c) => {
     const standings = computeStandings(c.entries, c);
     const byEntry = new Map(standings.map((s) => [s.entryId, s]));
+
+    const entryNames = new Map(c.entries.map((e) => [e.id, e.user.username ?? e.user.name ?? "Entrant"]));
+    const fraud = await contestFraudReport(c.id, entryNames);
 
     const pendingPicks = c.entries
       .flatMap((e) =>
@@ -49,6 +53,10 @@ export default async function AdminContestsPage() {
       prizeSplitDollars: c.prizeSplitCents.map((x) => x / 100),
       entryCount: c.entries.length,
       pendingPicks,
+      sharedIps: fraud.sharedIps.map((cluster) => ({
+        ip: cluster.ip,
+        entries: cluster.entries.map((e) => ({ entryId: e.entryId, name: e.name, hits: e.hits })),
+      })),
       entries: c.entries
         .map((e) => {
           const s = byEntry.get(e.id);
@@ -65,11 +73,20 @@ export default async function AdminContestsPage() {
             finalRank: e.finalRank,
             prizeCents: e.prizeCents,
             paidAt: e.paidAt?.toISOString() ?? null,
+            disqualified: Boolean(e.disqualifiedAt),
+            disqualifiedReason: e.disqualifiedReason,
+            flagged: fraud.flaggedEntryIds.has(e.id),
+            sharedPeers: fraud.sharedPeersByEntry.get(e.id) ?? 0,
           };
         })
-        .sort((a, b) => (a.rank ?? 1e9) - (b.rank ?? 1e9) || b.settledPicks - a.settledPicks),
+        .sort(
+          (a, b) =>
+            Number(a.disqualified) - Number(b.disqualified) ||
+            (a.rank ?? 1e9) - (b.rank ?? 1e9) ||
+            b.settledPicks - a.settledPicks
+        ),
     };
-  });
+  }));
 
   return (
     <ContestManager contests={data} defaultSplitDollars={DEFAULT_SUPERCAPPER_SPLIT_CENTS.map((c) => c / 100)} />

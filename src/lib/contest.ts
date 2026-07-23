@@ -93,7 +93,10 @@ export function computeStandings(
   entries: EntryWithPicks[],
   contest: Pick<Contest, "minPicks" | "prizeSplitCents">
 ): ContestStanding[] {
-  const rows = entries.map((entry) => {
+  // Disqualified entries (fraud) are removed from the board and the payouts.
+  const rows = entries
+    .filter((entry) => !entry.disqualifiedAt)
+    .map((entry) => {
     const stats = computeStats(entry.picks);
     const settledPicks = stats.wins + stats.losses + stats.pushes;
     const name = entry.user.username ?? entry.user.name ?? "Entrant";

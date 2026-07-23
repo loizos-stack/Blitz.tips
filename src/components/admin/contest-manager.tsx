@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { format } from "date-fns";
-import { Trophy, Plus, Check } from "lucide-react";
+import { Trophy, Plus, Check, ShieldAlert, Ban } from "lucide-react";
 import { formatCents, SPORT_LABELS, cn } from "@/lib/utils";
 
 type PendingPick = {
@@ -30,6 +30,15 @@ type Entry = {
   finalRank: number | null;
   prizeCents: number | null;
   paidAt: string | null;
+  disqualified: boolean;
+  disqualifiedReason: string | null;
+  flagged: boolean;
+  sharedPeers: number;
+};
+
+type SharedIp = {
+  ip: string;
+  entries: { entryId: string; name: string; hits: number }[];
 };
 
 type Contest = {
@@ -45,6 +54,7 @@ type Contest = {
   prizeSplitDollars: number[];
   entryCount: number;
   pendingPicks: PendingPick[];
+  sharedIps: SharedIp[];
   entries: Entry[];
 };
 
@@ -162,6 +172,22 @@ export function ContestManager({
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ paid }),
+    });
+    setBusy(false);
+    router.refresh();
+  }
+
+  async function toggleDisqualified(entryId: string, disqualified: boolean) {
+    let reason: string | null = null;
+    if (disqualified) {
+      reason = prompt("Reason for disqualification (optional):", "Duplicate account / shared IP");
+      if (reason === null) return; // cancelled
+    }
+    setBusy(true);
+    await fetch(`/api/admin/contest-entries/${entryId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ disqualified, reason }),
     });
     setBusy(false);
     router.refresh();
@@ -289,6 +315,32 @@ export function ContestManager({
             </div>
           )}
 
+          {/* Integrity — shared IPs / duplicate people */}
+          {c.sharedIps.length > 0 && (
+            <div className="mt-4 rounded-lg border border-danger/30 bg-danger/5 p-3">
+              <p className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-danger">
+                <ShieldAlert className="h-4 w-4" /> Duplicate / shared IPs ({c.sharedIps.length})
+              </p>
+              <p className="mt-1 text-xs text-muted">
+                These IPs were used by more than one entry — a sign of duplicate accounts or colluding entrants. Review
+                and disqualify below.
+              </p>
+              <div className="mt-2 flex flex-col gap-1.5">
+                {c.sharedIps.map((cluster) => (
+                  <div key={cluster.ip} className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs">
+                    <span className="rounded bg-surface-raised px-1.5 py-0.5 font-mono">{cluster.ip}</span>
+                    <span className="text-muted">→</span>
+                    {cluster.entries.map((en) => (
+                      <span key={en.entryId} className="rounded-full bg-danger/10 px-2 py-0.5 font-medium text-danger">
+                        {en.name} ({en.hits})
+                      </span>
+                    ))}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* Standings / winners */}
           {c.entries.length > 0 && (
             <div className="mt-4 overflow-x-auto">
@@ -302,15 +354,26 @@ export function ContestManager({
                     <th className="px-3 py-2 text-right">Graded</th>
                     <th className="px-3 py-2 text-right">Prize</th>
                     <th className="px-3 py-2 text-right">Paid</th>
+                    <th className="px-3 py-2 text-right">Integrity</th>
                   </tr>
                 </thead>
                 <tbody>
                   {c.entries.map((e) => {
                     const prize = e.prizeCents ?? e.projectedPrizeCents;
                     return (
-                      <tr key={e.id} className="border-b border-border last:border-b-0">
-                        <td className="px-3 py-2 font-semibold text-muted">{e.finalRank ?? e.rank ?? "—"}</td>
-                        <td className="px-3 py-2 font-medium">{e.name}</td>
+                      <tr key={e.id} className={cn("border-b border-border last:border-b-0", e.disqualified && "opacity-55")}>
+                        <td className="px-3 py-2 font-semibold text-muted">{e.disqualified ? "—" : e.finalRank ?? e.rank ?? "—"}</td>
+                        <td className="px-3 py-2 font-medium">
+                          <span className="flex items-center gap-1.5">
+                            {e.flagged && !e.disqualified && (
+                              <span title={`Shares an IP with ${e.sharedPeers} other entr${e.sharedPeers === 1 ? "y" : "ies"}`}>
+                                <ShieldAlert className="h-3.5 w-3.5 text-danger" />
+                              </span>
+                            )}
+                            <span className={cn(e.disqualified && "line-through")}>{e.name}</span>
+                            {e.disqualified && <span className="rounded-full bg-danger/15 px-1.5 text-[10px] font-semibold text-danger">DQ</span>}
+                          </span>
+                        </td>
                         <td className="px-3 py-2 text-right tabular-nums">{e.roi != null ? `${e.roi > 0 ? "+" : ""}${e.roi.toFixed(1)}%` : "—"}</td>
                         <td className="px-3 py-2 text-right tabular-nums">{e.unitsNet > 0 ? "+" : ""}{e.unitsNet}u</td>
                         <td className="px-3 py-2 text-right tabular-nums text-muted">{e.qualified ? e.settledPicks : `${e.settledPicks}/${c.minPicks}`}</td>
@@ -331,6 +394,22 @@ export function ContestManager({
                           ) : (
                             "—"
                           )}
+                        </td>
+                        <td className="px-3 py-2 text-right">
+                          <button
+                            type="button"
+                            disabled={busy}
+                            onClick={() => toggleDisqualified(e.id, !e.disqualified)}
+                            title={e.disqualifiedReason ?? undefined}
+                            className={cn(
+                              "inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-semibold",
+                              e.disqualified
+                                ? "border border-border text-muted hover:text-foreground"
+                                : "text-danger hover:bg-danger/10"
+                            )}
+                          >
+                            {e.disqualified ? "Reinstate" : <><Ban className="h-3 w-3" /> Disqualify</>}
+                          </button>
                         </td>
                       </tr>
                     );

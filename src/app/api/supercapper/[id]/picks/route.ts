@@ -11,6 +11,7 @@ import {
   startOfUtcWeek,
 } from "@/lib/contest-limits";
 import { SPORT_LABELS } from "@/lib/utils";
+import { clientMeta } from "@/lib/request-meta";
 import { logActivity } from "@/lib/audit";
 import type { PickSport } from "@prisma/client";
 
@@ -106,6 +107,14 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       eventStartsAt,
     },
   });
+
+  // Anti-fraud signal: record the IP + device used for this pick (best-effort).
+  const { ip, userAgent } = clientMeta(request);
+  if (ip) {
+    await prisma.contestIpLog
+      .create({ data: { contestId: id, entryId: entry.id, userId: session.user.id, ip, userAgent, action: "pick" } })
+      .catch(() => undefined);
+  }
 
   await logActivity({
     actorId: session.user.id,

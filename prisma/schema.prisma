@@ -709,26 +709,50 @@ model Contest {
   updatedAt       DateTime      @updatedAt
 
   entries ContestEntry[]
+  ipLogs  ContestIpLog[]
 
   @@index([status])
 }
 
 model ContestEntry {
-  id         String    @id @default(cuid())
-  contestId  String
-  contest    Contest   @relation(fields: [contestId], references: [id], onDelete: Cascade)
-  userId     String
-  user       User      @relation("UserContestEntries", fields: [userId], references: [id], onDelete: Cascade)
+  id                 String    @id @default(cuid())
+  contestId          String
+  contest            Contest   @relation(fields: [contestId], references: [id], onDelete: Cascade)
+  userId             String
+  user               User      @relation("UserContestEntries", fields: [userId], references: [id], onDelete: Cascade)
   // Final standings, written when the contest is settled.
-  finalRank  Int?
-  prizeCents Int?
-  paidAt     DateTime?
-  createdAt  DateTime  @default(now())
+  finalRank          Int?
+  prizeCents         Int?
+  paidAt             DateTime?
+  // Anti-fraud: a disqualified entry is excluded from the standings and payouts.
+  disqualifiedAt     DateTime?
+  disqualifiedReason String?
+  createdAt          DateTime  @default(now())
 
-  picks ContestPick[]
+  picks  ContestPick[]
+  ipLogs ContestIpLog[]
 
   @@unique([contestId, userId])
   @@index([contestId])
+}
+
+// Fraud signal log: the IP + device an entrant used when joining a contest and
+// each time they submitted a pick. Shared IPs / devices across entries are the
+// primary multi-account / collusion signal surfaced to admins.
+model ContestIpLog {
+  id        String       @id @default(cuid())
+  contestId String
+  contest   Contest      @relation(fields: [contestId], references: [id], onDelete: Cascade)
+  entryId   String
+  entry     ContestEntry @relation(fields: [entryId], references: [id], onDelete: Cascade)
+  userId    String
+  ip        String
+  userAgent String?
+  action    String // "join" | "pick"
+  createdAt DateTime     @default(now())
+
+  @@index([contestId, ip])
+  @@index([entryId])
 }
 
 model ContestPick {
