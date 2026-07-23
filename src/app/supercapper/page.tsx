@@ -1,15 +1,13 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { format } from "date-fns";
-import { Trophy, ShieldCheck, Coins, ListChecks, Gift } from "lucide-react";
+import { Trophy, ShieldCheck, Coins, ListChecks, Gift, ArrowRight } from "lucide-react";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
-import { computeStandings, contestPhase, isContestAcceptingPicks } from "@/lib/contest";
-import { formatCents, SPORT_LABELS } from "@/lib/utils";
-import { ResultPill } from "@/components/result-pill";
-import { LocalTime } from "@/components/local-time";
+import { computeStandings, contestPhase } from "@/lib/contest";
+import { formatCents } from "@/lib/utils";
 import { ContestCountdown } from "@/components/contest/contest-countdown";
 import { ContestJoinButton } from "@/components/contest/contest-join-button";
-import { ContestPickForm } from "@/components/contest/contest-pick-form";
 
 export const dynamic = "force-dynamic";
 
@@ -53,7 +51,6 @@ export default async function SupercapperPage() {
   }
 
   const phase = contestPhase(contest);
-  const accepting = isContestAcceptingPicks(contest);
   // Entries (pre-registration) open as soon as the contest is OPEN and before it
   // ends — even during the pre-start window. Submitting picks waits for kickoff.
   const canJoin = contest.status === "OPEN" && new Date() <= contest.endsAt;
@@ -63,10 +60,6 @@ export default async function SupercapperPage() {
   const myEntry = session?.user?.id
     ? contest.entries.find((e) => e.userId === session.user.id)
     : undefined;
-  const myPicks = myEntry
-    ? [...myEntry.picks].sort((a, b) => b.eventStartsAt.getTime() - a.eventStartsAt.getTime())
-    : [];
-  const myStanding = myEntry ? standings.find((s) => s.entryId === myEntry.id) : undefined;
 
   const dateRange = `${format(contest.startsAt, "MMM d, yyyy")} – ${format(contest.endsAt, "MMM d, yyyy")}`;
 
@@ -102,6 +95,14 @@ export default async function SupercapperPage() {
               joined={Boolean(myEntry)}
               accepting={canJoin}
             />
+            {myEntry && (
+              <Link
+                href="/supercapper/dashboard"
+                className="inline-flex items-center gap-1.5 text-sm font-semibold text-accent hover:underline"
+              >
+                Open your contest dashboard <ArrowRight className="h-4 w-4" />
+              </Link>
+            )}
           </div>
         </div>
       </section>
@@ -113,7 +114,7 @@ export default async function SupercapperPage() {
           <div className="mt-8 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
             <Rule icon={<Gift className="h-5 w-5" />} title="Free to enter" body="No buy-in, no catch. Sign in, hit enter, and start posting picks." />
             <Rule icon={<Coins className="h-5 w-5" />} title="Best ROI wins" body="You're ranked by return on units risked across your settled picks — not just raw wins." />
-            <Rule icon={<ListChecks className="h-5 w-5" />} title={`${contest.minPicks}-pick minimum`} body={`Post at least ${contest.minPicks} graded picks to qualify, so nobody wins on a lucky one-off.`} />
+            <Rule icon={<ListChecks className="h-5 w-5" />} title={`${contest.minPicks}-pick minimum`} body={`Post at least ${contest.minPicks} graded singles to qualify, so nobody wins on a lucky one-off.`} />
             <Rule icon={<ShieldCheck className="h-5 w-5" />} title={`Top ${winners} get paid`} body={`The ${formatCents(contest.prizePoolCents)} pool is split across the top ${winners} finishers.`} />
           </div>
         </div>
@@ -142,71 +143,22 @@ export default async function SupercapperPage() {
         </div>
       </section>
 
-      {/* Your entry */}
-      {myEntry && (
-        <section className="border-b border-border bg-surface/40 py-14">
-          <div className="container-page">
-            <h2 className="text-2xl font-bold">Your entry</h2>
-            <div className="mt-6 grid gap-6 lg:grid-cols-[20rem_1fr]">
-              <div className="flex flex-col gap-4">
-                <div className="card p-5">
-                  <p className="text-sm font-semibold">Your standing</p>
-                  <div className="mt-3 grid grid-cols-2 gap-4">
-                    <Stat label="Rank" value={myStanding?.rank ? `#${myStanding.rank}` : "—"} />
-                    <Stat label="ROI" value={myStanding?.roi != null ? `${myStanding.roi > 0 ? "+" : ""}${myStanding.roi.toFixed(1)}%` : "—"} />
-                    <Stat label="Record" value={myStanding?.record ?? "0-0"} />
-                    <Stat label="Graded" value={`${myStanding?.settledPicks ?? 0}/${contest.minPicks}`} />
-                  </div>
-                  {myStanding && !myStanding.qualified && (
-                    <p className="mt-3 rounded-lg bg-surface-raised p-2.5 text-xs text-muted">
-                      Post {Math.max(0, contest.minPicks - myStanding.settledPicks)} more graded picks to qualify for the leaderboard.
-                    </p>
-                  )}
-                </div>
-                {accepting ? (
-                  <div className="card p-5">
-                    <p className="mb-3 text-sm font-semibold">Submit a pick</p>
-                    <ContestPickForm contestId={contest.id} />
-                  </div>
-                ) : (
-                  <div className="card p-5 text-sm text-muted">
-                    The contest isn&apos;t accepting picks right now.
-                  </div>
-                )}
-              </div>
-
-              <div className="card p-0">
-                <p className="px-5 pt-5 font-semibold">Your picks ({myPicks.length})</p>
-                {myPicks.length === 0 ? (
-                  <p className="px-5 py-8 text-sm text-muted">No picks yet — submit your first one.</p>
-                ) : (
-                  <div className="mt-3 divide-y divide-border">
-                    {myPicks.map((p) => (
-                      <div key={p.id} className="flex items-center justify-between gap-3 px-5 py-3">
-                        <div className="min-w-0">
-                          <p className="truncate text-sm font-medium">{p.selection}</p>
-                          <p className="truncate text-xs text-muted">
-                            {SPORT_LABELS[p.sport]} · {p.matchup} · <LocalTime iso={p.eventStartsAt.toISOString()} />
-                          </p>
-                        </div>
-                        <ResultPill result={p.result} />
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-        </section>
-      )}
-
       {/* Standings */}
       <section className="py-14">
         <div className="container-page">
-          <h2 className="text-2xl font-bold">Standings</h2>
-          <p className="mt-1 text-sm text-muted">
-            Ranked by ROI over settled picks. Entrants need {contest.minPicks} graded picks to qualify.
-          </p>
+          <div className="flex flex-wrap items-end justify-between gap-3">
+            <div>
+              <h2 className="text-2xl font-bold">Standings</h2>
+              <p className="mt-1 text-sm text-muted">
+                Ranked by ROI over settled picks. Entrants need {contest.minPicks} graded picks to qualify.
+              </p>
+            </div>
+            {myEntry && (
+              <Link href="/supercapper/dashboard" className="text-sm font-medium text-accent hover:underline">
+                Your dashboard →
+              </Link>
+            )}
+          </div>
           {standings.length === 0 ? (
             <div className="card mt-6 p-8 text-center text-muted">
               No entries yet — be the first to enter and set the pace.
@@ -266,15 +218,6 @@ function Rule({ icon, title, body }: { icon: React.ReactNode; title: string; bod
       <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-accent/15 text-accent">{icon}</div>
       <h3 className="mt-4 font-semibold">{title}</h3>
       <p className="mt-2 text-sm text-muted">{body}</p>
-    </div>
-  );
-}
-
-function Stat({ label, value }: { label: string; value: string }) {
-  return (
-    <div>
-      <p className="text-xl font-bold tabular-nums">{value}</p>
-      <p className="text-xs text-muted">{label}</p>
     </div>
   );
 }
