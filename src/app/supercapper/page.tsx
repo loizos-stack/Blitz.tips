@@ -94,6 +94,13 @@ export default async function SupercapperPage() {
               signedIn={Boolean(session?.user)}
               joined={Boolean(myEntry)}
               accepting={canJoin}
+              rules={{
+                name: contest.name,
+                minPicks: contest.minPicks,
+                winners,
+                prizeLabel: formatCents(contest.prizePoolCents),
+                dateRange,
+              }}
             />
             {myEntry && (
               <Link

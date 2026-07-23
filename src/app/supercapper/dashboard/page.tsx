@@ -58,7 +58,19 @@ export default async function ContestDashboardPage() {
             Enter the {contest.name} — it&apos;s free — to start posting picks and climbing the leaderboard.
           </p>
           <div className="mt-6 flex justify-center">
-            <ContestJoinButton contestId={contest.id} signedIn joined={false} accepting={canJoin} />
+            <ContestJoinButton
+              contestId={contest.id}
+              signedIn
+              joined={false}
+              accepting={canJoin}
+              rules={{
+                name: contest.name,
+                minPicks: contest.minPicks,
+                winners: contest.prizeSplitCents.length,
+                prizeLabel: formatCents(contest.prizePoolCents),
+                dateRange: `${format(contest.startsAt, "MMM d, yyyy")} – ${format(contest.endsAt, "MMM d, yyyy")}`,
+              }}
+            />
           </div>
         </div>
       </div>
