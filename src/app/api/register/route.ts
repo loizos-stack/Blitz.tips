@@ -4,8 +4,13 @@ import { prisma } from "@/lib/prisma";
 import { registerSchema } from "@/lib/validations";
 import { sendVerificationCode } from "@/lib/verification";
 import { logActivity } from "@/lib/audit";
+import { rateLimit, clientIp, tooManyRequests } from "@/lib/rate-limit";
 
 export async function POST(request: Request) {
+  // Cap signups per IP to blunt automated account spam.
+  const limit = await rateLimit(`register:${clientIp(request)}`, 10, 3600);
+  if (!limit.ok) return tooManyRequests(limit.retryAfterSeconds);
+
   const body = await request.json().catch(() => null);
   const parsed = registerSchema.safeParse(body);
 

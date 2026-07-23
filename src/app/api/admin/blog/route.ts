@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requirePermission } from "@/lib/permissions";
 import { logAdmin } from "@/lib/audit";
-import { slugify } from "@/lib/blog";
+import { slugify, sanitizePostHtml } from "@/lib/blog";
 
 // Ensure the slug is unique, appending -2, -3, … on collision (ignoring the
 // post being edited).
@@ -27,7 +27,8 @@ export async function POST(request: Request) {
   const body = await request.json().catch(() => ({}));
   const title = typeof body.title === "string" ? body.title.trim() : "";
   const excerpt = typeof body.excerpt === "string" ? body.excerpt.trim() : "";
-  const contentHtml = typeof body.contentHtml === "string" ? body.contentHtml.trim() : "";
+  const rawContentHtml = typeof body.contentHtml === "string" ? body.contentHtml.trim() : "";
+  const contentHtml = rawContentHtml ? sanitizePostHtml(rawContentHtml) : "";
   const coverImageUrl =
     typeof body.coverImageUrl === "string" && body.coverImageUrl.trim() ? body.coverImageUrl.trim() : null;
   const status = body.status === "PUBLISHED" ? "PUBLISHED" : "DRAFT";

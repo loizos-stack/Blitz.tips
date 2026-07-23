@@ -1,5 +1,37 @@
 import "server-only";
+import sanitizeHtml from "sanitize-html";
 import { prisma } from "@/lib/prisma";
+
+// Sanitize admin-authored post HTML before it's ever stored or rendered via
+// dangerouslySetInnerHTML. Even though only admins can post, this is
+// defense-in-depth against stored XSS if an admin account were ever compromised:
+// it strips <script>, event handlers, and javascript: URLs while keeping the
+// formatting tags a blog article needs.
+export function sanitizePostHtml(dirty: string): string {
+  return sanitizeHtml(dirty, {
+    allowedTags: [
+      "h1", "h2", "h3", "h4", "h5", "h6",
+      "p", "blockquote", "pre", "code", "hr", "br",
+      "ul", "ol", "li",
+      "strong", "em", "b", "i", "u", "s", "del", "mark", "sub", "sup",
+      "a", "img", "figure", "figcaption",
+      "table", "thead", "tbody", "tr", "th", "td",
+      "span", "div",
+    ],
+    allowedAttributes: {
+      a: ["href", "title", "target", "rel"],
+      img: ["src", "alt", "title", "width", "height", "loading"],
+      "*": ["class"],
+    },
+    // Only allow safe URL schemes; blocks javascript:/data: script vectors.
+    allowedSchemes: ["http", "https", "mailto"],
+    allowedSchemesByTag: { img: ["http", "https", "data"] },
+    // Force external links to be safe.
+    transformTags: {
+      a: sanitizeHtml.simpleTransform("a", { rel: "noopener noreferrer nofollow" }, true),
+    },
+  });
+}
 
 // Turn a title into a URL-safe slug: lowercase, alphanumerics + single hyphens.
 export function slugify(input: string): string {

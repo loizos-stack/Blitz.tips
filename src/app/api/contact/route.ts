@@ -4,10 +4,15 @@ import { sendEmail } from "@/lib/email";
 import { emailWrapper, escapeHtml } from "@/lib/email-template";
 import { ticketReplyAddress } from "@/lib/tickets";
 import { isTicketCategory, DEFAULT_TICKET_CATEGORY } from "@/lib/ticket-categories";
+import { rateLimit, clientIp, tooManyRequests } from "@/lib/rate-limit";
 
 const CONTACT_TO = process.env.CONTACT_EMAIL ?? "support@blitz.tips";
 
 export async function POST(request: Request) {
+  // Throttle contact submissions per IP to prevent inbox/ticket flooding.
+  const limit = await rateLimit(`contact:${clientIp(request)}`, 5, 3600);
+  if (!limit.ok) return tooManyRequests(limit.retryAfterSeconds);
+
   const body = await request.json().catch(() => ({}));
   const name = typeof body.name === "string" ? body.name.trim() : "";
   const email = typeof body.email === "string" ? body.email.trim().toLowerCase() : "";

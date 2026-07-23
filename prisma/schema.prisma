@@ -94,6 +94,10 @@ model User {
   role           Role      @default(SUBSCRIBER)
   // Soft ban: suspended users can't sign in or act; data stays intact.
   suspendedAt    DateTime?
+  // Brute-force protection: consecutive failed password attempts and, once the
+  // threshold is hit, the moment the account unlocks. Reset on a successful login.
+  failedLoginCount Int      @default(0)
+  lockedUntil    DateTime?
   // Superadmins have every admin permission and can manage other admins.
   // Bootstrapped from ADMIN_EMAILS/SUPERADMIN_EMAILS; can also be granted in-app.
   isSuperAdmin   Boolean   @default(false)
@@ -660,4 +664,13 @@ model PlanCryptoPayment {
   createdAt     DateTime @default(now())
 
   @@index([handicapperId, status])
+}
+
+// Generic fixed-window rate limiter shared across serverless instances (there's
+// no Redis). One row per bucket key (e.g. "register:1.2.3.4"); `count` resets
+// whenever `windowStart` ages past the caller's window.
+model RateLimit {
+  key         String   @id
+  count       Int      @default(0)
+  windowStart DateTime @default(now())
 }

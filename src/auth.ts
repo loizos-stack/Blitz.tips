@@ -5,6 +5,10 @@ import { PrismaAdapter } from "@auth/prisma-adapter";
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
 
+// Lock an account for 15 minutes after 8 consecutive failed password attempts.
+const MAX_LOGIN_ATTEMPTS = 8;
+const LOGIN_LOCK_MS = 15 * 60 * 1000;
+
 export const { handlers, auth, signIn, signOut } = NextAuth({
   adapter: PrismaAdapter(prisma),
   session: { strategy: "jwt" },
@@ -42,8 +46,32 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         if (!user?.passwordHash) return null;
         if (user.suspendedAt) return null;
 
+        // Brute-force lockout: after too many consecutive failures the account
+        // is temporarily locked, regardless of whether the next guess is right.
+        if (user.lockedUntil && user.lockedUntil.getTime() > Date.now()) return null;
+
         const valid = await bcrypt.compare(password, user.passwordHash);
-        if (!valid) return null;
+        if (!valid) {
+          const nextCount = user.failedLoginCount + 1;
+          const locked = nextCount >= MAX_LOGIN_ATTEMPTS;
+          await prisma.user
+            .update({
+              where: { id: user.id },
+              data: {
+                failedLoginCount: locked ? 0 : nextCount,
+                lockedUntil: locked ? new Date(Date.now() + LOGIN_LOCK_MS) : user.lockedUntil,
+              },
+            })
+            .catch(() => undefined);
+          return null;
+        }
+
+        // Successful login clears any accumulated failure state.
+        if (user.failedLoginCount > 0 || user.lockedUntil) {
+          await prisma.user
+            .update({ where: { id: user.id }, data: { failedLoginCount: 0, lockedUntil: null } })
+            .catch(() => undefined);
+        }
 
         return { id: user.id, email: user.email, name: user.name, image: user.image };
       },
