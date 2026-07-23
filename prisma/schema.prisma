@@ -79,63 +79,66 @@ enum BillingInterval {
 }
 
 model User {
-  id             String    @id @default(cuid())
-  name           String?
-  email          String    @unique
+  id               String    @id @default(cuid())
+  name             String?
+  email            String    @unique
   // Login identity chosen at signup; usable in place of email to sign in.
   // Stored lowercased so uniqueness and lookups are case-insensitive. Nullable
   // for legacy/Google accounts that predate the field (they sign in by email).
-  username       String?   @unique
-  emailVerified  DateTime?
-  image          String?
-  passwordHash   String?
+  username         String?   @unique
+  emailVerified    DateTime?
+  image            String?
+  passwordHash     String?
   // Self-reported country, collected at signup (ISO country name).
-  country        String?
-  role           Role      @default(SUBSCRIBER)
+  country          String?
+  role             Role      @default(SUBSCRIBER)
   // Soft ban: suspended users can't sign in or act; data stays intact.
-  suspendedAt    DateTime?
+  suspendedAt      DateTime?
   // Brute-force protection: consecutive failed password attempts and, once the
   // threshold is hit, the moment the account unlocks. Reset on a successful login.
-  failedLoginCount Int      @default(0)
-  lockedUntil    DateTime?
+  failedLoginCount Int       @default(0)
+  lockedUntil      DateTime?
   // Superadmins have every admin permission and can manage other admins.
   // Bootstrapped from ADMIN_EMAILS/SUPERADMIN_EMAILS; can also be granted in-app.
-  isSuperAdmin   Boolean   @default(false)
+  isSuperAdmin     Boolean   @default(false)
   // For scoped admins (role ADMIN, not superadmin): the set of admin-panel
   // permission keys they're allowed. See ADMIN_PERMISSIONS in src/lib/permissions.ts.
-  adminPermissions String[] @default([])
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
+  adminPermissions String[]  @default([])
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
 
-  accounts       Account[]
-  sessions       Session[]
+  accounts Account[]
+  sessions Session[]
 
-  handicapper    HandicapperProfile?
-  subscriptions  Subscription[]        @relation("SubscriberSubscriptions")
-  reviews        Review[]              @relation("UserReviews")
-  adminTabViews  AdminTabView[]        @relation("AdminTabViews")
-  follows        Follow[]              @relation("UserFollows")
-  notifications  Notification[]
+  handicapper       HandicapperProfile?
+  subscriptions     Subscription[]      @relation("SubscriberSubscriptions")
+  reviews           Review[]            @relation("UserReviews")
+  adminTabViews     AdminTabView[]      @relation("AdminTabViews")
+  follows           Follow[]            @relation("UserFollows")
+  notifications     Notification[]
   pushSubscriptions PushSubscription[]
 
   // Live-chat support: chats this user (as an agent) is handling + their
   // online-presence heartbeat.
-  agentChats     Chat[]            @relation("AgentChats")
-  agentPresence  AgentPresence?
+  agentChats    Chat[]         @relation("AgentChats")
+  agentPresence AgentPresence?
 
   // Blog posts this user (an admin) authored.
-  blogPosts      BlogPost[]        @relation("BlogAuthor")
+  blogPosts BlogPost[] @relation("BlogAuthor")
+
+  // Handicapping-contest entries (Supercapper Contest and any future contests).
+  contestEntries ContestEntry[] @relation("UserContestEntries")
 
   // Per-channel notification opt-outs (in-app is always on). Default on.
-  notifyEmail    Boolean   @default(true)
-  notifyPush     Boolean   @default(true)
-  notifyTelegram Boolean   @default(true)
-  notifyDiscord  Boolean   @default(true)
+  notifyEmail    Boolean @default(true)
+  notifyPush     Boolean @default(true)
+  notifyTelegram Boolean @default(true)
+  notifyDiscord  Boolean @default(true)
 
   // Linked chat identities for DM notifications (null until the user connects).
-  telegramChatId     String?
-  telegramLinkToken  String?  @unique
-  discordUserId      String?
+  telegramChatId    String?
+  telegramLinkToken String? @unique
+  discordUserId     String?
 
   stripeCustomerId String? @unique
 
@@ -189,17 +192,17 @@ model EmailVerificationCode {
 }
 
 model HandicapperProfile {
-  id          String   @id @default(cuid())
-  userId      String   @unique
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id     String @id @default(cuid())
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  handle      String   @unique
+  handle      String      @unique
   displayName String
-  bio         String?  @db.Text
+  bio         String?     @db.Text
   avatarUrl   String?
   coverUrl    String?
   sports      PickSport[] @default([])
-  isVerified  Boolean  @default(false)
+  isVerified  Boolean     @default(false)
   // Soft suspension: hidden from listings, profile 404s, can't post picks or
   // take new subscribers; existing data stays intact.
   suspendedAt DateTime?
@@ -216,7 +219,7 @@ model HandicapperProfile {
 
   // Subscriber pricing packages. Monthly is the required anchor; weekly and
   // annual are optional add-ons (null = the handicapper doesn't offer them).
-  monthlyPriceCents Int   @default(2999)
+  monthlyPriceCents Int  @default(2999)
   weeklyPriceCents  Int?
   annualPriceCents  Int?
 
@@ -233,74 +236,74 @@ model HandicapperProfile {
   payoutEthAddress String?
   payoutBtcAddress String?
 
-  stripeAccountId      String?  @unique
-  stripeAccountReady   Boolean  @default(false)
-  stripeProductId      String?
-  stripePriceId        String?  // monthly package
-  stripeWeeklyPriceId  String?
-  stripeAnnualPriceId  String?
+  stripeAccountId     String? @unique
+  stripeAccountReady  Boolean @default(false)
+  stripeProductId     String?
+  stripePriceId       String? // monthly package
+  stripeWeeklyPriceId String?
+  stripeAnnualPriceId String?
 
   // The handicapper's plan with the platform — controls commission rate
   // (see commissionPercentForPlan in src/lib/plans.ts) and, for GOLD,
   // homepage/leaderboard featuring. Billing here runs on the platform's own
   // Stripe account (no Connect), separate from the stripeAccount* fields
   // above which are for receiving subscriber payments.
-  plan                    HandicapperPlan    @default(FREE)
-  planInterval            BillingInterval?
-  planStatus              SubscriptionStatus @default(ACTIVE)
-  planStripeCustomerId    String?            @unique
-  planStripeSubscriptionId String?           @unique
-  planCurrentPeriodEnd    DateTime?
-  planCancelAtPeriodEnd   Boolean            @default(false)
+  plan                     HandicapperPlan    @default(FREE)
+  planInterval             BillingInterval?
+  planStatus               SubscriptionStatus @default(ACTIVE)
+  planStripeCustomerId     String?            @unique
+  planStripeSubscriptionId String?            @unique
+  planCurrentPeriodEnd     DateTime?
+  planCancelAtPeriodEnd    Boolean            @default(false)
   // Whether this handicapper has already consumed their one-time 1-month free
   // trial on a paid (Silver/Gold) plan — set the first time a trial starts, so
   // canceling and re-subscribing doesn't grant another free month.
-  planTrialUsed           Boolean            @default(false)
+  planTrialUsed            Boolean            @default(false)
 
   picks         Pick[]
   subscriptions Subscription[] @relation("HandicapperSubscriptions")
   followers     Follow[]       @relation("HandicapperFollowers")
   reviews       Review[]
 
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([handle])
 }
 
 model Pick {
-  id             String     @id @default(cuid())
-  handicapperId  String
-  handicapper    HandicapperProfile @relation(fields: [handicapperId], references: [id], onDelete: Cascade)
+  id            String             @id @default(cuid())
+  handicapperId String
+  handicapper   HandicapperProfile @relation(fields: [handicapperId], references: [id], onDelete: Cascade)
 
-  sport          PickSport
-  league         String?
-  matchup        String
-  betType        BetType
-  selection      String
-  odds           Int
-  units          Float      @default(1)
-  analysis       String?    @db.Text
-  result         PickResult @default(PENDING)
-  isPremium      Boolean    @default(true)
+  sport     PickSport
+  league    String?
+  matchup   String
+  betType   BetType
+  selection String
+  odds      Int
+  units     Float      @default(1)
+  analysis  String?    @db.Text
+  result    PickResult @default(PENDING)
+  isPremium Boolean    @default(true)
 
-  eventStartsAt  DateTime
-  settledAt      DateTime?
+  eventStartsAt   DateTime
+  settledAt       DateTime?
   // Who graded this pick: the owner's userId (self), an admin's userId, or
   // "auto" for score-based settlement. Null while pending. The audit column
   // behind the "verified records" promise.
-  settledBy      String?
+  settledBy       String?
   // Set for picks created from the odds schedule — lets auto-settlement match
   // this pick to a final score.
-  oddsApiEventId String?
+  oddsApiEventId  String?
   oddsApiSportKey String?
 
   // For a PARLAY bet: the individual legs. `odds` on the parent Pick holds the
   // combined (multiplied) American odds; each leg keeps its own line.
-  parlayLegs     ParlayLeg[]
+  parlayLegs ParlayLeg[]
 
-  createdAt      DateTime   @default(now())
-  updatedAt      DateTime   @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([handicapperId, createdAt])
   @@index([result])
@@ -309,9 +312,9 @@ model Pick {
 // One selection within a parlay Pick. Legs are display-only detail; the parlay
 // is graded as a whole on the parent Pick.
 model ParlayLeg {
-  id        String    @id @default(cuid())
-  pickId    String
-  pick      Pick      @relation(fields: [pickId], references: [id], onDelete: Cascade)
+  id     String @id @default(cuid())
+  pickId String
+  pick   Pick   @relation(fields: [pickId], references: [id], onDelete: Cascade)
 
   sport     PickSport?
   league    String?
@@ -320,7 +323,7 @@ model ParlayLeg {
   odds      Int
   order     Int        @default(0)
 
-  createdAt DateTime   @default(now())
+  createdAt DateTime @default(now())
 
   @@index([pickId])
 }
@@ -334,22 +337,22 @@ model ParlayLeg {
 // and only appears publicly once an admin marks it APPROVED (so foul/hate
 // language can be caught first). REJECTED reviews stay hidden.
 model Review {
-  id            String   @id @default(cuid())
+  id            String             @id @default(cuid())
   handicapperId String
   handicapper   HandicapperProfile @relation(fields: [handicapperId], references: [id], onDelete: Cascade)
 
-  authorId      String
-  author        User     @relation("UserReviews", fields: [authorId], references: [id], onDelete: Cascade)
+  authorId String
+  author   User   @relation("UserReviews", fields: [authorId], references: [id], onDelete: Cascade)
 
-  rating        Int      // 1–5 stars
-  body          String?  @db.Text
+  rating Int // 1–5 stars
+  body   String? @db.Text
 
-  status        ReviewStatus @default(PENDING)
-  moderatedAt   DateTime?
-  moderatedBy   String?  // admin userId who approved/rejected it
+  status      ReviewStatus @default(PENDING)
+  moderatedAt DateTime?
+  moderatedBy String? // admin userId who approved/rejected it
 
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@unique([handicapperId, authorId])
   @@index([handicapperId, status])
@@ -367,11 +370,11 @@ enum ReviewStatus {
 // (users, handicappers, subscriptions). Queue tabs (tickets/chats/reviews) badge
 // off live state instead and don't need a marker.
 model AdminTabView {
-  id      String   @id @default(cuid())
-  userId  String
-  user    User     @relation("AdminTabViews", fields: [userId], references: [id], onDelete: Cascade)
-  tab     String
-  seenAt  DateTime @default(now())
+  id     String   @id @default(cuid())
+  userId String
+  user   User     @relation("AdminTabViews", fields: [userId], references: [id], onDelete: Cascade)
+  tab    String
+  seenAt DateTime @default(now())
 
   @@unique([userId, tab])
 }
@@ -399,22 +402,22 @@ model SiteSetting {
 }
 
 model Subscription {
-  id             String   @id @default(cuid())
-  subscriberId   String
-  subscriber     User     @relation("SubscriberSubscriptions", fields: [subscriberId], references: [id], onDelete: Cascade)
+  id           String @id @default(cuid())
+  subscriberId String
+  subscriber   User   @relation("SubscriberSubscriptions", fields: [subscriberId], references: [id], onDelete: Cascade)
 
-  handicapperId  String
-  handicapper    HandicapperProfile @relation("HandicapperSubscriptions", fields: [handicapperId], references: [id], onDelete: Cascade)
+  handicapperId String
+  handicapper   HandicapperProfile @relation("HandicapperSubscriptions", fields: [handicapperId], references: [id], onDelete: Cascade)
 
   stripeSubscriptionId String? @unique
   stripeCustomerId     String?
 
-  status         SubscriptionStatus @default(INCOMPLETE)
-  currentPeriodEnd DateTime?
-  cancelAtPeriodEnd Boolean @default(false)
+  status            SubscriptionStatus @default(INCOMPLETE)
+  currentPeriodEnd  DateTime?
+  cancelAtPeriodEnd Boolean            @default(false)
 
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@unique([subscriberId, handicapperId])
   @@index([handicapperId, status])
@@ -425,19 +428,19 @@ model Subscription {
 // the platform's NOWPayments account, and confirmed rows double as the earnings
 // ledger showing what each handicapper is owed (netCents).
 model CryptoPayment {
-  id             String   @id @default(cuid())
-  chargeCode     String   @unique // our order id, echoed back by the NOWPayments IPN
-  subscriberId   String
-  handicapperId  String
+  id            String @id @default(cuid())
+  chargeCode    String @unique // our order id, echoed back by the NOWPayments IPN
+  subscriberId  String
+  handicapperId String
 
-  interval       BillingIntervalPass
-  amountCents    Int      // what the subscriber paid (USD-priced)
-  commissionCents Int     // platform's cut at time of purchase
-  netCents       Int      // owed to the handicapper
+  interval        BillingIntervalPass
+  amountCents     Int // what the subscriber paid (USD-priced)
+  commissionCents Int // platform's cut at time of purchase
+  netCents        Int // owed to the handicapper
 
-  status         CryptoPaymentStatus @default(PENDING)
-  confirmedAt    DateTime?
-  createdAt      DateTime @default(now())
+  status      CryptoPaymentStatus @default(PENDING)
+  confirmedAt DateTime?
+  createdAt   DateTime            @default(now())
 
   @@index([handicapperId, status])
   @@index([subscriberId])
@@ -459,14 +462,14 @@ enum BillingIntervalPass {
 // for their picks. Distinct from Subscription, which is the paid relationship
 // that unlocks premium picks.
 model Follow {
-  id            String   @id @default(cuid())
-  followerId    String
-  follower      User     @relation("UserFollows", fields: [followerId], references: [id], onDelete: Cascade)
+  id         String @id @default(cuid())
+  followerId String
+  follower   User   @relation("UserFollows", fields: [followerId], references: [id], onDelete: Cascade)
 
   handicapperId String
   handicapper   HandicapperProfile @relation("HandicapperFollowers", fields: [handicapperId], references: [id], onDelete: Cascade)
 
-  createdAt     DateTime @default(now())
+  createdAt DateTime @default(now())
 
   @@unique([followerId, handicapperId])
   @@index([handicapperId])
@@ -476,21 +479,21 @@ model Follow {
 // truth that a given event happened; email and web push are additional
 // delivery channels driven off the same fan-out.
 model Notification {
-  id            String    @id @default(cuid())
-  userId        String
-  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  type          String    // e.g. "pick.new"
-  title         String
-  body          String    @db.Text
-  url           String?
+  type  String // e.g. "pick.new"
+  title String
+  body  String  @db.Text
+  url   String?
 
   // Loose references (no FK cascade needed — notifications are disposable).
   handicapperId String?
   pickId        String?
 
-  readAt        DateTime?
-  createdAt     DateTime  @default(now())
+  readAt    DateTime?
+  createdAt DateTime  @default(now())
 
   @@index([userId, createdAt])
 }
@@ -499,9 +502,9 @@ model Notification {
 // several (one per device/browser). Removed when the push service reports it's
 // gone (404/410).
 model PushSubscription {
-  id        String   @id @default(cuid())
-  userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   endpoint  String   @unique
   p256dh    String
@@ -560,9 +563,9 @@ model TicketMessage {
 // ---------------------------------------------------------------------------
 
 enum ChatStatus {
-  BOT      // conversing with the automated assistant
-  WAITING  // visitor asked for a human, awaiting an agent
-  LIVE     // an agent has claimed and is handling it
+  BOT // conversing with the automated assistant
+  WAITING // visitor asked for a human, awaiting an agent
+  LIVE // an agent has claimed and is handling it
   CLOSED
 }
 
@@ -622,14 +625,14 @@ enum BlogStatus {
 }
 
 model BlogPost {
-  id          String     @id @default(cuid())
+  id            String  @id @default(cuid())
   // URL slug, unique and lowercased (e.g. "how-we-verify-records").
-  slug        String     @unique
-  title       String
+  slug          String  @unique
+  title         String
   // Short summary for listing cards, meta description, and social preview.
-  excerpt     String     @db.Text
+  excerpt       String  @db.Text
   // Rich-text HTML body, authored in the admin editor.
-  contentHtml String     @db.Text
+  contentHtml   String  @db.Text
   // Optional hero/social image URL (Vercel Blob or any allowed remote host).
   coverImageUrl String?
 
@@ -637,11 +640,11 @@ model BlogPost {
   // When it went (or is scheduled to go) live. Set on first publish.
   publishedAt DateTime?
 
-  authorId    String
-  author      User       @relation("BlogAuthor", fields: [authorId], references: [id])
+  authorId String
+  author   User   @relation("BlogAuthor", fields: [authorId], references: [id])
 
-  createdAt   DateTime   @default(now())
-  updatedAt   DateTime   @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([status, publishedAt])
 }
@@ -651,17 +654,17 @@ model BlogPost {
 // Prepaid and fixed-term: it activates the plan for one interval and never
 // auto-renews (paying again extends from the current end date).
 model PlanCryptoPayment {
-  id            String   @id @default(cuid())
-  chargeCode    String   @unique // our order id (blitzplan_…), echoed by the IPN
+  id            String @id @default(cuid())
+  chargeCode    String @unique // our order id (blitzplan_…), echoed by the IPN
   handicapperId String
 
-  plan          HandicapperPlan
-  interval      BillingInterval
-  amountCents   Int
+  plan        HandicapperPlan
+  interval    BillingInterval
+  amountCents Int
 
-  status        CryptoPaymentStatus @default(PENDING)
-  confirmedAt   DateTime?
-  createdAt     DateTime @default(now())
+  status      CryptoPaymentStatus @default(PENDING)
+  confirmedAt DateTime?
+  createdAt   DateTime            @default(now())
 
   @@index([handicapperId, status])
 }
@@ -673,4 +676,80 @@ model RateLimit {
   key         String   @id
   count       Int      @default(0)
   windowStart DateTime @default(now())
+}
+
+// ─── Handicapping contests (e.g. the Supercapper Contest) ───────────────────
+// A free, ROI-ranked contest any user can enter by submitting picks during the
+// window. Ranked by ROI over settled picks, with a minimum-pick floor so a
+// couple of lucky bets can't win. Prizes are split across the top N places.
+enum ContestStatus {
+  DRAFT
+  OPEN
+  CLOSED
+  SETTLED
+}
+
+model Contest {
+  id              String        @id @default(cuid())
+  slug            String        @unique
+  name            String
+  tagline         String?
+  // Guaranteed pool (equals the sum of prizeSplitCents), stored in cents.
+  prizePoolCents  Int
+  currency        String        @default("USD")
+  // Cents awarded to each place; index 0 = 1st. Length = number of winners.
+  prizeSplitCents Int[]         @default([])
+  // Minimum settled picks an entry needs before it's ranked.
+  minPicks        Int           @default(20)
+  startsAt        DateTime
+  endsAt          DateTime
+  status          ContestStatus @default(DRAFT)
+  settledAt       DateTime?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  entries ContestEntry[]
+
+  @@index([status])
+}
+
+model ContestEntry {
+  id         String    @id @default(cuid())
+  contestId  String
+  contest    Contest   @relation(fields: [contestId], references: [id], onDelete: Cascade)
+  userId     String
+  user       User      @relation("UserContestEntries", fields: [userId], references: [id], onDelete: Cascade)
+  // Final standings, written when the contest is settled.
+  finalRank  Int?
+  prizeCents Int?
+  paidAt     DateTime?
+  createdAt  DateTime  @default(now())
+
+  picks ContestPick[]
+
+  @@unique([contestId, userId])
+  @@index([contestId])
+}
+
+model ContestPick {
+  id              String       @id @default(cuid())
+  entryId         String
+  entry           ContestEntry @relation(fields: [entryId], references: [id], onDelete: Cascade)
+  sport           PickSport
+  league          String?
+  matchup         String
+  selection       String
+  odds            Int
+  units           Float        @default(1)
+  result          PickResult   @default(PENDING)
+  eventStartsAt   DateTime
+  settledAt       DateTime?
+  settledBy       String?
+  // Forward-compat with auto-settlement from the odds feed (unused in v1).
+  oddsApiEventId  String?
+  oddsApiSportKey String?
+  createdAt       DateTime     @default(now())
+
+  @@index([entryId])
+  @@index([result])
 }

@@ -35,6 +35,7 @@ export type AdminPermission =
   | "chat"
   | "reviews"
   | "blog"
+  | "contests"
   | "audit"
   | "permissions";
 
@@ -64,6 +65,7 @@ export const ADMIN_PERMISSIONS: PermissionDef[] = [
   { key: "chat", label: "Chat", href: "/admin/chats", description: "Answer live visitor chats escalated from the on-site assistant" },
   { key: "reviews", label: "Reviews", href: "/admin/reviews", description: "Moderate subscriber reviews before they appear on public profiles" },
   { key: "blog", label: "Blog", href: "/admin/blog", description: "Write, edit, and publish blog posts" },
+  { key: "contests", label: "Contests", href: "/admin/contests", description: "Manage contests, grade picks, settle winners and mark prizes paid" },
   { key: "audit", label: "Logs", href: "/admin/logs", description: "Search and filter the site-wide activity log" },
   { key: "permissions", label: "Permissions", href: "/admin/permissions", description: "Create admins and grant them permissions", superOnly: true },
 ];

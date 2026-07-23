@@ -38,6 +38,21 @@ export const updateSportsSchema = z.object({
   sports: z.array(z.string()).min(1, "Pick at least one sport"),
 });
 
+// A single pick submitted into a handicapping contest (Supercapper). No bet
+// type / premium flag — contest picks are just a graded selection with odds.
+export const createContestPickSchema = z.object({
+  sport: z.string(),
+  league: z.string().max(60).optional(),
+  matchup: z.string().min(2).max(140),
+  selection: z.string().min(1).max(140),
+  odds: z
+    .number()
+    .int()
+    .refine((v) => v !== 0 && (v >= 100 || v <= -100), "Odds must be +100/-100 or beyond"),
+  units: z.number().min(0.1).max(20),
+  eventStartsAt: z.string().min(1, "Event start time is required"),
+});
+
 export const becomeHandicapperSchema = z.object({
   handle: z
     .string()
