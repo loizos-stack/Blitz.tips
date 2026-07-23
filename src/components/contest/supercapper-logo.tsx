@@ -19,7 +19,9 @@ export function SupercapperLogo({
       aria-label={withContest ? "Supercapper Contest" : "Supercapper"}
     >
       <span className="inline-flex items-center font-display font-extrabold tracking-tight">
-        <svg viewBox="0 0 40 40" className="-mr-[0.12em] h-[1.5em] w-[0.98em]" fill="none" aria-hidden>
+        {/* viewBox cropped tight to the bolt's bounds (no transparent padding)
+            so it can sit flush against the "u". */}
+        <svg viewBox="10.5 5.5 19 30.5" className="-mr-[0.06em] h-[1.5em] w-[0.94em]" fill="none" aria-hidden>
           <defs>
             <linearGradient id="sc-bolt" x1="0" y1="0" x2="0" y2="1">
               <stop offset="0%" stopColor="#fde047" />
