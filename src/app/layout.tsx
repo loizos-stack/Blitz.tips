@@ -1,6 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import Script from "next/script";
-import { Inter, Space_Grotesk, Geist_Mono } from "next/font/google";
+import { Space_Grotesk } from "next/font/google";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 import { Analytics } from "@vercel/analytics/next";
 import { siteUrl } from "@/lib/site";
@@ -13,20 +13,10 @@ import { AnnouncementBanner } from "@/components/announcement-banner";
 import { RegisterServiceWorker } from "@/components/register-service-worker";
 import { DeferredWidgets } from "@/components/deferred-widgets";
 
-// Inter carries body/UI text (excellent tabular figures for odds, units, ROI);
-// Space Grotesk gives headings and the wordmark a sportier, confident edge.
-const inter = Inter({
-  variable: "--font-inter",
-  subsets: ["latin"],
-});
-
+// Space Grotesk is the single web font — body/UI text and the sportier headings
+// and wordmark. (Monospace bits use the system mono stack; see globals.css.)
 const spaceGrotesk = Space_Grotesk({
   variable: "--font-display",
-  subsets: ["latin"],
-});
-
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
   subsets: ["latin"],
 });
 
@@ -103,7 +93,7 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${inter.variable} ${spaceGrotesk.variable} ${geistMono.variable} h-full antialiased`}
+      className={`${spaceGrotesk.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">
         <OrganizationJsonLd />
