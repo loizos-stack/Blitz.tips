@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { format } from "date-fns";
-import { Trophy, ShieldCheck, Coins, ListChecks, Gift, CalendarClock, Gauge, LayoutDashboard, ListOrdered } from "lucide-react";
+import { Trophy, ShieldCheck, Coins, ListChecks, Gift, CalendarClock, Gauge, LayoutDashboard, ListOrdered, Crown } from "lucide-react";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import {
@@ -242,6 +242,11 @@ export default async function SupercapperPage() {
                   ? `The ${formatCents(contest.prizePoolCents)} pool starts across the top 3 and adds a place for every 10 cappers who join. Currently ${winners} paid.`
                   : `The ${formatCents(contest.prizePoolCents)} pool is split across the top ${winners} finishers.`
               }
+            />
+            <Rule
+              icon={<Crown className="h-5 w-5" />}
+              title={`Supercapper crowned ${format(contest.endsAt, "MMM d, yyyy")}`}
+              body={`Picks run all the way to ${format(contest.endsAt, "MMM d, yyyy")}. That's when final ROI standings lock, the ICM prizes are calculated, and the top capper takes the crown.`}
             />
             <Rule
               icon={<CalendarClock className="h-5 w-5" />}
