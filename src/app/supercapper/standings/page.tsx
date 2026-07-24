@@ -81,13 +81,16 @@ export default async function SupercapperStandingsPage() {
     }));
 
   return (
-    <div className="container-page py-10">
-      <Link
-        href="/supercapper"
-        className="inline-flex items-center gap-1.5 text-sm font-medium text-muted hover:text-foreground"
-      >
-        <ArrowLeft className="h-4 w-4" /> Contest overview
-      </Link>
+    <div className="relative min-h-screen overflow-hidden">
+      <div aria-hidden className="pointer-events-none absolute inset-0 bg-[url('/hero-bg.svg')] bg-cover bg-center opacity-[0.06]" />
+      <div aria-hidden className="pointer-events-none absolute inset-0 bg-gradient-to-b from-accent/10 via-transparent to-transparent" />
+      <div className="container-page relative py-10">
+        <Link
+          href="/supercapper"
+          className="inline-flex items-center gap-1.5 text-sm font-medium text-muted hover:text-foreground"
+        >
+          <ArrowLeft className="h-4 w-4" /> Contest overview
+        </Link>
 
       <div className="mt-4 flex flex-wrap items-end justify-between gap-3">
         <div>
@@ -112,13 +115,14 @@ export default async function SupercapperStandingsPage() {
         auto-calculated per ICM by finishing rank. Tap a name to see that entrant&apos;s picks and rank history.
       </p>
 
-      <div className="mt-6">
-        <ContestStandings
-          overall={overallStandings}
-          entries={standingEntries}
-          minPicks={contest.minPicks}
-          myEntryId={myEntry?.id}
-        />
+        <div className="mt-6">
+          <ContestStandings
+            overall={overallStandings}
+            entries={standingEntries}
+            minPicks={contest.minPicks}
+            myEntryId={myEntry?.id}
+          />
+        </div>
       </div>
     </div>
   );
