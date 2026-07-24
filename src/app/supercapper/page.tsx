@@ -187,8 +187,9 @@ export default async function SupercapperPage() {
       </section>
 
       {/* Prize breakdown */}
-      <section className="border-b border-border py-14">
-        <div className="container-page">
+      <section className="relative overflow-hidden border-b border-border py-14">
+        <div aria-hidden className="pointer-events-none absolute inset-0 bg-gradient-to-b from-gold/10 via-transparent to-transparent" />
+        <div className="container-page relative">
           <h2 className="text-center text-2xl font-bold">Prize breakdown</h2>
           <p className="mt-2 text-center text-sm text-muted">
             {formatCents(contest.prizePoolCents)} guaranteed across {winners} place{winners === 1 ? "" : "s"} · payouts
@@ -220,8 +221,9 @@ export default async function SupercapperPage() {
       </section>
 
       {/* How it works & rules */}
-      <section className="border-b border-border bg-surface/40 py-14">
-        <div className="container-page">
+      <section className="relative overflow-hidden border-b border-border bg-surface/40 py-14">
+        <div aria-hidden className="pointer-events-none absolute inset-0 bg-[url('/hero-bg.svg')] bg-cover bg-center opacity-[0.08]" />
+        <div className="container-page relative">
           <h2 className="text-center text-2xl font-bold">How it works &amp; rules</h2>
           <p className="mt-2 text-center text-sm text-muted">
             Everything you need to know — you agree to the full rules when you enter.
@@ -268,8 +270,9 @@ export default async function SupercapperPage() {
       </section>
 
       {/* Standings */}
-      <section className="py-14">
-        <div className="container-page">
+      <section className="relative overflow-hidden py-14">
+        <div aria-hidden className="pointer-events-none absolute inset-0 bg-gradient-to-b from-accent/10 via-transparent to-transparent" />
+        <div className="container-page relative">
           <div className="flex flex-wrap items-end justify-between gap-3">
             <div>
               <h2 className="text-2xl font-bold">Standings</h2>

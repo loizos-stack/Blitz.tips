@@ -65,8 +65,8 @@ export function ContestRulesModal({
           </h2>
         </div>
 
-        <div className="flex-1 overflow-y-auto px-6 py-4">
-          <ol className="flex flex-col gap-3 text-sm text-foreground">
+        <div className="flex-1 overflow-y-auto px-6 py-4 text-left">
+          <ol className="flex flex-col gap-3 text-left text-sm text-foreground">
             {items.map((item, i) => (
               <li key={i} className="flex gap-2.5">
                 <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-surface-raised text-xs font-bold text-muted">
