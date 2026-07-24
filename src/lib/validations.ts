@@ -38,6 +38,25 @@ export const updateSportsSchema = z.object({
   sports: z.array(z.string()).min(1, "Pick at least one sport"),
 });
 
+// American odds bounds for a single selection. The ceiling matters: profit on a
+// winner is units x (odds / 100), so an unbounded positive price lets one pick
+// manufacture an arbitrarily large unit/ROI figure and take over the leaderboard
+// or a contest prize pool. +10000 (100/1) is well beyond any real single-market
+// price; the floor is generous because negative odds can only shrink profit.
+// (A parlay's combined price is computed server-side from its legs and is
+// intentionally not bound by this — see combineParlayOdds.)
+export const MAX_POSITIVE_ODDS = 10000;
+export const MIN_NEGATIVE_ODDS = -100000;
+
+const boundedOdds = z
+  .number()
+  .int()
+  .refine((v) => v !== 0 && (v >= 100 || v <= -100), "Odds must be +100/-100 or beyond")
+  .refine(
+    (v) => v <= MAX_POSITIVE_ODDS && v >= MIN_NEGATIVE_ODDS,
+    `Odds must be between ${MIN_NEGATIVE_ODDS} and +${MAX_POSITIVE_ODDS}`
+  );
+
 // A single pick submitted into a handicapping contest (Supercapper). No bet
 // type / premium flag — contest picks are just a graded selection with odds.
 export const createContestPickSchema = z.object({
@@ -45,10 +64,7 @@ export const createContestPickSchema = z.object({
   league: z.string().max(60).optional(),
   matchup: z.string().min(2).max(140),
   selection: z.string().min(1).max(140),
-  odds: z
-    .number()
-    .int()
-    .refine((v) => v !== 0 && (v >= 100 || v <= -100), "Odds must be +100/-100 or beyond"),
+  odds: boundedOdds,
   units: z.number().min(0.1).max(20),
   eventStartsAt: z.string().min(1, "Event start time is required"),
 });
@@ -117,10 +133,7 @@ export const createPickSchema = z.object({
   matchup: z.string().min(2).max(140),
   betType: z.string(),
   selection: z.string().min(1).max(140),
-  odds: z
-    .number()
-    .int()
-    .refine((v) => v !== 0 && (v >= 100 || v <= -100), "Odds must be +100/-100 or beyond"),
+  odds: boundedOdds,
   units: z.number().min(0.1).max(20),
   analysis: z.string().max(2000).optional(),
   isPremium: z.boolean().default(true),
@@ -129,10 +142,7 @@ export const createPickSchema = z.object({
   oddsApiSportKey: z.string().max(64).optional(),
 });
 
-const oddsValue = z
-  .number()
-  .int()
-  .refine((v) => v !== 0 && (v >= 100 || v <= -100), "Odds must be +100/-100 or beyond");
+const oddsValue = boundedOdds;
 
 export const parlayLegSchema = z.object({
   sport: z.string().optional(),
