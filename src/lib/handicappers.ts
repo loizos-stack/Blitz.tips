@@ -1,3 +1,4 @@
+import { unstable_cache } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { computeStats, type HandicapperStats } from "@/lib/odds";
 import { computeStreaks, lastNStats } from "@/lib/analytics";
@@ -57,7 +58,7 @@ const APPROVED_REVIEW_RATINGS = {
   reviews: { where: { status: "APPROVED" as const }, select: { rating: true } },
 } as const;
 
-export async function listHandicapperSummaries(): Promise<HandicapperSummary[]> {
+async function loadHandicapperSummaries(): Promise<HandicapperSummary[]> {
   const handicappers = await prisma.handicapperProfile.findMany({
     where: { suspendedAt: null },
     include: { picks: true, ...APPROVED_REVIEW_RATINGS },
@@ -66,6 +67,14 @@ export async function listHandicapperSummaries(): Promise<HandicapperSummary[]> 
 
   return handicappers.map(toSummary);
 }
+
+// Public listing pages (leaderboard, /handicappers) tolerate ~1 min of stat
+// staleness, so cache the whole aggregation. This keeps the heavy full-table
+// scan + per-pick stat computation off the request path — the main TTFB win.
+export const listHandicapperSummaries = unstable_cache(loadHandicapperSummaries, ["handicapper-summaries-v1"], {
+  revalidate: 60,
+  tags: ["handicappers"],
+});
 
 export type DirectoryHandicapper = HandicapperSummary & {
   followersCount: number;
@@ -83,7 +92,7 @@ export type DirectoryHandicapper = HandicapperSummary & {
  * (sport, player props, parlays), sort (hot, most followed, most reviewed), and
  * search across everything on the profile.
  */
-export async function listHandicapperDirectory(): Promise<DirectoryHandicapper[]> {
+async function loadHandicapperDirectory(): Promise<DirectoryHandicapper[]> {
   const handicappers = await prisma.handicapperProfile.findMany({
     where: { suspendedAt: null },
     include: {
@@ -116,6 +125,13 @@ export async function listHandicapperDirectory(): Promise<DirectoryHandicapper[]
     };
   });
 }
+
+// Cached like the summaries — the homepage finder reads only precomputed fields,
+// so a 60s-stale directory is fine and keeps the aggregation off the hot path.
+export const listHandicapperDirectory = unstable_cache(loadHandicapperDirectory, ["handicapper-directory-v1"], {
+  revalidate: 60,
+  tags: ["handicappers"],
+});
 
 // The non-sport quick filters for the homepage finder. Sport keys (NBA, MLB, …)
 // are the other valid filter values.

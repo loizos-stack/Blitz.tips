@@ -10,6 +10,7 @@ import { Providers } from "./providers";
 import { NavBar } from "@/components/nav-bar";
 import { Footer } from "@/components/footer";
 import { AnnouncementBanner } from "@/components/announcement-banner";
+import { getCachedAnnouncement } from "@/lib/settings";
 import { RegisterServiceWorker } from "@/components/register-service-worker";
 import { DeferredWidgets } from "@/components/deferred-widgets";
 
@@ -85,11 +86,12 @@ export const viewport: Viewport = {
   themeColor: "#16a34a",
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const announcement = await getCachedAnnouncement();
   return (
     <html
       lang="en"
@@ -100,7 +102,7 @@ export default function RootLayout({
         <WebSiteJsonLd />
         <Providers>
           <RegisterServiceWorker />
-          <AnnouncementBanner />
+          <AnnouncementBanner initialMessage={announcement} />
           <NavBar />
           <main className="flex-1">{children}</main>
           <Footer />

@@ -1,26 +1,17 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { X } from "lucide-react";
 
-// Site-wide announcement set from the admin panel. Fetched client-side so
-// static pages stay static; dismissal lasts for the browser session (per
-// message, so a new announcement shows again).
-export function AnnouncementBanner() {
-  const [message, setMessage] = useState<string | null>(null);
+// Site-wide announcement set from the admin panel. The message is read on the
+// server (cached) and passed in as `initialMessage`, so the banner is part of
+// the initial HTML and never shifts the page in after load. Dismissal lasts for
+// the browser session (per message, so a new announcement shows again).
+export function AnnouncementBanner({ initialMessage = null }: { initialMessage?: string | null }) {
+  const [message, setMessage] = useState<string | null>(initialMessage);
 
-  useEffect(() => {
-    fetch("/api/announcement")
-      .then((res) => (res.ok ? res.json() : null))
-      .then((body) => {
-        const msg = body?.message?.trim();
-        if (msg && sessionStorage.getItem("dismissed-announcement") !== msg) {
-          setMessage(msg);
-        }
-      })
-      .catch(() => undefined);
-  }, []);
-
+  // The banner lives in the root layout, so it doesn't remount on client-side
+  // navigation — dismissing it hides it for the rest of the session.
   if (!message) return null;
 
   return (
@@ -29,10 +20,7 @@ export function AnnouncementBanner() {
       <button
         type="button"
         aria-label="Dismiss announcement"
-        onClick={() => {
-          sessionStorage.setItem("dismissed-announcement", message);
-          setMessage(null);
-        }}
+        onClick={() => setMessage(null)}
         className="shrink-0 rounded p-0.5 hover:bg-black/10"
       >
         <X className="h-4 w-4" />
