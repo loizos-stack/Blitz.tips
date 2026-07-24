@@ -3,7 +3,7 @@ import type { PickSport } from "@prisma/client";
 import { getTeamLogoUrl } from "@/lib/team-logos";
 import { formatMatchup } from "@/lib/utils";
 import { sportsDbConfigured, resolveSportsDbLogo } from "@/lib/sportsdb";
-import { additionalMarketKeys, buildGroups, type MarketGroup, type RawMarket } from "@/lib/odds-markets";
+import { propMarketKeys, extraMarketKeys, buildGroups, type MarketGroup, type RawMarket } from "@/lib/odds-markets";
 import { getLiveGameStates, livePairKey, getUfcFighterSet, fighterKey } from "@/lib/espn-scores";
 
 // The Odds API (the-odds-api.com) client.
@@ -623,17 +623,30 @@ export async function getEventMarkets(
   if (!apiKey) return { configured: false, groups: [], bookmaker: null };
 
   const featuredKeys = isMoneylineOnly(sport) ? ["h2h"] : ["h2h", "spreads", "totals"];
-  const wanted = [...featuredKeys, ...additionalMarketKeys(sportKey)];
+  const props = propMarketKeys(sportKey);
+  const extras = extraMarketKeys(sportKey);
   // Props are offered by US books, so this call uses regions=us rather than the
   // Pinnacle-first bookmaker list the board uses (Pinnacle carries no props).
   const base =
     `${API_BASE}/sports/${sportKey}/events/${eventId}/odds` +
     `?apiKey=${apiKey}&regions=us&oddsFormat=american`;
 
-  // One unknown/unsupported market key 422s the whole request, so if the full
-  // set fails, fall back to just the game lines — the game still shows odds.
-  let data = await fetchEventOddsJson(`${base}&markets=${wanted.join(",")}`);
-  if (!data) data = await fetchEventOddsJson(`${base}&markets=${featuredKeys.join(",")}`);
+  // One unknown/unsupported market key 422s the whole request, so degrade in
+  // tiers rather than all-or-nothing: everything → drop the alternates/periods
+  // → drop the props too → bare game lines. A sport that doesn't carry a period
+  // market therefore still shows its props instead of losing them.
+  const tiers = [
+    [...featuredKeys, ...extras, ...props],
+    [...featuredKeys, ...props],
+    [...featuredKeys, ...extras],
+    featuredKeys,
+  ].filter((t, i, all) => t.length > 0 && all.findIndex((x) => x.join() === t.join()) === i);
+
+  let data: EventOddsResponse | null = null;
+  for (const markets of tiers) {
+    data = await fetchEventOddsJson(`${base}&markets=${markets.join(",")}`);
+    if (data) break;
+  }
   if (!data) return { configured: true, groups: [], bookmaker: null };
 
   const bookmakers = data.bookmakers ?? [];

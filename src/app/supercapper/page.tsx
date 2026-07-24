@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { format } from "date-fns";
-import { Trophy, ShieldCheck, Coins, ListChecks, Gift, CalendarClock, Gauge, LayoutDashboard, ListOrdered, Crown } from "lucide-react";
+import { Trophy, ShieldCheck, Coins, ListChecks, Gift, CalendarClock, Gauge, LayoutDashboard, ListOrdered, Crown, Layers } from "lucide-react";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import {
@@ -234,8 +234,13 @@ export default async function SupercapperPage() {
             <Rule icon={<Coins className="h-5 w-5" />} title="Best ROI wins" body="Ranked by volume-adjusted ROI — return on units risked, weighted by how many picks you post. Consistency all season beats a lucky short run." />
             <Rule
               icon={<ListChecks className="h-5 w-5" />}
-              title={`${contest.minPicks}-pick minimum · singles only`}
-              body={`Post at least ${contest.minPicks} graded single picks to qualify. Parlays aren't allowed, and you can't post on a game that's already started.`}
+              title={`${contest.minPicks} picks for prize eligibility`}
+              body={`Anyone can enter and post picks. To be eligible for the prize pool you need ${contest.minPicks} graded single picks. Parlays aren't allowed, and you can't post on a game that's already started.`}
+            />
+            <Rule
+              icon={<Layers className="h-5 w-5" />}
+              title="Every market counts"
+              body="Pick straight off the live board: moneylines, spreads and handicaps, totals, alternate lines, 1st half / quarter / period markets, and player props — everything we price is fair game."
             />
             <Rule
               icon={<Trophy className="h-5 w-5" />}

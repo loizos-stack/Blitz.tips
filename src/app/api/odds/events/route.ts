@@ -9,13 +9,14 @@ export async function GET(request: NextRequest) {
   const session = await auth();
   if (!session) return NextResponse.json({ error: "Sign in required" }, { status: 401 });
 
-  // Only handicappers can pull the feed — it's what spends the API quota.
-  const handicapper = await prisma.handicapperProfile.findUnique({
-    where: { userId: session.user.id },
-    select: { id: true },
-  });
-  if (!handicapper) {
-    return NextResponse.json({ error: "Handicapper profile required" }, { status: 403 });
+  // Pulling the feed spends API quota, so it's limited to people who post picks:
+  // handicappers, and contest entrants (who pick from the same board).
+  const [handicapper, contestEntry] = await Promise.all([
+    prisma.handicapperProfile.findUnique({ where: { userId: session.user.id }, select: { id: true } }),
+    prisma.contestEntry.findFirst({ where: { userId: session.user.id }, select: { id: true } }),
+  ]);
+  if (!handicapper && !contestEntry) {
+    return NextResponse.json({ error: "Handicapper profile or contest entry required" }, { status: 403 });
   }
 
   const sport = request.nextUrl.searchParams.get("sport") ?? "";

@@ -185,8 +185,9 @@ export default async function ContestDashboardPage() {
 
       {!myStanding?.qualified && (
         <p className="mt-3 rounded-lg border border-border bg-surface-raised p-3 text-sm text-muted">
-          Post {Math.max(0, contest.minPicks - (myStanding?.settledPicks ?? 0))} more graded singles to qualify for the
-          leaderboard and the prize pool.
+          Post {Math.max(0, contest.minPicks - (myStanding?.settledPicks ?? 0))} more graded singles to become eligible
+          for the leaderboard and the prize pool. Any market counts — moneylines, spreads, totals, alternates, halves
+          and periods, or player props.
         </p>
       )}
 
@@ -195,7 +196,10 @@ export default async function ContestDashboardPage() {
         <div className="flex flex-col gap-4">
           <div className="card p-5">
             <p className="mb-1 font-semibold">Make a pick</p>
-            <p className="mb-3 text-xs text-muted">Single picks only — parlays aren&apos;t allowed in the contest.</p>
+            <p className="mb-3 text-xs text-muted">
+              Singles only — no parlays. Every market counts: moneylines, spreads, totals, alternates, halves &amp;
+              periods, and player props.
+            </p>
             {accepting ? (
               <ContestPickForm contestId={contest.id} />
             ) : (

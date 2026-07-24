@@ -102,16 +102,85 @@ const CATALOG: Record<OddsGroup, MarketDef[]> = {
     { key: "draw_no_bet", label: "Draw No Bet", betType: "PROP" },
     { key: "double_chance", label: "Double Chance", betType: "PROP" },
     { key: "btts", label: "Both Teams to Score", betType: "PROP" },
-    { key: "team_totals", label: "Team Totals", betType: "TOTAL" },
-    { key: "alternate_spreads", label: "Alternate Handicap", betType: "SPREAD" },
-    { key: "alternate_totals", label: "Alternate Totals", betType: "TOTAL" },
   ],
   other: [],
 };
 
-/** The additional (non-featured) market keys to request for a sport. */
-export function additionalMarketKeys(sportKey: string): string[] {
+// Alternate lines and period/half markets — the rest of what the books offer.
+// These are team (not player) markets, so they get their own "Alternates &
+// Periods" group rather than sitting under Player Props. Every key here is a
+// documented Odds API market; the per-event fetch degrades in tiers if a book
+// or sport doesn't carry one (see getEventMarkets), so a miss never blanks the
+// whole game.
+const GAME_EXTRAS: Record<OddsGroup, MarketDef[]> = {
+  football: [
+    { key: "alternate_spreads", label: "Alternate Spread", betType: "SPREAD" },
+    { key: "alternate_totals", label: "Alternate Total", betType: "TOTAL" },
+    { key: "team_totals", label: "Team Total", betType: "TOTAL" },
+    { key: "h2h_h1", label: "1st Half Moneyline", betType: "MONEYLINE" },
+    { key: "spreads_h1", label: "1st Half Spread", betType: "SPREAD" },
+    { key: "totals_h1", label: "1st Half Total", betType: "TOTAL" },
+    { key: "h2h_h2", label: "2nd Half Moneyline", betType: "MONEYLINE" },
+    { key: "spreads_h2", label: "2nd Half Spread", betType: "SPREAD" },
+    { key: "totals_h2", label: "2nd Half Total", betType: "TOTAL" },
+    { key: "h2h_q1", label: "1st Quarter Moneyline", betType: "MONEYLINE" },
+    { key: "spreads_q1", label: "1st Quarter Spread", betType: "SPREAD" },
+    { key: "totals_q1", label: "1st Quarter Total", betType: "TOTAL" },
+  ],
+  basketball: [
+    { key: "alternate_spreads", label: "Alternate Spread", betType: "SPREAD" },
+    { key: "alternate_totals", label: "Alternate Total", betType: "TOTAL" },
+    { key: "team_totals", label: "Team Total", betType: "TOTAL" },
+    { key: "h2h_h1", label: "1st Half Moneyline", betType: "MONEYLINE" },
+    { key: "spreads_h1", label: "1st Half Spread", betType: "SPREAD" },
+    { key: "totals_h1", label: "1st Half Total", betType: "TOTAL" },
+    { key: "h2h_h2", label: "2nd Half Moneyline", betType: "MONEYLINE" },
+    { key: "spreads_h2", label: "2nd Half Spread", betType: "SPREAD" },
+    { key: "totals_h2", label: "2nd Half Total", betType: "TOTAL" },
+    { key: "h2h_q1", label: "1st Quarter Moneyline", betType: "MONEYLINE" },
+    { key: "spreads_q1", label: "1st Quarter Spread", betType: "SPREAD" },
+    { key: "totals_q1", label: "1st Quarter Total", betType: "TOTAL" },
+  ],
+  baseball: [
+    { key: "alternate_spreads", label: "Alternate Run Line", betType: "SPREAD" },
+    { key: "alternate_totals", label: "Alternate Total", betType: "TOTAL" },
+    { key: "team_totals", label: "Team Total", betType: "TOTAL" },
+    { key: "h2h_1st_5_innings", label: "1st 5 Innings Moneyline", betType: "MONEYLINE" },
+    { key: "spreads_1st_5_innings", label: "1st 5 Innings Run Line", betType: "SPREAD" },
+    { key: "totals_1st_5_innings", label: "1st 5 Innings Total", betType: "TOTAL" },
+  ],
+  hockey: [
+    { key: "alternate_spreads", label: "Alternate Puck Line", betType: "SPREAD" },
+    { key: "alternate_totals", label: "Alternate Total", betType: "TOTAL" },
+    { key: "team_totals", label: "Team Total", betType: "TOTAL" },
+    { key: "h2h_p1", label: "1st Period Moneyline", betType: "MONEYLINE" },
+    { key: "spreads_p1", label: "1st Period Puck Line", betType: "SPREAD" },
+    { key: "totals_p1", label: "1st Period Total", betType: "TOTAL" },
+  ],
+  soccer: [
+    { key: "alternate_spreads", label: "Alternate Handicap", betType: "SPREAD" },
+    { key: "alternate_totals", label: "Alternate Total", betType: "TOTAL" },
+    { key: "team_totals", label: "Team Total", betType: "TOTAL" },
+    { key: "h2h_h1", label: "1st Half Result", betType: "MONEYLINE" },
+    { key: "spreads_h1", label: "1st Half Handicap", betType: "SPREAD" },
+    { key: "totals_h1", label: "1st Half Total", betType: "TOTAL" },
+  ],
+  other: [],
+};
+
+/** Player-prop / sport-specific market keys (the "props" tier). */
+export function propMarketKeys(sportKey: string): string[] {
   return CATALOG[oddsGroup(sportKey)].map((d) => d.key);
+}
+
+/** Alternate-line and period/half market keys (the "extras" tier). */
+export function extraMarketKeys(sportKey: string): string[] {
+  return GAME_EXTRAS[oddsGroup(sportKey)].map((d) => d.key);
+}
+
+/** Every non-featured market key we request for a sport. */
+export function additionalMarketKeys(sportKey: string): string[] {
+  return [...extraMarketKeys(sportKey), ...propMarketKeys(sportKey)];
 }
 
 // Raw shapes from the per-event odds endpoint (a superset of the board's: props
@@ -205,8 +274,19 @@ export function buildGroups(sportKey: string, markets: RawMarket[]): MarketGroup
     (isSoccer ? gameSections : propSections).push({ key: def.key, label: def.label, options });
   }
 
+  // Alternate lines + halves/quarters/periods, in catalog order.
+  const extraSections: MarketSection[] = [];
+  for (const def of GAME_EXTRAS[group]) {
+    const m = byKey.get(def.key);
+    if (!m) continue;
+    const options = m.outcomes.map((o) => additionalOption(def, o));
+    if (options.length) extraSections.push({ key: def.key, label: def.label, options });
+  }
+
   const groups: MarketGroup[] = [];
   if (gameSections.length) groups.push({ key: "game", label: "Game Lines", sections: gameSections });
+  if (extraSections.length)
+    groups.push({ key: "extras", label: "Alternates & Periods", sections: extraSections });
   if (propSections.length) groups.push({ key: "props", label: "Player Props", sections: propSections });
   return groups;
 }

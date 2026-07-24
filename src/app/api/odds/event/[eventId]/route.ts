@@ -11,12 +11,12 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   const session = await auth();
   if (!session) return NextResponse.json({ error: "Sign in required" }, { status: 401 });
 
-  const handicapper = await prisma.handicapperProfile.findUnique({
-    where: { userId: session.user.id },
-    select: { id: true },
-  });
-  if (!handicapper) {
-    return NextResponse.json({ error: "Handicapper profile required" }, { status: 403 });
+  const [handicapper, contestEntry] = await Promise.all([
+    prisma.handicapperProfile.findUnique({ where: { userId: session.user.id }, select: { id: true } }),
+    prisma.contestEntry.findFirst({ where: { userId: session.user.id }, select: { id: true } }),
+  ]);
+  if (!handicapper && !contestEntry) {
+    return NextResponse.json({ error: "Handicapper profile or contest entry required" }, { status: 403 });
   }
 
   const { eventId } = await params;
