@@ -70,6 +70,9 @@ const SPORT_KEYS: Partial<Record<PickSport, string>> = {
   NCAAB: "basketball_ncaab",
   SOCCER: "soccer_epl",
   UFC_MMA: "mma_mixed_martial_arts",
+  // Like soccer, tennis is resolved live to whatever tournaments are in season
+  // (see getTennisTourKeys); this is only a fallback.
+  TENNIS: "tennis_atp_aus_open_singles",
 };
 
 // Soccer is special. Rather than pin to a single league, we pull whichever
@@ -134,6 +137,8 @@ interface OddsApiSportEntry {
   key: string;
   group: string;
   active: boolean;
+  /** True for futures-style listings (tournament winner), which have no matchup. */
+  has_outrights?: boolean;
 }
 
 // Discover the soccer leagues our tier currently has in season. The /sports
@@ -167,6 +172,12 @@ async function getSoccerLeagueKeys(apiKey: string): Promise<string[]> {
 // the once-a-day team-sport board.
 const MONEYLINE_ONLY_SPORTS: Partial<Record<PickSport, boolean>> = {
   UFC_MMA: true,
+  // Tennis: every tour prices the match winner, but game spreads / total games
+  // vary by tournament and book. Since an unsupported market 422s the whole
+  // board request (both the primary and the regions=us retry carry the same
+  // markets param), the board asks for h2h only — guaranteeing tennis shows —
+  // and the per-event navigator surfaces whatever else the book actually has.
+  TENNIS: true,
 };
 
 export function isMoneylineOnly(sport: PickSport): boolean {
@@ -188,8 +199,37 @@ function oddsRevalidateForSport(sport: PickSport): number {
 
 // The upstream sport key(s) backing one of our PickSports. Usually one; soccer
 // fans out to several leagues.
+const MAX_TENNIS_TOURS = 3;
+
+/**
+ * Tennis, like soccer, is a set of seasonal tournaments rather than one league,
+ * so resolve it live from the free /sports endpoint: whatever the tier has
+ * active in the "Tennis" group, Grand Slams first.
+ */
+async function getTennisTourKeys(apiKey: string): Promise<string[]> {
+  const res = await fetch(`${API_BASE}/sports?apiKey=${apiKey}`, {
+    next: { revalidate: REVALIDATE_SECONDS },
+  });
+  if (!res.ok) return [];
+
+  const sports = (await res.json()) as OddsApiSportEntry[];
+  const active = sports
+    .filter((s) => s.group === "Tennis" && s.active && !s.has_outrights)
+    .map((s) => s.key);
+  if (active.length === 0) return [];
+
+  // Grand Slams and the tour finals carry the deepest markets, so rank them up.
+  const marquee = /aus_open|french_open|wimbledon|us_open|atp_finals|wta_finals/;
+  const ranked = [...active.filter((k) => marquee.test(k)), ...active.filter((k) => !marquee.test(k))];
+  return ranked.slice(0, MAX_TENNIS_TOURS);
+}
+
 async function resolveSportKeys(sport: PickSport, apiKey: string): Promise<string[]> {
   if (sport === "SOCCER") return getSoccerLeagueKeys(apiKey);
+  if (sport === "TENNIS") {
+    const tours = await getTennisTourKeys(apiKey);
+    return tours.length ? tours : [];
+  }
   const key = SPORT_KEYS[sport];
   return key ? [key] : [];
 }
