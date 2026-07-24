@@ -16,14 +16,27 @@ Subscribers pay a handicapper's own monthly price (via Stripe) to unlock their p
 ## Core concepts
 
 - `User` — has a `role` of `SUBSCRIBER`, `HANDICAPPER`, or `ADMIN`.
-- `HandicapperProfile` — a handicapper's public page: handle, bio, sports, monthly price, and
-  their Stripe Connect account/product/price.
+- `HandicapperProfile` — a handicapper's public page: handle, bio, sports, subscription
+  packages (a required monthly price plus optional weekly/annual packages, editable from the
+  dashboard), and their Stripe Connect account/product/prices. Also carries their own **plan** with the
+  platform (`plan` / `planInterval` / `planStatus`, billed directly via Stripe — no Connect
+  involved, since it's platform revenue, not a payout). See `src/lib/plans.ts`:
+  - **Free** — 20% commission, no monthly cost
+  - **Silver** — 15% commission, $9.99/mo or $99.99/yr
+  - **Gold** — 10% commission, $49.99/mo or $499.99/yr, pinned to the top of the homepage and
+    leaderboard (`isFeaturedHandicapper()` / `sortFeaturedFirst()` in `src/lib/handicappers.ts`)
+  Handicappers can change plans anytime from their dashboard; commission on subscriber payments
+  (`application_fee_percent` in `/api/stripe/checkout`) is computed live from their current plan.
 - `Pick` — a single wager: sport, matchup, bet type, selection, American odds, units risked,
   and a `result` that starts `PENDING` and is settled to `WIN` / `LOSS` / `PUSH` / `VOID`.
-- `Subscription` — links a subscriber to a handicapper via a Stripe subscription.
+- `Subscription` — links a subscriber to a handicapper via a Stripe subscription. (Distinct from
+  a handicapper's own plan subscription above — two separate billing relationships.)
 
 Win rate, net units, and ROI are derived on the fly from every `Pick` (see `src/lib/odds.ts`) —
 there's no separate "stats" table to keep in sync.
+
+New visitors choose a path at `/signup` — "follow picks" (subscriber) or "post picks"
+(handicapper) — which routes them to the right onboarding flow after account creation.
 
 ## Getting started
 
@@ -56,6 +69,11 @@ cp .env.example .env
 - `STRIPE_SECRET_KEY` / `STRIPE_WEBHOOK_SECRET` / `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` — from the
   [Stripe Dashboard](https://dashboard.stripe.com/test/apikeys). Use test-mode keys locally.
   Stripe Connect must be enabled on your Stripe account for the payout/onboarding flow.
+- `THE_ODDS_API_KEY` — from [the-odds-api.com](https://the-odds-api.com) (optional). Powers the
+  "From schedule" tab in the handicapper pick form: upcoming games with live moneyline/spread/total
+  odds that autofill the pick. Without a key the form falls back to manual entry. Responses are
+  cached for an hour per sport to stay inside the free tier's 500 credits/month (a request costs
+  3 credits: `h2h,spreads,totals` × 1 region).
 
 ### 3. Set up the database
 

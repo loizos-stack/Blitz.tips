@@ -3,14 +3,29 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { format } from "date-fns";
+import { Lock } from "lucide-react";
 import type { Pick as PickModel, PickResult } from "@prisma/client";
 import { ResultPill } from "@/components/result-pill";
+import { TeamLogo } from "@/components/team-logo";
+import { PickShareButton } from "@/components/pick-share-button";
+import { isPickLocked } from "@/lib/pick-visibility";
+import { pickShareInfo } from "@/lib/pick-share";
 import { formatOdds } from "@/lib/odds";
-import { SPORT_LABELS, BET_TYPE_LABELS, cn } from "@/lib/utils";
+import { SPORT_LABELS, BET_TYPE_LABELS, usesVsSeparator } from "@/lib/utils";
 
 const SETTLE_OPTIONS: PickResult[] = ["WIN", "LOSS", "PUSH", "VOID"];
 
-export function HandicapperPickRow({ pick }: { pick: PickModel }) {
+// Crests are attached server-side (enrichPickCrests) before the pick reaches
+// this client row; a parlay's placeholder matchup resolves to neither side.
+type RowPick = PickModel & { awayTeamLogo?: string | null; homeTeamLogo?: string | null };
+
+export function HandicapperPickRow({
+  pick,
+  share,
+}: {
+  pick: RowPick;
+  share?: { baseUrl: string; handle: string; displayName: string };
+}) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
 
@@ -25,6 +40,18 @@ export function HandicapperPickRow({ pick }: { pick: PickModel }) {
     router.refresh();
   }
 
+  // Order crests to match the matchup text: "Home vs Away" sports show the home
+  // crest first; "Away @ Home" sports show the away crest first.
+  const homeFirst = usesVsSeparator(pick.sport);
+  const startLogo = homeFirst ? pick.homeTeamLogo : pick.awayTeamLogo;
+  const endLogo = homeFirst ? pick.awayTeamLogo : pick.homeTeamLogo;
+
+  // Share info reflects the public card: a still-locked premium pick shares as a
+  // teaser that reveals nothing (isPickLocked from an anonymous viewpoint).
+  const shareInfo = share
+    ? pickShareInfo({ ...share, pick, locked: isPickLocked(pick, false) })
+    : null;
+
   return (
     <div className="card p-5">
       <div className="flex items-center justify-between text-sm text-muted">
@@ -35,40 +62,62 @@ export function HandicapperPickRow({ pick }: { pick: PickModel }) {
         <span>{format(pick.eventStartsAt, "MMM d, h:mm a")}</span>
       </div>
 
-      <p className="mt-3 font-semibold">{pick.matchup}</p>
+      <div className="mt-3 flex items-center gap-2">
+        {startLogo && (
+          <TeamLogo sport={pick.sport} logoUrl={startLogo} className="h-6 w-6 shrink-0 rounded-full ring-2 ring-surface" />
+        )}
+        <p className="font-display font-semibold">{pick.matchup}</p>
+        {endLogo && (
+          <TeamLogo sport={pick.sport} logoUrl={endLogo} className="h-6 w-6 shrink-0 rounded-full ring-2 ring-surface" />
+        )}
+      </div>
 
       <div className="mt-2 flex flex-wrap items-center gap-3 text-sm">
         <span className="rounded-full bg-surface-raised px-2.5 py-1">{BET_TYPE_LABELS[pick.betType]}</span>
-        <span className="font-semibold">{pick.selection}</span>
+        {pick.betType !== "PARLAY" && <span className="font-display font-semibold">{pick.selection}</span>}
         <span className="font-semibold tabular-nums">{formatOdds(pick.odds)}</span>
-        <span className="text-muted">{pick.units}u</span>
+        <span className="inline-flex items-baseline gap-1 rounded-lg border border-accent/30 bg-accent/10 px-2 py-0.5">
+          <span className="font-bold tabular-nums text-accent">{pick.units}u</span>
+          <span className="text-[10px] font-semibold uppercase tracking-wide text-accent/80">risk</span>
+        </span>
         {pick.isPremium && <span className="text-xs text-muted">Premium</span>}
       </div>
 
       <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-border pt-4">
         <ResultPill result={pick.result} />
-        <div className="flex flex-wrap gap-2">
-          {SETTLE_OPTIONS.map((option) => (
-            <button
-              key={option}
-              disabled={loading}
-              onClick={() => settle(option)}
-              className={cn(
-                "rounded-full border px-3 py-1 text-xs font-medium disabled:opacity-50",
-                pick.result === option
-                  ? option === "WIN"
-                    ? "border-accent bg-accent/10 text-accent"
-                    : option === "LOSS"
-                      ? "border-danger bg-danger/10 text-danger"
-                      : "border-push bg-push/10 text-push"
-                  : "border-border text-muted hover:text-foreground"
-              )}
-            >
-              {option}
-            </button>
-          ))}
-        </div>
+        {pick.result === "PENDING" ? (
+          <div className="flex flex-wrap gap-2">
+            {SETTLE_OPTIONS.map((option) => (
+              <button
+                key={option}
+                disabled={loading}
+                onClick={() => settle(option)}
+                className="rounded-full border border-border px-3 py-1 text-xs font-medium text-muted hover:text-foreground disabled:opacity-50"
+              >
+                {option}
+              </button>
+            ))}
+          </div>
+        ) : (
+          // A grade is final — no re-grading once settled. Corrections go through
+          // an admin, keeping records tamper-proof.
+          <span className="inline-flex items-center gap-1.5 text-xs font-medium text-muted">
+            <Lock className="h-3.5 w-3.5" /> Graded — final
+          </span>
+        )}
       </div>
+
+      {shareInfo && (
+        <div className="mt-3 flex items-center justify-between border-t border-border pt-3">
+          <span className="text-xs text-muted">Share this pick</span>
+          <PickShareButton
+            text={shareInfo.text}
+            url={shareInfo.url}
+            imageUrl={shareInfo.imageUrl}
+            downloadName={shareInfo.downloadName}
+          />
+        </div>
+      )}
     </div>
   );
 }

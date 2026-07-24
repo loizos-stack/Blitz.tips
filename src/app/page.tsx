@@ -1,15 +1,52 @@
 import Link from "next/link";
 import { ShieldCheck, LineChart, Users, ArrowRight } from "lucide-react";
-import { listHandicapperSummaries } from "@/lib/handicappers";
+import { listHandicapperDirectory, applyHandicapperFinder } from "@/lib/handicappers";
 import { HandicapperCard } from "@/components/handicapper-card";
+import { HandicapperFinder } from "@/components/handicapper-finder";
+import { UpcomingGames } from "@/components/upcoming-games";
+import { getUpcomingEvents, getAllUpcomingEvents, getAvailableHomepageSports } from "@/lib/odds-api";
+import { SPORT_LABELS } from "@/lib/utils";
+import type { PickSport } from "@prisma/client";
 
 export const dynamic = "force-dynamic";
 
-export default async function Home() {
-  const handicappers = await listHandicapperSummaries();
-  const featured = [...handicappers]
-    .sort((a, b) => b.stats.unitsNet - a.stats.unitsNet)
-    .slice(0, 3);
+export default async function Home({
+  searchParams,
+}: {
+  searchParams: Promise<{ sport?: string; find?: string; q?: string }>;
+}) {
+  const params = await searchParams;
+  const [handicappers, unsortedSports] = await Promise.all([
+    listHandicapperDirectory(),
+    getAvailableHomepageSports(),
+  ]);
+
+  // Active sports, alphabetized by their display label so the tab order is
+  // predictable.
+  const availableSports = [...unsortedSports].sort((a, b) =>
+    (SPORT_LABELS[a] ?? a).localeCompare(SPORT_LABELS[b] ?? b)
+  );
+
+  // Default view merges every sport's games sorted by start time; picking a
+  // sport pill (?sport=...) narrows to just that sport. Each sport's feed is
+  // cached for an hour and the "all" view reuses those caches, so no extra
+  // billed calls.
+  const sport: PickSport | null = availableSports.includes(params.sport as PickSport)
+    ? (params.sport as PickSport)
+    : null;
+
+  const oddsFeed = sport
+    ? await getUpcomingEvents(sport)
+    : await getAllUpcomingEvents(availableSports);
+
+  // The "Find a Handicapper" finder: sport chips are the major sports offered by
+  // at least one handicapper; the list is filtered/sorted by the active chip.
+  const MAJOR_SPORTS: PickSport[] = ["NFL", "NBA", "MLB", "NHL", "SOCCER", "NCAAF", "NCAAB"];
+  const offered = new Set(handicappers.flatMap((h) => h.sports));
+  const finderSports = MAJOR_SPORTS.filter((s) => offered.has(s));
+  const activeFilter = params.find ?? "all";
+  const query = params.q ?? "";
+  const foundHandicappers = applyHandicapperFinder(handicappers, activeFilter, query);
 
   const totalPicks = handicappers.reduce((sum, h) => sum + h.stats.totalPicks, 0);
 
@@ -17,13 +54,14 @@ export default async function Home() {
     <div>
       <section className="relative overflow-hidden border-b border-border">
         <div
-          className="pointer-events-none absolute inset-0 opacity-40"
-          style={{
-            background:
-              "radial-gradient(circle at 20% -10%, rgba(22,163,74,0.10), transparent 45%), radial-gradient(circle at 90% 10%, rgba(180,83,9,0.07), transparent 40%)",
-          }}
+          aria-hidden
+          className="pointer-events-none absolute inset-0 bg-[url('/hero-bg.svg')] bg-cover bg-bottom"
         />
-        <div className="container-page relative py-20 md:py-28">
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-0 bg-gradient-to-r from-background via-background/55 to-transparent"
+        />
+        <div className="container-page relative pb-20 pt-10 md:pb-28 md:pt-14">
           <div className="max-w-2xl">
             <span className="inline-flex items-center gap-2 rounded-full border border-border bg-surface px-3 py-1 text-xs font-medium text-muted">
               Every pick. Every result. No cherry-picking.
@@ -45,10 +83,10 @@ export default async function Home() {
                 See the leaderboard <ArrowRight className="h-4 w-4" />
               </Link>
               <Link
-                href="/pricing"
+                href="/signup"
                 className="flex items-center justify-center rounded-lg border border-border px-6 py-3 text-sm font-semibold hover:border-muted"
               >
-                Become a handicapper
+                Buy or Sell tips
               </Link>
             </div>
           </div>
@@ -62,28 +100,47 @@ export default async function Home() {
         </div>
       </section>
 
-      <section className="container-page py-16">
-        <div className="mb-8 flex items-end justify-between">
+      <div id="lines" />
+      <UpcomingGames sport={sport} feed={oddsFeed} availableSports={availableSports} />
+
+      <section id="find" className="relative scroll-mt-20 overflow-hidden border-y border-border py-16">
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-0 bg-[url('/lines-bg.svg')] bg-cover bg-center opacity-[0.07]"
+        />
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-0 bg-gradient-to-br from-accent/[0.07] via-transparent to-gold/[0.07]"
+        />
+        <div className="container-page relative">
+        <div className="mb-2 flex items-end justify-between">
           <div>
-            <h2 className="text-2xl font-bold">Top performers</h2>
-            <p className="mt-1 text-muted">Ranked by net units over their full tracked history.</p>
+            <h2 className="text-2xl font-bold">Find a Handicapper</h2>
+            <p className="mt-1 text-muted">Search and filter by what matters to you.</p>
           </div>
           <Link href="/leaderboard" className="hidden text-sm font-medium text-accent hover:underline sm:block">
             Full leaderboard →
           </Link>
         </div>
 
-        {featured.length > 0 ? (
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {featured.map((h, i) => (
-              <HandicapperCard key={h.id} handicapper={h} rank={i + 1} />
-            ))}
-          </div>
-        ) : (
-          <div className="card p-8 text-center text-muted">
+        <HandicapperFinder sports={finderSports} activeFilter={activeFilter} query={query} />
+
+        {handicappers.length === 0 ? (
+          <div className="card mt-8 p-8 text-center text-muted">
             No handicappers yet — be the first to build a public track record.
           </div>
+        ) : foundHandicappers.length === 0 ? (
+          <div className="card mt-8 p-8 text-center text-muted">
+            No handicappers match your search. Try a different filter.
+          </div>
+        ) : (
+          <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {foundHandicappers.map((h) => (
+              <HandicapperCard key={h.id} handicapper={h} />
+            ))}
+          </div>
         )}
+        </div>
       </section>
 
       <section className="border-t border-border bg-surface/40 py-16">

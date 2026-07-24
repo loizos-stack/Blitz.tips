@@ -12,6 +12,8 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Cloudflare Email Worker — its own package/runtime, linted separately.
+    "workers/**",
   ]),
 ]);
 

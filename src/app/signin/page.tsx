@@ -4,15 +4,29 @@ import { useState, Suspense } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { signIn } from "next-auth/react";
+import { GoogleIcon } from "@/components/google-icon";
+
+const OAUTH_ERRORS: Record<string, string> = {
+  OAuthAccountNotLinked: "That email is already registered. Sign in with your password instead.",
+  OAuthSignin: "Couldn't start Google sign-in. Please try again.",
+  OAuthCallback: "Google sign-in didn't complete. Please try again.",
+  Callback: "Google sign-in didn't complete. Please try again.",
+  Configuration: "Google sign-in isn't available right now.",
+};
 
 function SignInForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const callbackUrl = searchParams.get("callbackUrl") ?? "/dashboard";
+  // Default to the role-aware resolver so each account lands on its own
+  // dashboard; an explicit callbackUrl (e.g. a page they were bounced from) wins.
+  const callbackUrl = searchParams.get("callbackUrl") ?? "/welcome";
+  const oauthError = searchParams.get("error");
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(
+    oauthError ? OAUTH_ERRORS[oauthError] ?? "Sign-in failed. Please try again." : null
+  );
   const [loading, setLoading] = useState(false);
 
   async function handleSubmit(e: React.FormEvent) {
@@ -24,7 +38,7 @@ function SignInForm() {
 
     setLoading(false);
     if (res?.error) {
-      setError("Invalid email or password");
+      setError("Invalid email/username or password");
       return;
     }
     router.push(callbackUrl);
@@ -39,8 +53,9 @@ function SignInForm() {
 
         <button
           onClick={() => signIn("google", { callbackUrl })}
-          className="mt-6 w-full rounded-lg border border-border py-2.5 text-sm font-medium hover:border-muted"
+          className="mt-6 flex w-full items-center justify-center gap-2.5 rounded-lg border border-border bg-white py-2.5 text-sm font-medium text-neutral-800 hover:bg-neutral-50"
         >
+          <GoogleIcon className="h-4 w-4" />
           Continue with Google
         </button>
 
@@ -52,9 +67,11 @@ function SignInForm() {
 
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
           <div>
-            <label className="text-sm font-medium">Email</label>
+            <label className="text-sm font-medium">Email or username</label>
             <input
-              type="email"
+              type="text"
+              autoCapitalize="none"
+              autoCorrect="off"
               required
               value={email}
               onChange={(e) => setEmail(e.target.value)}

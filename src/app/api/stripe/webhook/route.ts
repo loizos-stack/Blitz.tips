@@ -2,7 +2,8 @@ import { NextResponse } from "next/server";
 import Stripe from "stripe";
 import { stripe } from "@/lib/stripe";
 import { prisma } from "@/lib/prisma";
-import type { SubscriptionStatus } from "@prisma/client";
+import { logActivity } from "@/lib/audit";
+import type { BillingInterval, HandicapperPlan, SubscriptionStatus } from "@prisma/client";
 
 const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
 
@@ -50,6 +51,49 @@ async function syncSubscription(subscription: Stripe.Subscription) {
       cancelAtPeriodEnd: subscription.cancel_at_period_end,
     },
   });
+
+  await logActivity({
+    actorId: subscriberId,
+    action: `subscription.${mapStatus(subscription.status).toLowerCase()}`,
+    targetType: "Subscription",
+    targetId: subscription.id,
+    detail: `subscriber ${subscriberId} → handicapper ${handicapperId}`,
+  });
+}
+
+/** A handicapper's own plan subscription with the platform — separate revenue stream from syncSubscription above. */
+async function syncHandicapperPlanSubscription(subscription: Stripe.Subscription) {
+  const handicapperProfileId = subscription.metadata?.handicapperProfileId;
+  const plan = subscription.metadata?.plan as HandicapperPlan | undefined;
+  const interval = subscription.metadata?.interval as BillingInterval | undefined;
+  if (!handicapperProfileId || !plan || !interval) return;
+
+  const status = mapStatus(subscription.status);
+  const periodEndUnix = subscription.items.data[0]?.current_period_end;
+  // Mark the one-time free trial consumed the moment a trialing subscription
+  // exists (or the checkout flagged one), so it can't be claimed twice.
+  const trialConsumed =
+    subscription.status === "trialing" ||
+    Boolean(subscription.trial_end) ||
+    subscription.metadata?.trial === "1";
+
+  await prisma.handicapperProfile
+    .update({
+      where: { id: handicapperProfileId },
+      data: {
+        // A canceled/expired plan subscription reverts the handicapper to
+        // Free rather than leaving them stuck on a paid tier's lower
+        // commission rate with nothing actually being billed.
+        plan: status === "CANCELED" ? "FREE" : plan,
+        planInterval: status === "CANCELED" ? null : interval,
+        planStatus: status,
+        planStripeSubscriptionId: status === "CANCELED" ? null : subscription.id,
+        planCurrentPeriodEnd: periodEndUnix ? new Date(periodEndUnix * 1000) : null,
+        planCancelAtPeriodEnd: subscription.cancel_at_period_end,
+        ...(trialConsumed ? { planTrialUsed: true } : {}),
+      },
+    })
+    .catch(() => undefined);
 }
 
 export async function POST(request: Request) {
@@ -73,13 +117,22 @@ export async function POST(request: Request) {
       const checkoutSession = event.data.object;
       if (checkoutSession.mode === "subscription" && typeof checkoutSession.subscription === "string") {
         const subscription = await stripe.subscriptions.retrieve(checkoutSession.subscription);
-        await syncSubscription(subscription);
+        if (subscription.metadata?.kind === "handicapper_plan") {
+          await syncHandicapperPlanSubscription(subscription);
+        } else {
+          await syncSubscription(subscription);
+        }
       }
       break;
     }
     case "customer.subscription.updated":
     case "customer.subscription.deleted": {
-      await syncSubscription(event.data.object);
+      const subscription = event.data.object;
+      if (subscription.metadata?.kind === "handicapper_plan") {
+        await syncHandicapperPlanSubscription(subscription);
+      } else {
+        await syncSubscription(subscription);
+      }
       break;
     }
     case "account.updated": {
