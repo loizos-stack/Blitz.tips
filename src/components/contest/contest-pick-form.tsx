@@ -29,7 +29,7 @@ type FeedState =
  * Pick entry for a contest entrant. Picks come off the live board — the same
  * feed and full market navigator the handicapper form uses, so everything we
  * carry is available: moneylines, spreads/handicaps, totals, alternate lines,
- * halves/quarters/periods, and player props. Manual entry stays as a fallback
+ * 1st half / quarter / period markets, and player props. Manual entry is a fallback
  * for anything the feed doesn't price. Singles only — no parlays.
  */
 export function ContestPickForm({ contestId }: { contestId: string }) {

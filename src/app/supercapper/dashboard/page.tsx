@@ -197,8 +197,8 @@ export default async function ContestDashboardPage() {
           <div className="card p-5">
             <p className="mb-1 font-semibold">Make a pick</p>
             <p className="mb-3 text-xs text-muted">
-              Singles only — no parlays. Every market counts: moneylines, spreads, totals, alternates, halves &amp;
-              periods, and player props.
+              Singles only — no parlays. Every market counts: moneylines, spreads, totals, alternate lines, 1st half /
+              quarter / period markets, and player props.
             </p>
             {accepting ? (
               <ContestPickForm contestId={contest.id} />

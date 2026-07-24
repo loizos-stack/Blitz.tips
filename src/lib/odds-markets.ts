@@ -120,18 +120,9 @@ const GAME_EXTRAS: Record<OddsGroup, MarketDef[]> = {
     { key: "h2h_h1", label: "1st Half Moneyline", betType: "MONEYLINE" },
     { key: "spreads_h1", label: "1st Half Spread", betType: "SPREAD" },
     { key: "totals_h1", label: "1st Half Total", betType: "TOTAL" },
-    { key: "h2h_h2", label: "2nd Half Moneyline", betType: "MONEYLINE" },
-    { key: "spreads_h2", label: "2nd Half Spread", betType: "SPREAD" },
-    { key: "totals_h2", label: "2nd Half Total", betType: "TOTAL" },
     { key: "h2h_q1", label: "1st Quarter Moneyline", betType: "MONEYLINE" },
     { key: "spreads_q1", label: "1st Quarter Spread", betType: "SPREAD" },
     { key: "totals_q1", label: "1st Quarter Total", betType: "TOTAL" },
-    { key: "h2h_q2", label: "2nd Quarter Moneyline", betType: "MONEYLINE" },
-    { key: "totals_q2", label: "2nd Quarter Total", betType: "TOTAL" },
-    { key: "h2h_q3", label: "3rd Quarter Moneyline", betType: "MONEYLINE" },
-    { key: "totals_q3", label: "3rd Quarter Total", betType: "TOTAL" },
-    { key: "h2h_q4", label: "4th Quarter Moneyline", betType: "MONEYLINE" },
-    { key: "totals_q4", label: "4th Quarter Total", betType: "TOTAL" },
   ],
   basketball: [
     { key: "alternate_spreads", label: "Alternate Spread", betType: "SPREAD" },
@@ -140,18 +131,9 @@ const GAME_EXTRAS: Record<OddsGroup, MarketDef[]> = {
     { key: "h2h_h1", label: "1st Half Moneyline", betType: "MONEYLINE" },
     { key: "spreads_h1", label: "1st Half Spread", betType: "SPREAD" },
     { key: "totals_h1", label: "1st Half Total", betType: "TOTAL" },
-    { key: "h2h_h2", label: "2nd Half Moneyline", betType: "MONEYLINE" },
-    { key: "spreads_h2", label: "2nd Half Spread", betType: "SPREAD" },
-    { key: "totals_h2", label: "2nd Half Total", betType: "TOTAL" },
     { key: "h2h_q1", label: "1st Quarter Moneyline", betType: "MONEYLINE" },
     { key: "spreads_q1", label: "1st Quarter Spread", betType: "SPREAD" },
     { key: "totals_q1", label: "1st Quarter Total", betType: "TOTAL" },
-    { key: "h2h_q2", label: "2nd Quarter Moneyline", betType: "MONEYLINE" },
-    { key: "totals_q2", label: "2nd Quarter Total", betType: "TOTAL" },
-    { key: "h2h_q3", label: "3rd Quarter Moneyline", betType: "MONEYLINE" },
-    { key: "totals_q3", label: "3rd Quarter Total", betType: "TOTAL" },
-    { key: "h2h_q4", label: "4th Quarter Moneyline", betType: "MONEYLINE" },
-    { key: "totals_q4", label: "4th Quarter Total", betType: "TOTAL" },
   ],
   baseball: [
     { key: "alternate_spreads", label: "Alternate Run Line", betType: "SPREAD" },
@@ -168,10 +150,6 @@ const GAME_EXTRAS: Record<OddsGroup, MarketDef[]> = {
     { key: "h2h_p1", label: "1st Period Moneyline", betType: "MONEYLINE" },
     { key: "spreads_p1", label: "1st Period Puck Line", betType: "SPREAD" },
     { key: "totals_p1", label: "1st Period Total", betType: "TOTAL" },
-    { key: "h2h_p2", label: "2nd Period Moneyline", betType: "MONEYLINE" },
-    { key: "totals_p2", label: "2nd Period Total", betType: "TOTAL" },
-    { key: "h2h_p3", label: "3rd Period Moneyline", betType: "MONEYLINE" },
-    { key: "totals_p3", label: "3rd Period Total", betType: "TOTAL" },
   ],
   soccer: [
     { key: "alternate_spreads", label: "Alternate Handicap", betType: "SPREAD" },
@@ -290,7 +268,7 @@ export function buildGroups(sportKey: string, markets: RawMarket[]): MarketGroup
     (isSoccer ? gameSections : propSections).push({ key: def.key, label: def.label, options });
   }
 
-  // Alternate lines + halves/quarters/periods, in catalog order.
+  // Alternate lines + 1st half / quarter / period markets, in catalog order.
   const extraSections: MarketSection[] = [];
   for (const def of GAME_EXTRAS[group]) {
     const m = byKey.get(def.key);
