@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { format } from "date-fns";
-import { Trophy, ShieldCheck, Coins, ListChecks, Gift, ArrowRight, CalendarClock, Gauge } from "lucide-react";
+import { Trophy, ShieldCheck, Coins, ListChecks, Gift, CalendarClock, Gauge, LayoutDashboard, ListOrdered } from "lucide-react";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import {
@@ -163,28 +163,39 @@ export default async function SupercapperPage() {
           <div className="mt-8 flex flex-col items-center gap-6">
             {phase === "upcoming" && <ContestCountdown target={contest.startsAt.toISOString()} label="Contest starts in" />}
             {phase === "live" && <ContestCountdown target={contest.endsAt.toISOString()} label="Contest ends in" />}
-            <ContestJoinButton
-              contestId={contest.id}
-              signedIn={Boolean(session?.user)}
-              joined={Boolean(myEntry)}
-              accepting={canJoin}
-              rules={{
-                name: contest.name,
-                minPicks: contest.minPicks,
-                winners,
-                prizeLabel: formatCents(contest.prizePoolCents),
-                dateRange,
-                registrationCloses: regClosesLabel,
-                dynamicPayouts: contest.dynamicPayouts,
-              }}
-            />
-            {myEntry && (
-              <Link
-                href="/supercapper/dashboard"
-                className="inline-flex items-center gap-1.5 text-sm font-semibold text-accent hover:underline"
-              >
-                Open your contest dashboard <ArrowRight className="h-4 w-4" />
-              </Link>
+            {myEntry ? (
+              // Already entered: skip the "entered" button and send them where they
+              // actually want to go — their dashboard, or the full standings.
+              <div className="flex flex-wrap items-center justify-center gap-3">
+                <Link
+                  href="/supercapper/dashboard"
+                  className="inline-flex items-center justify-center gap-2 rounded-lg bg-accent px-6 py-3 text-sm font-semibold text-accent-foreground hover:opacity-90"
+                >
+                  <LayoutDashboard className="h-4 w-4" /> Your dashboard
+                </Link>
+                <Link
+                  href="/supercapper/standings"
+                  className="inline-flex items-center justify-center gap-2 rounded-lg border border-border px-6 py-3 text-sm font-semibold hover:border-muted"
+                >
+                  <ListOrdered className="h-4 w-4" /> Full standings
+                </Link>
+              </div>
+            ) : (
+              <ContestJoinButton
+                contestId={contest.id}
+                signedIn={Boolean(session?.user)}
+                joined={false}
+                accepting={canJoin}
+                rules={{
+                  name: contest.name,
+                  minPicks: contest.minPicks,
+                  winners,
+                  prizeLabel: formatCents(contest.prizePoolCents),
+                  dateRange,
+                  registrationCloses: regClosesLabel,
+                  dynamicPayouts: contest.dynamicPayouts,
+                }}
+              />
             )}
           </div>
         </div>
