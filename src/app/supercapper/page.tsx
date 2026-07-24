@@ -101,6 +101,7 @@ export default async function SupercapperPage() {
     previousRank: prevRankByEntry.get(s.entryId) ?? null,
     qualified: s.qualified,
     roi: s.roi,
+    adjustedRoi: s.adjustedRoi,
     unitsNet: s.unitsNet,
     record: s.record,
     settledPicks: s.settledPicks,
@@ -230,7 +231,7 @@ export default async function SupercapperPage() {
           </p>
           <div className="mt-8 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
             <Rule icon={<Gift className="h-5 w-5" />} title="Free to enter" body="No buy-in, no catch. Sign in, hit enter, and start posting picks." />
-            <Rule icon={<Coins className="h-5 w-5" />} title="Best ROI wins" body="You're ranked by return on units risked across your settled picks — not just raw wins." />
+            <Rule icon={<Coins className="h-5 w-5" />} title="Best ROI wins" body="Ranked by volume-adjusted ROI — return on units risked, weighted by how many picks you post. Consistency all season beats a lucky short run." />
             <Rule
               icon={<ListChecks className="h-5 w-5" />}
               title={`${contest.minPicks}-pick minimum · singles only`}
@@ -277,8 +278,8 @@ export default async function SupercapperPage() {
             <div>
               <h2 className="text-2xl font-bold">Standings</h2>
               <p className="mt-1 text-sm text-muted">
-                Ranked by ROI over settled picks. Entrants need {contest.minPicks} graded picks to qualify.
-                Prizes are auto-calculated per ICM by finishing rank.
+                Ranked by volume-adjusted ROI — your ROI counts more the more picks you post. Entrants need{" "}
+                {contest.minPicks} graded picks to qualify. Prizes are auto-calculated per ICM by finishing rank.
               </p>
             </div>
             {myEntry && (

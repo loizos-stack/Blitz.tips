@@ -50,6 +50,18 @@ export interface HandicapperStats {
   record: string;
 }
 
+// Volume-adjusted ROI (contest ranking): ROI with a fixed block of break-even
+// units added to the denominator, so a small hot streak can't spike the number
+// — your ROI only counts fully once you've posted real volume. This rewards
+// contestants who keep posting all season over someone who hits the minimum on
+// a lucky run and stops. Tunable: higher = more volume required to rank.
+export const ROI_SHRINKAGE_UNITS = 100;
+
+export function adjustedRoi(unitsNet: number, unitsRisked: number): number | null {
+  if (unitsRisked <= 0) return null;
+  return Math.round((unitsNet / (unitsRisked + ROI_SHRINKAGE_UNITS)) * 100 * 100) / 100;
+}
+
 export function computeStats(picks: Pick<PickModel, "odds" | "units" | "result">[]): HandicapperStats {
   let wins = 0;
   let losses = 0;

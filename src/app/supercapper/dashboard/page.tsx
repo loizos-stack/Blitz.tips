@@ -113,6 +113,7 @@ export default async function ContestDashboardPage() {
     previousRank: prevRankByEntry.get(s.entryId) ?? null,
     qualified: s.qualified,
     roi: s.roi,
+    adjustedRoi: s.adjustedRoi,
     unitsNet: s.unitsNet,
     record: s.record,
     settledPicks: s.settledPicks,

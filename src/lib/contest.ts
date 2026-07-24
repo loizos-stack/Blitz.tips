@@ -1,6 +1,6 @@
 import "server-only";
 import type { Contest, ContestEntry, ContestPick } from "@prisma/client";
-import { computeStats } from "@/lib/odds";
+import { computeStats, adjustedRoi } from "@/lib/odds";
 import { icmEquityCents, ICM_MAX_FIELD } from "@/lib/icm";
 import { startOfUtcDay } from "@/lib/contest-limits";
 
@@ -129,6 +129,8 @@ export interface ContestStanding {
   rank: number | null;
   qualified: boolean;
   roi: number | null;
+  // Volume-adjusted ROI — the ranking metric. Regresses small samples toward 0.
+  adjustedRoi: number | null;
   unitsNet: number;
   record: string;
   settledPicks: number;
@@ -163,6 +165,7 @@ export function computeStandings(
       name,
       qualified: settledPicks >= contest.minPicks,
       roi: stats.roi,
+      adjustedRoi: adjustedRoi(stats.unitsNet, stats.unitsRisked),
       unitsNet: stats.unitsNet,
       record: stats.record,
       settledPicks,
@@ -170,11 +173,13 @@ export function computeStandings(
     };
   });
 
+  // Rank by volume-adjusted ROI so a lucky small sample can't top a season-long
+  // grinder; ties break on raw net units, then pick count, then name.
   const qualified = rows
     .filter((r) => r.qualified)
     .sort(
       (a, b) =>
-        (b.roi ?? -Infinity) - (a.roi ?? -Infinity) ||
+        (b.adjustedRoi ?? -Infinity) - (a.adjustedRoi ?? -Infinity) ||
         b.unitsNet - a.unitsNet ||
         b.settledPicks - a.settledPicks ||
         a.name.localeCompare(b.name)
@@ -266,15 +271,15 @@ export function entrantRankHistory(
   return points;
 }
 
-// Rank the field by ROI over picks started before `cutoff`; return the target's
-// point (or nothing if it isn't ranked yet).
+// Rank the field by volume-adjusted ROI over picks started before `cutoff`;
+// return the target's point (or nothing if it isn't ranked yet).
 function rankAt(active: EntryWithPicks[], targetEntryId: string, cutoff: number): RankPoint[] {
   const ranked = active
     .map((e) => {
       const picks = e.picks.filter((p) => p.eventStartsAt.getTime() < cutoff);
       const stats = computeStats(picks);
       const settled = stats.wins + stats.losses + stats.pushes;
-      return { entryId: e.id, roi: stats.roi, unitsNet: stats.unitsNet, settled };
+      return { entryId: e.id, roi: adjustedRoi(stats.unitsNet, stats.unitsRisked), unitsNet: stats.unitsNet, settled };
     })
     .filter((r) => r.settled > 0)
     .sort(

@@ -39,7 +39,7 @@ export function ContestRulesModal({
     `Daily limit: up to ${MAX_PICKS_PER_DAY} picks and ${MAX_UNITS_PER_DAY} total units per day.`,
     `Weekly limit: up to ${MAX_PICKS_PER_WEEK} picks per week. Both quotas reset automatically — daily at midnight UTC, weekly on Monday.`,
     `You must post at least ${rules.minPicks} graded (settled) picks to qualify for the leaderboard and prizes.`,
-    "Entrants are ranked by ROI — net units won divided by units risked — across their settled picks.",
+    "Entrants are ranked by volume-adjusted ROI: your return on units risked, but a fixed block of break-even units is added in, so your ROI only counts fully once you've posted real volume. A small hot streak can't top a full season — posting consistently all contest long is rewarded over hitting the minimum and stopping.",
     "Every pick must be submitted before the event starts; you can't post on a game already underway or one after the contest ends.",
     "Results are graded by Blitz.tips and are final.",
     rules.dynamicPayouts

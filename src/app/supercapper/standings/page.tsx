@@ -62,6 +62,7 @@ export default async function SupercapperStandingsPage() {
     previousRank: prevRankByEntry.get(s.entryId) ?? null,
     qualified: s.qualified,
     roi: s.roi,
+    adjustedRoi: s.adjustedRoi,
     unitsNet: s.unitsNet,
     record: s.record,
     settledPicks: s.settledPicks,
@@ -111,7 +112,8 @@ export default async function SupercapperStandingsPage() {
       </div>
 
       <p className="mt-4 text-sm text-muted">
-        Ranked by ROI over settled picks. Entrants need {contest.minPicks} graded picks to qualify; prizes are
+        Ranked by volume-adjusted ROI (Score) — your ROI counts more the more graded picks you post, so a lucky short
+        run can&apos;t top a full season. Entrants need {contest.minPicks} graded picks to qualify; prizes are
         auto-calculated per ICM by finishing rank. Tap a name to see that entrant&apos;s picks and rank history.
       </p>
 

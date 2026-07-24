@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { ArrowUp, ArrowDown, Minus } from "lucide-react";
-import { computeStats } from "@/lib/odds";
+import { computeStats, adjustedRoi } from "@/lib/odds";
 import { CONTEST_WINDOWS, filterPicksByWindow, type ContestWindowKey } from "@/lib/contest-windows";
 import { formatCents, cn } from "@/lib/utils";
 
@@ -32,6 +32,7 @@ export interface OverallStanding {
   previousRank: number | null;
   qualified: boolean;
   roi: number | null;
+  adjustedRoi: number | null;
   unitsNet: number;
   record: string;
   settledPicks: number;
@@ -45,6 +46,8 @@ interface Row {
   // Movement vs. the start of today; undefined in windowed views (no baseline).
   previousRank?: number | null;
   roi: number | null;
+  // Volume-adjusted ROI — the ranking metric ("Score").
+  score: number | null;
   unitsNet: number;
   record: string;
   settledPicks: number;
@@ -77,6 +80,7 @@ export function ContestStandings({
         rank: s.rank,
         previousRank: s.previousRank,
         roi: s.roi,
+        score: s.adjustedRoi,
         unitsNet: s.unitsNet,
         record: s.record,
         settledPicks: s.settledPicks,
@@ -97,6 +101,7 @@ export function ContestStandings({
         entryId: e.entryId,
         name: e.name,
         roi: stats.roi,
+        score: adjustedRoi(stats.unitsNet, stats.unitsRisked),
         unitsNet: stats.unitsNet,
         record: stats.record,
         settledPicks,
@@ -107,7 +112,7 @@ export function ContestStandings({
       .filter((r) => r.settledPicks > 0)
       .sort(
         (a, b) =>
-          (b.roi ?? -Infinity) - (a.roi ?? -Infinity) ||
+          (b.score ?? -Infinity) - (a.score ?? -Infinity) ||
           b.unitsNet - a.unitsNet ||
           b.settledPicks - a.settledPicks ||
           a.name.localeCompare(b.name)
@@ -149,11 +154,14 @@ export function ContestStandings({
         <div className="card p-8 text-center text-muted">No entries yet — be the first to set the pace.</div>
       ) : (
         <div className="card overflow-x-auto p-0">
-          <table className="w-full min-w-[42rem] text-sm">
+          <table className="w-full min-w-[48rem] text-sm">
             <thead>
               <tr className="border-b border-border text-left text-xs uppercase tracking-wide text-muted">
                 <th className="px-4 py-3">#</th>
                 <th className="px-4 py-3">Entrant</th>
+                <th className="px-4 py-3 text-right" title="Volume-adjusted ROI — your ROI counts more the more graded picks you post. This is the ranking metric.">
+                  Score
+                </th>
                 <th className="px-4 py-3 text-right">ROI</th>
                 <th className="px-4 py-3 text-right">Units</th>
                 <th className="px-4 py-3 text-right">Record</th>
@@ -184,7 +192,10 @@ export function ContestStandings({
                       <span className="ml-1.5 text-xs font-semibold text-accent">You</span>
                     )}
                   </td>
-                  <td className="px-4 py-2.5 text-right tabular-nums">
+                  <td className="px-4 py-2.5 text-right font-semibold tabular-nums">
+                    {r.score != null ? `${r.score > 0 ? "+" : ""}${r.score.toFixed(1)}%` : "—"}
+                  </td>
+                  <td className="px-4 py-2.5 text-right tabular-nums text-muted">
                     {r.roi != null ? `${r.roi > 0 ? "+" : ""}${r.roi.toFixed(1)}%` : "—"}
                   </td>
                   <td
@@ -212,20 +223,24 @@ export function ContestStandings({
 
       {window === "overall" && (
         <p className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted">
+          <span>
+            <span className="font-semibold text-foreground">Score</span> is volume-adjusted ROI — the more graded picks
+            you post, the more your ROI counts, so a small hot streak can&apos;t top a full season.
+          </span>
           <span className="inline-flex items-center gap-1">
             <ArrowUp className="h-3 w-3 text-accent" /> up
           </span>
           <span className="inline-flex items-center gap-1">
             <ArrowDown className="h-3 w-3 text-danger" /> down
           </span>
-          <span>vs. yesterday&apos;s standing.</span>
+          <span>vs. yesterday.</span>
         </p>
       )}
 
       {window !== "overall" && (
         <p className="mt-3 text-xs text-muted">
           {hasRankedRows
-            ? "Ranked by ROI over picks played in this window. No minimum-pick floor and no prize — the money standing is the Overall tab."
+            ? "Ranked by volume-adjusted ROI over picks played in this window. No minimum-pick floor and no prize — the money standing is the Overall tab."
             : "No graded picks in this window yet."}
         </p>
       )}
