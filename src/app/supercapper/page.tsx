@@ -142,22 +142,7 @@ export default async function SupercapperPage() {
             <p className="font-display text-5xl font-extrabold text-accent md:text-7xl">
               {formatCents(contest.prizePoolCents)}
             </p>
-            <p className="mt-2 text-sm text-muted">
-              {dateRange} · Top {winners} paid · Free to enter
-            </p>
-            {contest.dynamicPayouts && (
-              <p className="mt-1 text-xs text-muted">
-                {registrationOpen ? (
-                  <>
-                    Paid places grow as cappers join — one more for every 10 entrants.{" "}
-                    <span className="font-semibold text-foreground">{activeCount} in</span>, {untilNextSpot} more opens place #
-                    {winners + 1}. Registration closes {regClosesLabel}.
-                  </>
-                ) : (
-                  <>Registration closed {regClosesLabel} — {winners} paid places locked in.</>
-                )}
-              </p>
-            )}
+            <p className="mt-2 text-sm text-muted">{dateRange}</p>
           </div>
 
           <div className="mt-8 flex flex-col items-center gap-6">
@@ -201,59 +186,6 @@ export default async function SupercapperPage() {
         </div>
       </section>
 
-      {/* How it works */}
-      <section className="border-b border-border bg-surface/40 py-14">
-        <div className="container-page">
-          <h2 className="text-center text-2xl font-bold">How it works</h2>
-          <div className="mt-8 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
-            <Rule icon={<Gift className="h-5 w-5" />} title="Free to enter" body="No buy-in, no catch. Sign in, hit enter, and start posting picks." />
-            <Rule icon={<Coins className="h-5 w-5" />} title="Best ROI wins" body="You're ranked by return on units risked across your settled picks — not just raw wins." />
-            <Rule icon={<ListChecks className="h-5 w-5" />} title={`${contest.minPicks}-pick minimum`} body={`Post at least ${contest.minPicks} graded singles to qualify, so nobody wins on a lucky one-off.`} />
-            <Rule
-              icon={<ShieldCheck className="h-5 w-5" />}
-              title={contest.dynamicPayouts ? "Paid places grow" : `Top ${winners} get paid`}
-              body={
-                contest.dynamicPayouts
-                  ? `The ${formatCents(contest.prizePoolCents)} pool starts across the top 3 and adds a place for every 10 cappers who join. Currently ${winners} paid.`
-                  : `The ${formatCents(contest.prizePoolCents)} pool is split across the top ${winners} finishers.`
-              }
-            />
-          </div>
-        </div>
-      </section>
-
-      {/* Key rules */}
-      <section className="border-b border-border py-14">
-        <div className="container-page">
-          <h2 className="text-center text-2xl font-bold">Contest rules</h2>
-          <p className="mt-2 text-center text-sm text-muted">
-            The essentials — you agree to the full rules when you enter.
-          </p>
-          <div className="mx-auto mt-8 grid max-w-4xl gap-4 sm:grid-cols-2">
-            <Rule
-              icon={<CalendarClock className="h-5 w-5" />}
-              title={`Registration closes ${regClosesLabel}`}
-              body="Enter before then. Once entries close, the field — and the number of paid places — is locked for the rest of the contest."
-            />
-            <Rule
-              icon={<Gauge className="h-5 w-5" />}
-              title="Daily & weekly limits"
-              body={`Max ${MAX_PICKS_PER_DAY} picks and ${MAX_UNITS_PER_DAY} units per day, and ${MAX_PICKS_PER_WEEK} picks per week. Limits reset daily at midnight UTC and weekly on Monday.`}
-            />
-            <Rule
-              icon={<ListChecks className="h-5 w-5" />}
-              title={`${contest.minPicks}-pick minimum · singles only`}
-              body={`Post at least ${contest.minPicks} graded single picks to qualify. Parlays aren't allowed, and you can't post on a game that has already started.`}
-            />
-            <Rule
-              icon={<ShieldCheck className="h-5 w-5" />}
-              title="One account · fair play"
-              body="One entry per person. We log the IP and device on every entry and pick — duplicate accounts, shared IPs, or collusion are disqualified and forfeit any prize."
-            />
-          </div>
-        </div>
-      </section>
-
       {/* Prize breakdown */}
       <section className="border-b border-border py-14">
         <div className="container-page">
@@ -283,6 +215,49 @@ export default async function SupercapperPage() {
                 <span className="font-display font-bold tabular-nums">{formatCents(cents)}</span>
               </div>
             ))}
+          </div>
+        </div>
+      </section>
+
+      {/* How it works & rules */}
+      <section className="border-b border-border bg-surface/40 py-14">
+        <div className="container-page">
+          <h2 className="text-center text-2xl font-bold">How it works &amp; rules</h2>
+          <p className="mt-2 text-center text-sm text-muted">
+            Everything you need to know — you agree to the full rules when you enter.
+          </p>
+          <div className="mt-8 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+            <Rule icon={<Gift className="h-5 w-5" />} title="Free to enter" body="No buy-in, no catch. Sign in, hit enter, and start posting picks." />
+            <Rule icon={<Coins className="h-5 w-5" />} title="Best ROI wins" body="You're ranked by return on units risked across your settled picks — not just raw wins." />
+            <Rule
+              icon={<ListChecks className="h-5 w-5" />}
+              title={`${contest.minPicks}-pick minimum · singles only`}
+              body={`Post at least ${contest.minPicks} graded single picks to qualify. Parlays aren't allowed, and you can't post on a game that's already started.`}
+            />
+            <Rule
+              icon={<Trophy className="h-5 w-5" />}
+              title={contest.dynamicPayouts ? "Paid places grow" : `Top ${winners} get paid`}
+              body={
+                contest.dynamicPayouts
+                  ? `The ${formatCents(contest.prizePoolCents)} pool starts across the top 3 and adds a place for every 10 cappers who join. Currently ${winners} paid.`
+                  : `The ${formatCents(contest.prizePoolCents)} pool is split across the top ${winners} finishers.`
+              }
+            />
+            <Rule
+              icon={<CalendarClock className="h-5 w-5" />}
+              title={`Registration closes ${regClosesLabel}`}
+              body="Enter before then. Once entries close, the field — and the number of paid places — is locked for the rest of the contest."
+            />
+            <Rule
+              icon={<Gauge className="h-5 w-5" />}
+              title="Daily & weekly limits"
+              body={`Max ${MAX_PICKS_PER_DAY} picks and ${MAX_UNITS_PER_DAY} units per day, and ${MAX_PICKS_PER_WEEK} picks per week. Limits reset daily at midnight UTC and weekly on Monday.`}
+            />
+            <Rule
+              icon={<ShieldCheck className="h-5 w-5" />}
+              title="One account · fair play"
+              body="One entry per person. We log the IP and device on every entry and pick — duplicate accounts, shared IPs, or collusion are disqualified and forfeit any prize."
+            />
           </div>
         </div>
       </section>
