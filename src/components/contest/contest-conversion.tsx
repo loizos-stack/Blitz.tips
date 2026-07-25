@@ -55,8 +55,9 @@ export function ContestConversion({
             {unitsNet}u
           </span>{" "}
           at <span className="font-semibold text-accent">{roi > 0 ? "+" : ""}{roi.toFixed(1)}% ROI</span> over{" "}
-          {settledPicks} graded picks — and you&apos;re giving it away free. Cappers with records like yours charge
-          for their picks on Blitz.tips, and your contest record already proves it.
+          {settledPicks}{" "}
+          graded picks — and you&apos;re giving it away free. Cappers with records like yours charge for their picks
+          on Blitz.tips, and your contest record already proves it.
         </p>
         <Link
           href="/dashboard/handicapper"

@@ -24,9 +24,12 @@ export function CapperList({ cappers }: { cappers: CapperRow[] }) {
           href={`/handicappers/${h.handle}`}
           className="flex items-center justify-between gap-3 py-2.5 text-sm hover:text-accent"
         >
-          <span className="min-w-0">
-            <span className="truncate font-medium">{h.displayName}</span>
-            <span className="ml-1.5 text-xs text-muted">
+          {/* The name is what's being sold, so it holds its width (capped, so a
+              very long one can't push the row) and the record ellipsizes first.
+              Both stay on one line — this list renders in narrow sidebars. */}
+          <span className="flex min-w-0 items-baseline gap-1.5">
+            <span className="max-w-[60%] shrink-0 truncate font-medium">{h.displayName}</span>
+            <span className="truncate text-xs text-muted">
               {h.record} · {h.unitsNet > 0 ? "+" : ""}
               {h.unitsNet}u
             </span>
