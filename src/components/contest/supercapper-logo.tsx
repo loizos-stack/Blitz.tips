@@ -1,7 +1,10 @@
 import { cn } from "@/lib/utils";
 
-// The Supercapper wordmark: the leading "S" is the Blitz.tips gold thunder bolt
-// (bolt only — no green square), followed by "upercapper" in the display font.
+// The Supercapper wordmark: the leading "S" is a thunder bolt, followed by
+// "upercapper" in the display font. Two colors only — the bolt and "capper"
+// share the brand green, "uper" and the byline stay neutral. Pass `onDark` on a
+// dark surface: the accent green is tuned for contrast on white and goes muddy
+// on charcoal, so it steps up to green-500 there.
 // A sub-line can sit beneath: `withContest` for "contest", `withByline` for
 // "by Blitz.tips" — the attribution lockup, for anywhere the contest appears
 // away from the site's own chrome (social, email, partner placements). Both
@@ -12,11 +15,15 @@ export function SupercapperLogo({
   className,
   withContest = false,
   withByline = false,
+  onDark = false,
 }: {
   className?: string;
   withContest?: boolean;
   withByline?: boolean;
+  /** Lightens the green for placement on a dark background. */
+  onDark?: boolean;
 }) {
+  const accent = onDark ? "text-[#22c55e]" : "text-accent";
   const label = [
     "Supercapper",
     withContest ? " Contest" : "",
@@ -32,23 +39,24 @@ export function SupercapperLogo({
       <span className="inline-flex items-center font-display font-extrabold tracking-tight">
         {/* viewBox cropped tight to the bolt's bounds (no transparent padding)
             so it can sit flush against the "u". */}
-        <svg viewBox="10.5 5.5 19 30.5" className="-mr-[0.06em] h-[1.5em] w-[0.94em]" fill="none" aria-hidden>
-          <defs>
-            <linearGradient id="sc-bolt" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#fde047" />
-              <stop offset="100%" stopColor="#eab308" />
-            </linearGradient>
-          </defs>
+        <svg
+          viewBox="10.5 5.5 19 30.5"
+          className={cn("-mr-[0.06em] h-[1.5em] w-[0.94em]", accent)}
+          fill="none"
+          aria-hidden
+        >
+          {/* stroke is green-900: keeps the bolt's edge readable against both
+              the word and a dark surface, without a third brand color. */}
           <path
             d="M22 6 L11 23 H18.5 L16 35 L29 19 H21.5 L24 6 Z"
-            fill="url(#sc-bolt)"
-            stroke="#ca8a04"
+            fill="currentColor"
+            stroke="#14532d"
             strokeWidth="0.8"
             strokeLinejoin="round"
           />
         </svg>
         <span>uper</span>
-        <span className="text-accent">capper</span>
+        <span className={accent}>capper</span>
       </span>
       {withContest && (
         <span
@@ -69,7 +77,7 @@ export function SupercapperLogo({
             withContest ? "mt-[0.6em]" : "mt-[0.35em]"
           )}
         >
-          by Blitz<span className="text-accent">.tips</span>
+          by Blitz<span className={accent}>.tips</span>
         </span>
       )}
     </span>

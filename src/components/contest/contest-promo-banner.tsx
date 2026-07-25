@@ -32,7 +32,7 @@ export async function ContestPromoBanner({ className }: { className?: string }) 
             <Trophy className="h-3.5 w-3.5" /> {phase === "live" ? "Live now" : "Now open"}
           </span>
           <div className="mt-3">
-            <SupercapperLogo withContest className="text-2xl sm:text-3xl" />
+            <SupercapperLogo withContest onDark className="text-2xl sm:text-3xl" />
           </div>
           <p className="mt-2 text-sm text-white/70">
             Post your picks and compete for the{" "}
