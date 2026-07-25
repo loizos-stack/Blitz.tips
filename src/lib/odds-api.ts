@@ -708,8 +708,23 @@ export async function getEventMarkets(
   if (bookmakers.length === 0) return { configured: true, groups: [], bookmaker: null };
 
   // Pick the book with the widest coverage (most markets), preferring the known
-  // US prop books on ties.
-  const preferred = ["draftkings", "fanduel", "betmgm", "caesars"];
+  // US prop books on ties. Order reflects a live survey of what this key
+  // actually returns (scripts/survey-bookmaker-markets.mjs): DraftKings leads on
+  // distinct markets, FanDuel on sport coverage, then the rest of the regulated
+  // US books. Note Caesars' upstream key is "williamhill_us", not "caesars" —
+  // the old spelling matched nothing and silently did nothing.
+  const preferred = [
+    "draftkings",
+    "fanduel",
+    "betmgm",
+    "williamhill_us",
+    "hardrockbet",
+    "betrivers",
+    "fanatics",
+    "espnbet",
+    "ballybet",
+    "betparx",
+  ];
   const rank = (k: string) => {
     const i = preferred.indexOf(k);
     return i === -1 ? preferred.length : i;
