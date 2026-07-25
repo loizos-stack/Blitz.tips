@@ -1,3 +1,4 @@
+import Image from "next/image";
 import { cn } from "@/lib/utils";
 
 // The Supercapper wordmark: the leading "S" is a thunder bolt, followed by
@@ -39,9 +40,12 @@ export function SupercapperLogo({
       <span className="inline-flex items-center font-display font-extrabold tracking-tight">
         {/* viewBox cropped tight to the bolt's bounds (no transparent padding)
             so it can sit flush against the "u". */}
+        {/* Tilted 15° so the bolt reads as a strike rather than a static glyph.
+            The rotation widens its footprint, hence the smaller negative margin
+            than an upright bolt would need to sit against the "u". */}
         <svg
           viewBox="10.5 5.5 19 30.5"
-          className={cn("-mr-[0.06em] h-[1.5em] w-[0.94em]", accent)}
+          className={cn("-mr-[0.02em] h-[1.5em] w-[0.94em] rotate-[15deg]", accent)}
           fill="none"
           aria-hidden
         >
@@ -67,17 +71,21 @@ export function SupercapperLogo({
         </span>
       )}
       {withByline && (
-        // Lower contrast and no letterspacing so it reads as attribution rather
-        // than a second wordmark. "Blitz" stays neutral and ".tips" takes the
-        // accent — the same split the site header uses.
+        // The real Blitz.tips lockup — mark plus wordmark, same as the site
+        // header — rather than a text imitation of it. Only the "by" is faded;
+        // the logo itself stays at full strength.
         <span
           aria-hidden
           className={cn(
-            "self-center text-[0.26em] font-semibold tracking-tight opacity-70",
+            "flex items-center gap-[0.3em] self-center text-[0.26em] font-semibold tracking-tight",
             withContest ? "mt-[0.6em]" : "mt-[0.35em]"
           )}
         >
-          by Blitz<span className={accent}>.tips</span>
+          <span className="opacity-60">by</span>
+          <Image src="/logo-mark.svg" alt="" width={40} height={40} className="h-[1.35em] w-[1.35em]" />
+          <span>
+            Blitz<span className={accent}>.tips</span>
+          </span>
         </span>
       )}
     </span>
