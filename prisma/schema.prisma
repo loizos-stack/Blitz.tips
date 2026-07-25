@@ -784,6 +784,14 @@ model ContestPick {
   // pick from the feed's final scores.
   oddsApiEventId  String?
   oddsApiSportKey String?
+  // Structured form of the selection, captured from the board at submission so
+  // grading never has to parse the display string. marketKey identifies the
+  // market ("totals_h1", "player_points"); side is the team or Over/Under/Yes;
+  // linePoint is the number; playerName is set for player props.
+  marketKey       String?
+  side            String?
+  linePoint       Float?
+  playerName      String?
   createdAt       DateTime     @default(now())
 
   @@index([entryId])

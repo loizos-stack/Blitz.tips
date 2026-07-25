@@ -125,3 +125,80 @@ export async function getLiveGameStates(sport: PickSport): Promise<Map<string, s
   }
   return map;
 }
+
+interface EspnLinescore {
+  value?: number;
+}
+interface EspnPeriodCompetitor {
+  homeAway?: string;
+  linescores?: EspnLinescore[];
+  team?: { displayName?: string; shortDisplayName?: string; name?: string; location?: string; nickname?: string };
+}
+interface EspnPeriodEvent {
+  status?: { type?: { state?: string; completed?: boolean } };
+  competitions?: { competitors?: EspnPeriodCompetitor[] }[];
+}
+
+/** Per-period scores for a finished game, in period order (Q1..Q4 / P1..P3 / innings). */
+export interface PeriodScores {
+  home: number[];
+  away: number[];
+}
+
+/**
+ * Per-period scores for *finished* games in this sport, keyed by away|home team
+ * pair (every name variant, like getLiveGameStates). The Odds API only returns
+ * a final total, so this is what lets the settler grade 1st half / quarter /
+ * period / 1st-5-innings markets. Free and best-effort: an empty map just means
+ * those picks stay pending for manual grading.
+ */
+export async function getFinalPeriodScores(sport: PickSport): Promise<Map<string, PeriodScores>> {
+  const map = new Map<string, PeriodScores>();
+  const path = ESPN_PATH[sport];
+  if (!path) return map;
+
+  try {
+    const res = await fetch(`https://site.api.espn.com/apis/site/v2/sports/${path}/scoreboard`, {
+      next: { revalidate: 300 },
+    });
+    if (!res.ok) return map;
+    const data = (await res.json()) as { events?: EspnPeriodEvent[] };
+
+    for (const event of data.events ?? []) {
+      if (!event.status?.type?.completed) continue; // finished games only
+      const competitors = event.competitions?.[0]?.competitors ?? [];
+      const home = competitors.find((c) => c.homeAway === "home");
+      const away = competitors.find((c) => c.homeAway === "away");
+      if (!home?.team || !away?.team) continue;
+
+      const homeLine = (home.linescores ?? []).map((l) => Number(l.value ?? 0));
+      const awayLine = (away.linescores ?? []).map((l) => Number(l.value ?? 0));
+      // No per-period breakdown (or mismatched lengths) — nothing to grade with.
+      if (homeLine.length === 0 || homeLine.length !== awayLine.length) continue;
+
+      const scores: PeriodScores = { home: homeLine, away: awayLine };
+      const homeNames = [
+        home.team.displayName,
+        home.team.shortDisplayName,
+        home.team.name,
+        home.team.location,
+        home.team.nickname,
+      ];
+      const awayNames = [
+        away.team.displayName,
+        away.team.shortDisplayName,
+        away.team.name,
+        away.team.location,
+        away.team.nickname,
+      ];
+      for (const h of homeNames) {
+        for (const a of awayNames) {
+          if (h && a) map.set(livePairKey(a, h), scores);
+        }
+      }
+    }
+  } catch {
+    // best-effort — a failed fetch just leaves period picks for manual grading
+  }
+  return map;
+}

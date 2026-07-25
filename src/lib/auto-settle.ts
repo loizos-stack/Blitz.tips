@@ -1,7 +1,8 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
 import { oddsApiKey } from "@/lib/odds-api";
-import type { Pick as PickModel, PickResult } from "@prisma/client";
+import { getFinalPeriodScores, livePairKey, type PeriodScores } from "@/lib/espn-scores";
+import type { Pick as PickModel, PickResult, PickSport } from "@prisma/client";
 
 const API_BASE = process.env.ODDS_API_BASE ?? "https://api.the-odds-api.com/v4";
 
@@ -68,6 +69,87 @@ export function gradePick(
   }
 
   return null;
+}
+
+// --- Period / half market grading -------------------------------------------
+
+// Which periods (0-indexed) each market key covers. Undefined = not a period
+// market. Halves are derived from quarters for the 4-quarter sports.
+const PERIOD_SPANS: Record<string, number[]> = {
+  h2h_q1: [0], spreads_q1: [0], totals_q1: [0],
+  h2h_p1: [0], spreads_p1: [0], totals_p1: [0],
+  h2h_h1: [0, 1], spreads_h1: [0, 1], totals_h1: [0, 1],
+  h2h_1st_5_innings: [0, 1, 2, 3, 4],
+  spreads_1st_5_innings: [0, 1, 2, 3, 4],
+  totals_1st_5_innings: [0, 1, 2, 3, 4],
+};
+
+/** True when this market is graded from period scores rather than the final. */
+export function isPeriodMarket(marketKey: string | null | undefined): boolean {
+  return Boolean(marketKey && marketKey in PERIOD_SPANS);
+}
+
+function sumPeriods(line: number[], span: number[]): number | null {
+  // Every period in the span must exist, or we can't grade it confidently.
+  if (span.some((i) => i >= line.length)) return null;
+  return span.reduce((total, i) => total + line[i], 0);
+}
+
+/**
+ * Grade a period/half pick from ESPN's per-period linescores. Uses the pick's
+ * structured fields (marketKey / side / linePoint) rather than parsing the
+ * display string. Returns null whenever the result isn't certain — a pick we
+ * can't grade confidently is left for manual settlement.
+ */
+export function gradePeriodPick(
+  pick: { marketKey: string | null; side: string | null; linePoint: number | null },
+  scores: { home: number[]; away: number[] },
+  homeTeam: string,
+  awayTeam: string
+): PickResult | null {
+  const { marketKey, side, linePoint } = pick;
+  const span = marketKey ? PERIOD_SPANS[marketKey] : undefined;
+  if (!marketKey || !span || !side) return null;
+
+  const home = sumPeriods(scores.home, span);
+  const away = sumPeriods(scores.away, span);
+  if (home === null || away === null) return null;
+
+  // Totals: side is Over/Under, linePoint is the number.
+  if (marketKey.startsWith("totals")) {
+    if (linePoint == null) return null;
+    const total = home + away;
+    if (total === linePoint) return "PUSH";
+    const over = total > linePoint;
+    if (/^over$/i.test(side)) return over ? "WIN" : "LOSS";
+    if (/^under$/i.test(side)) return over ? "LOSS" : "WIN";
+    return null;
+  }
+
+  // Moneyline / spread: side is a team name.
+  const isHome = teamMatches(side, homeTeam);
+  const isAway = teamMatches(side, awayTeam);
+  if (isHome === isAway) return null; // ambiguous or unmatched
+  const own = isHome ? home : away;
+  const opp = isHome ? away : home;
+
+  if (marketKey.startsWith("h2h")) {
+    if (own === opp) return "PUSH";
+    return own > opp ? "WIN" : "LOSS";
+  }
+  if (marketKey.startsWith("spreads")) {
+    if (linePoint == null) return null;
+    const margin = own + linePoint - opp;
+    if (margin === 0) return "PUSH";
+    return margin > 0 ? "WIN" : "LOSS";
+  }
+  return null;
+}
+
+function teamMatches(side: string, team: string): boolean {
+  const a = side.toLowerCase().replace(/[^a-z0-9]/g, "");
+  const b = team.toLowerCase().replace(/[^a-z0-9]/g, "");
+  return a === b || a.includes(b) || b.includes(a);
 }
 
 export interface AutoSettleReport {
@@ -175,9 +257,32 @@ export async function runAutoSettle(): Promise<AutoSettleReport> {
     report.settled += 1;
   }
 
+  // Period/half picks need ESPN's per-period linescores (the odds feed only
+  // returns a final total). Fetch once per sport, and only if such a pick is
+  // actually waiting — it's a free endpoint but there's no reason to call it
+  // otherwise.
+  const periodSports = [
+    ...new Set(contestPicks.filter((p) => isPeriodMarket(p.marketKey)).map((p) => p.sport)),
+  ];
+  const periodScores = new Map<PickSport, Map<string, PeriodScores>>();
+  for (const sport of periodSports) {
+    periodScores.set(sport, await getFinalPeriodScores(sport));
+  }
+
   for (const pick of contestPicks) {
     const score = finals.get(pick.oddsApiEventId!);
-    const result = score ? gradePick(pick, score) : null;
+    let result: PickResult | null = null;
+
+    if (isPeriodMarket(pick.marketKey) && score) {
+      const byPair = periodScores.get(pick.sport);
+      const line = byPair?.get(livePairKey(score.awayTeam, score.homeTeam));
+      if (line) result = gradePeriodPick(pick, line, score.homeTeam, score.awayTeam);
+    } else if (score) {
+      // Full-game markets grade off the final score as before. Player props and
+      // anything else structured stay pending for manual settlement.
+      result = pick.playerName ? null : gradePick(pick, score);
+    }
+
     if (!result) {
       report.contest!.skipped += 1;
       continue;

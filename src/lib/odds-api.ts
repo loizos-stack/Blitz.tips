@@ -340,6 +340,15 @@ export interface MarketOption {
   selection: string;
   odds: number;
   point?: number;
+  // Structured form of the same line, kept alongside the display string so a
+  // pick can be graded later without re-parsing `selection`. Set for options
+  // built from the feed (the board and the per-event navigator).
+  /** Upstream market key, e.g. "h2h", "totals_h1", "player_points". */
+  marketKey?: string;
+  /** Player or team the prop is scoped to, when the market has one. */
+  player?: string;
+  /** Which side of the line: a team name, or "Over"/"Under"/"Yes"/"No". */
+  side?: string;
 }
 
 export interface LiveScore {
@@ -593,6 +602,8 @@ function normalizeEvent(event: OddsApiEvent, sport: PickSport, sportKey: string)
           betType: "MONEYLINE",
           selection: `${outcome.name} ML`,
           odds: outcome.price,
+          marketKey: market.key,
+          side: outcome.name,
         });
       } else if (market.key === "spreads" && outcome.point !== undefined) {
         markets.push({
@@ -600,6 +611,8 @@ function normalizeEvent(event: OddsApiEvent, sport: PickSport, sportKey: string)
           selection: `${outcome.name} ${outcome.point > 0 ? "+" : ""}${outcome.point}`,
           odds: outcome.price,
           point: outcome.point,
+          marketKey: market.key,
+          side: outcome.name,
         });
       } else if (market.key === "totals" && outcome.point !== undefined) {
         markets.push({
@@ -607,6 +620,8 @@ function normalizeEvent(event: OddsApiEvent, sport: PickSport, sportKey: string)
           selection: `${outcome.name} ${outcome.point}`,
           odds: outcome.price,
           point: outcome.point,
+          marketKey: market.key,
+          side: outcome.name,
         });
       }
     }

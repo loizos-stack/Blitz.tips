@@ -192,7 +192,7 @@ export interface RawMarket {
 
 function featuredOption(marketKey: string, o: RawOutcome): MarketOption | null {
   if (marketKey === "h2h") {
-    return { betType: "MONEYLINE", selection: `${o.name} ML`, odds: o.price };
+    return { betType: "MONEYLINE", selection: `${o.name} ML`, odds: o.price, marketKey, side: o.name };
   }
   if (marketKey === "spreads" && o.point !== undefined) {
     return {
@@ -200,10 +200,19 @@ function featuredOption(marketKey: string, o: RawOutcome): MarketOption | null {
       selection: `${o.name} ${o.point > 0 ? "+" : ""}${o.point}`,
       odds: o.price,
       point: o.point,
+      marketKey,
+      side: o.name,
     };
   }
   if (marketKey === "totals" && o.point !== undefined) {
-    return { betType: "TOTAL", selection: `${o.name} ${o.point}`, odds: o.price, point: o.point };
+    return {
+      betType: "TOTAL",
+      selection: `${o.name} ${o.point}`,
+      odds: o.price,
+      point: o.point,
+      marketKey,
+      side: o.name,
+    };
   }
   return null;
 }
@@ -226,7 +235,15 @@ function additionalOption(def: MarketDef, o: RawOutcome): MarketOption {
   } else {
     selection = `${def.label}: ${o.name}`;
   }
-  return { betType: def.betType, selection: selection.replace(/\s+/g, " ").trim(), odds: o.price, point: o.point };
+  return {
+    betType: def.betType,
+    selection: selection.replace(/\s+/g, " ").trim(),
+    odds: o.price,
+    point: o.point,
+    marketKey: def.key,
+    player,
+    side: o.name,
+  };
 }
 
 /**

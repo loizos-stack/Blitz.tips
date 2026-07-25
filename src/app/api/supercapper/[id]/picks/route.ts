@@ -143,6 +143,12 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       eventStartsAt,
       oddsApiEventId: event.id,
       oddsApiSportKey: event.sportKey,
+      // Structured line, straight off the verified board option — this is what
+      // the grader reads, so it never has to parse `selection`.
+      marketKey: chosen.marketKey ?? null,
+      side: chosen.side ?? null,
+      linePoint: chosen.point ?? null,
+      playerName: chosen.player ?? null,
     },
   });
 
