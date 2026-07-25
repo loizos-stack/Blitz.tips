@@ -14,7 +14,9 @@ import {
 } from "@/lib/contest";
 import { formatCents } from "@/lib/utils";
 import { EntrantDetail } from "@/components/contest/entrant-detail";
+import { EntrantCta } from "@/components/contest/entrant-cta";
 import { RankChart } from "@/components/contest/rank-chart";
+import { cappersBeating } from "@/lib/contest-funnel";
 
 export const dynamic = "force-dynamic";
 
@@ -49,6 +51,13 @@ export default async function EntrantPage({ params }: { params: Promise<{ entryI
   const name = entry.user.username ?? entry.user.name ?? "Entrant";
   const disqualified = Boolean(entry.disqualifiedAt);
   const isMe = session?.user?.id === entry.userId;
+
+  // These pages get shared, so a visitor who isn't the entrant is cold traffic
+  // with nowhere to go. Show them the two ways in: enter the contest, or back
+  // someone already beating the record they're looking at.
+  const viewerId = session?.user?.id ?? null;
+  const viewerEntered = Boolean(viewerId && contest.entries.some((e) => e.userId === viewerId));
+  const cappers = isMe ? [] : await cappersBeating(standing?.roi ?? null);
 
   const picks = entry.picks.map((p) => ({
     id: p.id,
@@ -122,6 +131,15 @@ export default async function EntrantPage({ params }: { params: Promise<{ entryI
 
       {phase === "settled" && !disqualified && standing?.rank && (
         <p className="mt-6 text-sm text-muted">Final finish: #{standing.rank}.</p>
+      )}
+
+      {!isMe && (
+        <EntrantCta
+          entrantName={name}
+          signedIn={Boolean(viewerId)}
+          entered={viewerEntered}
+          cappers={cappers}
+        />
       )}
     </div>
   );

@@ -2,12 +2,14 @@
 
 import { useCallback, useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { format } from "date-fns";
-import { Plus } from "lucide-react";
-import { SPORT_LABELS } from "@/lib/utils";
+import { Plus, Check, Lock, X } from "lucide-react";
+import { SPORT_LABELS, formatCents } from "@/lib/utils";
 import { formatOdds } from "@/lib/odds";
 import { EventMarkets } from "@/components/event-markets";
 import type { MarketOption, UpcomingEvent } from "@/lib/odds-api";
+import type { CapperOnEvent } from "@/lib/contest-funnel";
 
 const sportKeys = Object.keys(SPORT_LABELS);
 const input =
@@ -18,6 +20,12 @@ interface FeedResponse {
   supported?: boolean;
   events?: UpcomingEvent[];
   error?: string;
+}
+interface Confirmation {
+  matchup: string;
+  selection: string;
+  odds: number;
+  cappers: CapperOnEvent[];
 }
 type FeedState =
   | { status: "idle" }
@@ -43,6 +51,7 @@ export function ContestPickForm({ contestId }: { contestId: string }) {
   const [units, setUnits] = useState("1");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [confirmation, setConfirmation] = useState<Confirmation | null>(null);
 
   const loadFeed = useCallback(async (forSport: string) => {
     setFeed({ status: "loading" });
@@ -75,6 +84,7 @@ export function ContestPickForm({ contestId }: { contestId: string }) {
     setSport(next);
     setSelectedEvent(null);
     setSelectedMarket(null);
+    setConfirmation(null);
     if (next) void loadFeed(next);
     else setFeed({ status: "idle" });
   }
@@ -119,6 +129,12 @@ export function ContestPickForm({ contestId }: { contestId: string }) {
       if (res.status === 409 && sport) void loadFeed(sport);
       return;
     }
+    setConfirmation({
+      matchup: selectedEvent.matchup,
+      selection: selectedMarket.selection,
+      odds: selectedMarket.odds,
+      cappers: Array.isArray(body.cappersOnGame) ? body.cappersOnGame : [],
+    });
     reset();
     if (sport) void loadFeed(sport);
     router.refresh();
@@ -126,6 +142,8 @@ export function ContestPickForm({ contestId }: { contestId: string }) {
 
   return (
     <form onSubmit={submit} className="flex flex-col gap-3">
+      {confirmation && <PickConfirmation data={confirmation} onDismiss={() => setConfirmation(null)} />}
+
       <div>
         <label className="text-xs font-medium text-muted">Sport</label>
         <select value={sport} onChange={(e) => changeSport(e.target.value)} required className={input}>
@@ -212,5 +230,71 @@ export function ContestPickForm({ contestId }: { contestId: string }) {
         <Plus className="h-4 w-4" /> {loading ? "Submitting…" : "Submit pick"}
       </button>
     </form>
+  );
+}
+
+/**
+ * Shown straight after a pick lands. Confirms what was stored, then — if any
+ * handicapper has a live play on the same game — shows them. This is the most
+ * relevant moment on the site to surface a paid play: the entrant has just told
+ * us which game they're on. Premium plays stay locked, which is the pitch.
+ */
+function PickConfirmation({ data, onDismiss }: { data: Confirmation; onDismiss: () => void }) {
+  return (
+    <div className="rounded-lg border border-accent/40 bg-accent/5 p-3">
+      <div className="flex items-start justify-between gap-2">
+        <p className="flex items-center gap-1.5 text-sm font-semibold text-accent">
+          <Check className="h-4 w-4" /> Pick logged
+        </p>
+        <button
+          type="button"
+          onClick={onDismiss}
+          aria-label="Dismiss"
+          className="text-muted hover:text-foreground"
+        >
+          <X className="h-4 w-4" />
+        </button>
+      </div>
+      <p className="mt-0.5 text-xs text-muted">
+        {data.matchup} · {data.selection} · {formatOdds(data.odds)}
+      </p>
+
+      {data.cappers.length > 0 && (
+        <div className="mt-3 border-t border-accent/20 pt-3">
+          <p className="text-xs font-semibold">
+            {data.cappers.length === 1 ? "A capper is" : `${data.cappers.length} cappers are`} on this game
+          </p>
+          <div className="mt-1.5 flex flex-col divide-y divide-border">
+            {data.cappers.map((c) => (
+              <Link
+                key={c.handle}
+                href={`/handicappers/${c.handle}`}
+                className="flex items-center justify-between gap-2 py-2 text-xs hover:text-accent"
+              >
+                <span className="min-w-0">
+                  <span className="font-medium">{c.displayName}</span>
+                  <span className="ml-1.5 text-muted">
+                    {c.roi != null ? `${c.roi > 0 ? "+" : ""}${c.roi.toFixed(1)}% ROI` : c.record}
+                  </span>
+                </span>
+                <span className="shrink-0 text-right">
+                  {c.locked ? (
+                    <span className="inline-flex items-center gap-1 font-medium text-muted">
+                      <Lock className="h-3 w-3" />
+                      {c.monthlyPriceCents ? `${formatCents(c.monthlyPriceCents)}/mo` : "Subscribers only"}
+                    </span>
+                  ) : (
+                    <span className="font-medium">
+                      {c.selection}
+                      {c.odds != null ? ` ${formatOdds(c.odds)}` : ""}
+                    </span>
+                  )}
+                </span>
+              </Link>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
   );
 }

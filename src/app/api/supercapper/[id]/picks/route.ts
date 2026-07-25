@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { createContestPickSchema } from "@/lib/validations";
 import { isContestAcceptingPicks } from "@/lib/contest";
 import { getUpcomingEvents, getEventMarkets } from "@/lib/odds-api";
+import { cappersOnEvent } from "@/lib/contest-funnel";
 import {
   MAX_PICKS_PER_DAY,
   MAX_PICKS_PER_WEEK,
@@ -169,5 +170,11 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     detail: `${pick.matchup} — ${pick.selection} @ ${pick.odds}`,
   });
 
-  return NextResponse.json({ pick }, { status: 201 });
+  // The entrant has just told us exactly which game they care about, so the
+  // confirmation doubles as the most relevant place on the site to show who's
+  // selling a play on it. Best-effort — a failure here must never cost them the
+  // pick they already stored.
+  const cappersOnGame = await cappersOnEvent(event.id, session.user.id).catch(() => []);
+
+  return NextResponse.json({ pick, cappersOnGame }, { status: 201 });
 }

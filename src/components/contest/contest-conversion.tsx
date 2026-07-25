@@ -1,7 +1,6 @@
 import Link from "next/link";
 import { TrendingUp, ArrowRight, Users } from "lucide-react";
-import { formatCents } from "@/lib/utils";
-import type { HandicapperSummary } from "@/lib/handicappers";
+import { CapperList, type CapperRow } from "@/components/contest/capper-list";
 
 /**
  * Conversion prompts on the contest dashboard. Contest entrants are the warmest
@@ -35,7 +34,7 @@ export function ContestConversion({
   unitsNet: number;
   isHandicapper: boolean;
   /** Cappers currently outperforming this entrant, best first. */
-  betterCappers: HandicapperSummary[];
+  betterCappers: CapperRow[];
   minPicks: number;
 }) {
   // Too early to say anything meaningful about their record.
@@ -86,30 +85,8 @@ export function ContestConversion({
           : `You've got ${settledPicks} of ${minPicks} graded picks so far.`}{" "}
         These verified records are ahead of you right now.
       </p>
-      <div className="mt-3 flex flex-col divide-y divide-border">
-        {betterCappers.map((h) => (
-          <Link
-            key={h.id}
-            href={`/handicappers/${h.handle}`}
-            className="flex items-center justify-between gap-3 py-2.5 text-sm hover:text-accent"
-          >
-            <span className="min-w-0">
-              <span className="truncate font-medium">{h.displayName}</span>
-              <span className="ml-1.5 text-xs text-muted">
-                {h.stats.record} · {h.stats.unitsNet > 0 ? "+" : ""}
-                {h.stats.unitsNet}u
-              </span>
-            </span>
-            <span className="shrink-0 text-right">
-              <span className="font-semibold tabular-nums text-accent">
-                {h.stats.roi != null ? `${h.stats.roi > 0 ? "+" : ""}${h.stats.roi.toFixed(1)}%` : "—"}
-              </span>
-              <span className="ml-2 text-xs text-muted">
-                {h.monthlyPriceCents ? `${formatCents(h.monthlyPriceCents)}/mo` : ""}
-              </span>
-            </span>
-          </Link>
-        ))}
+      <div className="mt-3">
+        <CapperList cappers={betterCappers} />
       </div>
       <Link
         href="/handicappers"
