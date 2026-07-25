@@ -29,6 +29,8 @@ import { ContestCountdown } from "@/components/contest/contest-countdown";
 import { ContestJoinButton } from "@/components/contest/contest-join-button";
 import { ContestPickForm } from "@/components/contest/contest-pick-form";
 import { ContestStandings } from "@/components/contest/contest-standings";
+import { ContestConversion } from "@/components/contest/contest-conversion";
+import { listHandicapperSummaries, sortPaidFirst } from "@/lib/handicappers";
 import { SupercapperLogo } from "@/components/contest/supercapper-logo";
 
 export const dynamic = "force-dynamic";
@@ -131,6 +133,24 @@ export default async function ContestDashboardPage() {
         eventStartsAt: p.eventStartsAt.toISOString(),
       })),
     }));
+  // Conversion prompts: is this entrant already selling picks, and who's ahead
+  // of them right now? Both reads are cached, so this costs nothing per view.
+  const [handicapperProfile, allCappers] = await Promise.all([
+    prisma.handicapperProfile.findUnique({
+      where: { userId: session.user.id },
+      select: { id: true },
+    }),
+    listHandicapperSummaries(),
+  ]);
+  const myRoi = myStanding?.roi ?? null;
+  // Paid tiers surface first (that's what they pay for), ROI breaks the tie.
+  const betterCappers = sortPaidFirst(
+    allCappers.filter(
+      (h) => h.stats.roi != null && h.stats.totalPicks >= 20 && (myRoi == null || h.stats.roi > myRoi)
+    ),
+    (a, b) => (b.stats.roi ?? 0) - (a.stats.roi ?? 0)
+  ).slice(0, 3);
+
   const quota = computeQuotaUsage(myEntry.picks);
   const picks = [...myEntry.picks].sort((a, b) => b.eventStartsAt.getTime() - a.eventStartsAt.getTime());
   const pending = picks.filter((p) => p.result === "PENDING");
@@ -212,6 +232,15 @@ export default async function ContestDashboardPage() {
           </div>
 
           <QuotaCard quota={quota} />
+
+          <ContestConversion
+            settledPicks={myStanding?.settledPicks ?? 0}
+            roi={myRoi}
+            unitsNet={myStanding?.unitsNet ?? 0}
+            isHandicapper={Boolean(handicapperProfile)}
+            betterCappers={betterCappers}
+            minPicks={contest.minPicks}
+          />
         </div>
 
         {/* Your picks + leaderboard */}
