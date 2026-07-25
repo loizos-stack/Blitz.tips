@@ -204,12 +204,14 @@ export default async function ContestDashboardPage() {
         </p>
       )}
 
-      <div className="mt-8 grid gap-6 lg:grid-cols-[22rem_1fr]">
+      {/* The pick column carries the market navigator (games, alternate lines,
+          player props), so it gets the wider share of the split. */}
+      <div className="mt-8 grid gap-6 lg:grid-cols-[30rem_1fr]">
         {/* Make a pick */}
         <div className="flex flex-col gap-4">
-          <div className="card p-5">
-            <p className="mb-1 font-semibold">Make a pick</p>
-            <p className="mb-3 text-xs text-muted">
+          <div className="card p-6">
+            <p className="mb-1 text-lg font-semibold">Make a pick</p>
+            <p className="mb-4 text-xs text-muted">
               Singles only — no parlays. Every market counts: moneylines, spreads, totals, alternate lines, 1st half /
               quarter / period markets, and player props.
             </p>
