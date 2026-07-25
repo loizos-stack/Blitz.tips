@@ -297,6 +297,14 @@ model Pick {
   // this pick to a final score.
   oddsApiEventId  String?
   oddsApiSportKey String?
+  // Structured form of the selection, captured from the board when the pick was
+  // made off the schedule. Lets the settler grade period markets and player
+  // props without parsing the display string. Null for manually-entered picks,
+  // which keep grading from `selection` as before.
+  marketKey       String?
+  side            String?
+  linePoint       Float?
+  playerName      String?
 
   // For a PARLAY bet: the individual legs. `odds` on the parent Pick holds the
   // combined (multiplied) American odds; each leg keeps its own line.

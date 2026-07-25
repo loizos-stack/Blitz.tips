@@ -9,7 +9,7 @@ import {
   type PeriodScores,
   type StatLine,
 } from "@/lib/espn-scores";
-import type { Pick as PickModel, PickResult, PickSport } from "@prisma/client";
+import type { PickResult, PickSport } from "@prisma/client";
 
 const API_BASE = process.env.ODDS_API_BASE ?? "https://api.the-odds-api.com/v4";
 
@@ -37,7 +37,7 @@ interface FinalScore {
  * be interpreted confidently — never guess a result on the record.
  */
 export function gradePick(
-  pick: Pick<PickModel, "betType" | "selection">,
+  pick: { betType: string; selection: string },
   score: FinalScore
 ): PickResult | null {
   const { homeTeam, awayTeam, homeScore, awayScore } = score;
@@ -346,29 +346,13 @@ export async function runAutoSettle(): Promise<AutoSettleReport> {
     }
   }
 
-  for (const pick of picks) {
-    const score = finals.get(pick.oddsApiEventId!);
-    if (!score) {
-      report.skipped += 1; // game not finished (or score unavailable) yet
-      continue;
-    }
-    const result = gradePick(pick, score);
-    if (!result) {
-      report.skipped += 1;
-      continue;
-    }
-    await prisma.pick.update({
-      where: { id: pick.id },
-      data: { result, settledAt: new Date(), settledBy: "auto" },
-    });
-    report.settled += 1;
-  }
-
   // Period/half picks need ESPN's per-period linescores (the odds feed only
   // returns a final total). Fetch once per sport, and only if such a pick is
   // actually waiting — it's a free endpoint but there's no reason to call it
   // otherwise.
-  const needsEspn = contestPicks.filter(
+  // Both handicapper and contest picks carry the structured line when they were
+  // taken off the board, so both can use period/box-score grading.
+  const needsEspn = [...picks, ...contestPicks].filter(
     (p) => isPeriodMarket(p.marketKey) || isGradableProp(p.marketKey)
   );
   const periodScores = new Map<PickSport, Map<string, PeriodScores>>();
@@ -390,25 +374,54 @@ export async function runAutoSettle(): Promise<AutoSettleReport> {
     boxScores.set(espnEventId, await getPlayerStats(pick.sport, espnEventId));
   }
 
-  for (const pick of contestPicks) {
+
+  /**
+   * Grade one pick (either kind) against everything we fetched: the feed's final
+   * score, ESPN's period linescores, and ESPN's box score. Returns null to leave
+   * it pending for manual settlement.
+   */
+  function resolveResult(pick: {
+    betType: string;
+    selection: string;
+    marketKey: string | null;
+    side: string | null;
+    linePoint: number | null;
+    playerName: string | null;
+    sport: PickSport;
+    oddsApiEventId: string | null;
+  }): PickResult | null {
     const score = finals.get(pick.oddsApiEventId!);
-    let result: PickResult | null = null;
+    if (!score) return null; // game not finished, or no score available yet
 
-    if (score) {
-      const espnGame = periodScores.get(pick.sport)?.get(livePairKey(score.awayTeam, score.homeTeam));
+    const espnGame = periodScores.get(pick.sport)?.get(livePairKey(score.awayTeam, score.homeTeam));
 
-      if (isPeriodMarket(pick.marketKey)) {
-        if (espnGame) result = gradePeriodPick(pick, espnGame, score.homeTeam, score.awayTeam);
-      } else if (isGradableProp(pick.marketKey)) {
-        const stats = espnGame?.eventId ? boxScores.get(espnGame.eventId) : undefined;
-        if (stats) result = gradePropPick(pick, stats);
-      } else if (!pick.playerName) {
-        // Full-game team markets grade off the final score as before. Props we
-        // don't have a stat mapping for (first/last scorer) stay manual.
-        result = gradePick(pick, score);
-      }
+    if (isPeriodMarket(pick.marketKey)) {
+      return espnGame ? gradePeriodPick(pick, espnGame, score.homeTeam, score.awayTeam) : null;
     }
+    if (isGradableProp(pick.marketKey)) {
+      const stats = espnGame?.eventId ? boxScores.get(espnGame.eventId) : undefined;
+      return stats ? gradePropPick(pick, stats) : null;
+    }
+    // Full-game team markets grade off the final score. Props we have no stat
+    // mapping for (first/last scorer) stay manual.
+    return pick.playerName ? null : gradePick(pick, score);
+  }
 
+  for (const pick of picks) {
+    const result = resolveResult(pick);
+    if (!result) {
+      report.skipped += 1;
+      continue;
+    }
+    await prisma.pick.update({
+      where: { id: pick.id },
+      data: { result, settledAt: new Date(), settledBy: "auto" },
+    });
+    report.settled += 1;
+  }
+
+  for (const pick of contestPicks) {
+    const result = resolveResult(pick);
     if (!result) {
       report.contest!.skipped += 1;
       continue;

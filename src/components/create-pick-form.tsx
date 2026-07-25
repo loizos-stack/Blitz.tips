@@ -158,6 +158,13 @@ export function CreatePickForm({
         // automatically from final scores.
         oddsApiEventId: mode === "schedule" && selectedEvent ? selectedEvent.id : undefined,
         oddsApiSportKey: mode === "schedule" && selectedEvent ? selectedEvent.sportKey : undefined,
+        // Structured line from the board — lets the settler grade period markets
+        // and player props without parsing the selection text. Absent for
+        // manually-entered picks, which grade from the text as before.
+        marketKey: mode === "schedule" ? selectedMarket?.marketKey : undefined,
+        side: mode === "schedule" ? selectedMarket?.side : undefined,
+        linePoint: mode === "schedule" ? selectedMarket?.point : undefined,
+        playerName: mode === "schedule" ? selectedMarket?.player : undefined,
       }),
     });
 

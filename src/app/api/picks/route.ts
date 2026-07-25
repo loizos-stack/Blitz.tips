@@ -83,6 +83,12 @@ export async function POST(request: Request) {
       eventStartsAt,
       oddsApiEventId: parsed.data.oddsApiEventId,
       oddsApiSportKey: parsed.data.oddsApiSportKey,
+      // Structured line from the board (null for manual entry) — what lets the
+      // settler grade period markets and player props.
+      marketKey: parsed.data.marketKey,
+      side: parsed.data.side,
+      linePoint: parsed.data.linePoint,
+      playerName: parsed.data.playerName,
     },
   });
 

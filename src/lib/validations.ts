@@ -142,6 +142,12 @@ export const createPickSchema = z.object({
   eventStartsAt: z.string().min(1, "Event start time is required"),
   oddsApiEventId: z.string().max(64).optional(),
   oddsApiSportKey: z.string().max(64).optional(),
+  // Structured line, sent when the pick was chosen off the odds board. Optional
+  // because manual entry stays supported for handicappers.
+  marketKey: z.string().max(64).optional(),
+  side: z.string().max(120).optional(),
+  linePoint: z.number().optional(),
+  playerName: z.string().max(120).optional(),
 });
 
 const oddsValue = boundedOdds;
