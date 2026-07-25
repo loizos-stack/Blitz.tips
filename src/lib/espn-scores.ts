@@ -135,6 +135,7 @@ interface EspnPeriodCompetitor {
   team?: { displayName?: string; shortDisplayName?: string; name?: string; location?: string; nickname?: string };
 }
 interface EspnPeriodEvent {
+  id?: string;
   status?: { type?: { state?: string; completed?: boolean } };
   competitions?: { competitors?: EspnPeriodCompetitor[] }[];
 }
@@ -143,6 +144,8 @@ interface EspnPeriodEvent {
 export interface PeriodScores {
   home: number[];
   away: number[];
+  /** ESPN's event id, used to pull the box score for player props. */
+  eventId?: string;
 }
 
 /**
@@ -173,10 +176,11 @@ export async function getFinalPeriodScores(sport: PickSport): Promise<Map<string
 
       const homeLine = (home.linescores ?? []).map((l) => Number(l.value ?? 0));
       const awayLine = (away.linescores ?? []).map((l) => Number(l.value ?? 0));
-      // No per-period breakdown (or mismatched lengths) — nothing to grade with.
-      if (homeLine.length === 0 || homeLine.length !== awayLine.length) continue;
+      // A mismatched breakdown can't be summed; an empty one is still useful
+      // because the event id alone lets us pull the box score for player props.
+      if (homeLine.length !== awayLine.length) continue;
 
-      const scores: PeriodScores = { home: homeLine, away: awayLine };
+      const scores: PeriodScores = { home: homeLine, away: awayLine, eventId: event.id };
       const homeNames = [
         home.team.displayName,
         home.team.shortDisplayName,
@@ -201,4 +205,141 @@ export async function getFinalPeriodScores(sport: PickSport): Promise<Map<string
     // best-effort — a failed fetch just leaves period picks for manual grading
   }
   return map;
+}
+
+// --- Player box scores (for prop grading) -----------------------------------
+
+/**
+ * Canonical per-player stats we can grade a prop against. Sport-specific ESPN
+ * box-score columns are normalized onto these names so the grader doesn't need
+ * to know each sport's labels.
+ */
+export type StatLine = Record<string, number>;
+
+// ESPN box-score column key -> our canonical stat name, per sport family. ESPN
+// gives each category a `keys` array aligned with every athlete's `stats` array.
+// Combined columns ("7-12") are split by taking the made value.
+const STAT_KEY_MAP: Record<string, string> = {
+  // Basketball
+  points: "points",
+  rebounds: "rebounds",
+  assists: "assists",
+  steals: "steals",
+  blocks: "blocks",
+  turnovers: "turnovers",
+  "threePointFieldGoalsMade-threePointFieldGoalsAttempted": "threes",
+  // Football — passing
+  yards: "yards", // disambiguated by category below
+  completions: "passCompletions",
+  "completions-passingAttempts": "passCompletions",
+  passingTouchdowns: "passTds",
+  interceptions: "interceptions",
+  // Football — rushing / receiving
+  carries: "rushAttempts",
+  rushingAttempts: "rushAttempts",
+  receptions: "receptions",
+  // Hockey
+  goals: "goals",
+  shotsTotal: "shots",
+  shots: "shots",
+  saves: "saves",
+  // Baseball — batting
+  hits: "hits",
+  homeRuns: "homeRuns",
+  RBIs: "rbis",
+  rbi: "rbis",
+  runs: "runs",
+  // Baseball — pitching
+  strikeouts: "strikeouts",
+  walks: "walks",
+  earnedRuns: "earnedRuns",
+};
+
+// Football/baseball report the same column name in several categories, so the
+// category disambiguates it (ESPN category names are lowercase: "passing",
+// "rushing", "receiving", "batting", "pitching").
+const CATEGORY_YARDS: Record<string, string> = {
+  passing: "passYards",
+  rushing: "rushYards",
+  receiving: "recYards",
+};
+const CATEGORY_TDS: Record<string, string> = {
+  passing: "passTds",
+  rushing: "rushTds",
+  receiving: "recTds",
+};
+
+function statNumber(raw: string | undefined): number | null {
+  if (raw == null) return null;
+  // "7-12" (made-attempted) grades on the made value; "34" is plain.
+  const made = raw.includes("-") ? raw.split("-")[0] : raw;
+  const n = Number(made);
+  return Number.isFinite(n) ? n : null;
+}
+
+interface EspnAthleteRow {
+  athlete?: { displayName?: string; shortName?: string; fullName?: string };
+  stats?: string[];
+}
+interface EspnStatCategory {
+  name?: string;
+  keys?: string[];
+  athletes?: EspnAthleteRow[];
+}
+interface EspnBoxTeam {
+  statistics?: EspnStatCategory[];
+}
+
+/**
+ * Per-player stat lines for a finished game, keyed by normalized player name
+ * (fighterKey folds accents/punctuation). Pulled from ESPN's free summary
+ * endpoint. Empty map on any failure — prop picks then stay pending for manual
+ * grading rather than being guessed.
+ */
+export async function getPlayerStats(sport: PickSport, espnEventId: string): Promise<Map<string, StatLine>> {
+  const out = new Map<string, StatLine>();
+  const path = ESPN_PATH[sport];
+  if (!path || !espnEventId) return out;
+
+  try {
+    const res = await fetch(
+      `https://site.api.espn.com/apis/site/v2/sports/${path}/summary?event=${espnEventId}`,
+      { next: { revalidate: 300 } }
+    );
+    if (!res.ok) return out;
+    const data = (await res.json()) as { boxscore?: { players?: EspnBoxTeam[] } };
+
+    for (const team of data.boxscore?.players ?? []) {
+      for (const category of team.statistics ?? []) {
+        const keys = category.keys ?? [];
+        const categoryName = (category.name ?? "").toLowerCase();
+        for (const row of category.athletes ?? []) {
+          const name = row.athlete?.displayName ?? row.athlete?.fullName ?? row.athlete?.shortName;
+          if (!name || !row.stats) continue;
+          const key = fighterKey(name);
+          const line = out.get(key) ?? {};
+
+          keys.forEach((espnKey, i) => {
+            const value = statNumber(row.stats?.[i]);
+            if (value === null) return;
+            // Category-scoped columns first (yards/TDs mean different things in
+            // passing vs rushing vs receiving), then the global mapping.
+            let canonical: string | undefined;
+            if (espnKey === "yards") canonical = CATEGORY_YARDS[categoryName];
+            else if (espnKey === "touchdowns") canonical = CATEGORY_TDS[categoryName];
+            else canonical = STAT_KEY_MAP[espnKey];
+            if (!canonical) return;
+            // A player can appear in several categories; sum rather than clobber
+            // (e.g. rushing + receiving TDs both feed "anytime TD").
+            line[canonical] = (line[canonical] ?? 0) + value;
+          });
+
+          out.set(key, line);
+        }
+      }
+    }
+  } catch {
+    // best-effort — a failed box score just leaves props for manual grading
+  }
+  return out;
 }

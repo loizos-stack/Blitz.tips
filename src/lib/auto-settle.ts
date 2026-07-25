@@ -1,7 +1,14 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
 import { oddsApiKey } from "@/lib/odds-api";
-import { getFinalPeriodScores, livePairKey, type PeriodScores } from "@/lib/espn-scores";
+import {
+  getFinalPeriodScores,
+  getPlayerStats,
+  livePairKey,
+  fighterKey,
+  type PeriodScores,
+  type StatLine,
+} from "@/lib/espn-scores";
 import type { Pick as PickModel, PickResult, PickSport } from "@prisma/client";
 
 const API_BASE = process.env.ODDS_API_BASE ?? "https://api.the-odds-api.com/v4";
@@ -152,6 +159,106 @@ function teamMatches(side: string, team: string): boolean {
   return a === b || a.includes(b) || b.includes(a);
 }
 
+// --- Player prop grading ----------------------------------------------------
+
+// Our market key -> the canonical stat(s) to sum from ESPN's box score.
+// Combination props (Pts+Reb+Ast) list every component. Markets that need
+// play-by-play ordering rather than a box-score total (first/last scorer) are
+// deliberately absent, so they stay manual.
+const PROP_STATS: Record<string, string[]> = {
+  // Basketball
+  player_points: ["points"],
+  player_rebounds: ["rebounds"],
+  player_assists: ["assists"],
+  player_threes: ["threes"],
+  player_blocks: ["blocks"],
+  player_steals: ["steals"],
+  player_points_rebounds: ["points", "rebounds"],
+  player_points_assists: ["points", "assists"],
+  player_rebounds_assists: ["rebounds", "assists"],
+  player_points_rebounds_assists: ["points", "rebounds", "assists"],
+  // Football
+  player_pass_yds: ["passYards"],
+  player_pass_tds: ["passTds"],
+  player_pass_completions: ["passCompletions"],
+  player_pass_interceptions: ["interceptions"],
+  player_rush_yds: ["rushYards"],
+  player_rush_attempts: ["rushAttempts"],
+  player_receptions: ["receptions"],
+  player_reception_yds: ["recYards"],
+  player_anytime_td: ["rushTds", "recTds"],
+  // Hockey
+  player_goals: ["goals"],
+  player_shots_on_goal: ["shots"],
+  player_total_saves: ["saves"],
+  player_goal_scorer_anytime: ["goals"],
+  // Baseball
+  batter_hits: ["hits"],
+  batter_home_runs: ["homeRuns"],
+  batter_rbis: ["rbis"],
+  batter_runs_scored: ["runs"],
+  pitcher_strikeouts: ["strikeouts"],
+  pitcher_walks: ["walks"],
+  pitcher_earned_runs: ["earnedRuns"],
+};
+
+/** True when this market can be graded from a box score. */
+export function isGradableProp(marketKey: string | null | undefined): boolean {
+  return Boolean(marketKey && marketKey in PROP_STATS);
+}
+
+/**
+ * Grade a player prop from ESPN box-score stats. Uses the structured fields
+ * captured at submission (playerName / marketKey / linePoint / side) rather
+ * than parsing the display string.
+ *
+ * Returns null — leaving the pick for manual settlement — whenever the answer
+ * isn't certain: unknown market, player not found in the box score, or a stat
+ * the box score didn't report. A player who appears with no relevant stat is
+ * NOT treated as a zero, because "didn't play" and "played and recorded none"
+ * are indistinguishable here and only one of them should settle an Over as a
+ * loss.
+ */
+export function gradePropPick(
+  pick: { marketKey: string | null; playerName: string | null; linePoint: number | null; side: string | null },
+  stats: Map<string, StatLine>
+): PickResult | null {
+  const { marketKey, playerName, linePoint, side } = pick;
+  if (!marketKey || !playerName || !side) return null;
+
+  const components = PROP_STATS[marketKey];
+  if (!components) return null;
+
+  const line = stats.get(fighterKey(playerName));
+  if (!line) return null; // player not in the box score — grade by hand
+
+  // Every component must be present; a missing one means we can't total it.
+  let total = 0;
+  for (const stat of components) {
+    const value = line[stat];
+    if (value === undefined) {
+      // Anytime-scorer markets sum optional components (a WR has no rushing
+      // TDs), so treat missing as 0 only when at least one component exists.
+      if (components.some((c) => line[c] !== undefined)) continue;
+      return null;
+    }
+    total += value;
+  }
+
+  // Yes/No markets (anytime TD, anytime goal) have no line — they hit on 1+.
+  if (linePoint == null) {
+    if (/^(yes|over)$/i.test(side)) return total >= 1 ? "WIN" : "LOSS";
+    if (/^no$/i.test(side)) return total >= 1 ? "LOSS" : "WIN";
+    return null;
+  }
+
+  if (total === linePoint) return "PUSH";
+  const over = total > linePoint;
+  if (/^over$/i.test(side)) return over ? "WIN" : "LOSS";
+  if (/^under$/i.test(side)) return over ? "LOSS" : "WIN";
+  return null;
+}
+
 export interface AutoSettleReport {
   candidates: number;
   settled: number;
@@ -261,26 +368,45 @@ export async function runAutoSettle(): Promise<AutoSettleReport> {
   // returns a final total). Fetch once per sport, and only if such a pick is
   // actually waiting — it's a free endpoint but there's no reason to call it
   // otherwise.
-  const periodSports = [
-    ...new Set(contestPicks.filter((p) => isPeriodMarket(p.marketKey)).map((p) => p.sport)),
-  ];
+  const needsEspn = contestPicks.filter(
+    (p) => isPeriodMarket(p.marketKey) || isGradableProp(p.marketKey)
+  );
   const periodScores = new Map<PickSport, Map<string, PeriodScores>>();
-  for (const sport of periodSports) {
+  for (const sport of new Set(needsEspn.map((p) => p.sport))) {
     periodScores.set(sport, await getFinalPeriodScores(sport));
+  }
+
+  // Box scores are one request per game, so fetch them only for games that
+  // actually have a gradable prop waiting, and only once each.
+  const boxScores = new Map<string, Map<string, StatLine>>();
+  for (const pick of needsEspn) {
+    if (!isGradableProp(pick.marketKey)) continue;
+    const final = finals.get(pick.oddsApiEventId!);
+    if (!final) continue;
+    const espnEventId = periodScores
+      .get(pick.sport)
+      ?.get(livePairKey(final.awayTeam, final.homeTeam))?.eventId;
+    if (!espnEventId || boxScores.has(espnEventId)) continue;
+    boxScores.set(espnEventId, await getPlayerStats(pick.sport, espnEventId));
   }
 
   for (const pick of contestPicks) {
     const score = finals.get(pick.oddsApiEventId!);
     let result: PickResult | null = null;
 
-    if (isPeriodMarket(pick.marketKey) && score) {
-      const byPair = periodScores.get(pick.sport);
-      const line = byPair?.get(livePairKey(score.awayTeam, score.homeTeam));
-      if (line) result = gradePeriodPick(pick, line, score.homeTeam, score.awayTeam);
-    } else if (score) {
-      // Full-game markets grade off the final score as before. Player props and
-      // anything else structured stay pending for manual settlement.
-      result = pick.playerName ? null : gradePick(pick, score);
+    if (score) {
+      const espnGame = periodScores.get(pick.sport)?.get(livePairKey(score.awayTeam, score.homeTeam));
+
+      if (isPeriodMarket(pick.marketKey)) {
+        if (espnGame) result = gradePeriodPick(pick, espnGame, score.homeTeam, score.awayTeam);
+      } else if (isGradableProp(pick.marketKey)) {
+        const stats = espnGame?.eventId ? boxScores.get(espnGame.eventId) : undefined;
+        if (stats) result = gradePropPick(pick, stats);
+      } else if (!pick.playerName) {
+        // Full-game team markets grade off the final score as before. Props we
+        // don't have a stat mapping for (first/last scorer) stay manual.
+        result = gradePick(pick, score);
+      }
     }
 
     if (!result) {
