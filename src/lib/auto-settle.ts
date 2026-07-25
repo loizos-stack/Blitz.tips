@@ -75,6 +75,8 @@ export interface AutoSettleReport {
   settled: number;
   skipped: number;
   errors: string[];
+  /** Contest picks graded in the same sweep (they share the score lookups). */
+  contest?: { candidates: number; settled: number; skipped: number };
 }
 
 /**
@@ -92,19 +94,39 @@ export async function runAutoSettle(): Promise<AutoSettleReport> {
   }
 
   const cutoff = new Date(Date.now() - DAYS_FROM * 24 * 60 * 60 * 1000);
-  const picks = await prisma.pick.findMany({
-    where: {
-      result: "PENDING",
-      oddsApiEventId: { not: null },
-      oddsApiSportKey: { not: null },
-      eventStartsAt: { lt: new Date(), gt: cutoff },
-    },
-  });
+  const started = { lt: new Date(), gt: cutoff };
+  const [picks, contestPicks] = await Promise.all([
+    prisma.pick.findMany({
+      where: {
+        result: "PENDING",
+        oddsApiEventId: { not: null },
+        oddsApiSportKey: { not: null },
+        eventStartsAt: started,
+      },
+    }),
+    // Contest picks are always board-sourced, so every pending one is gradable.
+    prisma.contestPick.findMany({
+      where: {
+        result: "PENDING",
+        oddsApiEventId: { not: null },
+        oddsApiSportKey: { not: null },
+        eventStartsAt: started,
+      },
+    }),
+  ]);
   report.candidates = picks.length;
-  if (picks.length === 0) return report;
+  report.contest = { candidates: contestPicks.length, settled: 0, skipped: 0 };
+  if (picks.length === 0 && contestPicks.length === 0) return report;
 
-  // One scores request per distinct league (2 credits each with daysFrom).
-  const sportKeys = [...new Set(picks.map((p) => p.oddsApiSportKey!))];
+  // One scores request per distinct league (2 credits each with daysFrom), and
+  // both pick types share the results — grading contest picks adds no extra
+  // upstream calls when the leagues overlap.
+  const sportKeys = [
+    ...new Set([
+      ...picks.map((p) => p.oddsApiSportKey!),
+      ...contestPicks.map((p) => p.oddsApiSportKey!),
+    ]),
+  ];
   const finals = new Map<string, FinalScore>();
 
   for (const sportKey of sportKeys) {
@@ -151,6 +173,20 @@ export async function runAutoSettle(): Promise<AutoSettleReport> {
       data: { result, settledAt: new Date(), settledBy: "auto" },
     });
     report.settled += 1;
+  }
+
+  for (const pick of contestPicks) {
+    const score = finals.get(pick.oddsApiEventId!);
+    const result = score ? gradePick(pick, score) : null;
+    if (!result) {
+      report.contest!.skipped += 1;
+      continue;
+    }
+    await prisma.contestPick.update({
+      where: { id: pick.id },
+      data: { result, settledAt: new Date(), settledBy: "auto" },
+    });
+    report.contest!.settled += 1;
   }
 
   return report;

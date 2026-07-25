@@ -3,6 +3,7 @@ import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { createContestPickSchema } from "@/lib/validations";
 import { isContestAcceptingPicks } from "@/lib/contest";
+import { getUpcomingEvents, getEventMarkets } from "@/lib/odds-api";
 import {
   MAX_PICKS_PER_DAY,
   MAX_PICKS_PER_WEEK,
@@ -13,7 +14,7 @@ import {
 import { SPORT_LABELS } from "@/lib/utils";
 import { clientMeta } from "@/lib/request-meta";
 import { logActivity } from "@/lib/audit";
-import type { PickSport } from "@prisma/client";
+import type { PickSport, BetType } from "@prisma/client";
 
 // Submit a pick into a contest. Requires an existing entry, the contest to be
 // accepting picks, and a future (in-window) start time so nobody can post on a
@@ -41,14 +42,29 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     return NextResponse.json({ error: parsed.error.issues[0]?.message ?? "Invalid input" }, { status: 400 });
   }
 
-  if (!(parsed.data.sport in SPORT_LABELS)) {
+  const sport = parsed.data.sport;
+  if (!(sport in SPORT_LABELS)) {
     return NextResponse.json({ error: "Pick a valid sport" }, { status: 400 });
   }
 
-  const eventStartsAt = new Date(parsed.data.eventStartsAt);
-  if (Number.isNaN(eventStartsAt.getTime())) {
-    return NextResponse.json({ error: "Invalid event start time" }, { status: 400 });
+  // Contest picks must come off our own board — entrants never supply a price.
+  // Resolve the game from the live feed, then confirm the exact selection is
+  // still offered at the exact odds claimed. Everything stored below comes from
+  // the feed, not the request body, so a crafted payload can't invent a line,
+  // a price, or a start time.
+  const feed = await getUpcomingEvents(sport as PickSport);
+  if (!feed.configured) {
+    return NextResponse.json({ error: "Live odds are unavailable right now — try again shortly." }, { status: 503 });
   }
+  const event = feed.events.find((e) => e.id === parsed.data.oddsApiEventId);
+  if (!event) {
+    return NextResponse.json(
+      { error: "That game is no longer on the board. Refresh and pick again." },
+      { status: 400 }
+    );
+  }
+
+  const eventStartsAt = new Date(event.commenceTime);
   if (eventStartsAt.getTime() <= Date.now()) {
     return NextResponse.json(
       { error: "This game has already started — you can't post a pick on it." },
@@ -57,6 +73,24 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   }
   if (eventStartsAt > contest.endsAt) {
     return NextResponse.json({ error: "That game is after the contest ends." }, { status: 400 });
+  }
+
+  // Verify the line against the event's full market set (cached, so this is
+  // usually free). Matching on selection + price means the entrant can only
+  // store a line we actually published.
+  const markets = await getEventMarkets(sport as PickSport, event.sportKey, event.id);
+  const offered = [
+    ...event.markets,
+    ...markets.groups.flatMap((g) => g.sections.flatMap((s) => s.options)),
+  ];
+  const chosen = offered.find(
+    (o) => o.selection === parsed.data.selection && o.odds === parsed.data.odds
+  );
+  if (!chosen) {
+    return NextResponse.json(
+      { error: "That line has moved or is no longer offered. Refresh the game and pick again." },
+      { status: 409 }
+    );
   }
 
   // Enforce the daily/weekly quotas (counted by submission time, UTC windows).
@@ -98,13 +132,17 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   const pick = await prisma.contestPick.create({
     data: {
       entryId: entry.id,
-      sport: parsed.data.sport as PickSport,
-      league: parsed.data.league,
-      matchup: parsed.data.matchup,
-      selection: parsed.data.selection,
-      odds: parsed.data.odds,
+      sport: sport as PickSport,
+      // Matchup, selection, price, bet type and start time are all taken from
+      // the verified board entry rather than the request body.
+      matchup: event.matchup,
+      selection: chosen.selection,
+      betType: chosen.betType as BetType,
+      odds: chosen.odds,
       units: parsed.data.units,
       eventStartsAt,
+      oddsApiEventId: event.id,
+      oddsApiSportKey: event.sportKey,
     },
   });
 

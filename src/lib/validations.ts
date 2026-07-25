@@ -57,16 +57,18 @@ const boundedOdds = z
     `Odds must be between ${MIN_NEGATIVE_ODDS} and +${MAX_POSITIVE_ODDS}`
   );
 
-// A single pick submitted into a handicapping contest (Supercapper). No bet
-// type / premium flag — contest picks are just a graded selection with odds.
+// A single pick submitted into a handicapping contest (Supercapper). Contest
+// picks are always taken from our own odds board, so the entrant identifies the
+// game and the line and the server resolves everything else from the feed —
+// matchup, bet type, price and start time are never trusted from the client.
+// `odds` is still sent so the server can confirm the price the entrant saw is
+// the price still offered (and reject the pick if the line has moved).
 export const createContestPickSchema = z.object({
   sport: z.string(),
-  league: z.string().max(60).optional(),
-  matchup: z.string().min(2).max(140),
+  oddsApiEventId: z.string().min(1, "Pick a game from the board").max(64),
   selection: z.string().min(1).max(140),
   odds: boundedOdds,
   units: z.number().min(0.1).max(20),
-  eventStartsAt: z.string().min(1, "Event start time is required"),
 });
 
 export const becomeHandicapperSchema = z.object({

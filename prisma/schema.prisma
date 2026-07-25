@@ -770,17 +770,23 @@ model ContestPick {
   league          String?
   matchup         String
   selection       String
+  // How to grade the selection (MONEYLINE / SPREAD / TOTAL / PROP). Required by
+  // the auto-settler, which parses the selection differently per type.
+  betType         BetType      @default(MONEYLINE)
   odds            Int
   units           Float        @default(1)
   result          PickResult   @default(PENDING)
   eventStartsAt   DateTime
   settledAt       DateTime?
   settledBy       String?
-  // Forward-compat with auto-settlement from the odds feed (unused in v1).
+  // The upstream game this pick came off. Contest picks must be taken from our
+  // odds board, so these are always set — they're what lets the cron grade the
+  // pick from the feed's final scores.
   oddsApiEventId  String?
   oddsApiSportKey String?
   createdAt       DateTime     @default(now())
 
   @@index([entryId])
   @@index([result])
+  @@index([result, eventStartsAt])
 }
