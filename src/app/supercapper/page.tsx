@@ -134,7 +134,7 @@ export default async function SupercapperPage() {
             <Trophy className="h-3.5 w-3.5" /> {PHASE_LABEL[phase]}
           </span>
           <h1 className="mt-6 flex justify-center text-5xl md:text-7xl">
-            <SupercapperLogo withContest />
+            <SupercapperLogo withContest withByline />
           </h1>
           {contest.tagline && <p className="mt-4 text-lg text-muted">{contest.tagline}</p>}
 
