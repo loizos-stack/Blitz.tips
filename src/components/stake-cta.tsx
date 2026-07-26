@@ -1,3 +1,4 @@
+import Image from "next/image";
 import { ArrowUpRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { stakeGoHref } from "@/lib/stake";
@@ -18,21 +19,37 @@ import type { PickSport } from "@prisma/client";
  */
 
 /**
- * Stake's name as text. Their official logo belongs here instead — download the
- * SVG from the affiliate creative pack, drop it in public/, and swap this span
- * for an <Image>. Kept as text so nothing renders a broken asset in the
- * meantime, and so we're not shipping an approximation of someone's trademark.
+ * Stake's official wordmark. Two files, same artwork: the supplied dark navy
+ * for light surfaces, and a white knockout (alpha preserved, RGB forced white)
+ * for dark ones — the navy is invisible on the promo banner otherwise.
+ *
+ * The source is 1000x555, so the height drives the size and the width follows
+ * that ratio; `h-*` on the caller would distort it without the matching width.
  */
-function StakeWordmark({ className }: { className?: string }) {
-  return <span className={cn("font-display font-bold tracking-tight", className)}>Stake.com</span>;
+const LOGO_RATIO = 1000 / 555;
+
+function StakeWordmark({ height, onDark }: { height: number; onDark?: boolean }) {
+  return (
+    <Image
+      src={onDark ? "/stake-logo-white.webp" : "/stake-logo.webp"}
+      alt="Stake.com"
+      width={Math.round(height * LOGO_RATIO)}
+      height={height}
+      className="inline-block w-auto"
+      style={{ height }}
+    />
+  );
 }
 
 export function StakeCta({
   sport,
   event,
   variant = "inline",
+  onDark = false,
   className,
 }: {
+  /** Switches to the white knockout wordmark for dark surfaces. */
+  onDark?: boolean;
   sport?: PickSport | string | null;
   /** Carried for click analytics only — Stake has no per-match URL we can build. */
   event?: string | null;
@@ -53,7 +70,7 @@ export function StakeCta({
           className
         )}
       >
-        Bet this on <StakeWordmark /> <ArrowUpRight className="h-3.5 w-3.5" />
+        Bet this on <StakeWordmark height={22} onDark={onDark} /> <ArrowUpRight className="h-3.5 w-3.5" />
       </a>
     );
   }
@@ -68,7 +85,7 @@ export function StakeCta({
         className
       )}
     >
-      Bet with <StakeWordmark className="text-[11px]" /> <ArrowUpRight className="h-3 w-3" />
+      Bet with <StakeWordmark height={18} onDark={onDark} /> <ArrowUpRight className="h-3 w-3" />
       <span className="ml-0.5 font-normal opacity-70">(ad)</span>
     </a>
   );
