@@ -33,7 +33,7 @@ export function EntrantCta({
         <p className="mt-2 text-sm text-muted">
           {entered
             ? `You're already in — the only thing between you and ${entrantName} is picks on the board.`
-            : "The Supercapper contest is free to enter and pays a $25,000 guaranteed prize pool. Post your picks, get graded in public, climb the standings."}
+            : "The Supercapper contest is free to enter and pays a $10,000 guaranteed prize pool. Post your picks, get graded in public, climb the standings."}
         </p>
         <Link
           href={entered ? "/supercapper/dashboard" : "/supercapper"}

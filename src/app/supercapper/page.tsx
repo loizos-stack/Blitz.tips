@@ -24,9 +24,9 @@ import { SupercapperLogo } from "@/components/contest/supercapper-logo";
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
-  title: "Supercapper Contest — $25,000 Guaranteed",
+  title: "Supercapper Contest — $10,000 Guaranteed",
   description:
-    "Enter the free Supercapper Contest for a shot at a $25,000 guaranteed prize pool. Post your picks, climb the ROI leaderboard, and finish top 20 to get paid.",
+    "Enter the free Supercapper Contest for a shot at a $10,000 guaranteed prize pool. Post your picks, climb the ROI leaderboard, and finish top 20 to get paid.",
   alternates: { canonical: "/supercapper" },
 };
 

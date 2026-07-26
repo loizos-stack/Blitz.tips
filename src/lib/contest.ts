@@ -24,11 +24,11 @@ export function isContestAcceptingPicks(
   return contest.status === "OPEN" && now >= contest.startsAt && now <= contest.endsAt;
 }
 
-// A sensible default $25k / top-20 payout curve (cents), used to prefill the
-// admin form. Sums to 2,500,000 cents.
+// A sensible default $10k / top-20 payout curve (cents), used to prefill the
+// admin form. Sums to 1,000,000 cents.
 export const DEFAULT_SUPERCAPPER_SPLIT_CENTS: number[] = [
-  775000, 400000, 250000, 200000, 150000, 125000, 100000, 87500, 75000, 62500,
-  50000, 45000, 40000, 35000, 30000, 25000, 20000, 15000, 10000, 5000,
+  310000, 160000, 100000, 80000, 60000, 50000, 40000, 35000, 30000, 25000,
+  20000, 18000, 16000, 14000, 12000, 10000, 8000, 6000, 4000, 2000,
 ];
 
 // Dynamic payout structure: paid places scale with how many people have joined.

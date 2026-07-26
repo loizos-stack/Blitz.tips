@@ -12,7 +12,7 @@ import { SupercapperLogo } from "@/components/contest/supercapper-logo";
 
 const links = [
   { href: "/about", label: "About Blitz" },
-  { href: "/supercapper", label: "$25K Contest" },
+  { href: "/supercapper", label: "$10K Contest" },
   { href: "/leaderboard", label: "Leaderboard" },
   { href: "/handicappers", label: "Handicappers" },
   { href: "/buy-picks", label: "Buy Tips" },

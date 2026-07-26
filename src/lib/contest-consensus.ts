@@ -12,7 +12,7 @@ import type { PickSport } from "@prisma/client";
  *
  * The differentiator over a public betting-consensus page is who's in the
  * sample: not anonymous tickets, but entrants building a graded, public record
- * with $25,000 on the line. And because we know each entrant's standing, the
+ * with $10,000 on the line. And because we know each entrant's standing, the
  * field can be split — what everyone is on, versus what the entrants who have
  * actually qualified are on. Those two disagreeing is the interesting signal;
  * one number alone is just a crowd.
