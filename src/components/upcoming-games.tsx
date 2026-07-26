@@ -72,8 +72,10 @@ export function UpcomingGames({
   // The all-sports view shows a mixed board, so which sport each card is for is
   // decided per event; a single-sport view just repeats the selected sport.
   const mixed = sport === null;
-  // A single sport shows a full card each; the merged board caps at a round 16.
-  const eventCap = sport ? (isMoneylineOnly(sport) ? 16 : 8) : 16;
+  // Narrowing to a sport must never show less of that sport than the mixed
+  // board did, so the single-sport cap stays above the merged one. These are
+  // horizontal carousels, so extra cards cost a scroll rather than page height.
+  const eventCap = sport ? 20 : 16;
 
   return (
     <section className="relative overflow-hidden border-b border-border bg-surface/60 py-14">
