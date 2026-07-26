@@ -3,12 +3,12 @@ import { cn } from "@/lib/utils";
 
 const BLITZ_URL = "https://blitz.tips";
 
-// The Supercapper wordmark: the leading "S" is a thunder bolt, followed by
-// "upercapper" in the display font. The bolt and "uper" take the surrounding
-// text color (black on light, white reversed) with a gold outline on the bolt;
-// "capper" carries the brand green. Pass `onDark` on a dark surface: the accent
-// green is tuned for contrast on white and goes muddy on charcoal, so it steps
-// up to green-500 there.
+// The Supercapper wordmark: the leading "S" is a gold thunder bolt, followed by
+// "upercapper" in the display font — "uper" takes the surrounding text color
+// (black on light, white reversed) and "capper" carries the brand green. Pass
+// `onDark` on a dark surface: the accent green is tuned for contrast on white
+// and goes muddy on charcoal, so it steps up to green-500 there. The gold needs
+// no such treatment; it holds on both.
 // A sub-line can sit beneath: `withContest` for "Handicapping Contest",
 // `withByline` for the Blitz.tips attribution lockup, which links back to the
 // site — for anywhere the contest appears away from the site's own chrome
@@ -41,22 +41,23 @@ export function SupercapperLogo({
       >
         <span className="inline-flex items-center font-display font-extrabold tracking-tight">
           {/* viewBox is cropped tight to the bolt's bounds (no transparent
-              padding) so it can sit flush against the "u". Tilted 10° so it
-              reads as a strike rather than a static glyph; the rotation widens
-              its footprint, hence the smaller negative margin than an upright
-              bolt. Fill is currentColor — black on light, white reversed — with
-              a gold outline, the one place the original bolt's color survives. */}
+              padding) so it can sit against the "u". Tilted 20° so it reads as
+              a strike rather than a static glyph; that tilt widens its
+              footprint enough that it needs no negative margin at all. Solid
+              gold with a deeper gold edge, so it holds its silhouette against
+              both a white and a black background without depending on the
+              surrounding text color. */}
           <svg
             viewBox="10.5 5.5 19 30.5"
-            className="-mr-[0.04em] h-[1.5em] w-[0.94em] rotate-[10deg]"
+            className="h-[1.5em] w-[0.94em] rotate-[20deg]"
             fill="none"
             aria-hidden
           >
             <path
               d="M22 6 L11 23 H18.5 L16 35 L29 19 H21.5 L24 6 Z"
-              fill="currentColor"
-              stroke="#eab308"
-              strokeWidth="1.4"
+              fill="#eab308"
+              stroke="#ca8a04"
+              strokeWidth="1"
               strokeLinejoin="round"
             />
           </svg>
