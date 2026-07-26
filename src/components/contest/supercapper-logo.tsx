@@ -41,15 +41,17 @@ export function SupercapperLogo({
       >
         <span className="inline-flex items-center font-display font-extrabold tracking-tight">
           {/* viewBox is cropped tight to the bolt's bounds (no transparent
-              padding) so it can sit against the "u". Tilted 30° so it reads as
-              a strike rather than a static glyph; that tilt widens its
-              footprint enough that it needs no negative margin at all. Solid
+              padding) so it can sit against the "u". Tilted 20° — enough to
+              read as a strike rather than a static glyph, while still holding
+              the "S" position in the word; past that the bolt detaches and the
+              word starts reading as "upercapper" beside an icon. The tilt
+              widens its footprint enough to need no negative margin. Solid
               gold with a deeper gold edge, so it holds its silhouette against
               both a white and a black background without depending on the
               surrounding text color. */}
           <svg
             viewBox="10.5 5.5 19 30.5"
-            className="h-[1.5em] w-[0.94em] rotate-[30deg]"
+            className="h-[1.5em] w-[0.94em] rotate-[20deg]"
             fill="none"
             aria-hidden
           >
