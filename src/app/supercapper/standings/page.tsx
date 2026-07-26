@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { format } from "date-fns";
-import { ArrowLeft, LayoutDashboard } from "lucide-react";
+import { ArrowLeft, LayoutDashboard, Users } from "lucide-react";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import {
@@ -86,12 +86,20 @@ export default async function SupercapperStandingsPage() {
       <div aria-hidden className="pointer-events-none absolute inset-0 bg-[url('/hero-bg.svg')] bg-cover bg-center opacity-[0.06]" />
       <div aria-hidden className="pointer-events-none absolute inset-0 bg-gradient-to-b from-accent/10 via-transparent to-transparent" />
       <div className="container-page relative py-10">
-        <Link
-          href="/supercapper"
-          className="inline-flex items-center gap-1.5 text-sm font-medium text-muted hover:text-foreground"
-        >
-          <ArrowLeft className="h-4 w-4" /> Contest overview
-        </Link>
+        <div className="flex flex-wrap items-center gap-4">
+          <Link
+            href="/supercapper"
+            className="inline-flex items-center gap-1.5 text-sm font-medium text-muted hover:text-foreground"
+          >
+            <ArrowLeft className="h-4 w-4" /> Contest overview
+          </Link>
+          <Link
+            href="/supercapper/consensus"
+            className="inline-flex items-center gap-1.5 text-sm font-medium text-accent hover:underline"
+          >
+            <Users className="h-4 w-4" /> Consensus
+          </Link>
+        </div>
 
       <div className="mt-4 flex flex-wrap items-end justify-between gap-3">
         <div>

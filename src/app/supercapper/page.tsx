@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { format } from "date-fns";
-import { Trophy, ShieldCheck, Coins, ListChecks, Gift, CalendarClock, Gauge, LayoutDashboard, ListOrdered, Crown, Layers } from "lucide-react";
+import { Trophy, ShieldCheck, Coins, ListChecks, Gift, CalendarClock, Gauge, LayoutDashboard, ListOrdered, Users, Crown, Layers } from "lucide-react";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import {
@@ -164,6 +164,12 @@ export default async function SupercapperPage() {
                   className="inline-flex items-center justify-center gap-2 rounded-lg border border-border px-6 py-3 text-sm font-semibold hover:border-muted"
                 >
                   <ListOrdered className="h-4 w-4" /> Full standings
+                </Link>
+                <Link
+                  href="/supercapper/consensus"
+                  className="inline-flex items-center justify-center gap-2 rounded-lg border border-border px-6 py-3 text-sm font-semibold hover:border-muted"
+                >
+                  <Users className="h-4 w-4" /> Consensus
                 </Link>
               </div>
             ) : (
