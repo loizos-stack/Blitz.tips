@@ -110,10 +110,7 @@ export function integrationStatus(): Integration[] {
     build("odds", "The Odds API", "Today's lines is hidden; picks fall back to manual entry.", false, [
       req(
         "THE_ODDS_API_KEY",
-        process.env.THE_ODDS_API_KEY ??
-          process.env.ODDS_API_KEY ??
-          process.env.THEODDS_API_KEY ??
-          process.env.NEXT_PUBLIC_THE_ODDS_API_KEY
+        process.env.THE_ODDS_API_KEY ?? process.env.ODDS_API_KEY ?? process.env.THEODDS_API_KEY
       ),
       opt("MAX_SOCCER_LEAGUES", process.env.MAX_SOCCER_LEAGUES),
     ]),

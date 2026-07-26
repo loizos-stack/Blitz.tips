@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { agentsOnline } from "@/lib/chatbot";
+import { rateLimit, clientIp, tooManyRequests } from "@/lib/rate-limit";
 
 export const dynamic = "force-dynamic";
 
@@ -14,6 +15,11 @@ export const dynamic = "force-dynamic";
  * contact form that opens a support ticket instead.
  */
 export async function POST(request: Request) {
+  // Also unauthenticated: rate limited so nobody can flood the admin Chat tab
+  // with WAITING chats faster than a human can clear them.
+  const limit = await rateLimit(`chat-escalate:${clientIp(request)}`, 10, 600);
+  if (!limit.ok) return tooManyRequests(limit.retryAfterSeconds);
+
   const body = await request.json().catch(() => ({}));
   const chatId = typeof body.chatId === "string" ? body.chatId : null;
   const token = typeof body.token === "string" ? body.token : null;

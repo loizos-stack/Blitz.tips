@@ -51,12 +51,14 @@ const API_BASE = process.env.ODDS_API_BASE ?? "https://api.the-odds-api.com/v4";
 // value and accepts a couple of common alternate variable names, so a small
 // naming/formatting slip in the host env doesn't silently blank the whole feed.
 // THE_ODDS_API_KEY is the canonical name.
+//
+// NEXT_PUBLIC_THE_ODDS_API_KEY is deliberately NOT accepted. Next inlines every
+// NEXT_PUBLIC_* value into the client bundle, so honouring that name would ship
+// a paid, billable API key to every visitor's browser the moment someone set it
+// — and it would keep working, so nothing would look wrong.
 export function oddsApiKey(): string | undefined {
   const raw =
-    process.env.THE_ODDS_API_KEY ??
-    process.env.ODDS_API_KEY ??
-    process.env.THEODDS_API_KEY ??
-    process.env.NEXT_PUBLIC_THE_ODDS_API_KEY;
+    process.env.THE_ODDS_API_KEY ?? process.env.ODDS_API_KEY ?? process.env.THEODDS_API_KEY;
   const key = raw?.trim();
   return key ? key : undefined;
 }
