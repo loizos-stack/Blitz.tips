@@ -108,6 +108,64 @@ export async function resolveSportsDbLogo(sport: PickSport, name: string): Promi
   return team?.strBadge || team?.strTeamBadge || null;
 }
 
+interface SportsDbLeague {
+  strLeague?: string;
+  strLeagueAlternate?: string;
+  strSport?: string;
+  strBadge?: string;
+  strLogo?: string;
+}
+
+// Strip everything but letters and digits, and fold accents, so our own league
+// labels ("LaLiga", "Série A") can be matched against TheSportsDB's ("Spanish
+// La Liga", "Brazilian Serie A") without a hand-maintained alias table.
+function normalizeLeagueName(name: string): string {
+  return name
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, "");
+}
+
+/**
+ * Resolve a competition badge by country + league name.
+ *
+ * We search by country rather than looking up a hardcoded TheSportsDB league id
+ * because a wrong id silently shows the wrong competition's badge, which is
+ * worse than showing none. Matching is containment on the normalized name, and
+ * where several candidates contain ours we take the shortest — that's what
+ * keeps "LaLiga" off "Spanish La Liga 2".
+ *
+ * Returns null when unconfigured or on any miss/failure.
+ */
+export async function resolveSportsDbLeagueBadge(
+  country: string,
+  league: string
+): Promise<string | null> {
+  const key = apiKey();
+  if (!key || !country || !league) return null;
+
+  const base = process.env.SPORTSDB_API_BASE?.trim() || DEFAULT_BASE;
+  const data = await fetchJson<{ countries: SportsDbLeague[] | null }>(
+    `${base}/${key}/search_all_leagues.php?c=${encodeURIComponent(country)}&s=Soccer`
+  );
+
+  const wanted = normalizeLeagueName(league);
+  if (!wanted) return null;
+
+  const match = (data?.countries ?? [])
+    .filter((l) => {
+      const name = normalizeLeagueName(l.strLeague ?? "");
+      const alt = normalizeLeagueName(l.strLeagueAlternate ?? "");
+      return name.includes(wanted) || (alt.length > 0 && alt.includes(wanted));
+    })
+    .sort(
+      (a, b) => (a.strLeague ?? "").length - (b.strLeague ?? "").length
+    )[0];
+
+  return match?.strBadge || match?.strLogo || null;
+}
+
 /**
  * Resolve a crest for a team/fighter name, preferring the free/instant ESPN
  * table (US major leagues) and falling back to TheSportsDB for everything else.

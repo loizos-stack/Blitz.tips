@@ -2,7 +2,8 @@ import "server-only";
 import type { PickSport } from "@prisma/client";
 import { getTeamLogoUrl } from "@/lib/team-logos";
 import { formatMatchup } from "@/lib/utils";
-import { sportsDbConfigured, resolveSportsDbLogo } from "@/lib/sportsdb";
+import { sportsDbConfigured, resolveSportsDbLogo, resolveSportsDbLeagueBadge } from "@/lib/sportsdb";
+import { soccerBadgeQuery } from "@/lib/soccer-leagues";
 import { propMarketKeys, extraMarketKeys, buildGroups, type MarketGroup, type RawMarket } from "@/lib/odds-markets";
 import { getLiveGameStates, livePairKey, getUfcFighterSet, fighterKey } from "@/lib/espn-scores";
 
@@ -21,10 +22,10 @@ import { getLiveGameStates, livePairKey, getUfcFighterSet, fighterKey } from "@/
 // daily, spend is sports x (30 days / (REVALIDATE_SECONDS/24h)) x 3 credits.
 // Soccer counts as up to MAX_SOCCER_LEAGUES "sports" here since it fans out
 // to that many billed odds calls. At 24h and the current caps that worst case
-// is roughly (8 + 2) x 30 x 3 ≈ 900 credits/month if literally every tab is
+// is roughly (8 + 8) x 30 x 3 ≈ 1,440 credits/month if literally every tab is
 // viewed every single day; real traffic concentrating on a few sports lands
-// well under the free tier's 500/month. If credits still run out, widen this
-// further, lower MAX_SOCCER_LEAGUES, or upgrade the the-odds-api.com plan.
+// well under that. If credits run out, widen REVALIDATE_SECONDS, lower
+// MAX_SOCCER_LEAGUES, or upgrade the the-odds-api.com plan.
 // Missing THE_ODDS_API_KEY degrades to { configured: false } everywhere.
 const REVALIDATE_SECONDS = 24 * 60 * 60;
 
@@ -95,19 +96,37 @@ const SOCCER_LEAGUE_PRIORITY = [
   "soccer_italy_serie_a",
   "soccer_germany_bundesliga",
   "soccer_france_ligue_one",
+  // Second tier of demand: the biggest non-European leagues and the English
+  // second division. These run through the northern-hemisphere off-season
+  // (Brazil and Liga MX especially), so they're often the only thing with a
+  // full card in June/July.
+  "soccer_brazil_campeonato",
+  "soccer_mexico_ligamx",
+  "soccer_efl_champ",
   "soccer_usa_mls",
+  "soccer_netherlands_eredivisie",
+  "soccer_portugal_primeira_liga",
+  "soccer_argentina_primera_division",
+  "soccer_brazil_serie_b",
+  "soccer_uefa_europa_conference_league",
   "soccer_uefa_european_championship",
   "soccer_conmebol_copa_america",
+  "soccer_conmebol_copa_libertadores",
 ];
 
 // Cap on how many soccer leagues we pull odds for at once. Each league is a
 // separate billed odds call (markets × regions = 3 credits), so this is the
 // main quota knob for soccer — raise it for more breadth, lower it to save
 // credits. League discovery (/sports) and the tab-availability check (/events)
-// are both free endpoints, so only this odds fan-out costs anything. Held at
-// 2 while on the free tier; the priority list still puts the marquee
-// competitions first, so these are the two biggest active ones.
-const MAX_SOCCER_LEAGUES = 2;
+// are both free endpoints, so only this odds fan-out costs anything.
+//
+// Cost per league: 3 credits per fetch (markets × regions) at REVALIDATE_SECONDS
+// = 24h, so ~3/day ≈ 90/month per league, and only on days the soccer board is
+// actually viewed. At 8 that's a ~720/month ceiling for soccer — over the free
+// tier's 500 on its own, so this assumes a paid plan. Drop it back toward 2-3 if
+// the quota gets tight; the priority list keeps the marquee competitions first,
+// so lowering it degrades breadth rather than blanking the board.
+const MAX_SOCCER_LEAGUES = 8;
 
 // Books we request and the order we display them, Pinnacle first (the sharp
 // reference book, with full spreads/totals incl. soccer). Requested via The
@@ -374,6 +393,10 @@ export interface UpcomingEvent {
   awayTeam: string;
   homeTeamLogo: string | null;
   awayTeamLogo: string | null;
+  // Competition badge for the league this event belongs to. Only populated for
+  // soccer, where the pick forms group games under a country → league heading;
+  // every other sport is a single league and needs no badge.
+  leagueLogo: string | null;
   commenceTime: string;
   bookmaker: string | null;
   markets: MarketOption[];
@@ -445,6 +468,14 @@ async function fetchLeagueEvents(
         }
       })
     );
+
+    // Soccer only: one competition badge per league (not per event) for the
+    // country → league headings in the pick forms.
+    if (sport === "SOCCER" && events.length > 0) {
+      const { country, league } = soccerBadgeQuery(sportKey);
+      const badge = await resolveSportsDbLeagueBadge(country, league);
+      for (const event of events) event.leagueLogo = badge;
+    }
   }
 
   // Scores are billed per league, so only fetch them for this league if one of
@@ -473,13 +504,17 @@ export async function getUpcomingEvents(sport: PickSport): Promise<OddsFeedResul
   const perLeague = await Promise.all(
     sportKeys.map((key) => fetchLeagueEvents(key, sport, apiKey))
   );
+  // A single-league sport gets 25 games; a fanned-out one (soccer) needs enough
+  // headroom that the later leagues aren't cut off entirely by a busy weekend in
+  // the first — a flat 25 would leave Liga MX invisible behind a full EPL card.
+  const cap = sportKeys.length > 1 ? 15 * sportKeys.length : 25;
   const events = perLeague
     .flat()
     // Finished games drop off the board — it shows upcoming and in-progress
     // only. (Scores still power auto-settlement separately.)
     .filter((e) => !e.liveScore?.completed)
     .sort((a, b) => new Date(a.commenceTime).getTime() - new Date(b.commenceTime).getTime())
-    .slice(0, 25);
+    .slice(0, cap);
 
   // Prefer games in the next 48h (plus anything live); if this sport has nothing
   // in that window, fall back to its next upcoming games rather than showing
@@ -636,6 +671,7 @@ function normalizeEvent(event: OddsApiEvent, sport: PickSport, sportKey: string)
     awayTeam: event.away_team,
     homeTeamLogo: getTeamLogoUrl(sport, event.home_team),
     awayTeamLogo: getTeamLogoUrl(sport, event.away_team),
+    leagueLogo: null,
     commenceTime: event.commence_time,
     bookmaker: bookmaker?.title ?? null,
     markets,

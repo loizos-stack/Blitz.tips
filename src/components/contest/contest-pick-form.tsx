@@ -12,6 +12,7 @@ import type { MarketOption, UpcomingEvent } from "@/lib/odds-api";
 import type { CapperOnEvent } from "@/lib/contest-funnel";
 import { StakeCta } from "@/components/stake-cta";
 import { MatchupTeams } from "@/components/matchup-teams";
+import { SoccerLeagueSections } from "@/components/soccer-league-sections";
 
 const sportKeys = Object.keys(SPORT_LABELS);
 const input =
@@ -111,6 +112,47 @@ export function ContestPickForm({
     setUnits("1");
   }
 
+  // One match row. Rendered flat for single-league sports and inside the
+  // country → league headings for soccer, so it lives here rather than inline.
+  function renderEvent(event: UpcomingEvent) {
+    return (
+      <div key={event.id} className="rounded-lg border border-border">
+        <button
+          type="button"
+          onClick={() => {
+            setSelectedEvent(selectedEvent?.id === event.id ? null : event);
+            setSelectedMarket(null);
+          }}
+          className="flex w-full items-center justify-between gap-2 px-3 py-2.5 text-left text-sm"
+        >
+          <MatchupTeams
+            sport={event.sport}
+            matchup={event.matchup}
+            awayLogo={event.awayTeamLogo}
+            homeLogo={event.homeTeamLogo}
+            logoClassName="h-5 w-5"
+            textClassName="truncate font-display font-medium"
+          />
+          <span className="shrink-0 text-xs text-muted">
+            {format(new Date(event.commenceTime), "MMM d, h:mm a")}
+          </span>
+        </button>
+
+        {selectedEvent?.id === event.id && (
+          <div className="border-t border-border p-3">
+            <EventMarkets
+              key={event.id}
+              sport={sport}
+              event={event}
+              selected={selectedMarket}
+              onSelect={(market) => chooseMarket(event, market)}
+            />
+          </div>
+        )}
+      </div>
+    );
+  }
+
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
@@ -183,43 +225,12 @@ export function ContestPickForm({
           )}
 
           {feed.status === "ready" && (
-            <div className="flex max-h-[36rem] flex-col gap-2 overflow-y-auto overscroll-contain pr-1">
-              {feed.events.map((event) => (
-                <div key={event.id} className="rounded-lg border border-border">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setSelectedEvent(selectedEvent?.id === event.id ? null : event);
-                      setSelectedMarket(null);
-                    }}
-                    className="flex w-full items-center justify-between gap-2 px-3 py-2.5 text-left text-sm"
-                  >
-                    <MatchupTeams
-                      sport={event.sport}
-                      matchup={event.matchup}
-                      awayLogo={event.awayTeamLogo}
-                      homeLogo={event.homeTeamLogo}
-                      logoClassName="h-5 w-5"
-                      textClassName="truncate font-display font-medium"
-                    />
-                    <span className="shrink-0 text-xs text-muted">
-                      {format(new Date(event.commenceTime), "MMM d, h:mm a")}
-                    </span>
-                  </button>
-
-                  {selectedEvent?.id === event.id && (
-                    <div className="border-t border-border p-3">
-                      <EventMarkets
-                        key={event.id}
-                        sport={sport}
-                        event={event}
-                        selected={selectedMarket}
-                        onSelect={(market) => chooseMarket(event, market)}
-                      />
-                    </div>
-                  )}
-                </div>
-              ))}
+            <div className="flex max-h-[36rem] flex-col gap-3 overflow-y-auto overscroll-contain pr-1">
+              {sport === "SOCCER" ? (
+                <SoccerLeagueSections events={feed.events} renderEvent={renderEvent} />
+              ) : (
+                feed.events.map((event) => renderEvent(event))
+              )}
             </div>
           )}
 

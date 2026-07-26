@@ -19,6 +19,27 @@ function isOptimizable(url: string): boolean {
   }
 }
 
+/**
+ * Competition badge for a league heading. Unlike TeamLogo there's no icon
+ * fallback — a missing or broken badge renders nothing and the heading is just
+ * its name, which reads fine on its own.
+ */
+export function LeagueBadge({ src, className }: { src: string | null; className?: string }) {
+  const [failed, setFailed] = useState(false);
+  if (!src || failed) return null;
+
+  if (isOptimizable(src)) {
+    return (
+      <span className={cn("relative inline-block shrink-0 overflow-hidden", className)}>
+        <Image src={src} alt="" fill sizes="32px" className="object-contain" onError={() => setFailed(true)} />
+      </span>
+    );
+  }
+
+  // eslint-disable-next-line @next/next/no-img-element -- external, non-whitelisted CDN badge (rare fallback host)
+  return <img src={src} alt="" loading="lazy" decoding="async" onError={() => setFailed(true)} className={cn("shrink-0 object-contain", className)} />;
+}
+
 export function TeamLogo({
   sport,
   logoUrl,

@@ -10,6 +10,7 @@ import { getTeamNames } from "@/lib/team-logos";
 import { TeamLogo } from "@/components/team-logo";
 import { TeamCrest } from "@/components/team-crest";
 import { EventMarkets } from "@/components/event-markets";
+import { SoccerLeagueSections } from "@/components/soccer-league-sections";
 import type { MarketOption, UpcomingEvent } from "@/lib/odds-api";
 import type { PickSport } from "@prisma/client";
 
@@ -203,6 +204,60 @@ export function CreatePickForm({
   const teamNames = getTeamNames(sport as PickSport);
   const vsSport = usesVsSeparator(sport);
 
+  // One game row. Rendered flat for single-league sports and inside the
+  // country → league headings for soccer, so it lives here rather than inline.
+  function renderEvent(event: UpcomingEvent) {
+    return (
+      <div key={event.id} className="rounded-lg border border-border">
+        <button
+          type="button"
+          onClick={() => {
+            setSelectedEvent(selectedEvent?.id === event.id ? null : event);
+            setSelectedMarket(null);
+          }}
+          className="flex w-full items-center justify-between px-3 py-2.5 text-left text-sm"
+        >
+          <span className="flex min-w-0 items-center gap-2">
+            {(event.awayTeamLogo || event.homeTeamLogo) && (
+              <span className="flex shrink-0 items-center -space-x-1.5">
+                {[
+                  vsSport ? event.homeTeamLogo : event.awayTeamLogo,
+                  vsSport ? event.awayTeamLogo : event.homeTeamLogo,
+                ].map(
+                  (logo, idx) =>
+                    logo && (
+                      <TeamLogo
+                        key={idx}
+                        sport={sport as PickSport}
+                        logoUrl={logo}
+                        className="h-5 w-5 rounded-full ring-2 ring-surface"
+                      />
+                    )
+                )}
+              </span>
+            )}
+            <span className="truncate font-display font-medium">{event.matchup}</span>
+          </span>
+          <span className="ml-2 shrink-0 text-xs text-muted">
+            {format(new Date(event.commenceTime), "MMM d, h:mm a")}
+          </span>
+        </button>
+
+        {selectedEvent?.id === event.id && (
+          <div className="border-t border-border p-3">
+            <EventMarkets
+              key={event.id}
+              sport={sport}
+              event={event}
+              selected={selectedMarket}
+              onSelect={(market) => chooseMarket(event, market)}
+            />
+          </div>
+        )}
+      </div>
+    );
+  }
+
   return (
     <form onSubmit={handleSubmit} className="card flex flex-col gap-4 p-5">
       <div className="flex items-center justify-between">
@@ -277,56 +332,12 @@ export function CreatePickForm({
           )}
 
           {feed.status === "ready" && (
-            <div className="flex max-h-[32rem] flex-col gap-2 overflow-y-auto overscroll-contain pr-1">
-              {feed.events.map((event) => (
-                <div key={event.id} className="rounded-lg border border-border">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setSelectedEvent(selectedEvent?.id === event.id ? null : event);
-                      setSelectedMarket(null);
-                    }}
-                    className="flex w-full items-center justify-between px-3 py-2.5 text-left text-sm"
-                  >
-                    <span className="flex min-w-0 items-center gap-2">
-                      {(event.awayTeamLogo || event.homeTeamLogo) && (
-                        <span className="flex shrink-0 items-center -space-x-1.5">
-                          {[
-                            vsSport ? event.homeTeamLogo : event.awayTeamLogo,
-                            vsSport ? event.awayTeamLogo : event.homeTeamLogo,
-                          ].map(
-                            (logo, idx) =>
-                              logo && (
-                                <TeamLogo
-                                  key={idx}
-                                  sport={sport as PickSport}
-                                  logoUrl={logo}
-                                  className="h-5 w-5 rounded-full ring-2 ring-surface"
-                                />
-                              )
-                          )}
-                        </span>
-                      )}
-                      <span className="truncate font-display font-medium">{event.matchup}</span>
-                    </span>
-                    <span className="ml-2 shrink-0 text-xs text-muted">
-                      {format(new Date(event.commenceTime), "MMM d, h:mm a")}
-                    </span>
-                  </button>
-
-                  {selectedEvent?.id === event.id && (
-                    <div className="border-t border-border p-3">
-                      <EventMarkets
-                        key={event.id}
-                        sport={sport}
-                        event={event}
-                        selected={selectedMarket}
-                        onSelect={(market) => chooseMarket(event, market)}
-                      />
-                    </div>
-                  )}
-                </div>
-              ))}
+            <div className="flex max-h-[32rem] flex-col gap-3 overflow-y-auto overscroll-contain pr-1">
+              {sport === "SOCCER" ? (
+                <SoccerLeagueSections events={feed.events} renderEvent={renderEvent} />
+              ) : (
+                feed.events.map((event) => renderEvent(event))
+              )}
             </div>
           )}
 
