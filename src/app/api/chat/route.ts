@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { botReply, agentsOnline, type ChatTurn } from "@/lib/chatbot";
+import { rateLimit, clientIp, tooManyRequests } from "@/lib/rate-limit";
 import type { ChatMessage } from "@prisma/client";
 
 export const dynamic = "force-dynamic";
@@ -46,6 +47,14 @@ export async function GET(request: Request) {
  * or LIVE the message is just stored for the agent.
  */
 export async function POST(request: Request) {
+  // Unauthenticated by design — a visitor chats before signing up. That makes
+  // this the cheapest endpoint on the site to abuse: every call writes a
+  // ChatMessage, a call with no chatId also writes a Chat, and a chat still in
+  // BOT mode bills an AI completion. Capped per IP so a script can't run up the
+  // AI spend or fill the table; the limit is well above a real conversation.
+  const limit = await rateLimit(`chat:${clientIp(request)}`, 30, 600);
+  if (!limit.ok) return tooManyRequests(limit.retryAfterSeconds);
+
   const body = await request.json().catch(() => ({}));
   const message = typeof body.message === "string" ? body.message.trim() : "";
   if (!message) return NextResponse.json({ error: "Empty message" }, { status: 400 });
