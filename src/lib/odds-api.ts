@@ -22,19 +22,22 @@ import { getLiveGameStates, livePairKey, getUfcFighterSet, fighterKey } from "@/
 // daily, spend is sports x (30 days / (REVALIDATE_SECONDS/24h)) x 3 credits.
 // Soccer counts as up to MAX_SOCCER_LEAGUES "sports" here since it fans out
 // to that many billed odds calls. At 24h and the current caps that worst case
-// is roughly (8 + 8) x 30 x 3 ≈ 1,440 credits/month if literally every tab is
+// is roughly (8 + 12) x 30 x 3 ≈ 1,800 credits/month if literally every tab is
 // viewed every single day; real traffic concentrating on a few sports lands
-// well under that. If credits run out, widen REVALIDATE_SECONDS, lower
-// MAX_SOCCER_LEAGUES, or upgrade the the-odds-api.com plan.
+// well under that. Note this is only the odds spend — live scores
+// (SCORES_REVALIDATE_SECONDS) cost more per league on game days, so look there
+// first when the quota gets tight, then at MAX_SOCCER_LEAGUES.
 // Missing THE_ODDS_API_KEY degrades to { configured: false } everywhere.
 const REVALIDATE_SECONDS = 24 * 60 * 60;
 
 // Live scores are only fetched when a game already in view has started (see
 // getUpcomingEvents), but each refresh is a billed call, and short windows
 // compound fast on game days (a 5-minute window during a 4h slate is ~50
-// billed calls). 30 minutes keeps scores reasonably fresh at ~1/15th the
-// cost; shorten it only after moving off the free tier.
-const SCORES_REVALIDATE_SECONDS = 30 * 60;
+// billed calls). 45 minutes keeps scores reasonably fresh at ~1/22nd the
+// cost. This is the dominant per-league cost once soccer fans out across a
+// dozen competitions, so it's the first knob to widen if the quota gets tight
+// — widening it beats dropping leagues.
+const SCORES_REVALIDATE_SECONDS = 45 * 60;
 
 // How far back a started game stays eligible for a live/final score before
 // it's dropped from the feed entirely — long enough to cover a full game in
@@ -114,19 +117,26 @@ const SOCCER_LEAGUE_PRIORITY = [
   "soccer_conmebol_copa_libertadores",
 ];
 
-// Cap on how many soccer leagues we pull odds for at once. Each league is a
-// separate billed odds call (markets × regions = 3 credits), so this is the
-// main quota knob for soccer — raise it for more breadth, lower it to save
-// credits. League discovery (/sports) and the tab-availability check (/events)
-// are both free endpoints, so only this odds fan-out costs anything.
+// Cap on how many soccer leagues we carry at once — the main quota knob for
+// soccer. League discovery (/sports) and the tab-availability check (/events)
+// are free endpoints, so only the per-league odds and scores calls cost.
 //
-// Cost per league: 3 credits per fetch (markets × regions) at REVALIDATE_SECONDS
-// = 24h, so ~3/day ≈ 90/month per league, and only on days the soccer board is
-// actually viewed. At 8 that's a ~720/month ceiling for soccer — over the free
-// tier's 500 on its own, so this assumes a paid plan. Drop it back toward 2-3 if
-// the quota gets tight; the priority list keeps the marquee competitions first,
-// so lowering it degrades breadth rather than blanking the board.
-const MAX_SOCCER_LEAGUES = 8;
+// Per league, per month, worst case (board viewed every day):
+//   odds   ~90  — 3 credits (markets × regions) once per REVALIDATE_SECONDS
+//   scores ~700 — 2 credits (daysFrom is billed extra) per
+//                 SCORES_REVALIDATE_SECONDS, but only while games are running
+// so roughly 800/league/month at the ceiling, and far less in practice since
+// both only bill on a cache miss caused by a real visitor.
+//
+// Env-overridable so the cap can be tuned against live usage without a deploy.
+// Out-of-range or unparseable values fall back to the default rather than
+// blanking soccer or running the quota away.
+const DEFAULT_MAX_SOCCER_LEAGUES = 12;
+const MAX_SOCCER_LEAGUES = (() => {
+  const raw = Number(process.env.MAX_SOCCER_LEAGUES?.trim());
+  if (!Number.isInteger(raw) || raw < 1 || raw > 30) return DEFAULT_MAX_SOCCER_LEAGUES;
+  return raw;
+})();
 
 // Books we request and the order we display them, Pinnacle first (the sharp
 // reference book, with full spreads/totals incl. soccer). Requested via The
@@ -591,6 +601,12 @@ interface OddsApiScoreEntry {
 }
 
 async function getScores(sportKey: string, apiKey: string): Promise<Map<string, LiveScore>> {
+  // daysFrom costs an extra credit per call, but it can't be dropped: without
+  // it the upstream returns live and upcoming games only, so a game that just
+  // finished comes back with no entry at all — and `completed` is exactly what
+  // getUpcomingEvents uses to drop finished games off the board. Removing it
+  // would halve the price of this call and leave finished games sitting on the
+  // board for up to GAME_IN_PROGRESS_WINDOW_MS. Widen the cache instead.
   const url = `${API_BASE}/sports/${sportKey}/scores/?apiKey=${apiKey}&daysFrom=1`;
 
   // Live scores need to be fresher than odds, but this is a second billed

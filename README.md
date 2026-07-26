@@ -74,6 +74,10 @@ cp .env.example .env
   odds that autofill the pick. Without a key the form falls back to manual entry. Responses are
   cached for an hour per sport to stay inside the free tier's 500 credits/month (a request costs
   3 credits: `h2h,spreads,totals` × 1 region).
+- `MAX_SOCCER_LEAGUES` — how many soccer competitions to carry at once (optional, default 12,
+  range 1–30). Soccer is the one sport that fans out to several leagues, so it's the main quota
+  knob: each league costs its own odds and live-scores calls. Tune it against real usage on the
+  Odds API dashboard without redeploying; out-of-range values fall back to the default.
 
 ### 3. Set up the database
 
