@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { stakeUrl } from "@/lib/stake";
-import { isOutsideUs } from "@/lib/geo";
+import { showStakeLinks } from "@/lib/stake-server";
 
 export const dynamic = "force-dynamic";
 
@@ -8,13 +8,12 @@ export const dynamic = "force-dynamic";
  * Outbound affiliate redirect to Stake.com.
  *
  * Everything that leaves for Stake goes through here so the referral code lives
- * in one place and clicks are countable. The geo check is repeated server-side
- * rather than trusted from the UI: the links are only rendered for non-US
- * visitors, but a URL that leaks (shared, crawled, guessed) must not become a
- * way for US traffic to reach an offshore book through us.
+ * in one place and clicks are countable. The visibility check is repeated
+ * server-side rather than trusted from the UI, so re-enabling the geo gate
+ * later closes this route too — a leaked or crawled URL can't outlive it.
  */
 export async function GET(request: Request) {
-  if (!(await isOutsideUs())) {
+  if (!(await showStakeLinks())) {
     return NextResponse.redirect(new URL("/", request.url), 302);
   }
 

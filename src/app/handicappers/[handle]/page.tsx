@@ -11,7 +11,7 @@ import { Stars } from "@/components/stars";
 import { HandicapperJsonLd } from "@/components/json-ld";
 import { StatCard } from "@/components/stat-card";
 import { PickCard } from "@/components/pick-card";
-import { isOutsideUs } from "@/lib/geo";
+import { showStakeLinks } from "@/lib/stake-server";
 import { PaginatedTrackRecord } from "@/components/paginated-track-record";
 import { SubscribeButton } from "@/components/subscribe-button";
 import { FollowButton } from "@/components/follow-button";
@@ -102,8 +102,7 @@ export default async function HandicapperProfilePage({
   }
 
   const unlocked = isOwner || isSubscribed;
-  // Offshore-book promotion is non-US only (see lib/geo).
-  const showStake = await isOutsideUs();
+    const showStake = await showStakeLinks();
   const picks = await enrichPickCrests(handicapper.picksList);
   const pendingPicks = picks.filter((p) => p.result === "PENDING");
   const settledPicks = picks.filter((p) => p.result !== "PENDING");

@@ -5,17 +5,12 @@ import { stakeGoHref } from "@/lib/stake";
 import type { PickSport } from "@prisma/client";
 
 /**
- * Stake.com affiliate CTA. Rendered only where the caller has already
- * established the visitor is outside the US (lib/geo) — this component does not
- * check, so don't drop it in without that gate.
- *
- * Note what it does NOT say: it never attributes the displayed prices to Stake.
- * The odds on this site come from the books our feed actually quotes, and the
- * attribution line names that book. This is a "bet with" link — a partner CTA —
- * which is what an affiliate relationship actually is.
+ * Stake.com affiliate CTA. Visibility is decided by the caller via
+ * `showStakeLinks()` (lib/stake) — this component does not check.
  *
  * `rel="sponsored"` is required by Google for paid/affiliate links; `noopener`
- * is standard for target=_blank.
+ * is standard for target=_blank. The user-facing paid-partnership disclosure
+ * lives once in the footer rather than on every link — see components/footer.
  */
 
 /**
@@ -70,7 +65,7 @@ export function StakeCta({
           className
         )}
       >
-        Bet this on <StakeWordmark height={22} onDark={onDark} /> <ArrowUpRight className="h-3.5 w-3.5" />
+        Bet on <StakeWordmark height={22} onDark={onDark} /> <ArrowUpRight className="h-3.5 w-3.5" />
       </a>
     );
   }
@@ -85,8 +80,7 @@ export function StakeCta({
         className
       )}
     >
-      Bet with <StakeWordmark height={18} onDark={onDark} /> <ArrowUpRight className="h-3 w-3" />
-      <span className="ml-0.5 font-normal opacity-70">(ad)</span>
+      Bet on <StakeWordmark height={18} onDark={onDark} /> <ArrowUpRight className="h-3 w-3" />
     </a>
   );
 }

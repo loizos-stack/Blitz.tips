@@ -8,7 +8,7 @@ import { computeStats } from "@/lib/odds";
 import { cumulativeUnits, formatUnits } from "@/lib/analytics";
 import { formatCents } from "@/lib/utils";
 import { PickCard } from "@/components/pick-card";
-import { isOutsideUs } from "@/lib/geo";
+import { showStakeLinks } from "@/lib/stake-server";
 import { HandicapperCard } from "@/components/handicapper-card";
 import { ManageBillingButton } from "@/components/manage-billing-button";
 import { VerifyEmailBanner } from "@/components/verify-email-banner";
@@ -129,8 +129,7 @@ export default async function DashboardPage() {
   const session = await auth();
   if (!session) redirect("/signin?callbackUrl=/dashboard");
 
-  // Offshore-book promotion is non-US only (see lib/geo).
-  const showStake = await isOutsideUs();
+    const showStake = await showStakeLinks();
 
   const {
     currentUser,

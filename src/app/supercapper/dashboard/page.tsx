@@ -31,7 +31,7 @@ import { ContestPickForm } from "@/components/contest/contest-pick-form";
 import { ContestStandings } from "@/components/contest/contest-standings";
 import { ContestConversion } from "@/components/contest/contest-conversion";
 import { cappersBeating } from "@/lib/contest-funnel";
-import { isOutsideUs } from "@/lib/geo";
+import { showStakeLinks } from "@/lib/stake-server";
 import { SupercapperLogo } from "@/components/contest/supercapper-logo";
 
 export const dynamic = "force-dynamic";
@@ -217,7 +217,7 @@ export default async function ContestDashboardPage() {
               quarter / period markets, and player props.
             </p>
             {accepting ? (
-              <ContestPickForm contestId={contest.id} showStake={await isOutsideUs()} />
+              <ContestPickForm contestId={contest.id} showStake={await showStakeLinks()} />
             ) : (
               <p className="text-sm text-muted">
                 {phase === "upcoming"

@@ -67,6 +67,15 @@ export function Footer() {
             You must be of legal age to gamble in your jurisdiction. Please bet responsibly — if gambling
             stops being fun, call 1-800-GAMBLER.
           </p>
+          {/* Paid-partnership disclosure. Sits here once rather than as an
+              "(ad)" tag on every outbound link — the FTC and the UK ASA both
+              require the connection to be disclosed, but neither requires it
+              per-link, so one clear site-wide statement keeps the board clean
+              and the obligation met. */}
+          <p className="mt-1">
+            Blitz.tips earns a commission on sportsbook links. Sportsbook availability depends on your
+            jurisdiction.
+          </p>
         </div>
       </div>
     </footer>

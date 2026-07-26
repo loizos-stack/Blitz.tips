@@ -63,7 +63,6 @@ export function EventMarkets({
 }) {
   const seed = initialGroups(event.markets);
   const [groups, setGroups] = useState<Group[]>(seed);
-  const [bookmaker, setBookmaker] = useState<string | null>(event.bookmaker);
   const [loading, setLoading] = useState(true);
   const [openGroups, setOpenGroups] = useState<Set<string>>(defaultOpen(seed).groups);
   const [openSections, setOpenSections] = useState<Set<string>>(defaultOpen(seed).sections);
@@ -73,12 +72,11 @@ export function EventMarkets({
     const params = new URLSearchParams({ sport, sportKey: event.sportKey });
     fetch(`/api/odds/event/${event.id}?${params.toString()}`)
       .then((r) => (r.ok ? r.json() : Promise.reject(new Error("failed"))))
-      .then((data: { groups?: Group[]; bookmaker?: string | null }) => {
+      .then((data: { groups?: Group[] }) => {
         if (!active) return;
         const g = data.groups ?? [];
         if (g.length > 0) {
           setGroups(g);
-          setBookmaker(data.bookmaker ?? event.bookmaker);
           const d = defaultOpen(g);
           setOpenGroups(d.groups);
           setOpenSections(d.sections);
@@ -91,7 +89,7 @@ export function EventMarkets({
     return () => {
       active = false;
     };
-  }, [event.id, event.sportKey, event.bookmaker, sport]);
+  }, [event.id, event.sportKey, sport]);
 
   const toggle = (setter: React.Dispatch<React.SetStateAction<Set<string>>>, key: string) =>
     setter((s) => {
@@ -195,7 +193,6 @@ export function EventMarkets({
       </div>
 
       {loading && <p className="text-[11px] text-muted">Loading player props &amp; more markets…</p>}
-      {bookmaker && <p className="text-[11px] text-muted">Odds via {bookmaker}</p>}
     </div>
   );
 }

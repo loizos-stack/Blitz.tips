@@ -15,6 +15,18 @@ import type { PickSport } from "@prisma/client";
 /** Referral code from the affiliate dashboard. Overridable without a deploy. */
 export const STAKE_REFERRAL_CODE = process.env.NEXT_PUBLIC_STAKE_REFERRAL_CODE ?? "pE0AC4Ph";
 
+/**
+ * Show the Stake links to every visitor, including the US.
+ *
+ * Stake does not accept US customers, so US clicks convert at zero — and
+ * promoting an offshore book into a regulated market is the kind of thing a
+ * US operator's compliance team looks for when reviewing an affiliate
+ * application. This is on because there is currently no US book to send that
+ * traffic to; flip it back to false the day a US affiliate application is
+ * approved, and the geo gate below takes over again.
+ */
+export const STAKE_ALL_REGIONS = true;
+
 const STAKE_BASE = "https://stake.com";
 
 /**

@@ -235,13 +235,11 @@ export function UpcomingGames({
                     </>
                   )}
 
-                  {/* Attribution names the book the prices actually came from.
-                      The Stake link sits beside it as a partner CTA, never as
-                      the source of these numbers. */}
-                  <div className="mt-2 flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
-                    {event.bookmaker && <p className="text-[11px] text-muted">Odds via {event.bookmaker}</p>}
-                    {showStake && <StakeCta sport={event.sport} event={event.id} />}
-                  </div>
+                  {showStake && (
+                    <div className="mt-2">
+                      <StakeCta sport={event.sport} event={event.id} />
+                    </div>
+                  )}
                 </div>
               );
             })}
