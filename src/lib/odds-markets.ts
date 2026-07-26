@@ -1,5 +1,6 @@
 import "server-only";
 import type { MarketOption } from "@/lib/odds-api";
+import { BET_TYPE_LABELS } from "@/lib/utils";
 
 // Catalog of the extra markets we pull for a single event (player props for the
 // US team sports; non-player markets for soccer) and how each maps to a pick.
@@ -170,6 +171,28 @@ export function propMarketKeys(sportKey: string): string[] {
 /** Alternate-line and period/half market keys (the "extras" tier). */
 export function extraMarketKeys(sportKey: string): string[] {
   return GAME_EXTRAS[oddsGroup(sportKey)].map((d) => d.key);
+}
+
+/**
+ * Human label for a stored market key, e.g. "totals_h1" -> "1st Half Total".
+ *
+ * Built from the same catalogs the pick forms render from, so a market is
+ * named identically wherever it appears. Falls back to the bet type for picks
+ * made before structured market keys were stored, and finally to the raw key so
+ * an unmapped market is still identifiable rather than silently blank.
+ */
+export function marketLabel(marketKey: string | null, betType: string): string {
+  if (!marketKey) return BET_TYPE_LABELS[betType] ?? betType;
+  if (marketKey === "h2h") return "Moneyline";
+  if (marketKey === "spreads") return "Spread";
+  if (marketKey === "totals") return "Total";
+  for (const group of Object.keys(CATALOG) as OddsGroup[]) {
+    const hit =
+      CATALOG[group].find((d) => d.key === marketKey) ??
+      GAME_EXTRAS[group].find((d) => d.key === marketKey);
+    if (hit) return hit.label;
+  }
+  return BET_TYPE_LABELS[betType] ?? marketKey;
 }
 
 /** Every non-featured market key we request for a sport. */
