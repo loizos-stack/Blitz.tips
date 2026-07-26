@@ -10,6 +10,7 @@ import { formatOdds } from "@/lib/odds";
 import { EventMarkets } from "@/components/event-markets";
 import type { MarketOption, UpcomingEvent } from "@/lib/odds-api";
 import type { CapperOnEvent } from "@/lib/contest-funnel";
+import { StakeCta } from "@/components/stake-cta";
 
 const sportKeys = Object.keys(SPORT_LABELS);
 const input =
@@ -22,6 +23,8 @@ interface FeedResponse {
   error?: string;
 }
 interface Confirmation {
+  sport: string;
+  eventId: string;
   matchup: string;
   selection: string;
   odds: number;
@@ -41,7 +44,14 @@ type FeedState =
  * period markets, player props) and set only their stake. The server re-verifies
  * the line against the feed before storing it. Singles only — no parlays.
  */
-export function ContestPickForm({ contestId }: { contestId: string }) {
+export function ContestPickForm({
+  contestId,
+  showStake = false,
+}: {
+  contestId: string;
+  /** Renders the Stake partner link on the confirmation. Caller geo-gates. */
+  showStake?: boolean;
+}) {
   const router = useRouter();
   const [sport, setSport] = useState("");
   const [feed, setFeed] = useState<FeedState>({ status: "idle" });
@@ -130,6 +140,8 @@ export function ContestPickForm({ contestId }: { contestId: string }) {
       return;
     }
     setConfirmation({
+      sport,
+      eventId: selectedEvent.id,
       matchup: selectedEvent.matchup,
       selection: selectedMarket.selection,
       odds: selectedMarket.odds,
@@ -142,7 +154,13 @@ export function ContestPickForm({ contestId }: { contestId: string }) {
 
   return (
     <form onSubmit={submit} className="flex flex-col gap-3">
-      {confirmation && <PickConfirmation data={confirmation} onDismiss={() => setConfirmation(null)} />}
+      {confirmation && (
+        <PickConfirmation
+          data={confirmation}
+          showStake={showStake}
+          onDismiss={() => setConfirmation(null)}
+        />
+      )}
 
       <div>
         <label className="text-xs font-medium text-muted">Sport</label>
@@ -239,7 +257,15 @@ export function ContestPickForm({ contestId }: { contestId: string }) {
  * relevant moment on the site to surface a paid play: the entrant has just told
  * us which game they're on. Premium plays stay locked, which is the pitch.
  */
-function PickConfirmation({ data, onDismiss }: { data: Confirmation; onDismiss: () => void }) {
+function PickConfirmation({
+  data,
+  showStake,
+  onDismiss,
+}: {
+  data: Confirmation;
+  showStake: boolean;
+  onDismiss: () => void;
+}) {
   return (
     <div className="rounded-lg border border-accent/40 bg-accent/5 p-3">
       <div className="flex items-start justify-between gap-2">
@@ -258,6 +284,12 @@ function PickConfirmation({ data, onDismiss }: { data: Confirmation; onDismiss: 
       <p className="mt-0.5 text-xs text-muted">
         {data.matchup} · {data.selection} · {formatOdds(data.odds)}
       </p>
+
+      {showStake && (
+        <div className="mt-2.5">
+          <StakeCta variant="button" sport={data.sport} event={data.eventId} />
+        </div>
+      )}
 
       {data.cappers.length > 0 && (
         <div className="mt-3 border-t border-accent/20 pt-3">

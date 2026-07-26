@@ -2,6 +2,7 @@ import { Lock, Layers } from "lucide-react";
 import { format } from "date-fns";
 import type { Pick as PickModel, ParlayLeg } from "@prisma/client";
 import { ResultPill } from "@/components/result-pill";
+import { StakeCta } from "@/components/stake-cta";
 import { SportIcon } from "@/components/sport-icon";
 import { TeamLogo } from "@/components/team-logo";
 import { getTeamLogoUrl } from "@/lib/team-logos";
@@ -61,7 +62,16 @@ function UnitsBadge({ units }: { units: number }) {
   );
 }
 
-export function PickCard({ pick, locked = false }: { pick: PickWithLegs; locked?: boolean }) {
+export function PickCard({
+  pick,
+  locked = false,
+  showStake = false,
+}: {
+  pick: PickWithLegs;
+  locked?: boolean;
+  /** Renders the Stake partner link. Caller must have geo-gated to non-US. */
+  showStake?: boolean;
+}) {
   const isParlay = pick.betType === "PARLAY";
   const legs = pick.parlayLegs ?? [];
   // Prefer server-enriched crests (covers TheSportsDB); fall back to the
@@ -167,6 +177,14 @@ export function PickCard({ pick, locked = false }: { pick: PickWithLegs; locked?
       )}
 
       {pick.analysis && <p className="mt-3 text-sm text-muted">{pick.analysis}</p>}
+
+      {/* Only worth offering on a game that hasn't started — you can't go and
+          place a bet that's already graded or in play. */}
+      {showStake && pick.result === "PENDING" && pick.eventStartsAt > new Date() && (
+        <div className="mt-3">
+          <StakeCta variant="button" sport={pick.sport} event={pick.oddsApiEventId} />
+        </div>
+      )}
 
       <div className="mt-4 flex items-center justify-between">
         <ResultPill result={pick.result} />

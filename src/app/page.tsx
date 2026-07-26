@@ -5,6 +5,7 @@ import { HandicapperCard } from "@/components/handicapper-card";
 import { HandicapperFinder } from "@/components/handicapper-finder";
 import { UpcomingGames } from "@/components/upcoming-games";
 import { getUpcomingEvents, getAllUpcomingEvents, getAvailableHomepageSports } from "@/lib/odds-api";
+import { isOutsideUs } from "@/lib/geo";
 import { SPORT_LABELS } from "@/lib/utils";
 import type { PickSport } from "@prisma/client";
 
@@ -101,7 +102,12 @@ export default async function Home({
       </section>
 
       <div id="lines" />
-      <UpcomingGames sport={sport} feed={oddsFeed} availableSports={availableSports} />
+      <UpcomingGames
+        sport={sport}
+        feed={oddsFeed}
+        availableSports={availableSports}
+        showStake={await isOutsideUs()}
+      />
 
       <section id="find" className="relative scroll-mt-20 overflow-hidden border-y border-border py-16">
         <div

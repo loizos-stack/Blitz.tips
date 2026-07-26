@@ -8,6 +8,7 @@ import { computeStats } from "@/lib/odds";
 import { cumulativeUnits, formatUnits } from "@/lib/analytics";
 import { formatCents } from "@/lib/utils";
 import { PickCard } from "@/components/pick-card";
+import { isOutsideUs } from "@/lib/geo";
 import { HandicapperCard } from "@/components/handicapper-card";
 import { ManageBillingButton } from "@/components/manage-billing-button";
 import { VerifyEmailBanner } from "@/components/verify-email-banner";
@@ -127,6 +128,9 @@ async function loadDashboard(userId: string) {
 export default async function DashboardPage() {
   const session = await auth();
   if (!session) redirect("/signin?callbackUrl=/dashboard");
+
+  // Offshore-book promotion is non-US only (see lib/geo).
+  const showStake = await isOutsideUs();
 
   const {
     currentUser,
@@ -262,7 +266,7 @@ export default async function DashboardPage() {
                   </h2>
                   <div className="grid gap-4 sm:grid-cols-2">
                     {upcomingPicks.map((pick) => (
-                      <PickAttribution key={pick.id} pick={pick} />
+                      <PickAttribution key={pick.id} pick={pick} showStake={showStake} />
                     ))}
                   </div>
                 </section>
@@ -275,7 +279,7 @@ export default async function DashboardPage() {
                 ) : (
                   <div className="grid gap-4 sm:grid-cols-2">
                     {recentPicks.map((pick) => (
-                      <PickAttribution key={pick.id} pick={pick} />
+                      <PickAttribution key={pick.id} pick={pick} showStake={showStake} />
                     ))}
                   </div>
                 )}
@@ -367,7 +371,7 @@ export default async function DashboardPage() {
 type FeedPick = Prisma.PickGetPayload<{ include: { handicapper: true; parlayLegs: true } }>;
 
 // A feed pick with a link back to the handicapper who posted it.
-function PickAttribution({ pick }: { pick: FeedPick }) {
+function PickAttribution({ pick, showStake }: { pick: FeedPick; showStake: boolean }) {
   return (
     <div>
       <Link
@@ -381,7 +385,7 @@ function PickAttribution({ pick }: { pick: FeedPick }) {
         />
         @{pick.handicapper.handle}
       </Link>
-      <PickCard pick={pick} />
+      <PickCard pick={pick} showStake={showStake} />
     </div>
   );
 }
