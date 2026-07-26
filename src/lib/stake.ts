@@ -18,14 +18,16 @@ export const STAKE_REFERRAL_CODE = process.env.NEXT_PUBLIC_STAKE_REFERRAL_CODE ?
 /**
  * Show the Stake links to every visitor, including the US.
  *
- * Stake does not accept US customers, so US clicks convert at zero — and
- * promoting an offshore book into a regulated market is the kind of thing a
- * US operator's compliance team looks for when reviewing an affiliate
- * application. This is on because there is currently no US book to send that
- * traffic to; flip it back to false the day a US affiliate application is
- * approved, and the geo gate below takes over again.
+ * Off. Stake does not accept US customers, so US clicks convert at zero, and
+ * promoting an offshore book into a regulated market is the kind of thing a US
+ * operator's compliance team looks at when reviewing an affiliate application —
+ * which are currently pending. With this false, `showStakeLinks()` falls back to
+ * the geo gate and only non-US visitors see Stake at all.
+ *
+ * Turning it on shows Stake worldwide; there is no reason to until Stake starts
+ * accepting US customers, which is not the state of play.
  */
-export const STAKE_ALL_REGIONS = true;
+export const STAKE_ALL_REGIONS = false;
 
 const STAKE_BASE = "https://stake.com";
 
