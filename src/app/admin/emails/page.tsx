@@ -6,9 +6,10 @@ export const dynamic = "force-dynamic";
 
 export default async function AdminEmailsPage() {
   await guardAdminPage("emails");
-  const [all, handicappers] = await Promise.all([
+  const [all, handicappers, entrants] = await Promise.all([
     prisma.user.count(),
     prisma.user.count({ where: { handicapper: { isNot: null } } }),
+    prisma.user.count({ where: { contestEntries: { some: {} } } }),
   ]);
 
   return (
@@ -18,7 +19,12 @@ export default async function AdminEmailsPage() {
         it goes out wrapped in the Blitz.tips email template with an unsubscribe-style footer.
       </p>
       <EmailComposer
-        counts={{ ALL: all, HANDICAPPERS: handicappers, CUSTOMERS: all - handicappers }}
+        counts={{
+          ALL: all,
+          HANDICAPPERS: handicappers,
+          CUSTOMERS: all - handicappers,
+          CONTEST_ENTRANTS: entrants,
+        }}
       />
     </div>
   );

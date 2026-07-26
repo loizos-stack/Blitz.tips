@@ -6,7 +6,7 @@ import { sendEmail } from "@/lib/email";
 import { emailWrapper } from "@/lib/email-template";
 import { unsubscribeUrl, unsubscribePostUrl } from "@/lib/unsubscribe";
 
-const AUDIENCES = ["ALL", "HANDICAPPERS", "CUSTOMERS"] as const;
+const AUDIENCES = ["ALL", "HANDICAPPERS", "CUSTOMERS", "CONTEST_ENTRANTS"] as const;
 type Audience = (typeof AUDIENCES)[number];
 
 // Admin-authored content, but strip the obviously dangerous bits anyway.
@@ -50,7 +50,9 @@ export async function POST(request: Request) {
       ? { handicapper: { isNot: null } }
       : audience === "CUSTOMERS"
         ? { handicapper: { is: null } }
-        : {};
+        : audience === "CONTEST_ENTRANTS"
+          ? { contestEntries: { some: {} } }
+          : {};
 
   // A broadcast is non-operational, so it only goes to users who haven't
   // unsubscribed (notifyEmail), and each carries a per-user unsubscribe link.

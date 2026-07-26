@@ -8,6 +8,7 @@ const AUDIENCES = [
   { value: "ALL", label: "Everyone" },
   { value: "HANDICAPPERS", label: "Handicappers only" },
   { value: "CUSTOMERS", label: "Customers only" },
+  { value: "CONTEST_ENTRANTS", label: "Contest entrants" },
 ] as const;
 
 type Audience = (typeof AUDIENCES)[number]["value"];
@@ -15,7 +16,7 @@ type Audience = (typeof AUDIENCES)[number]["value"];
 export function EmailComposer({
   counts,
 }: {
-  counts: { ALL: number; HANDICAPPERS: number; CUSTOMERS: number };
+  counts: { ALL: number; HANDICAPPERS: number; CUSTOMERS: number; CONTEST_ENTRANTS: number };
 }) {
   const editorRef = useRef<HTMLDivElement>(null);
   const [audience, setAudience] = useState<Audience>("ALL");

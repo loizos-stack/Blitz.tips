@@ -6,6 +6,7 @@ import { formatOdds } from "@/lib/odds";
 import { SPORT_LABELS, cn } from "@/lib/utils";
 import { isMoneylineOnly } from "@/lib/odds-api";
 import type { OddsFeedResult, UpcomingEvent, MarketOption } from "@/lib/odds-api";
+import { soccerLeagueMeta } from "@/lib/soccer-leagues";
 import { SportIcon } from "@/components/sport-icon";
 import { TeamLogo } from "@/components/team-logo";
 import { LocalTime } from "@/components/local-time";
@@ -160,6 +161,7 @@ export function UpcomingGames({
                 moneyline: board.moneyline.home,
               };
               const sides = homeFirst ? [home, away] : [away, home];
+              const league = event.sport === "SOCCER" ? soccerLeagueMeta(event.sportKey) : null;
 
               return (
                 <div key={event.id} className="card w-80 shrink-0 snap-start p-4">
@@ -182,13 +184,25 @@ export function UpcomingGames({
                       </span>
                     )}
 
-                    {/* In the merged board, tag each card with its sport so a
-                        mixed slate stays legible at a glance. */}
-                    {mixed && (
-                      <span className="flex items-center gap-1 font-medium text-muted">
-                        <SportIcon sport={event.sport} className="h-3.5 w-3.5" />
-                        {SPORT_LABELS[event.sport]}
+                    {/* Soccer names its competition instead of its sport: one
+                        board mixes a dozen of them, and "Premier League" tells
+                        you what you're looking at where "Soccer" doesn't. Shown
+                        on every soccer card, not just the merged board, since
+                        the soccer tab is itself a mix of leagues. */}
+                    {league ? (
+                      <span className="flex min-w-0 items-center gap-1 font-medium text-muted">
+                        {league.flag && <span aria-hidden>{league.flag}</span>}
+                        <span className="truncate">{league.league}</span>
                       </span>
+                    ) : (
+                      // In the merged board, tag each card with its sport so a
+                      // mixed slate stays legible at a glance.
+                      mixed && (
+                        <span className="flex items-center gap-1 font-medium text-muted">
+                          <SportIcon sport={event.sport} className="h-3.5 w-3.5" />
+                          {SPORT_LABELS[event.sport]}
+                        </span>
+                      )
                     )}
                   </div>
 
