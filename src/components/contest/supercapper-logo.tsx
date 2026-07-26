@@ -1,16 +1,18 @@
 import Image from "next/image";
 import { cn } from "@/lib/utils";
 
+const BLITZ_URL = "https://blitz.tips";
+
 // The Supercapper wordmark: the leading "S" is a thunder bolt, followed by
-// "upercapper" in the display font. Two colors only — the bolt and "uper" take
-// the surrounding text color (black on light, white reversed), and "capper"
-// carries the brand green. Pass `onDark` on a dark surface: the accent green is
-// tuned for contrast on white and goes muddy on charcoal, so it steps up to
-// green-500 there.
-// A sub-line can sit beneath: `withContest` for "contest", `withByline` for
-// "by Blitz.tips" — the attribution lockup, for anywhere the contest appears
-// away from the site's own chrome (social, email, partner placements). Both
-// together stack contest over the byline.
+// "upercapper" in the display font. The bolt and "uper" take the surrounding
+// text color (black on light, white reversed) with a gold outline on the bolt;
+// "capper" carries the brand green. Pass `onDark` on a dark surface: the accent
+// green is tuned for contrast on white and goes muddy on charcoal, so it steps
+// up to green-500 there.
+// A sub-line can sit beneath: `withContest` for "Handicapping Contest",
+// `withByline` for the Blitz.tips attribution lockup, which links back to the
+// site — for anywhere the contest appears away from the site's own chrome
+// (social, email, partner placements). Both together stack tagline over byline.
 // Sizes with the font (set the size via a text-* class); the word text inherits
 // `currentColor`, so it works on light and dark.
 export function SupercapperLogo({
@@ -26,67 +28,72 @@ export function SupercapperLogo({
   onDark?: boolean;
 }) {
   const accent = onDark ? "text-[#22c55e]" : "text-accent";
-  const label = [
-    "Supercapper",
-    withContest ? " Contest" : "",
-    withByline ? " by Blitz.tips" : "",
-  ].join("");
 
   return (
-    <span
-      className={cn("relative inline-flex flex-col leading-none", className)}
-      role="img"
-      aria-label={label}
-    >
-      <span className="inline-flex items-center font-display font-extrabold tracking-tight">
-        {/* viewBox is cropped tight to the bolt's bounds (no transparent
-            padding) so it can sit flush against the "u". Tilted 10° so it reads
-            as a strike rather than a static glyph; the rotation widens its
-            footprint, hence the smaller negative margin than an upright bolt.
-            Fill and stroke are both currentColor, so the bolt belongs to the
-            neutral half of the mark — black on light, white reversed. */}
-        <svg
-          viewBox="10.5 5.5 19 30.5"
-          className="-mr-[0.04em] h-[1.5em] w-[0.94em] rotate-[10deg]"
-          fill="none"
-          aria-hidden
-        >
-          <path
-            d="M22 6 L11 23 H18.5 L16 35 L29 19 H21.5 L24 6 Z"
-            fill="currentColor"
-            stroke="currentColor"
-            strokeWidth="0.8"
-            strokeLinejoin="round"
-          />
-        </svg>
-        <span>uper</span>
-        <span className={accent}>capper</span>
-      </span>
-      {withContest && (
-        <span
-          aria-hidden
-          className="mt-[0.06em] self-center text-[0.24em] font-semibold uppercase tracking-[0.5em] text-current opacity-80"
-        >
-          contest
+    <span className={cn("relative inline-flex flex-col leading-none", className)}>
+      {/* The mark itself is one image to a screen reader. The byline below is a
+          real link, so it sits outside this role="img" rather than inside it,
+          where its contents would be announced as presentational. */}
+      <span
+        role="img"
+        aria-label={withContest ? "Supercapper Handicapping Contest" : "Supercapper"}
+        className="inline-flex flex-col"
+      >
+        <span className="inline-flex items-center font-display font-extrabold tracking-tight">
+          {/* viewBox is cropped tight to the bolt's bounds (no transparent
+              padding) so it can sit flush against the "u". Tilted 10° so it
+              reads as a strike rather than a static glyph; the rotation widens
+              its footprint, hence the smaller negative margin than an upright
+              bolt. Fill is currentColor — black on light, white reversed — with
+              a gold outline, the one place the original bolt's color survives. */}
+          <svg
+            viewBox="10.5 5.5 19 30.5"
+            className="-mr-[0.04em] h-[1.5em] w-[0.94em] rotate-[10deg]"
+            fill="none"
+            aria-hidden
+          >
+            <path
+              d="M22 6 L11 23 H18.5 L16 35 L29 19 H21.5 L24 6 Z"
+              fill="currentColor"
+              stroke="#eab308"
+              strokeWidth="1.4"
+              strokeLinejoin="round"
+            />
+          </svg>
+          <span>uper</span>
+          <span className={accent}>capper</span>
         </span>
-      )}
+        {withContest && (
+          <span
+            aria-hidden
+            className="mt-[0.14em] self-center text-[0.185em] font-semibold uppercase tracking-[0.34em] text-current opacity-80"
+          >
+            Handicapping Contest
+          </span>
+        )}
+      </span>
+
       {withByline && (
-        // The real Blitz.tips lockup — mark plus wordmark, same as the site
-        // header — rather than a text imitation of it. Only the "by" is faded;
-        // the logo itself stays at full strength.
-        <span
-          aria-hidden
+        // The real Blitz.tips lockup — mark plus wordmark, same pairing as the
+        // site header — rather than a text imitation of it, and clickable so the
+        // attribution actually leads somewhere. Only the "by" is faded; the logo
+        // itself stays at full strength.
+        <a
+          href={BLITZ_URL}
+          aria-label="Blitz.tips"
           className={cn(
-            "flex items-center gap-[0.3em] self-center text-[0.26em] font-semibold tracking-tight",
-            withContest ? "mt-[0.6em]" : "mt-[0.35em]"
+            "flex items-center gap-[0.3em] self-end text-[0.26em] font-semibold tracking-tight hover:opacity-80",
+            withContest ? "mt-[0.7em]" : "mt-[0.35em]"
           )}
         >
-          <span className="opacity-60">by</span>
+          <span aria-hidden className="opacity-60">
+            by
+          </span>
           <Image src="/logo-mark.svg" alt="" width={40} height={40} className="h-[1.35em] w-[1.35em]" />
-          <span>
+          <span aria-hidden>
             Blitz<span className={accent}>.tips</span>
           </span>
-        </span>
+        </a>
       )}
     </span>
   );
