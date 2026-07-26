@@ -13,6 +13,8 @@ export interface DetailPick {
   id: string;
   sport: string;
   matchup: string;
+  awayLogo?: string | null;
+  homeLogo?: string | null;
   selection: string;
   odds: number;
   units: number;
@@ -110,6 +112,8 @@ function PickGroup({ title, picks, showProfit }: { title: string; picks: DetailP
                   <MatchupTeams
                     sport={p.sport as PickSport}
                     matchup={p.matchup}
+                    awayLogo={p.awayLogo}
+                    homeLogo={p.homeLogo}
                     logoClassName="h-4 w-4"
                     textClassName="truncate font-medium"
                   />

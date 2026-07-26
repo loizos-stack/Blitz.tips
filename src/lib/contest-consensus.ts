@@ -2,6 +2,8 @@ import "server-only";
 import { prisma } from "@/lib/prisma";
 import { computeStandings, effectivePrizeLadderCents, activeEntrantCount } from "@/lib/contest";
 import { marketLabel } from "@/lib/odds-markets";
+import { resolveTeamLogo } from "@/lib/sportsdb";
+import { parseMatchupSides } from "@/lib/utils";
 import { SPORT_LABELS } from "@/lib/utils";
 import type { PickSport } from "@prisma/client";
 
@@ -63,6 +65,13 @@ export interface ConsensusGame {
   eventId: string;
   sport: PickSport;
   matchup: string;
+  /**
+   * Resolved crests. ESPN covers the US majors; soccer and the rest come from
+   * TheSportsDB, which is why this is resolved here rather than from the
+   * synchronous lookup the component falls back to.
+   */
+  awayLogo: string | null;
+  homeLogo: string | null;
   startsAt: Date;
   totalPicks: number;
   totalUnits: number;
@@ -209,6 +218,8 @@ export async function contestConsensus(): Promise<{
       eventId,
       sport: game.sport,
       matchup: game.matchup,
+      awayLogo: null,
+      homeLogo: null,
       startsAt: game.startsAt,
       totalPicks: markets.reduce((n, m) => n + m.totalPicks, 0),
       totalUnits: round2(markets.reduce((n, m) => n + m.totalUnits, 0)),
@@ -216,6 +227,22 @@ export async function contestConsensus(): Promise<{
       hasSplit: markets.some((m) => m.split),
     });
   }
+
+  // Crests, once per game. The underlying lookups are memoized by the fetch
+  // cache, so teams shared across games resolve once; any failure returns null
+  // and the component falls back to the sport icon.
+  await Promise.all(
+    games.map(async (game) => {
+      const sides = parseMatchupSides(game.matchup);
+      if (!sides) return;
+      const [awayLogo, homeLogo] = await Promise.all([
+        resolveTeamLogo(game.sport, sides.awayTeam),
+        resolveTeamLogo(game.sport, sides.homeTeam),
+      ]);
+      game.awayLogo = awayLogo;
+      game.homeLogo = homeLogo;
+    })
+  );
 
   // League -> match. Leagues by volume; matches inside by kickoff, so the page
   // reads like a schedule rather than a ranking.

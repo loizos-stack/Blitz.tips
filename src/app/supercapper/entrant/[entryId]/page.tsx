@@ -16,6 +16,8 @@ import { formatCents } from "@/lib/utils";
 import { EntrantDetail } from "@/components/contest/entrant-detail";
 import { EntrantCta } from "@/components/contest/entrant-cta";
 import { RankChart } from "@/components/contest/rank-chart";
+import { resolveTeamLogo } from "@/lib/sportsdb";
+import { parseMatchupSides } from "@/lib/utils";
 import { cappersBeating } from "@/lib/contest-funnel";
 
 export const dynamic = "force-dynamic";
@@ -59,16 +61,31 @@ export default async function EntrantPage({ params }: { params: Promise<{ entryI
   const viewerEntered = Boolean(viewerId && contest.entries.some((e) => e.userId === viewerId));
   const cappers = isMe ? [] : await cappersBeating(standing?.roi ?? null);
 
-  const picks = entry.picks.map((p) => ({
-    id: p.id,
-    sport: p.sport,
-    matchup: p.matchup,
-    selection: p.selection,
-    odds: p.odds,
-    units: p.units,
-    result: p.result,
-    eventStartsAt: p.eventStartsAt.toISOString(),
-  }));
+  // Crests resolved here rather than in the client component: soccer and the
+  // non-US leagues need TheSportsDB, which is an async server-side lookup.
+  const picks = await Promise.all(
+    entry.picks.map(async (p) => {
+      const sides = parseMatchupSides(p.matchup);
+      const [awayLogo, homeLogo] = sides
+        ? await Promise.all([
+            resolveTeamLogo(p.sport, sides.awayTeam),
+            resolveTeamLogo(p.sport, sides.homeTeam),
+          ])
+        : [null, null];
+      return {
+        id: p.id,
+        sport: p.sport,
+        matchup: p.matchup,
+        awayLogo,
+        homeLogo,
+        selection: p.selection,
+        odds: p.odds,
+        units: p.units,
+        result: p.result,
+        eventStartsAt: p.eventStartsAt.toISOString(),
+      };
+    })
+  );
 
   return (
     <div className="container-page py-10">

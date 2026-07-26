@@ -97,7 +97,13 @@ function MatchConsensus({ game }: { game: ConsensusGame }) {
     <div>
       <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
         <p className="flex min-w-0 items-center gap-2 font-display font-semibold">
-          <MatchupTeams sport={game.sport} matchup={game.matchup} logoClassName="h-5 w-5" />
+          <MatchupTeams
+            sport={game.sport}
+            matchup={game.matchup}
+            awayLogo={game.awayLogo}
+            homeLogo={game.homeLogo}
+            logoClassName="h-5 w-5"
+          />
           {game.hasSplit && (
             <span
               className="ml-2 inline-flex items-center gap-1 rounded-full bg-gold/15 px-2 py-0.5 align-middle text-[10px] font-semibold text-gold"
