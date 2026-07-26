@@ -2,8 +2,11 @@ import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { stripe } from "@/lib/stripe";
+import { isMissingAccountError } from "@/lib/connect";
+import { ensureSubscriberPrices } from "@/lib/subscriber-pricing";
+import { siteUrl } from "@/lib/site";
 
-const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
+const appUrl = siteUrl();
 
 export async function POST() {
   const session = await auth();
@@ -14,30 +17,80 @@ export async function POST() {
 
   let accountId = handicapper.stripeAccountId;
 
-  if (!accountId) {
-    const account = await stripe.accounts.create({
-      type: "express",
-      email: session.user.email ?? undefined,
-      business_type: "individual",
-      capabilities: {
-        transfers: { requested: true },
-        card_payments: { requested: true },
-      },
-      metadata: { handicapperId: handicapper.id, handle: handicapper.handle },
-    });
-    accountId = account.id;
-    await prisma.handicapperProfile.update({
-      where: { id: handicapper.id },
-      data: { stripeAccountId: accountId },
-    });
+  // A stored account that no longer exists for the current key (e.g. a test-mode
+  // account after switching to live keys) would make the link creation below
+  // fail. Verify it first and drop it so a fresh account is created instead.
+  if (accountId) {
+    try {
+      await stripe.accounts.retrieve(accountId);
+    } catch (error) {
+      if (isMissingAccountError(error)) {
+        accountId = null;
+        await prisma.handicapperProfile.update({
+          where: { id: handicapper.id },
+          data: { stripeAccountId: null, stripeAccountReady: false },
+        });
+      }
+    }
   }
 
-  const accountLink = await stripe.accountLinks.create({
-    account: accountId,
-    refresh_url: `${appUrl}/dashboard/handicapper`,
-    return_url: `${appUrl}/dashboard/handicapper`,
-    type: "account_onboarding",
-  });
+  try {
+    if (!accountId) {
+      const account = await stripe.accounts.create({
+        type: "express",
+        email: session.user.email ?? undefined,
+        business_type: "individual",
+        // Request both card_payments and transfers. We use destination charges
+        // (the platform is merchant of record), which technically only needs
+        // transfers — but Stripe requires special platform approval to request
+        // transfers *without* card_payments, so we request the standard pair to
+        // avoid that gate. Having card_payments doesn't change our charge flow.
+        capabilities: {
+          card_payments: { requested: true },
+          transfers: { requested: true },
+        },
+        metadata: { handicapperId: handicapper.id, handle: handicapper.handle },
+      });
+      accountId = account.id;
+      await prisma.handicapperProfile.update({
+        where: { id: handicapper.id },
+        data: { stripeAccountId: accountId },
+      });
+    }
+  } catch (error) {
+    // Surface the real reason (e.g. "Connect is not enabled" or a missing key)
+    // so it's actionable rather than a generic failure.
+    console.error("Stripe Connect account creation failed:", error);
+    const message =
+      error instanceof Error ? error.message : "Couldn't start Stripe onboarding.";
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
 
-  return NextResponse.json({ url: accountLink.url });
+  // Ensure Stripe Prices exist for every offered package — they may be
+  // missing if Stripe was unavailable at profile creation or a package was
+  // just added/changed. Doing it here means that by the time onboarding
+  // completes, subscriptions can be enabled.
+  try {
+    await ensureSubscriberPrices(handicapper);
+  } catch (error) {
+    console.error("Failed to ensure subscriber prices during Connect setup:", error);
+  }
+
+  try {
+    const accountLink = await stripe.accountLinks.create({
+      account: accountId,
+      // Return to the Payouts section, which self-heals the Connect status on
+      // load (the account.updated webhook is best-effort). Markers let it show
+      // the right state and force a sync on return / expired-link resume.
+      refresh_url: `${appUrl}/dashboard/handicapper/payouts?connect=refresh`,
+      return_url: `${appUrl}/dashboard/handicapper/payouts?connect=return`,
+      type: "account_onboarding",
+    });
+    return NextResponse.json({ url: accountLink.url });
+  } catch (error) {
+    console.error("Stripe account link creation failed:", error);
+    const message =
+      error instanceof Error ? error.message : "Couldn't start Stripe onboarding.";
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
 }

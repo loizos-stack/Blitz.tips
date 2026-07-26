@@ -1,0 +1,76 @@
+name: Bookmaker survey
+
+# Reports which sportsbooks The Odds API returns for your key, ranked by how
+# many markets each one offers — overall and per sport. Useful for deciding
+# which books to feature (and which affiliate programs are worth applying to).
+#
+# Run by hand only. It is NEVER scheduled, because the per-event odds endpoint
+# is billed (markets x regions) and there's no reason to spend credits on a
+# timer.
+#
+# Setup (one time):
+#   Repo → Settings → Secrets and variables → Actions → New repository secret
+#     THE_ODDS_API_KEY = your key from the-odds-api.com
+#
+# To run:
+#   Actions tab → "Bookmaker survey" → Run workflow.
+#   Leave "execute" as false first — that's a free dry run that only prints how
+#   many credits the real run would cost. Then run it again with true.
+
+on:
+  workflow_dispatch:
+    inputs:
+      execute:
+        description: "Actually spend credits? (false = free dry run showing the cost estimate)"
+        type: boolean
+        default: false
+      sports:
+        description: "Optional: limit to these sport keys, comma separated (e.g. americanfootball_nfl,basketball_nba)"
+        type: string
+        default: ""
+      regions:
+        description: "Odds API regions to survey"
+        type: string
+        default: "us,us2"
+      include_links:
+        description: "Also report which books return per-event deep links (for affiliate deep-linking)"
+        type: boolean
+        default: false
+
+jobs:
+  survey:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Run survey
+        env:
+          THE_ODDS_API_KEY: ${{ secrets.THE_ODDS_API_KEY }}
+        run: |
+          if [ -z "$THE_ODDS_API_KEY" ]; then
+            echo "::error::THE_ODDS_API_KEY repository secret is not set — see the header of this file."
+            exit 1
+          fi
+
+          ARGS=""
+          if [ "${{ inputs.execute }}" = "true" ]; then ARGS="$ARGS --run"; fi
+          if [ -n "${{ inputs.sports }}" ]; then ARGS="$ARGS --sports=${{ inputs.sports }}"; fi
+          if [ -n "${{ inputs.regions }}" ]; then ARGS="$ARGS --regions=${{ inputs.regions }}"; fi
+          if [ "${{ inputs.include_links }}" = "true" ]; then ARGS="$ARGS --include-links"; fi
+
+          # Tee so the output lands in both the log and the run summary.
+          node scripts/survey-bookmaker-markets.mjs $ARGS 2>&1 | tee survey.txt
+
+          {
+            echo "### Bookmaker survey"
+            if [ "${{ inputs.execute }}" != "true" ]; then
+              echo "_Dry run — no credits spent. Re-run with **execute: true** for the real numbers._"
+            fi
+            echo '```'
+            cat survey.txt
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"

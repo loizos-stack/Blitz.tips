@@ -1,0 +1,161 @@
+"use client";
+
+import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { Tag } from "lucide-react";
+
+function toInput(cents: number | null): string {
+  return cents == null ? "" : (cents / 100).toFixed(2);
+}
+
+function toCents(value: string): number | null {
+  if (!value.trim()) return null;
+  return Math.round(parseFloat(value) * 100);
+}
+
+type Currency = "USD" | "EUR" | "GBP";
+
+export function PricingPackagesCard({
+  weeklyPriceCents,
+  monthlyPriceCents,
+  annualPriceCents,
+  subscriptionTrialDays,
+  priceCurrency,
+}: {
+  weeklyPriceCents: number | null;
+  monthlyPriceCents: number;
+  annualPriceCents: number | null;
+  subscriptionTrialDays: number | null;
+  priceCurrency: Currency;
+}) {
+  const router = useRouter();
+  const [weekly, setWeekly] = useState(toInput(weeklyPriceCents));
+  const [monthly, setMonthly] = useState(toInput(monthlyPriceCents));
+  const [annual, setAnnual] = useState(toInput(annualPriceCents));
+  const [trial, setTrial] = useState(String(subscriptionTrialDays ?? 0));
+  const [currency, setCurrency] = useState<Currency>(priceCurrency);
+  const [state, setState] = useState<"idle" | "saving" | "saved" | "error">("idle");
+  const [error, setError] = useState<string | null>(null);
+
+  async function save() {
+    setState("saving");
+    setError(null);
+
+    const res = await fetch("/api/handicapper/pricing", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        monthlyPriceCents: toCents(monthly) ?? 0,
+        weeklyPriceCents: toCents(weekly),
+        annualPriceCents: toCents(annual),
+        subscriptionTrialDays: Number(trial),
+        priceCurrency: currency,
+      }),
+    });
+    const body = await res.json().catch(() => ({}));
+
+    if (!res.ok) {
+      setError(body.error ?? "Could not save pricing");
+      setState("error");
+      return;
+    }
+    setState("saved");
+    router.refresh();
+  }
+
+  const field = (
+    label: string,
+    value: string,
+    onChange: (v: string) => void,
+    opts: { min: string; required?: boolean }
+  ) => (
+    <div>
+      <span className="text-xs text-muted">{label}</span>
+      <input
+        type="number"
+        min={opts.min}
+        step="0.01"
+        required={opts.required}
+        placeholder={opts.required ? undefined : "—"}
+        value={value}
+        onChange={(e) => {
+          onChange(e.target.value);
+          setState("idle");
+        }}
+        className="mt-1 w-full rounded-lg border border-border bg-surface-raised px-3 py-2 text-sm outline-none focus:border-accent"
+      />
+    </div>
+  );
+
+  return (
+    <div className="card p-5">
+      <div className="flex items-start gap-3">
+        <Tag className="mt-0.5 h-5 w-5 shrink-0 text-accent" />
+        <div className="min-w-0 flex-1">
+          <p className="font-semibold">Pricing packages</p>
+          <p className="text-sm text-muted">
+            What subscribers pay for your premium picks. Monthly is required; leave weekly or annual
+            blank to not offer them. Price changes apply to new subscribers only.
+          </p>
+
+          <div className="mt-3 max-w-md">
+            <span className="text-xs text-muted">Currency</span>
+            <select
+              value={currency}
+              onChange={(e) => {
+                setCurrency(e.target.value as Currency);
+                setState("idle");
+              }}
+              className="mt-1 w-full rounded-lg border border-border bg-surface-raised px-3 py-2 text-sm outline-none focus:border-accent"
+            >
+              <option value="USD">USD ($)</option>
+              <option value="EUR">EUR (€)</option>
+              <option value="GBP">GBP (£)</option>
+            </select>
+            <p className="mt-1 text-[11px] text-muted">
+              Subscribers are charged in this currency for both card and crypto payments.
+            </p>
+          </div>
+
+          <div className="mt-3 grid max-w-md grid-cols-3 gap-2">
+            {field(`Weekly (${currency})`, weekly, setWeekly, { min: "1.99" })}
+            {field(`Monthly (${currency})`, monthly, setMonthly, { min: "4.99", required: true })}
+            {field(`Annual (${currency})`, annual, setAnnual, { min: "9.99" })}
+          </div>
+
+          <div className="mt-3 max-w-md">
+            <span className="text-xs text-muted">Trial</span>
+            <select
+              value={trial}
+              onChange={(e) => {
+                setTrial(e.target.value);
+                setState("idle");
+              }}
+              className="mt-1 w-full rounded-lg border border-border bg-surface-raised px-3 py-2 text-sm outline-none focus:border-accent"
+            >
+              <option value="0">No trial</option>
+              <option value="1">1-day trial</option>
+              <option value="2">2-day trial</option>
+            </select>
+            <p className="mt-1 text-[11px] text-muted">
+              Applies to weekly &amp; monthly card subscriptions only — annual and crypto have no trial.
+            </p>
+          </div>
+
+          <div className="mt-3 flex items-center gap-3">
+            <button
+              type="button"
+              onClick={save}
+              disabled={state === "saving" || !monthly}
+              className="rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-accent-foreground hover:opacity-90 disabled:opacity-60"
+            >
+              {state === "saving" ? "Saving…" : "Save pricing"}
+            </button>
+            {state === "saved" && <span className="text-sm font-medium text-accent">Saved ✓</span>}
+            {error && <span className="text-sm text-danger">{error}</span>}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}

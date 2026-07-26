@@ -1,0 +1,8 @@
+name = "blitz-inbound-email"
+main = "worker.mjs"
+compatibility_date = "2024-11-01"
+compatibility_flags = ["nodejs_compat"]
+
+# Set the secrets after the first deploy (they are NOT stored in this file):
+#   npx wrangler secret put WEBHOOK_URL      # e.g. https://blitz.tips/api/inbound-email
+#   npx wrangler secret put WEBHOOK_SECRET   # must equal INBOUND_WEBHOOK_SECRET on the site

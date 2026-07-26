@@ -1,0 +1,70 @@
+name: Contest weekly digest
+
+# Emails every Supercapper entrant their week: record, units, rank, how many
+# graded picks they still need to qualify, and the handicappers currently
+# beating their number.
+#
+# Why it lives here rather than in vercel.json: Vercel's Hobby plan allows a
+# single cron per day and that slot is taken by auto-settle. GitHub Actions
+# covers the weekly send for free.
+#
+# Setup (one time) — same secrets the auto-settle workflow uses:
+#   Repo → Settings → Secrets and variables → Actions → New repository secret
+#     CRON_SECRET = the same value as the CRON_SECRET env var in Vercel
+#     SITE_URL    = https://blitz.tips        (optional; defaults to that)
+#
+# This is NOT idempotent — every run that lands while the contest is live sends
+# mail. Use the "dry_run" input from the Actions tab to check the audience size
+# without sending anything.
+
+on:
+  schedule:
+    # Mondays at 15:00 UTC — after the weekend's games have graded.
+    - cron: "0 15 * * 1"
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Count recipients without sending any email"
+        type: boolean
+        default: false
+
+jobs:
+  digest:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Send weekly digest
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+          SITE_URL: ${{ secrets.SITE_URL || 'https://blitz.tips' }}
+        run: |
+          if [ -z "$CRON_SECRET" ]; then
+            echo "::error::CRON_SECRET repository secret is not set — see the header of this file."
+            exit 1
+          fi
+
+          URL="$SITE_URL/api/cron/contest-digest"
+          if [ "${{ inputs.dry_run }}" = "true" ]; then URL="$URL?dry=1"; fi
+
+          http_status=$(curl -sS -o response.json -w '%{http_code}' \
+            --max-time 120 \
+            -H "Authorization: Bearer $CRON_SECRET" \
+            "$URL")
+
+          echo "HTTP $http_status"
+          cat response.json
+          echo
+
+          if [ "$http_status" != "200" ]; then
+            echo "::error::Contest digest returned HTTP $http_status"
+            exit 1
+          fi
+
+          {
+            echo "### Contest weekly digest"
+            if [ "${{ inputs.dry_run }}" = "true" ]; then
+              echo "_Dry run — no email sent._"
+            fi
+            echo '```json'
+            cat response.json
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
