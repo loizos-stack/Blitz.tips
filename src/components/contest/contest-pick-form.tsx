@@ -11,6 +11,7 @@ import { EventMarkets } from "@/components/event-markets";
 import type { MarketOption, UpcomingEvent } from "@/lib/odds-api";
 import type { CapperOnEvent } from "@/lib/contest-funnel";
 import { StakeCta } from "@/components/stake-cta";
+import { MatchupTeams } from "@/components/matchup-teams";
 
 const sportKeys = Object.keys(SPORT_LABELS);
 const input =
@@ -193,7 +194,14 @@ export function ContestPickForm({
                     }}
                     className="flex w-full items-center justify-between gap-2 px-3 py-2.5 text-left text-sm"
                   >
-                    <span className="truncate font-display font-medium">{event.matchup}</span>
+                    <MatchupTeams
+                      sport={event.sport}
+                      matchup={event.matchup}
+                      awayLogo={event.awayTeamLogo}
+                      homeLogo={event.homeTeamLogo}
+                      logoClassName="h-5 w-5"
+                      textClassName="truncate font-display font-medium"
+                    />
                     <span className="shrink-0 text-xs text-muted">
                       {format(new Date(event.commenceTime), "MMM d, h:mm a")}
                     </span>
@@ -217,7 +225,15 @@ export function ContestPickForm({
 
       {selectedMarket && (
         <div className="rounded-lg bg-surface-raised p-3 text-sm">
-          <p className="font-display font-semibold">{selectedEvent?.matchup}</p>
+          {selectedEvent && (
+            <MatchupTeams
+              sport={selectedEvent.sport}
+              matchup={selectedEvent.matchup}
+              awayLogo={selectedEvent.awayTeamLogo}
+              homeLogo={selectedEvent.homeTeamLogo}
+              logoClassName="h-5 w-5"
+            />
+          )}
           <p className="mt-0.5 text-xs text-muted">
             {selectedMarket.selection} · {formatOdds(selectedMarket.odds)}
           </p>

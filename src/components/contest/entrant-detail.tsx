@@ -6,6 +6,8 @@ import { CONTEST_WINDOWS, filterPicksByWindow, type ContestWindowKey } from "@/l
 import { SPORT_LABELS, cn } from "@/lib/utils";
 import { ResultPill } from "@/components/result-pill";
 import { LocalTime } from "@/components/local-time";
+import { MatchupTeams } from "@/components/matchup-teams";
+import type { PickSport } from "@prisma/client";
 
 export interface DetailPick {
   id: string;
@@ -104,8 +106,16 @@ function PickGroup({ title, picks, showProfit }: { title: string; picks: DetailP
             <div key={p.id} className="flex items-center justify-between gap-3 px-5 py-3">
               <div className="min-w-0">
                 <p className="truncate text-sm font-medium">{p.selection}</p>
+                <div className="mt-0.5 flex min-w-0 items-center gap-1.5 text-xs text-muted">
+                  <MatchupTeams
+                    sport={p.sport as PickSport}
+                    matchup={p.matchup}
+                    logoClassName="h-4 w-4"
+                    textClassName="truncate font-medium"
+                  />
+                </div>
                 <p className="truncate text-xs text-muted">
-                  {SPORT_LABELS[p.sport] ?? p.sport} · {p.matchup} · {p.odds > 0 ? `+${p.odds}` : p.odds} · {p.units}u ·{" "}
+                  {SPORT_LABELS[p.sport] ?? p.sport} · {p.odds > 0 ? `+${p.odds}` : p.odds} · {p.units}u ·{" "}
                   <LocalTime iso={p.eventStartsAt} />
                 </p>
               </div>

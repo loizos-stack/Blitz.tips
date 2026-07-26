@@ -218,3 +218,19 @@ export function getTeamLogoUrl(sport: PickSport, teamName: string): string | nul
 
   return `${CDN_BASE}/${leaguePath}/500/${abbr}.png`;
 }
+
+/**
+ * Away/home crests resolved from a matchup string, for records that don't carry
+ * pre-enriched logo columns (contest picks, consensus rows). Splits on the
+ * usual separators so both "Away @ Home" and "Home vs Away" resolve.
+ */
+export function matchupCrests(
+  sport: PickSport,
+  matchup: string
+): { awayLogo: string | null; homeLogo: string | null } {
+  const [away, home] = matchup.split(/\s+(?:@|vs\.?|at)\s+/i);
+  return {
+    awayLogo: getTeamLogoUrl(sport, (away ?? "").trim()),
+    homeLogo: getTeamLogoUrl(sport, (home ?? "").trim()),
+  };
+}
