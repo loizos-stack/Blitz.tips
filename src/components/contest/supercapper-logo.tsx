@@ -20,12 +20,18 @@ export function SupercapperLogo({
   withContest = false,
   withByline = false,
   onDark = false,
+  bylineLink = true,
 }: {
   className?: string;
   withContest?: boolean;
   withByline?: boolean;
   /** Lightens the green for placement on a dark background. */
   onDark?: boolean;
+  /**
+   * Whether the byline is its own link to blitz.tips. Set false when the whole
+   * mark already sits inside a link (the nav) — nested anchors are invalid.
+   */
+  bylineLink?: boolean;
 }) {
   const accent = onDark ? "text-[#22c55e]" : "text-accent";
 
@@ -76,28 +82,40 @@ export function SupercapperLogo({
         )}
       </span>
 
-      {withByline && (
-        // The real Blitz.tips lockup — mark plus wordmark, same pairing as the
-        // site header — rather than a text imitation of it, and clickable so the
-        // attribution actually leads somewhere. Only the "by" is faded; the logo
-        // itself stays at full strength.
-        <a
-          href={BLITZ_URL}
-          aria-label="Blitz.tips"
-          className={cn(
-            "flex items-center gap-[0.3em] self-end text-[0.26em] font-semibold tracking-tight hover:opacity-80",
+      {withByline &&
+        (() => {
+          // The real Blitz.tips lockup — mark plus wordmark, same pairing as the
+          // site header — rather than a text imitation of it. Only the "by" is
+          // faded; the logo itself stays at full strength.
+          const className = cn(
+            "flex items-center gap-[0.3em] self-end text-[0.26em] font-semibold tracking-tight",
+            bylineLink && "hover:opacity-80",
             withContest ? "mt-[0.7em]" : "mt-[0.35em]"
-          )}
-        >
-          <span aria-hidden className="opacity-60">
-            by
-          </span>
-          <Image src="/logo-mark.svg" alt="" width={40} height={40} className="h-[1.35em] w-[1.35em]" />
-          <span aria-hidden>
-            Blitz<span className={accent}>.tips</span>
-          </span>
-        </a>
-      )}
+          );
+          const content = (
+            <>
+              <span aria-hidden className="opacity-60">
+                by
+              </span>
+              <Image src="/logo-mark.svg" alt="" width={40} height={40} className="h-[1.35em] w-[1.35em]" />
+              <span aria-hidden>
+                Blitz<span className={accent}>.tips</span>
+              </span>
+            </>
+          );
+
+          // Its own link normally, so the attribution leads somewhere. Plain
+          // text when the caller has already wrapped the whole mark in a link.
+          return bylineLink ? (
+            <a href={BLITZ_URL} aria-label="Blitz.tips" className={className}>
+              {content}
+            </a>
+          ) : (
+            <span aria-label="by Blitz.tips" role="img" className={className}>
+              {content}
+            </span>
+          );
+        })()}
     </span>
   );
 }

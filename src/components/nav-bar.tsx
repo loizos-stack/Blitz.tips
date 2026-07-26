@@ -8,6 +8,7 @@ import { useSession, signOut } from "next-auth/react";
 import { Menu, X, UserCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { NotificationBell } from "@/components/notification-bell";
+import { SupercapperLogo } from "@/components/contest/supercapper-logo";
 
 const links = [
   { href: "/about", label: "About Blitz" },
@@ -24,6 +25,10 @@ export function NavBar() {
   const { data: session, status } = useSession();
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
+
+  // Every contest route — the public page, standings, entrant pages and the
+  // entrant dashboard — carries the Supercapper mark instead of the site one.
+  const onSupercapper = pathname === "/supercapper" || pathname.startsWith("/supercapper/");
 
   // While the side drawer is open, lock body scroll and close on Escape.
   useEffect(() => {
@@ -44,9 +49,20 @@ export function NavBar() {
     <>
     <header className="sticky top-0 z-40 border-b border-white/10 bg-[#0b0f14]/95 backdrop-blur">
       <div className="container-page flex h-16 items-center justify-between">
-        <Link href="/" className="flex items-center gap-2 font-display font-bold text-lg tracking-tight text-white">
-          <Image src="/logo-mark.svg" alt="" width={28} height={28} className="h-7 w-7" priority />
-          <span>Blitz<span className="text-green-400">.tips</span></span>
+        {/* Inside the contest, the contest is the brand — the byline keeps
+            Blitz.tips present and the whole mark still links home. */}
+        <Link
+          href="/"
+          className="flex items-center gap-2 font-display font-bold text-lg tracking-tight text-white"
+        >
+          {onSupercapper ? (
+            <SupercapperLogo withByline onDark bylineLink={false} className="text-[26px]" />
+          ) : (
+            <>
+              <Image src="/logo-mark.svg" alt="" width={28} height={28} className="h-7 w-7" priority />
+              <span>Blitz<span className="text-green-400">.tips</span></span>
+            </>
+          )}
         </Link>
 
         <div className="flex items-center gap-2">
@@ -136,8 +152,14 @@ export function NavBar() {
             onClick={() => setOpen(false)}
             className="flex items-center gap-2 font-display text-lg font-bold tracking-tight text-white"
           >
-            <Image src="/logo-mark.svg" alt="" width={26} height={26} className="h-6 w-6" />
-            <span>Blitz<span className="text-green-400">.tips</span></span>
+            {onSupercapper ? (
+              <SupercapperLogo withByline onDark bylineLink={false} className="text-[22px]" />
+            ) : (
+              <>
+                <Image src="/logo-mark.svg" alt="" width={26} height={26} className="h-6 w-6" />
+                <span>Blitz<span className="text-green-400">.tips</span></span>
+              </>
+            )}
           </Link>
           <button onClick={() => setOpen(false)} aria-label="Close menu" className="text-white/80 hover:text-white">
             <X className="h-6 w-6" />
