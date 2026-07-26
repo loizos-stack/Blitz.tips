@@ -18,30 +18,52 @@ export const STAKE_REFERRAL_CODE = process.env.NEXT_PUBLIC_STAKE_REFERRAL_CODE ?
 const STAKE_BASE = "https://stake.com";
 
 /**
- * Our sports mapped to Stake's section slugs.
+ * Our sports mapped onto Stake's URL structure, which is
+ * `/sports/{sport}/{country}/{league}` — e.g. `/sports/baseball/usa/mlb`.
  *
- * UNVERIFIED — these are the conventional slugs, but nobody has confirmed them
- * against the live site. Any sport whose slug is wrong lands on Stake's sports
- * home rather than 404ing (see stakeUrl), so a bad guess costs relevance, not a
- * broken link. Check them and fix this table.
+ * `sport` is the section path and is always used. `league` is the deeper,
+ * more relevant destination, but it is only used when `verified` is true.
+ *
+ * That distinction is the point of this table: an unconfirmed league segment is
+ * a guess, and a wrong guess on a deep path is a 404 in an affiliate link —
+ * strictly worse than landing on the correct sport section. So a league stays
+ * commented-out-by-`verified: false` until someone has actually opened the URL.
+ * Confirming one is a one-word edit.
  */
-const SPORT_SLUGS: Partial<Record<PickSport, string>> = {
-  NFL: "american-football",
-  NCAAF: "american-football",
-  NBA: "basketball",
-  WNBA: "basketball",
-  NCAAB: "basketball",
-  MLB: "baseball",
-  NHL: "ice-hockey",
-  SOCCER: "soccer",
-  TENNIS: "tennis",
-  UFC_MMA: "mma",
+interface StakeSportPath {
+  sport: string;
+  league?: string;
+  /** Has the full sport/country/league path been opened and confirmed? */
+  verified?: boolean;
+}
+
+const SPORT_PATHS: Partial<Record<PickSport, StakeSportPath>> = {
+  // Confirmed against the live site.
+  NFL: { sport: "american-football", league: "usa/nfl", verified: true },
+  MLB: { sport: "baseball", league: "usa/mlb", verified: true },
+
+  // Same pattern, not yet opened — these fall back to the sport section.
+  NBA: { sport: "basketball", league: "usa/nba" },
+  WNBA: { sport: "basketball", league: "usa/wnba" },
+  NHL: { sport: "ice-hockey", league: "usa/nhl" },
+  NCAAF: { sport: "american-football", league: "usa/ncaa" },
+  NCAAB: { sport: "basketball", league: "usa/ncaa" },
+
+  // No single league to deep-link: our SOCCER spans many competitions, and
+  // tennis/MMA are organised by tour and event rather than by country league.
+  SOCCER: { sport: "soccer" },
+  TENNIS: { sport: "tennis" },
+  UFC_MMA: { sport: "mma" },
 };
 
 /** The real Stake URL for a sport, with the referral code attached. */
 export function stakeUrl(sport?: PickSport | string | null): string {
-  const slug = sport ? SPORT_SLUGS[sport as PickSport] : undefined;
-  const path = slug ? `/sports/${slug}` : "/sports";
+  const entry = sport ? SPORT_PATHS[sport as PickSport] : undefined;
+  let path = "/sports";
+  if (entry) {
+    path += `/${entry.sport}`;
+    if (entry.verified && entry.league) path += `/${entry.league}`;
+  }
   return `${STAKE_BASE}${path}?c=${encodeURIComponent(STAKE_REFERRAL_CODE)}`;
 }
 
