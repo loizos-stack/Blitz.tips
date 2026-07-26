@@ -32,6 +32,10 @@ on:
         description: "Odds API regions to survey"
         type: string
         default: "us,us2"
+      include_links:
+        description: "Also report which books return per-event deep links (for affiliate deep-linking)"
+        type: boolean
+        default: false
 
 jobs:
   survey:
@@ -56,6 +60,7 @@ jobs:
           if [ "${{ inputs.execute }}" = "true" ]; then ARGS="$ARGS --run"; fi
           if [ -n "${{ inputs.sports }}" ]; then ARGS="$ARGS --sports=${{ inputs.sports }}"; fi
           if [ -n "${{ inputs.regions }}" ]; then ARGS="$ARGS --regions=${{ inputs.regions }}"; fi
+          if [ "${{ inputs.include_links }}" = "true" ]; then ARGS="$ARGS --include-links"; fi
 
           # Tee so the output lands in both the log and the run summary.
           node scripts/survey-bookmaker-markets.mjs $ARGS 2>&1 | tee survey.txt

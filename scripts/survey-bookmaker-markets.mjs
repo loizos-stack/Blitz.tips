@@ -15,6 +15,16 @@
  *   THE_ODDS_API_KEY=xxx node scripts/survey-bookmaker-markets.mjs --run      # execute
  *   ... --sports=americanfootball_nfl,basketball_nba   # limit the sample
  *   ... --regions=us,us2                               # default us,us2
+ *   ... --include-links                                # also report which books
+ *                                                        return per-event deep links
+ *
+ * --include-links adds `includeLinks=true&includeSids=true` to each odds
+ * request, so the response carries bookmaker event/bet-slip URLs and the books'
+ * own event IDs where available. The survey then reports, per book, whether it
+ * returned any links — the signal for whether an affiliate deep-link integration
+ * is even possible for that book. It does NOT change the credit cost (links are
+ * a free add-on to an odds request that is already billed markets x regions),
+ * but it only returns data on --run like the rest of the survey.
  */
 
 const API = process.env.ODDS_API_BASE ?? "https://api.the-odds-api.com/v4";
@@ -32,6 +42,7 @@ const flag = (name, fallback) => {
   return hit ? hit.split("=").slice(1).join("=") : fallback;
 };
 const RUN = args.includes("--run");
+const INCLUDE_LINKS = args.includes("--include-links");
 const REGIONS = flag("regions", "us,us2");
 
 // Market keys by sport group. Kept to widely-offered keys — an unknown key
@@ -72,6 +83,24 @@ const groupOf = (sportKey) => {
   return null;
 };
 
+// Deep links can arrive at three levels of the bookmaker object: the event
+// (`link`), a market (`market.link`), or an outcome / bet slip (`outcome.link`).
+// Report the book as linkable if any of them is present.
+const bookHasLinks = (b) =>
+  Boolean(b.link) ||
+  (b.markets ?? []).some((m) => Boolean(m.link) || (m.outcomes ?? []).some((o) => Boolean(o.link)));
+
+// A sample link to show in the output, so the run proves the format rather than
+// just asserting a boolean. First one found wins.
+const firstLink = (b) => {
+  if (b.link) return b.link;
+  for (const m of b.markets ?? []) {
+    if (m.link) return m.link;
+    for (const o of m.outcomes ?? []) if (o.link) return o.link;
+  }
+  return null;
+};
+
 async function getJson(url) {
   const res = await fetch(url);
   if (!res.ok) throw new Error(`${res.status} ${res.statusText} — ${(await res.text()).slice(0, 200)}`);
@@ -100,6 +129,7 @@ for (const s of sports) estimate += BY_GROUP[groupOf(s.key)].length * regionCoun
 console.log(`Quota remaining: ${remaining ?? "unknown"}`);
 console.log(`Sports to sample: ${sports.length} (${sports.map((s) => s.key).join(", ")})`);
 console.log(`Regions: ${REGIONS}`);
+console.log(`Deep links: ${INCLUDE_LINKS ? "requested (includeLinks + includeSids)" : "off"}`);
 console.log(`Estimated cost: ~${estimate} credits (1 event per sport, markets x regions)\n`);
 
 if (!RUN) {
@@ -123,19 +153,33 @@ for (const sport of sports) {
     const eventId = events[0].id;
     const url =
       `${API}/sports/${sport.key}/events/${eventId}/odds` +
-      `?apiKey=${KEY}&regions=${REGIONS}&markets=${markets.join(",")}&oddsFormat=american`;
+      `?apiKey=${KEY}&regions=${REGIONS}&markets=${markets.join(",")}&oddsFormat=american` +
+      (INCLUDE_LINKS ? `&includeLinks=true&includeSids=true` : "");
     const { body: ev, remaining: rem } = await getJson(url);
 
     const row = { sport: sport.key, title: sport.title, books: [] };
     for (const b of ev.bookmakers ?? []) {
-      const entry = books.get(b.key) ?? { title: b.title, markets: new Set(), sports: new Set(), outcomes: 0 };
+      const entry = books.get(b.key) ?? {
+        title: b.title,
+        markets: new Set(),
+        sports: new Set(),
+        outcomes: 0,
+        linked: false,
+        sampleLink: null,
+      };
       for (const m of b.markets ?? []) {
         entry.markets.add(m.key);
         entry.outcomes += (m.outcomes ?? []).length;
       }
+      // A book "has deep links" if any level of its response carries a link:
+      // the event, a market, or an individual outcome (bet-slip URL).
+      if (INCLUDE_LINKS && bookHasLinks(b)) {
+        entry.linked = true;
+        entry.sampleLink ??= firstLink(b);
+      }
       entry.sports.add(sport.key);
       books.set(b.key, entry);
-      row.books.push({ key: b.key, markets: (b.markets ?? []).length });
+      row.books.push({ key: b.key, markets: (b.markets ?? []).length, linked: INCLUDE_LINKS && bookHasLinks(b) });
     }
     row.books.sort((a, b) => b.markets - a.markets);
     perSport.push(row);
@@ -155,10 +199,23 @@ const ranked = [...books.entries()]
     distinctMarkets: v.markets.size,
     sportsCovered: v.sports.size,
     outcomes: v.outcomes,
+    ...(INCLUDE_LINKS ? { deepLinks: v.linked ? "yes" : "no" } : {}),
   }))
   .sort((a, b) => b.distinctMarkets - a.distinctMarkets || b.sportsCovered - a.sportsCovered);
 
 console.table(ranked);
+
+if (INCLUDE_LINKS) {
+  const linkable = [...books.entries()].filter(([, v]) => v.linked);
+  console.log(`\n=== DEEP LINKS: ${linkable.length} of ${books.size} books returned a per-event link ===`);
+  if (linkable.length === 0) {
+    console.log("None. No affiliate deep-link integration is possible from this feed for these regions.");
+  } else {
+    for (const [key, v] of linkable.sort((a, b) => a[0].localeCompare(b[0]))) {
+      console.log(`  ${key.padEnd(18)} e.g. ${v.sampleLink}`);
+    }
+  }
+}
 
 if (ranked[0]) {
   console.log(
