@@ -154,29 +154,42 @@ export default async function SupercapperPage() {
   return (
     <div>
       {/* Hero */}
-      <section className="relative overflow-hidden border-b border-border">
-        <div aria-hidden className="pointer-events-none absolute inset-0 bg-[url('/hero-bg.svg')] bg-cover bg-bottom" />
-        <div aria-hidden className="pointer-events-none absolute inset-0 bg-gradient-to-b from-background/60 via-background/80 to-background" />
+      <section className="relative overflow-hidden border-b border-white/10 bg-[#0b0f14] text-white">
+        {/* Dark hero: the contest has its own identity, and the gold mark and
+            prize figure carry far more weight on charcoal than on the site's
+            light chrome. Matches the promo banner and the social graphics. */}
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-0 bg-[url('/hero-bg.svg')] bg-cover bg-bottom opacity-20"
+        />
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-0 bg-[radial-gradient(120%_80%_at_50%_0%,rgba(34,197,94,0.18),transparent_60%),radial-gradient(90%_70%_at_80%_100%,rgba(234,179,8,0.14),transparent_60%)]"
+        />
         <div className="container-page relative py-16 text-center">
-          <span className="inline-flex items-center gap-2 rounded-full border border-gold/40 bg-gold/10 px-3 py-1 text-xs font-semibold text-gold">
+          <span className="inline-flex items-center gap-2 rounded-full border border-[#eab308]/40 bg-[#eab308]/10 px-3 py-1 text-xs font-semibold text-[#eab308]">
             <Trophy className="h-3.5 w-3.5" /> {PHASE_LABEL[phase]}
           </span>
           <h1 className="mt-6 flex justify-center text-5xl md:text-7xl">
-            <SupercapperLogo withContest withByline />
+            <SupercapperLogo withContest withByline onDark />
           </h1>
-          {contest.tagline && <p className="mt-4 text-lg text-muted">{contest.tagline}</p>}
+          {contest.tagline && <p className="mt-4 text-lg text-white/70">{contest.tagline}</p>}
 
           <div className="mt-8 flex flex-col items-center">
-            <p className="text-sm font-semibold uppercase tracking-wide text-muted">Guaranteed prize pool</p>
-            <p className="font-display text-5xl font-extrabold text-accent md:text-7xl">
+            <p className="text-sm font-semibold uppercase tracking-wide text-white/60">Guaranteed prize pool</p>
+            <p className="font-display text-5xl font-extrabold text-[#eab308] md:text-7xl">
               {formatCents(contest.prizePoolCents)}
             </p>
-            <p className="mt-2 text-sm text-muted">{dateRange}</p>
+            <p className="mt-2 text-sm text-white/60">{dateRange}</p>
           </div>
 
           <div className="mt-8 flex flex-col items-center gap-6">
-            {phase === "upcoming" && <ContestCountdown target={contest.startsAt.toISOString()} label="Contest starts in" />}
-            {phase === "live" && <ContestCountdown target={contest.endsAt.toISOString()} label="Contest ends in" />}
+            {phase === "upcoming" && (
+              <ContestCountdown target={contest.startsAt.toISOString()} label="Contest starts in" onDark />
+            )}
+            {phase === "live" && (
+              <ContestCountdown target={contest.endsAt.toISOString()} label="Contest ends in" onDark />
+            )}
             {myEntry ? (
               // Already entered: skip the "entered" button and send them where they
               // actually want to go — their dashboard, or the full standings.
@@ -189,13 +202,13 @@ export default async function SupercapperPage() {
                 </Link>
                 <Link
                   href="/supercapper/standings"
-                  className="inline-flex items-center justify-center gap-2 rounded-lg border border-border px-6 py-3 text-sm font-semibold hover:border-muted"
+                  className="inline-flex items-center justify-center gap-2 rounded-lg border border-white/25 px-6 py-3 text-sm font-semibold text-white hover:border-white/50"
                 >
                   <ListOrdered className="h-4 w-4" /> Full standings
                 </Link>
                 <Link
                   href="/supercapper/consensus"
-                  className="inline-flex items-center justify-center gap-2 rounded-lg border border-border px-6 py-3 text-sm font-semibold hover:border-muted"
+                  className="inline-flex items-center justify-center gap-2 rounded-lg border border-white/25 px-6 py-3 text-sm font-semibold text-white hover:border-white/50"
                 >
                   <Users className="h-4 w-4" /> Consensus
                 </Link>

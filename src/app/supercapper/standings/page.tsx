@@ -120,7 +120,7 @@ export default async function SupercapperStandingsPage() {
           <h1 className="text-3xl font-bold">Full standings</h1>
           <p className="mt-1 text-sm text-muted">
             {PHASE_LABEL[phase]} · {format(contest.startsAt, "MMM d")}–{format(contest.endsAt, "MMM d, yyyy")} ·{" "}
-            {formatCents(contest.prizePoolCents)} guaranteed · {overallStandings.length} entrants
+            <span className="font-semibold text-gold">{formatCents(contest.prizePoolCents)} guaranteed</span> · {overallStandings.length} entrants
           </p>
         </div>
         {myEntry && (

@@ -12,6 +12,7 @@ import { showStakeLinks } from "@/lib/stake-server";
 import { HandicapperCard } from "@/components/handicapper-card";
 import { ManageBillingButton } from "@/components/manage-billing-button";
 import { VerifyEmailBanner } from "@/components/verify-email-banner";
+import { ContestPromoBanner } from "@/components/contest/contest-promo-banner";
 import { Avatar } from "@/components/avatar";
 import { StatCard } from "@/components/stat-card";
 import { UnitsChart } from "@/components/dashboard/units-chart";
@@ -355,6 +356,10 @@ export default async function DashboardPage() {
           <VerifyEmailBanner />
         </div>
       )}
+
+      {/* Same contest promo the handicapper dashboard carries — the contest is
+          free and open to everyone, not just people who sell picks. */}
+      <ContestPromoBanner className="mt-6" />
 
       {order.map((key) =>
         sections[key] ? (

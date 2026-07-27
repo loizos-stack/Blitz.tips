@@ -187,7 +187,7 @@ export default async function ContestDashboardPage() {
           </h1>
           <p className="mt-1 text-sm text-muted">
             {PHASE_LABEL[phase]} · {format(contest.startsAt, "MMM d")}–{format(contest.endsAt, "MMM d, yyyy")} ·{" "}
-            {formatCents(contest.prizePoolCents)} guaranteed
+            <span className="font-semibold text-gold">{formatCents(contest.prizePoolCents)} guaranteed</span>
           </p>
         </div>
         {phase === "upcoming" && <ContestCountdown target={contest.startsAt.toISOString()} label="Starts in" />}

@@ -4,7 +4,16 @@ import { useEffect, useState } from "react";
 
 // Live countdown to a target time. Shows "0d 0h 0m 0s" once elapsed. Renders a
 // stable placeholder on first paint to avoid a hydration mismatch.
-export function ContestCountdown({ target, label }: { target: string; label: string }) {
+export function ContestCountdown({
+  target,
+  label,
+  onDark = false,
+}: {
+  target: string;
+  label: string;
+  /** Restyles the tiles for a dark surface — the light ones vanish on charcoal. */
+  onDark?: boolean;
+}) {
   const [now, setNow] = useState<number | null>(null);
 
   useEffect(() => {
@@ -34,14 +43,24 @@ export function ContestCountdown({ target, label }: { target: string; label: str
 
   return (
     <div className="inline-flex flex-col items-center gap-2">
-      <span className="text-sm font-semibold uppercase tracking-wide text-muted">{label}</span>
+      <span
+        className={`text-sm font-semibold uppercase tracking-wide ${onDark ? "text-white/60" : "text-muted"}`}
+      >
+        {label}
+      </span>
       <div className="flex items-center gap-2.5 tabular-nums sm:gap-3.5">
         {(["d", "h", "m", "s"] as const).map((k) => (
           <div key={k} className="flex flex-col items-center">
-            <span className="min-w-[3.75rem] rounded-xl bg-surface-raised px-3 py-3 text-center text-4xl font-extrabold leading-none shadow-sm sm:min-w-[4.75rem] sm:px-4 sm:py-4 sm:text-6xl">
+            <span
+              className={`min-w-[3.75rem] rounded-xl px-3 py-3 text-center text-4xl font-extrabold leading-none shadow-sm sm:min-w-[4.75rem] sm:px-4 sm:py-4 sm:text-6xl ${
+                onDark ? "border border-white/10 bg-white/10 text-white" : "bg-surface-raised"
+              }`}
+            >
               {parts ? String(parts[k]).padStart(2, "0") : "––"}
             </span>
-            <span className="mt-2 text-xs font-semibold uppercase tracking-wide text-muted">
+            <span
+              className={`mt-2 text-xs font-semibold uppercase tracking-wide ${onDark ? "text-white/50" : "text-muted"}`}
+            >
               {k === "d" ? "days" : k === "h" ? "hrs" : k === "m" ? "min" : "sec"}
             </span>
           </div>
