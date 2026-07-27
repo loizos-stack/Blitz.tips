@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
+import { EntrantAvatar } from "@/components/contest/entrant-avatar";
 import { ArrowUp, ArrowDown, Minus } from "lucide-react";
 import { computeStats, adjustedRoi } from "@/lib/odds";
 import { CONTEST_WINDOWS, filterPicksByWindow, type ContestWindowKey } from "@/lib/contest-windows";
@@ -19,6 +20,7 @@ export interface StandingPick {
 export interface StandingEntry {
   entryId: string;
   name: string;
+  avatarUrl: string | null;
   picks: StandingPick[];
 }
 
@@ -27,6 +29,7 @@ export interface StandingEntry {
 export interface OverallStanding {
   entryId: string;
   name: string;
+  avatarUrl: string | null;
   rank: number | null;
   // The entrant's rank as of the start of today (null if unranked then).
   previousRank: number | null;
@@ -42,6 +45,7 @@ export interface OverallStanding {
 interface Row {
   entryId: string;
   name: string;
+  avatarUrl: string | null;
   rank: number | null;
   // Movement vs. the start of today; undefined in windowed views (no baseline).
   previousRank?: number | null;
@@ -77,6 +81,7 @@ export function ContestStandings({
       return overall.map((s) => ({
         entryId: s.entryId,
         name: s.name,
+        avatarUrl: s.avatarUrl,
         rank: s.rank,
         previousRank: s.previousRank,
         roi: s.roi,
@@ -100,6 +105,7 @@ export function ContestStandings({
       return {
         entryId: e.entryId,
         name: e.name,
+        avatarUrl: e.avatarUrl,
         roi: stats.roi,
         score: adjustedRoi(stats.unitsNet, stats.unitsRisked),
         unitsNet: stats.unitsNet,
@@ -185,7 +191,11 @@ export function ContestStandings({
                     </span>
                   </td>
                   <td className="px-4 py-2.5 font-medium">
-                    <Link href={`${linkBase}/${r.entryId}`} className="hover:text-accent hover:underline">
+                    <Link
+                      href={`${linkBase}/${r.entryId}`}
+                      className="inline-flex items-center gap-2 align-middle hover:text-accent hover:underline"
+                    >
+                      <EntrantAvatar name={r.name} avatarUrl={r.avatarUrl} className="h-7 w-7" sizes="28px" />
                       {r.name}
                     </Link>
                     {myEntryId && r.entryId === myEntryId && (

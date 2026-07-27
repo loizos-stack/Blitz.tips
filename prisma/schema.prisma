@@ -742,6 +742,10 @@ model ContestEntry {
   // Anti-fraud: a disqualified entry is excluded from the standings and payouts.
   disqualifiedAt     DateTime?
   disqualifiedReason String?
+  // Contest avatar, shown wherever this entrant appears on the contest pages.
+  // Only used for entrants who aren't handicappers — a handicapper's contest
+  // identity reuses their handicapper profile avatar (see entrantAvatar).
+  avatarUrl          String?
   createdAt          DateTime  @default(now())
 
   picks  ContestPick[]

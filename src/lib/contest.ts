@@ -3,6 +3,7 @@ import type { Contest, ContestEntry, ContestPick } from "@prisma/client";
 import { computeStats, adjustedRoi } from "@/lib/odds";
 import { icmEquityCents, ICM_MAX_FIELD } from "@/lib/icm";
 import { startOfUtcDay } from "@/lib/contest-limits";
+import { entrantAvatar } from "@/lib/contest-avatar";
 
 // The lifecycle phase shown to visitors, derived from the contest's dates and
 // status (so a DRAFT/CLOSED admin state overrides the calendar).
@@ -125,6 +126,8 @@ export interface ContestStanding {
   entryId: string;
   userId: string;
   name: string;
+  /** Resolved by entrantAvatar — handicapper avatar, else entry, else account. */
+  avatarUrl: string | null;
   // Rank among qualified entries (1-based); null if not yet qualified.
   rank: number | null;
   qualified: boolean;
@@ -139,7 +142,15 @@ export interface ContestStanding {
   prizeCents: number;
 }
 
-type EntryWithPicks = ContestEntry & { picks: ContestPick[]; user: { name: string | null; username: string | null } };
+type EntryWithPicks = ContestEntry & {
+  picks: ContestPick[];
+  user: {
+    name: string | null;
+    username: string | null;
+    image?: string | null;
+    handicapper?: { avatarUrl: string | null } | null;
+  };
+};
 
 /**
  * Rank contest entries by ROI over their settled picks. Only entries that have
@@ -163,6 +174,11 @@ export function computeStandings(
       entryId: entry.id,
       userId: entry.userId,
       name,
+      avatarUrl: entrantAvatar({
+        entryAvatarUrl: entry.avatarUrl,
+        handicapperAvatarUrl: entry.user.handicapper?.avatarUrl,
+        userImage: entry.user.image,
+      }),
       qualified: settledPicks >= contest.minPicks,
       roi: stats.roi,
       adjustedRoi: adjustedRoi(stats.unitsNet, stats.unitsRisked),

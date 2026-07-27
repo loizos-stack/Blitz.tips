@@ -4,6 +4,7 @@ import { promises as fs } from "node:fs";
 import path from "node:path";
 
 export type ProfileImageKind = "avatar" | "cover";
+export type ImageScope = "handicappers" | "contest-entries";
 
 function extFor(contentType: string): string {
   if (contentType === "image/png") return "png";
@@ -23,9 +24,11 @@ export async function saveProfileImage(
   profileId: string,
   kind: ProfileImageKind,
   bytes: Buffer,
-  contentType: string
+  contentType: string,
+  /** Storage namespace — separates handicapper profiles from contest entries. */
+  scope: ImageScope = "handicappers"
 ): Promise<string> {
-  const key = `handicappers/${profileId}/${kind}-${Date.now()}.${extFor(contentType)}`;
+  const key = `${scope}/${profileId}/${kind}-${Date.now()}.${extFor(contentType)}`;
 
   const localDir = process.env.BLOB_LOCAL_DIR;
   if (localDir) {
