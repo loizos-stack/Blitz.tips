@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { requireContestUsername } from "@/lib/contest-username";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { createContestPickSchema } from "@/lib/validations";
@@ -32,6 +33,12 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     where: { contestId_userId: { contestId: id, userId: session.user.id } },
   });
   if (!entry) return NextResponse.json({ error: "Enter the contest first." }, { status: 403 });
+
+  // Also guarded here, not just at join: an entry created before this rule
+  // existed can still have no username, and a pick is what puts the name on the
+  // board.
+  const needsUsername = await requireContestUsername(session.user.id);
+  if (needsUsername) return needsUsername;
 
   if (!isContestAcceptingPicks(contest)) {
     return NextResponse.json({ error: "This contest isn't accepting picks right now." }, { status: 400 });

@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { UsernameGate } from "@/components/contest/username-gate";
 import { entrantAvatar } from "@/lib/contest-avatar";
 import Link from "next/link";
 import { format } from "date-fns";
@@ -69,6 +70,19 @@ export default async function SupercapperPage() {
       </div>
     );
   }
+
+  // Signed in but with no username yet (a Google signup who skipped
+  // onboarding). The contest publishes the name you enter under, so claim it
+  // before joining rather than falling back to their Google display name.
+  const needsUsername = Boolean(
+    session?.user?.id &&
+      !(
+        await prisma.user.findUnique({
+          where: { id: session.user.id },
+          select: { username: true },
+        })
+      )?.username
+  );
 
   const phase = contestPhase(contest);
   // Registration closes on its own date (Sep 27 for Supercapper); joining stays
@@ -186,6 +200,8 @@ export default async function SupercapperPage() {
                   <Users className="h-4 w-4" /> Consensus
                 </Link>
               </div>
+            ) : needsUsername ? (
+              <UsernameGate />
             ) : (
               <ContestJoinButton
                 contestId={contest.id}

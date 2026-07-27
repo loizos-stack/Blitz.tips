@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { UsernameGate } from "@/components/contest/username-gate";
 import { EntrantAvatarUpload } from "@/components/contest/entrant-avatar-upload";
 import { entrantAvatar, avatarIsFromHandicapper } from "@/lib/contest-avatar";
 import Link from "next/link";
@@ -250,7 +251,11 @@ export default async function ContestDashboardPage() {
               quarter / period markets, and player props.
             </p>
             {accepting ? (
-              <ContestPickForm contestId={contest.id} showStake={await showStakeLinks()} />
+              myEntry.user.username ? (
+                <ContestPickForm contestId={contest.id} showStake={await showStakeLinks()} />
+              ) : (
+                <UsernameGate compact />
+              )
             ) : (
               <p className="text-sm text-muted">
                 {phase === "upcoming"
