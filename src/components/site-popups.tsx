@@ -6,6 +6,7 @@ import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { ArrowRight, X } from "lucide-react";
 import { SupercapperLogo } from "@/components/contest/supercapper-logo";
+import { readConsent, writeConsent } from "@/lib/cookie-consent";
 
 /**
  * First-visit popups: a cross-promo for whichever product you're *not* on, and
@@ -21,7 +22,6 @@ import { SupercapperLogo } from "@/components/contest/supercapper-logo";
  * a reason to leave.
  */
 
-const KEY_COOKIES = "blitz.cookieConsent.v1";
 const KEY_PROMO_CONTEST = "blitz.promo.contest.v1";
 const KEY_PROMO_SITE = "blitz.promo.site.v1";
 
@@ -61,7 +61,7 @@ export function SitePopups({ cookieConsentRequired }: { cookieConsentRequired: b
     // is client-only, so this can't be seeded during render either.
     const t = setTimeout(() => {
       setReady(true);
-      if (cookieConsentRequired && !readFlag(KEY_COOKIES)) setNeedsCookies(true);
+      if (cookieConsentRequired && readConsent() === null) setNeedsCookies(true);
     }, 0);
     return () => clearTimeout(t);
   }, [cookieConsentRequired]);
@@ -76,7 +76,9 @@ export function SitePopups({ cookieConsentRequired }: { cookieConsentRequired: b
   }, [ready, needsCookies, onContest]);
 
   function answerCookies(value: "accepted" | "declined") {
-    writeFlag(KEY_COOKIES, value);
+    // Shared writer: it also notifies the analytics gate, so declining takes
+    // effect immediately rather than on the next page load.
+    writeConsent(value);
     setNeedsCookies(false);
   }
 

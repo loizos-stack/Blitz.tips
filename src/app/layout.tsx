@@ -1,5 +1,4 @@
 import type { Metadata, Viewport } from "next";
-import Script from "next/script";
 import { Space_Grotesk } from "next/font/google";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 import { Analytics } from "@vercel/analytics/next";
@@ -14,6 +13,7 @@ import { getCachedAnnouncement } from "@/lib/settings";
 import { RegisterServiceWorker } from "@/components/register-service-worker";
 import { DeferredWidgets } from "@/components/deferred-widgets";
 import { SitePopups } from "@/components/site-popups";
+import { AnalyticsGate } from "@/components/analytics-gate";
 import { needsCookieConsent } from "@/lib/geo";
 
 // Space Grotesk is the single web font — body/UI text and the sportier headings
@@ -94,6 +94,9 @@ export default async function RootLayout({
   children: React.ReactNode;
 }>) {
   const announcement = await getCachedAnnouncement();
+  // Resolved once and shared: the prompt and the analytics gate must agree on
+  // whether this visitor needs consent, or one will contradict the other.
+  const consentRequired = await needsCookieConsent();
   return (
     <html
       lang="en"
@@ -109,21 +112,16 @@ export default async function RootLayout({
           <main className="flex-1">{children}</main>
           <Footer />
           <DeferredWidgets />
-          <SitePopups cookieConsentRequired={await needsCookieConsent()} />
+          <SitePopups cookieConsentRequired={consentRequired} />
         </Providers>
+        {/* Cookieless and device-storage-free, so these sit outside the consent
+            gate — blocking them would cost the site its traffic numbers without
+            any compliance gain. */}
         <SpeedInsights />
         <Analytics />
-        {/* Google tag (gtag.js) — loaded after the page is interactive so it
-            never blocks first paint. */}
-        <Script src="https://www.googletagmanager.com/gtag/js?id=G-Z43Z20YSYL" strategy="afterInteractive" />
-        <Script id="google-analytics" strategy="afterInteractive">
-          {`
-            window.dataLayer = window.dataLayer || [];
-            function gtag(){dataLayer.push(arguments);}
-            gtag('js', new Date());
-            gtag('config', 'G-Z43Z20YSYL');
-          `}
-        </Script>
+        {/* Google Analytics writes cookies, so it only loads once consent
+            allows it. */}
+        <AnalyticsGate consentRequired={consentRequired} />
       </body>
     </html>
   );
