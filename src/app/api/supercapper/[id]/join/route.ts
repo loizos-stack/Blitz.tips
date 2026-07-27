@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { isEmailVerified } from "@/lib/verification";
+import { requireContestUsername } from "@/lib/contest-username";
 import { clientMeta } from "@/lib/request-meta";
 import { logActivity } from "@/lib/audit";
 
@@ -15,6 +16,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   if (!(await isEmailVerified(session.user.id))) {
     return NextResponse.json({ error: "Please verify your email before entering." }, { status: 403 });
   }
+
+  const needsUsername = await requireContestUsername(session.user.id);
+  if (needsUsername) return needsUsername;
 
   const { id } = await params;
   const contest = await prisma.contest.findUnique({ where: { id } });

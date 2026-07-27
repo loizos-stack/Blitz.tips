@@ -1,4 +1,7 @@
 import type { Metadata } from "next";
+import { UsernameGate } from "@/components/contest/username-gate";
+import { EntrantAvatarUpload } from "@/components/contest/entrant-avatar-upload";
+import { entrantAvatar, avatarIsFromHandicapper } from "@/lib/contest-avatar";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { format } from "date-fns";
@@ -55,7 +58,14 @@ export default async function ContestDashboardPage() {
   const contest = await prisma.contest.findUnique({
     where: { slug: "supercapper" },
     include: {
-      entries: { include: { picks: true, user: { select: { name: true, username: true } } } },
+      entries: { include: { picks: true, user: {
+          select: {
+            name: true,
+            username: true,
+            image: true,
+            handicapper: { select: { avatarUrl: true } },
+          },
+        } } },
     },
   });
   if (!contest) redirect("/supercapper");
@@ -103,6 +113,15 @@ export default async function ContestDashboardPage() {
   }
 
   const myStanding = standings.find((s) => s.entryId === myEntry.id);
+  const avatarSources = {
+    entryAvatarUrl: myEntry.avatarUrl,
+    handicapperAvatarUrl: myEntry.user.handicapper?.avatarUrl,
+    userImage: myEntry.user.image,
+    isHandicapper: myEntry.user.handicapper != null,
+  };
+  const myName = myEntry.user.username ?? myEntry.user.name ?? "Entrant";
+  const myAvatarUrl = entrantAvatar(avatarSources);
+  const myFromHandicapper = avatarIsFromHandicapper(avatarSources);
   const prevRankByEntry = new Map(
     computeStandingsAsOf(contest.entries, contestForStandings, startOfUtcDay(new Date()).getTime()).map((s) => [
       s.entryId,
@@ -112,6 +131,7 @@ export default async function ContestDashboardPage() {
   const overallStandings = standings.map((s) => ({
     entryId: s.entryId,
     name: s.name,
+    avatarUrl: s.avatarUrl,
     rank: s.rank,
     previousRank: prevRankByEntry.get(s.entryId) ?? null,
     qualified: s.qualified,
@@ -127,6 +147,11 @@ export default async function ContestDashboardPage() {
     .map((e) => ({
       entryId: e.id,
       name: e.user.username ?? e.user.name ?? "Entrant",
+      avatarUrl: entrantAvatar({
+        entryAvatarUrl: e.avatarUrl,
+        handicapperAvatarUrl: e.user.handicapper?.avatarUrl,
+        userImage: e.user.image,
+      }),
       picks: e.picks.map((p) => ({
         odds: p.odds,
         units: p.units,
@@ -167,6 +192,15 @@ export default async function ContestDashboardPage() {
         </div>
         {phase === "upcoming" && <ContestCountdown target={contest.startsAt.toISOString()} label="Starts in" />}
         {phase === "live" && <ContestCountdown target={contest.endsAt.toISOString()} label="Ends in" />}
+      </div>
+
+      {/* Identity: the picture other entrants see next to your name. */}
+      <div className="card mt-6 p-5">
+        <EntrantAvatarUpload
+          name={myName}
+          avatarUrl={myAvatarUrl}
+          fromHandicapper={myFromHandicapper}
+        />
       </div>
 
       {/* Your stats */}
@@ -217,7 +251,11 @@ export default async function ContestDashboardPage() {
               quarter / period markets, and player props.
             </p>
             {accepting ? (
-              <ContestPickForm contestId={contest.id} showStake={await showStakeLinks()} />
+              myEntry.user.username ? (
+                <ContestPickForm contestId={contest.id} showStake={await showStakeLinks()} />
+              ) : (
+                <UsernameGate compact />
+              )
             ) : (
               <p className="text-sm text-muted">
                 {phase === "upcoming"

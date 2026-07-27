@@ -1,4 +1,6 @@
 import type { Metadata } from "next";
+import { EntrantAvatar } from "@/components/contest/entrant-avatar";
+import { entrantAvatar } from "@/lib/contest-avatar";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { format } from "date-fns";
@@ -35,7 +37,14 @@ export default async function EntrantPage({ params }: { params: Promise<{ entryI
     prisma.contest.findUnique({
       where: { slug: "supercapper" },
       include: {
-        entries: { include: { picks: true, user: { select: { name: true, username: true } } } },
+        entries: { include: { picks: true, user: {
+          select: {
+            name: true,
+            username: true,
+            image: true,
+            handicapper: { select: { avatarUrl: true } },
+          },
+        } } },
       },
     }),
   ]);
@@ -51,6 +60,11 @@ export default async function EntrantPage({ params }: { params: Promise<{ entryI
   const phase = contestPhase(contest);
 
   const name = entry.user.username ?? entry.user.name ?? "Entrant";
+  const avatarUrl = entrantAvatar({
+    entryAvatarUrl: entry.avatarUrl,
+    handicapperAvatarUrl: entry.user.handicapper?.avatarUrl,
+    userImage: entry.user.image,
+  });
   const disqualified = Boolean(entry.disqualifiedAt);
   const isMe = session?.user?.id === entry.userId;
 
@@ -98,6 +112,13 @@ export default async function EntrantPage({ params }: { params: Promise<{ entryI
 
       {/* Header */}
       <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <EntrantAvatar
+            name={name}
+            avatarUrl={avatarUrl}
+            className="h-14 w-14 text-xl"
+            sizes="56px"
+          />
         <div>
           <h1 className="flex items-center gap-2 text-3xl font-bold">
             {name}
@@ -109,6 +130,7 @@ export default async function EntrantPage({ params }: { params: Promise<{ entryI
           <p className="mt-1 text-sm text-muted">
             {contest.name} · {format(contest.startsAt, "MMM d")}–{format(contest.endsAt, "MMM d, yyyy")}
           </p>
+        </div>
         </div>
         <div className="flex flex-col items-end">
           <span className="inline-flex items-center gap-1.5 rounded-full border border-gold/40 bg-gold/10 px-3 py-1 text-sm font-semibold text-gold">

@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { entrantAvatar } from "@/lib/contest-avatar";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { format } from "date-fns";
@@ -37,7 +38,14 @@ export default async function SupercapperStandingsPage() {
     prisma.contest.findUnique({
       where: { slug: "supercapper" },
       include: {
-        entries: { include: { picks: true, user: { select: { name: true, username: true } } } },
+        entries: { include: { picks: true, user: {
+          select: {
+            name: true,
+            username: true,
+            image: true,
+            handicapper: { select: { avatarUrl: true } },
+          },
+        } } },
       },
     }),
   ]);
@@ -58,6 +66,7 @@ export default async function SupercapperStandingsPage() {
   const overallStandings = standings.map((s) => ({
     entryId: s.entryId,
     name: s.name,
+    avatarUrl: s.avatarUrl,
     rank: s.rank,
     previousRank: prevRankByEntry.get(s.entryId) ?? null,
     qualified: s.qualified,
@@ -73,6 +82,11 @@ export default async function SupercapperStandingsPage() {
     .map((e) => ({
       entryId: e.id,
       name: e.user.username ?? e.user.name ?? "Entrant",
+      avatarUrl: entrantAvatar({
+        entryAvatarUrl: e.avatarUrl,
+        handicapperAvatarUrl: e.user.handicapper?.avatarUrl,
+        userImage: e.user.image,
+      }),
       picks: e.picks.map((p) => ({
         odds: p.odds,
         units: p.units,

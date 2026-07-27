@@ -1,4 +1,6 @@
 import type { Metadata } from "next";
+import { UsernameGate } from "@/components/contest/username-gate";
+import { entrantAvatar } from "@/lib/contest-avatar";
 import Link from "next/link";
 import { format } from "date-fns";
 import { Trophy, ShieldCheck, Coins, ListChecks, Gift, CalendarClock, Gauge, LayoutDashboard, ListOrdered, Users, Crown, Layers } from "lucide-react";
@@ -46,7 +48,14 @@ export default async function SupercapperPage() {
         entries: {
           include: {
             picks: true,
-            user: { select: { name: true, username: true } },
+            user: {
+              select: {
+                name: true,
+                username: true,
+                image: true,
+                handicapper: { select: { avatarUrl: true } },
+              },
+            },
           },
         },
       },
@@ -61,6 +70,19 @@ export default async function SupercapperPage() {
       </div>
     );
   }
+
+  // Signed in but with no username yet (a Google signup who skipped
+  // onboarding). The contest publishes the name you enter under, so claim it
+  // before joining rather than falling back to their Google display name.
+  const needsUsername = Boolean(
+    session?.user?.id &&
+      !(
+        await prisma.user.findUnique({
+          where: { id: session.user.id },
+          select: { username: true },
+        })
+      )?.username
+  );
 
   const phase = contestPhase(contest);
   // Registration closes on its own date (Sep 27 for Supercapper); joining stays
@@ -97,6 +119,7 @@ export default async function SupercapperPage() {
   const overallStandings = standings.map((s) => ({
     entryId: s.entryId,
     name: s.name,
+    avatarUrl: s.avatarUrl,
     rank: s.rank,
     previousRank: prevRankByEntry.get(s.entryId) ?? null,
     qualified: s.qualified,
@@ -112,6 +135,11 @@ export default async function SupercapperPage() {
     .map((e) => ({
       entryId: e.id,
       name: e.user.username ?? e.user.name ?? "Entrant",
+      avatarUrl: entrantAvatar({
+        entryAvatarUrl: e.avatarUrl,
+        handicapperAvatarUrl: e.user.handicapper?.avatarUrl,
+        userImage: e.user.image,
+      }),
       picks: e.picks.map((p) => ({
         odds: p.odds,
         units: p.units,
@@ -172,6 +200,8 @@ export default async function SupercapperPage() {
                   <Users className="h-4 w-4" /> Consensus
                 </Link>
               </div>
+            ) : needsUsername ? (
+              <UsernameGate />
             ) : (
               <ContestJoinButton
                 contestId={contest.id}
