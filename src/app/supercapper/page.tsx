@@ -3,7 +3,7 @@ import { UsernameGate } from "@/components/contest/username-gate";
 import { entrantAvatar } from "@/lib/contest-avatar";
 import Link from "next/link";
 import { format } from "date-fns";
-import { Trophy, ShieldCheck, Coins, ListChecks, Gift, CalendarClock, Gauge, LayoutDashboard, ListOrdered, Users, Crown, Layers } from "lucide-react";
+import { Trophy, Coins, ListChecks, Gift, CalendarClock, Gauge, LayoutDashboard, ListOrdered, Users, Crown, Layers } from "lucide-react";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import {
@@ -279,7 +279,15 @@ export default async function SupercapperPage() {
             Everything you need to know — you agree to the full rules when you enter.
           </p>
           <div className="mt-8 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
-            <Rule icon={<Gift className="h-5 w-5" />} title="Free to enter" body="No buy-in, no catch. Sign in, hit enter, and start posting picks." />
+            {/* Free entry and the one-account rule belong together: "it's free"
+                invites the obvious follow-up "so what stops ten accounts?", and
+                answering it in the same box is more convincing than burying the
+                integrity rule at the end. */}
+            <Rule
+              icon={<Gift className="h-5 w-5" />}
+              title="Free to enter · one account each"
+              body="No buy-in, no catch — sign in, hit enter, start posting picks. One entry per person: we log the IP and device on every entry and every pick, and duplicate accounts, shared IPs or collusion are disqualified and forfeit any prize."
+            />
             <Rule icon={<Coins className="h-5 w-5" />} title="Best ROI wins" body="Ranked by volume-adjusted ROI — return on units risked, weighted by how many picks you post. Consistency all season beats a lucky short run." />
             <Rule
               icon={<ListChecks className="h-5 w-5" />}
@@ -314,11 +322,6 @@ export default async function SupercapperPage() {
               icon={<Gauge className="h-5 w-5" />}
               title="Daily & weekly limits"
               body={`Max ${MAX_PICKS_PER_DAY} picks and ${MAX_UNITS_PER_DAY} units per day, and ${MAX_PICKS_PER_WEEK} picks per week. Limits reset daily at midnight UTC and weekly on Monday.`}
-            />
-            <Rule
-              icon={<ShieldCheck className="h-5 w-5" />}
-              title="One account · fair play"
-              body="One entry per person. We log the IP and device on every entry and pick — duplicate accounts, shared IPs, or collusion are disqualified and forfeit any prize."
             />
           </div>
         </div>
