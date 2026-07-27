@@ -275,7 +275,14 @@ export default async function SupercapperPage() {
 
       {/* How it works & rules */}
       <section className="relative overflow-hidden border-b border-border bg-surface/40 py-14">
-        <div aria-hidden className="pointer-events-none absolute inset-0 bg-[url('/hero-bg.svg')] bg-cover bg-center opacity-[0.08]" />
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-0 bg-[url('/lines-bg.svg')] bg-cover bg-center opacity-[0.07]"
+        />
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-0 bg-gradient-to-br from-accent/[0.07] via-transparent to-gold/[0.07]"
+        />
         <div className="container-page relative">
           <h2 className="text-center text-2xl font-bold">How it works &amp; rules</h2>
           <p className="mt-2 text-center text-sm text-muted">

@@ -152,8 +152,16 @@ export default async function Home({
         </div>
       </section>
 
-      <section className="border-t border-border bg-surface/40 py-16">
-        <div className="container-page">
+      <section className="relative overflow-hidden border-t border-border bg-surface/40 py-16">
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-0 bg-[url('/lines-bg.svg')] bg-cover bg-center opacity-[0.07]"
+        />
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-0 bg-gradient-to-br from-accent/[0.07] via-transparent to-gold/[0.07]"
+        />
+        <div className="container-page relative">
           <h2 className="text-2xl font-bold">How Blitz.tips works</h2>
           <div className="mt-8 grid gap-6 md:grid-cols-3">
             <HowItWorksCard
