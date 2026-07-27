@@ -159,7 +159,10 @@ export function ContestStandings({
       {rows.length === 0 ? (
         <div className="card p-8 text-center text-muted">No entries yet — be the first to set the pace.</div>
       ) : (
-        <div className="card overflow-x-auto p-0">
+        // min-w-0: as a grid/flex child this defaults to min-width:auto, which
+        // makes it grow to the table's 48rem instead of scrolling — the page
+        // then overflows horizontally at every width below that.
+        <div className="card min-w-0 max-w-full overflow-x-auto p-0">
           <table className="w-full min-w-[48rem] text-sm">
             <thead>
               <tr className="border-b border-border text-left text-xs uppercase tracking-wide text-muted">
