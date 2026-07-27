@@ -13,6 +13,8 @@ import { AnnouncementBanner } from "@/components/announcement-banner";
 import { getCachedAnnouncement } from "@/lib/settings";
 import { RegisterServiceWorker } from "@/components/register-service-worker";
 import { DeferredWidgets } from "@/components/deferred-widgets";
+import { SitePopups } from "@/components/site-popups";
+import { needsCookieConsent } from "@/lib/geo";
 
 // Space Grotesk is the single web font — body/UI text and the sportier headings
 // and wordmark. (Monospace bits use the system mono stack; see globals.css.)
@@ -107,6 +109,7 @@ export default async function RootLayout({
           <main className="flex-1">{children}</main>
           <Footer />
           <DeferredWidgets />
+          <SitePopups cookieConsentRequired={await needsCookieConsent()} />
         </Providers>
         <SpeedInsights />
         <Analytics />
