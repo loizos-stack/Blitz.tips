@@ -118,7 +118,23 @@ body{font-family:'Space Grotesk',sans-serif;background:#222}
 .step-b{font-size:18px;color:#94a3b8;margin-top:10px;line-height:1.45}
 .pill{display:inline-flex;align-items:center;gap:10px;border:1px solid rgba(255,255,255,.18);
   border-radius:999px;padding:10px 22px;font-weight:600;color:#e2e8f0}
+.dates{display:flex;align-items:stretch;gap:0;border:1px solid rgba(255,255,255,.13);
+  border-radius:20px;overflow:hidden;background:rgba(255,255,255,.04)}
+.date-cell{padding:22px 40px;text-align:center;display:flex;flex-direction:column;gap:6px}
+.date-cell + .date-cell{border-left:1px solid rgba(255,255,255,.13)}
+.date-lbl{font-size:15px;font-weight:700;text-transform:uppercase;letter-spacing:.22em;color:#22c55e}
+.date-val{font-size:38px;font-weight:800;letter-spacing:-.02em}
+.date-note{font-size:16px;color:#94a3b8}
 `;
+
+// Contest dates, from the seeded Contest row (startsAt / endsAt). An admin can
+// edit these in the contests panel without a migration — the prize pool already
+// changed that way — so re-check the live row before publishing anything that
+// puts a date in front of people.
+const STARTS = "August 3, 2026";
+const ENDS = "January 10, 2027";
+const STARTS_SHORT = "Aug 3";
+const ENDS_SHORT = "Jan 10";
 
 const cards = [
   {
@@ -201,6 +217,90 @@ const cards = [
       <div class="pill" style="font-size:21px;margin-top:8px">100 graded picks to qualify</div>
       <div class="url" style="font-size:29px;margin-top:26px">blitz.tips/supercapper</div>
       <div style="margin-top:30px;font-size:23px" >${byline}</div>
+    </div>`,
+  },
+
+  // ---- Date-led variants -------------------------------------------------
+  {
+    name: "supercapper-starts-1600x900",
+    w: 1600, h: 900,
+    html: `<div class="inner" style="gap:24px">
+      ${wordmark(72)}
+      <div class="kicker" style="font-size:22px;margin-top:10px">Entries open now</div>
+      <div style="font-size:132px;font-weight:800;letter-spacing:-.03em;line-height:1">
+        Starts <span class="gold">${STARTS_SHORT}</span>
+      </div>
+      <div class="sub" style="font-size:32px">
+        <span class="gold" style="font-weight:800">$10,000 guaranteed</span> · Free to enter
+      </div>
+      <div class="pill" style="font-size:21px;margin-top:6px">
+        ${STARTS_SHORT} 2026 → ${ENDS_SHORT} 2027 · five months of graded picks
+      </div>
+      <div class="url" style="font-size:28px;margin-top:16px">blitz.tips/supercapper</div>
+    </div>`,
+  },
+  {
+    name: "supercapper-dates-1600x900",
+    w: 1600, h: 900,
+    html: `<div class="inner" style="gap:34px;padding:60px">
+      ${wordmark(58)}
+      <div class="sub" style="font-size:30px;margin-top:-4px">
+        <span class="gold" style="font-weight:800">$10,000 guaranteed.</span> Free to enter.
+      </div>
+      <div class="dates">
+        <div class="date-cell">
+          <span class="date-lbl">Contest opens</span>
+          <span class="date-val">${STARTS}</span>
+          <span class="date-note">First graded pick counts</span>
+        </div>
+        <div class="date-cell">
+          <span class="date-lbl">Final whistle</span>
+          <span class="date-val">${ENDS}</span>
+          <span class="date-note">Standings lock, prizes paid</span>
+        </div>
+      </div>
+      <div class="sub" style="font-size:23px;max-width:1080px;line-height:1.5">
+        Enter any time — entries stay open all season. You need 100 graded picks to be
+        prize-eligible, so the later you start, the harder that gets.
+      </div>
+      <div class="url" style="font-size:27px">blitz.tips/supercapper</div>
+    </div>`,
+  },
+  {
+    name: "supercapper-starts-square-1080",
+    w: 1080, h: 1080,
+    html: `<div class="inner" style="gap:22px;padding:74px">
+      ${wordmark(74)}
+      <div class="rule"></div>
+      <div class="kicker" style="font-size:19px">Entries open now</div>
+      <div style="font-size:104px;font-weight:800;letter-spacing:-.03em;line-height:1.05">
+        Starts<br/><span class="gold">${STARTS_SHORT}</span>
+      </div>
+      <div class="sub" style="font-size:28px;line-height:1.4">
+        $10,000 guaranteed.<br/>Free to enter. Best ROI wins.
+      </div>
+      <div class="pill" style="font-size:19px">${STARTS_SHORT} 2026 → ${ENDS_SHORT} 2027</div>
+      <div class="url" style="font-size:26px;margin-top:16px">blitz.tips/supercapper</div>
+    </div>`,
+  },
+  {
+    name: "supercapper-countdown-1080x1350",
+    w: 1080, h: 1350,
+    html: `<div class="inner" style="gap:24px;padding:80px 60px">
+      ${wordmark(68)}
+      <div class="rule"></div>
+      <div class="kicker" style="font-size:20px">Season runs</div>
+      <div style="font-size:86px;font-weight:800;letter-spacing:-.03em;line-height:1.1">
+        <span class="gold">${STARTS_SHORT}</span><br/>
+        <span style="font-size:44px;opacity:.55">to</span><br/>
+        <span class="gold">${ENDS_SHORT}</span>
+      </div>
+      <div class="sub" style="font-size:29px;line-height:1.4;margin-top:6px">
+        $10,000 guaranteed.<br/>Free to enter.<br/>Every pick graded in public.
+      </div>
+      <div class="pill" style="font-size:20px">100 graded picks to qualify</div>
+      <div class="url" style="font-size:28px;margin-top:22px">blitz.tips/supercapper</div>
+      <div style="margin-top:26px;font-size:22px">${byline}</div>
     </div>`,
   },
 ];

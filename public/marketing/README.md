@@ -19,6 +19,26 @@ All exports are 2× for retina.
 | `supercapper-square-1080.png` | 1080×1080 | Instagram feed, X in-feed square |
 | `supercapper-vertical-1080x1350.png` | 1080×1350 | Instagram portrait (most feed space) |
 | `supercapper-banner-1500x500.png` | 1500×500 | X profile header |
+| `supercapper-starts-1600x900.png` | 1600×900 | "Starts Aug 3" — the pre-launch push |
+| `supercapper-dates-1600x900.png` | 1600×900 | Key dates, both ends, with the enter-anytime caveat |
+| `supercapper-starts-square-1080.png` | 1080×1080 | "Starts Aug 3", square |
+| `supercapper-countdown-1080x1350.png` | 1080×1350 | Season run, portrait |
+
+## Dates
+
+`STARTS` / `ENDS` at the top of the script are the seeded contest window —
+**August 3, 2026 → January 10, 2027** — taken from the `Contest` row's `startsAt`
+and `endsAt`.
+
+Verify against the live row before publishing. An admin can change these in the
+contests panel without a migration, and no migration since the original one has
+touched them — so the seeded values are the best available source here, not
+proof of what production currently holds. The prize pool has already been edited
+once, which is exactly how these drift.
+
+`registrationClosesAt` is null, so entries stay open until `endsAt`. That's why
+the dates card says "enter any time" rather than advertising a registration
+deadline — there isn't one.
 
 ## Notes
 
