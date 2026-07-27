@@ -250,18 +250,23 @@ export default async function ContestDashboardPage() {
               Singles only — no parlays. Every market counts: moneylines, spreads, totals, alternate lines, 1st half /
               quarter / period markets, and player props.
             </p>
-            {accepting ? (
+            {accepting || phase === "upcoming" ? (
               myEntry.user.username ? (
-                <ContestPickForm contestId={contest.id} showStake={await showStakeLinks()} />
+                <ContestPickForm
+                  contestId={contest.id}
+                  showStake={await showStakeLinks()}
+                  // Before the contest opens the board is browsable but the
+                  // submit button is a countdown — see the games and prices
+                  // you'll be picking from rather than a sentence about waiting.
+                  opensAt={phase === "upcoming" ? contest.startsAt.toISOString() : undefined}
+                />
               ) : (
                 <UsernameGate compact />
               )
             ) : (
-              <p className="text-sm text-muted">
-                {phase === "upcoming"
-                  ? "Pick submission opens when the contest starts."
-                  : "The contest isn't accepting picks right now."}
-              </p>
+              // Only reachable once the contest has ended or settled — the
+              // upcoming case now shows the browsable board with a countdown.
+              <p className="text-sm text-muted">The contest isn&apos;t accepting picks right now.</p>
             )}
           </div>
 

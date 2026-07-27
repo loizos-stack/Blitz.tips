@@ -8,11 +8,14 @@ export function ContestCountdown({
   target,
   label,
   onDark = false,
+  compact = false,
 }: {
   target: string;
   label: string;
   /** Restyles the tiles for a dark surface — the light ones vanish on charcoal. */
   onDark?: boolean;
+  /** Smaller tiles, for a sidebar column where the page-header size overflows. */
+  compact?: boolean;
 }) {
   const [now, setNow] = useState<number | null>(null);
 
@@ -52,9 +55,11 @@ export function ContestCountdown({
         {(["d", "h", "m", "s"] as const).map((k) => (
           <div key={k} className="flex flex-col items-center">
             <span
-              className={`min-w-[3.75rem] rounded-xl px-3 py-3 text-center text-4xl font-extrabold leading-none shadow-sm sm:min-w-[4.75rem] sm:px-4 sm:py-4 sm:text-6xl ${
-                onDark ? "border border-white/10 bg-white/10 text-white" : "bg-surface-raised"
-              }`}
+              className={`rounded-xl text-center font-extrabold leading-none shadow-sm ${
+                compact
+                  ? "min-w-[2.75rem] px-2 py-2 text-2xl"
+                  : "min-w-[3.75rem] px-3 py-3 text-4xl sm:min-w-[4.75rem] sm:px-4 sm:py-4 sm:text-6xl"
+              } ${onDark ? "border border-white/10 bg-white/10 text-white" : "bg-surface-raised"}`}
             >
               {parts ? String(parts[k]).padStart(2, "0") : "––"}
             </span>
