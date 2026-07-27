@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { ContestPromoStrip } from "@/components/cross-promo-strip";
 import { ShieldCheck, LineChart, Users, ArrowRight } from "lucide-react";
 import { listHandicapperDirectory, applyHandicapperFinder } from "@/lib/handicappers";
 import { HandicapperCard } from "@/components/handicapper-card";
@@ -100,6 +101,8 @@ export default async function Home({
           </div>
         </div>
       </section>
+
+      <ContestPromoStrip />
 
       <div id="lines" />
       <UpcomingGames

@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { SitePromoStrip } from "@/components/cross-promo-strip";
 import { UsernameGate } from "@/components/contest/username-gate";
 import { entrantAvatar } from "@/lib/contest-avatar";
 import Link from "next/link";
@@ -235,6 +236,8 @@ export default async function SupercapperPage() {
           </div>
         </div>
       </section>
+
+      <SitePromoStrip />
 
       {/* Prize breakdown */}
       <section className="relative overflow-hidden border-b border-border py-14">
