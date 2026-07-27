@@ -50,27 +50,27 @@ export default async function WelcomePage() {
         <p className="mt-2 text-muted">You&apos;re in the contest, so you have two places to be.</p>
       </div>
 
-      <div className="mx-auto mt-8 grid max-w-3xl gap-4 sm:grid-cols-2">
+      <div className="mx-auto mt-10 grid max-w-4xl gap-6 sm:grid-cols-2">
         <Link
           href={siteDashboard}
-          className="card group flex flex-col items-center gap-4 p-8 text-center transition hover:border-accent"
+          className="card group flex min-h-[18rem] flex-col items-center justify-center gap-5 p-10 text-center transition hover:border-accent sm:p-12"
         >
           {/* "Blitz.tips" has to be one flex child — as two, the gap lands
               between the word and the TLD and it reads "Blitz .tips". */}
-          <span className="flex items-center gap-2 font-display text-2xl font-bold tracking-tight">
-            <Image src="/logo-mark.svg" alt="" width={32} height={32} className="h-8 w-8" />
+          <span className="flex items-center gap-2.5 font-display text-3xl font-bold tracking-tight sm:text-4xl">
+            <Image src="/logo-mark.svg" alt="" width={44} height={44} className="h-10 w-10 sm:h-11 sm:w-11" />
             <span>
               Blitz<span className="text-accent">.tips</span>
             </span>
           </span>
-          <span className="text-sm font-semibold uppercase tracking-[0.2em] text-muted">Dashboard</span>
-          <span className="mt-auto inline-flex items-center gap-1.5 text-sm font-semibold text-accent">
+          <span className="text-base font-semibold uppercase tracking-[0.22em] text-muted">Dashboard</span>
+          <span className="inline-flex items-center gap-1.5 text-base font-semibold text-accent">
             {user.role === "ADMIN"
               ? "Admin panel"
               : user.handicapper
                 ? "Your picks and subscribers"
                 : "Your feed and subscriptions"}
-            <ArrowRight className="h-4 w-4 transition group-hover:translate-x-0.5" />
+            <ArrowRight className="h-5 w-5 transition group-hover:translate-x-0.5" />
           </span>
         </Link>
 
@@ -79,13 +79,13 @@ export default async function WelcomePage() {
             card — the "uper" disappears and it reads "capper". */}
         <Link
           href="/supercapper/dashboard"
-          className="group flex flex-col items-center gap-4 rounded-xl border border-white/10 bg-[#0b0f14] p-8 text-center text-white shadow-sm transition hover:border-[#eab308]/50"
+          className="group flex min-h-[18rem] flex-col items-center justify-center gap-5 rounded-xl border border-white/10 bg-[#0b0f14] p-10 text-center text-white shadow-sm transition hover:border-[#eab308]/50 sm:p-12"
         >
-          <SupercapperLogo withContest onDark className="text-2xl" />
-          <span className="text-sm font-semibold uppercase tracking-[0.2em] text-white/50">Dashboard</span>
-          <span className="mt-auto inline-flex items-center gap-1.5 text-sm font-semibold text-[#eab308]">
+          <SupercapperLogo withContest onDark className="text-3xl sm:text-4xl" />
+          <span className="text-base font-semibold uppercase tracking-[0.22em] text-white/50">Dashboard</span>
+          <span className="inline-flex items-center gap-1.5 text-base font-semibold text-[#eab308]">
             Your contest picks and rank
-            <ArrowRight className="h-4 w-4 transition group-hover:translate-x-0.5" />
+            <ArrowRight className="h-5 w-5 transition group-hover:translate-x-0.5" />
           </span>
         </Link>
       </div>
