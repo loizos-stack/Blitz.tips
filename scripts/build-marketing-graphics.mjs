@@ -125,6 +125,9 @@ body{font-family:'Space Grotesk',sans-serif;background:#222}
 .date-lbl{font-size:15px;font-weight:700;text-transform:uppercase;letter-spacing:.22em;color:#22c55e}
 .date-val{font-size:38px;font-weight:800;letter-spacing:-.02em}
 .date-note{font-size:16px;color:#94a3b8}
+.datestrip{display:flex;align-items:center;justify-content:center;gap:16px;font-weight:800;
+  letter-spacing:-.01em;flex-wrap:wrap}
+.datestrip .arrow{color:#64748b;font-weight:500}
 `;
 
 // Contest dates, from the seeded Contest row (startsAt / endsAt). An admin can
@@ -301,6 +304,91 @@ const cards = [
       <div class="pill" style="font-size:20px">100 graded picks to qualify</div>
       <div class="url" style="font-size:28px;margin-top:22px">blitz.tips/supercapper</div>
       <div style="margin-top:26px;font-size:22px">${byline}</div>
+    </div>`,
+  },
+
+  // ---- Money + dates, sized for X ----------------------------------------
+  // X renders a single 16:9 image full-width in the timeline with no crop, so
+  // that's the default here; the 4:5 takes more vertical space on mobile.
+  {
+    name: "supercapper-x-money-dates-1600x900",
+    w: 1600, h: 900,
+    html: `<div class="inner" style="gap:18px">
+      ${wordmark(64)}
+      <div class="kicker" style="font-size:21px;margin-top:14px">Guaranteed prize pool</div>
+      <div class="pool" style="font-size:210px">$10,000</div>
+      <div class="datestrip" style="font-size:34px">
+        <span class="gold">${STARTS_SHORT} 2026</span>
+        <span class="arrow">→</span>
+        <span class="gold">${ENDS_SHORT} 2027</span>
+      </div>
+      <div class="sub" style="font-size:29px;margin-top:8px">Free to enter · Every pick graded in public</div>
+      <div class="url" style="font-size:27px;margin-top:14px">blitz.tips/supercapper</div>
+    </div>`,
+  },
+  {
+    name: "supercapper-x-payout-1600x900",
+    w: 1600, h: 900,
+    html: `<div class="inner" style="gap:26px;padding:60px">
+      ${wordmark(54)}
+      <div class="pool" style="font-size:120px;margin-top:4px">$10,000</div>
+      <div class="kicker" style="font-size:20px;margin-top:-10px">Paid out in full, every time</div>
+      <div class="steps" style="margin-top:12px">
+        <div class="step">
+          <div class="step-n">MINIMUM</div>
+          <div class="step-t">3 paid places</div>
+          <div class="step-b">However small the field gets, three people get paid.</div>
+        </div>
+        <div class="step">
+          <div class="step-n">SCALING</div>
+          <div class="step-t">+1 every 10 entrants</div>
+          <div class="step-b">Bigger field, wider spread. 30 entrants pays 4.</div>
+        </div>
+        <div class="step">
+          <div class="step-n">ALWAYS</div>
+          <div class="step-t">100% paid</div>
+          <div class="step-b">Small field just means a bigger slice each. Nothing is held back.</div>
+        </div>
+      </div>
+      <div class="datestrip" style="font-size:27px;margin-top:6px">
+        <span class="gold">${STARTS_SHORT} 2026</span><span class="arrow">→</span><span class="gold">${ENDS_SHORT} 2027</span>
+        <span style="color:#64748b">·</span><span class="sub">blitz.tips/supercapper</span>
+      </div>
+    </div>`,
+  },
+  {
+    name: "supercapper-x-money-dates-1080x1350",
+    w: 1080, h: 1350,
+    html: `<div class="inner" style="gap:20px;padding:80px 56px">
+      ${wordmark(70)}
+      <div class="rule"></div>
+      <div class="kicker" style="font-size:19px">Guaranteed prize pool</div>
+      <div class="pool" style="font-size:190px">$10,000</div>
+      <div class="datestrip" style="font-size:31px;flex-direction:column;gap:2px">
+        <span class="gold">${STARTS_SHORT} 2026 <span class="arrow">→</span> ${ENDS_SHORT} 2027</span>
+      </div>
+      <div class="sub" style="font-size:28px;line-height:1.4;margin-top:10px">
+        Free to enter.<br/>Every pick graded in public.<br/>Best ROI wins.
+      </div>
+      <div class="pill" style="font-size:19px">100 graded picks to qualify</div>
+      <div class="url" style="font-size:27px;margin-top:18px">blitz.tips/supercapper</div>
+      <div style="margin-top:22px;font-size:21px">${byline}</div>
+    </div>`,
+  },
+  {
+    name: "supercapper-x-bold-1600x900",
+    w: 1600, h: 900,
+    html: `<div class="inner" style="gap:0">
+      <div style="font-size:150px;font-weight:800;letter-spacing:-.04em;line-height:1.02">
+        <span class="gold">$10,000</span><br/>
+        <span style="font-size:.62em">to the best record</span><br/>
+        <span style="font-size:.42em;color:#94a3b8;font-weight:600">${STARTS_SHORT} 2026 — ${ENDS_SHORT} 2027</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:26px;margin-top:44px">
+        ${wordmark(40, false)}
+        <span style="width:1px;height:44px;background:rgba(255,255,255,.2)"></span>
+        <span class="url" style="font-size:26px">blitz.tips/supercapper</span>
+      </div>
     </div>`,
   },
 ];

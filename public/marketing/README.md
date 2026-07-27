@@ -23,6 +23,10 @@ All exports are 2× for retina.
 | `supercapper-dates-1600x900.png` | 1600×900 | Key dates, both ends, with the enter-anytime caveat |
 | `supercapper-starts-square-1080.png` | 1080×1080 | "Starts Aug 3", square |
 | `supercapper-countdown-1080x1350.png` | 1080×1350 | Season run, portrait |
+| `supercapper-x-money-dates-1600x900.png` | 1600×900 | Money + dates, the default X post |
+| `supercapper-x-payout-1600x900.png` | 1600×900 | How the pool pays — answers "will I actually get paid" |
+| `supercapper-x-money-dates-1080x1350.png` | 1080×1350 | Money + dates, portrait (more mobile feed space) |
+| `supercapper-x-bold-1600x900.png` | 1600×900 | Type-only, no wordmark lockup — stands out in a scroll |
 
 ## Dates
 
@@ -45,6 +49,13 @@ deadline — there isn't one.
 - **Banner safe area.** X overlays the avatar bottom-left and crops the top and
   bottom on mobile. The banner keeps everything centred and away from the
   corners for that reason — if you re-cut it, don't push copy to the edges.
+- **X sizing.** A single 16:9 image renders full-width in the timeline uncropped,
+  which is why the `x-*` set defaults to 1600×900. The 4:5 portrait takes more
+  vertical space on mobile but gets cropped in some multi-image layouts — post it
+  on its own.
+- **The payout card is the objection-handler.** "Free contest, $10,000
+  guaranteed" reads as too good to be true; that card exists to answer it with
+  the actual mechanic rather than a promise.
 - **The numbers are claims.** `$10,000` and `100 graded picks` come from the live
   contest config. If either changes, re-run this script *and* replace anything
   already scheduled. A stale `$25,000` graphic outliving the pool change is
