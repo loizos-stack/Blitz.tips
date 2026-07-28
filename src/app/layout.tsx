@@ -54,7 +54,12 @@ export const metadata: Metadata = {
   creator: "Blitz.tips",
   publisher: "Blitz.tips",
   category: "Sports",
-  alternates: { canonical: "/" },
+  // No `alternates.canonical` here on purpose. Metadata is inherited, so a
+  // canonical set on the root layout becomes every page's canonical unless that
+  // page overrides it — which told Google that /about, /buy-picks and the rest
+  // were duplicates of the homepage, and Search Console duly filed them under
+  // "Alternate page with proper canonical tag" and left them out of the index.
+  // Each page declares its own; the homepage's lives in app/page.tsx.
   formatDetection: { telephone: false, email: false, address: false },
   openGraph: {
     type: "website",

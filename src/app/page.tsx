@@ -8,7 +8,14 @@ import { UpcomingGames } from "@/components/upcoming-games";
 import { getUpcomingEvents, getAllUpcomingEvents, getAvailableHomepageSports } from "@/lib/odds-api";
 import { showStakeLinks } from "@/lib/stake-server";
 import { SPORT_LABELS } from "@/lib/utils";
+import type { Metadata } from "next";
 import type { PickSport } from "@prisma/client";
+
+// Every ?sport= / ?find= / ?q= permutation of the board and the handicapper
+// finder is the same page with a filter applied, so they all point back here.
+export const metadata: Metadata = {
+  alternates: { canonical: "/" },
+};
 
 export const dynamic = "force-dynamic";
 

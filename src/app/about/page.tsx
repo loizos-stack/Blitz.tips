@@ -6,6 +6,7 @@ export const metadata: Metadata = {
   title: "About Blitz",
   description:
     "Blitz.tips is a marketplace for verified sports handicappers — every pick timestamped, graded, and ranked so you can follow proven winners.",
+  alternates: { canonical: "/about" },
 };
 
 const VALUES = [

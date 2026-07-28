@@ -21,14 +21,29 @@ import { getLiveGameStates, livePairKey, getUfcFighterSet, fighterKey } from "@/
 // nothing. Worst case still matters: with every sport tab getting clicked
 // daily, spend is sports x (30 days / (REVALIDATE_SECONDS/24h)) x 3 credits.
 // Soccer counts as up to MAX_SOCCER_LEAGUES "sports" here since it fans out
-// to that many billed odds calls. At 24h and the current caps that worst case
-// is roughly (8 + 12) x 30 x 3 ≈ 1,800 credits/month if literally every tab is
-// viewed every single day; real traffic concentrating on a few sports lands
-// well under that. Note this is only the odds spend — live scores
+// to that many billed odds calls, on its own longer window. At the current caps
+// that worst case is roughly (8 x 30 + 20 x 15) x 3 ≈ 1,620 credits/month if
+// literally every tab is viewed every single day; real traffic concentrating on
+// a few sports lands well under that. Note this is only the odds spend — live scores
 // (SCORES_REVALIDATE_SECONDS) cost more per league on game days, so look there
 // first when the quota gets tight, then at MAX_SOCCER_LEAGUES.
 // Missing THE_ODDS_API_KEY degrades to { configured: false } everywhere.
 const REVALIDATE_SECONDS = 24 * 60 * 60;
+
+// Soccer pays for its own breadth. Every other sport is one billed odds call;
+// soccer is one per league, so it alone decides the monthly bill — and the
+// arithmetic is a straight trade between how many leagues we carry and how
+// often we refresh them:
+//
+//   leagues x 3 credits x (30 days / cache days)
+//   12 leagues @ 24h = 1,080/month     20 leagues @ 48h = 900/month
+//
+// A wider window buys more competitions for less money. What it costs is
+// freshness, and soccer is the sport that can afford it: a 1X2 price moves far
+// less over a day than an NFL spread does, and the board is a shop window for
+// handicappers' tips rather than a place anyone places a bet. Every other sport
+// keeps the 24h window.
+const SOCCER_REVALIDATE_SECONDS = 48 * 60 * 60;
 
 // Live scores are only fetched when a game already in view has started (see
 // getUpcomingEvents), but each refresh is a billed call, and short windows
@@ -38,6 +53,17 @@ const REVALIDATE_SECONDS = 24 * 60 * 60;
 // dozen competitions, so it's the first knob to widen if the quota gets tight
 // — widening it beats dropping leagues.
 const SCORES_REVALIDATE_SECONDS = 45 * 60;
+
+// Soccer scores refresh on a wider window for the same reason as its odds: this
+// is billed per league and soccer is a dozen-plus of them. 90 minutes is a full
+// match, so a game gets picked up live around half-time and again at full time —
+// which is what the board needs it for (a LIVE badge and dropping finished
+// games), not a minute-by-minute scoreboard.
+const SOCCER_SCORES_REVALIDATE_SECONDS = 90 * 60;
+
+function scoresRevalidateForSport(sport: PickSport): number {
+  return sport === "SOCCER" ? SOCCER_SCORES_REVALIDATE_SECONDS : SCORES_REVALIDATE_SECONDS;
+}
 
 // How far back a started game stays eligible for a live/final score before
 // it's dropped from the feed entirely — long enough to cover a full game in
@@ -94,14 +120,21 @@ const SOCCER_LEAGUE_PRIORITY = [
   "soccer_fifa_world_cup",
   "soccer_fifa_world_cup_qualifiers_europe",
   "soccer_fifa_world_cup_qualifiers_conmebol",
+  // All three European cups rank together, proper and qualifying. The Europa
+  // and Conference Leagues aren't undercards — they're where most of the
+  // English, Scottish, Dutch and Scandinavian clubs a bettor follows actually
+  // play in Europe, and the Conference League in particular is the only
+  // European football some of them ever get.
   "soccer_uefa_champs_league",
   "soccer_uefa_europa_league",
+  "soccer_uefa_europa_conference_league",
   // The qualifying rounds are their own keys, and in July/August they're often
   // the only European football being played — which is exactly when they were
   // missing from the board.
   "soccer_uefa_champs_league_qualification",
   "soccer_uefa_europa_league_qualification",
   "soccer_uefa_europa_conference_league_qualification",
+  "soccer_uefa_super_cup",
   "soccer_epl",
   "soccer_spain_la_liga",
   "soccer_italy_serie_a",
@@ -119,7 +152,6 @@ const SOCCER_LEAGUE_PRIORITY = [
   "soccer_portugal_primeira_liga",
   "soccer_argentina_primera_division",
   "soccer_brazil_serie_b",
-  "soccer_uefa_europa_conference_league",
   "soccer_uefa_european_championship",
   "soccer_conmebol_copa_america",
   "soccer_conmebol_copa_libertadores",
@@ -135,16 +167,18 @@ const UNLISTED_EUROPEAN_RANK =
 // are free endpoints, so only the per-league odds and scores calls cost.
 //
 // Per league, per month, worst case (board viewed every day):
-//   odds   ~90  — 3 credits (markets × regions) once per REVALIDATE_SECONDS
-//   scores ~700 — 2 credits (daysFrom is billed extra) per
-//                 SCORES_REVALIDATE_SECONDS, but only while games are running
-// so roughly 800/league/month at the ceiling, and far less in practice since
-// both only bill on a cache miss caused by a real visitor.
+//   odds   ~45  — 3 credits (markets × regions) once per SOCCER_REVALIDATE_SECONDS
+//   scores ~350 — 2 credits (daysFrom is billed extra) per
+//                 SOCCER_SCORES_REVALIDATE_SECONDS, but only while games run
+// so roughly 400/league/month at the ceiling, and far less in practice since
+// both only bill on a cache miss caused by a real visitor. Both windows were
+// halved when this cap went from 12 to 20, so the ceiling for soccer as a whole
+// came down even as the number of competitions went up.
 //
 // Env-overridable so the cap can be tuned against live usage without a deploy.
 // Out-of-range or unparseable values fall back to the default rather than
 // blanking soccer or running the quota away.
-const DEFAULT_MAX_SOCCER_LEAGUES = 12;
+const DEFAULT_MAX_SOCCER_LEAGUES = 20;
 const MAX_SOCCER_LEAGUES = (() => {
   const raw = Number(process.env.MAX_SOCCER_LEAGUES?.trim());
   if (!Number.isInteger(raw) || raw < 1 || raw > 30) return DEFAULT_MAX_SOCCER_LEAGUES;
@@ -246,7 +280,8 @@ function marketsForSport(sport: PickSport): string {
 const FIGHT_ODDS_REVALIDATE_SECONDS = 3 * 60 * 60;
 
 function oddsRevalidateForSport(sport: PickSport): number {
-  return isMoneylineOnly(sport) ? FIGHT_ODDS_REVALIDATE_SECONDS : REVALIDATE_SECONDS;
+  if (isMoneylineOnly(sport)) return FIGHT_ODDS_REVALIDATE_SECONDS;
+  return sport === "SOCCER" ? SOCCER_REVALIDATE_SECONDS : REVALIDATE_SECONDS;
 }
 
 // The upstream sport key(s) backing one of our PickSports. Usually one; soccer
@@ -519,7 +554,7 @@ async function fetchLeagueEvents(
   // its games has actually started.
   const now = new Date();
   if (events.some((e) => new Date(e.commenceTime) <= now)) {
-    const scores = await getScores(sportKey, apiKey);
+    const scores = await getScores(sportKey, apiKey, scoresRevalidateForSport(sport));
     for (const event of events) {
       event.liveScore = scores.get(event.id) ?? null;
     }
@@ -635,7 +670,11 @@ interface OddsApiScoreEntry {
   scores: { name: string; score: string }[] | null;
 }
 
-async function getScores(sportKey: string, apiKey: string): Promise<Map<string, LiveScore>> {
+async function getScores(
+  sportKey: string,
+  apiKey: string,
+  revalidate: number = SCORES_REVALIDATE_SECONDS
+): Promise<Map<string, LiveScore>> {
   // daysFrom costs an extra credit per call, but it can't be dropped: without
   // it the upstream returns live and upcoming games only, so a game that just
   // finished comes back with no entry at all — and `completed` is exactly what
@@ -648,7 +687,7 @@ async function getScores(sportKey: string, apiKey: string): Promise<Map<string, 
   // request only made when a game in view has actually started (see
   // hasStarted above) — most page loads never trigger it, so a short window
   // here doesn't meaningfully add to the monthly quota.
-  const res = await fetch(url, { next: { revalidate: SCORES_REVALIDATE_SECONDS } });
+  const res = await fetch(url, { next: { revalidate } });
   if (!res.ok) {
     console.error(`Odds API scores request failed for ${sportKey}: ${res.status}`);
     return new Map();
