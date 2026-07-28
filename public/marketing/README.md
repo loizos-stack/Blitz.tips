@@ -28,6 +28,27 @@ All exports are 2× for retina.
 | `supercapper-x-money-dates-1080x1350.png` | 1080×1350 | Money + dates, portrait (more mobile feed space) |
 | `supercapper-x-bold-1600x900.png` | 1600×900 | Type-only, no wordmark lockup — stands out in a scroll |
 
+## Video
+
+`supercapper-promo-1080x1920.mp4` — 13s, 9:16, H.264/yuv420p, ~1.4MB. Built by
+`scripts/build-promo-video.mjs`:
+
+```bash
+npm run build
+node scripts/build-promo-video.mjs      # needs ffmpeg; falls back to imageio-ffmpeg
+```
+
+Frames are driven by an explicit clock rather than CSS animations, so frame N is
+identical on every run regardless of machine speed.
+
+**It has no audio, deliberately.** TikTok and Reels expect you to add trending
+sound in the app — a baked-in track is a licensing problem and the first thing a
+creator would mute. Post it and pick audio on the platform.
+
+9:16 covers TikTok, Reels, Shorts and Stories. Keep the important content away
+from the top and bottom ~15%, where the platform UI sits — the current cut keeps
+everything in the middle band for that reason.
+
 ## Dates
 
 `STARTS` / `ENDS` at the top of the script are the seeded contest window —
