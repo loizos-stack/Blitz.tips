@@ -66,6 +66,7 @@ export function ContestStandings({
   myEntryId,
   linkBase = "/supercapper/entrant",
   showPrize = true,
+  limit,
 }: {
   overall: OverallStanding[];
   entries: StandingEntry[];
@@ -73,6 +74,12 @@ export function ContestStandings({
   myEntryId?: string;
   linkBase?: string;
   showPrize?: boolean;
+  /**
+   * Truncate to the first N rows. The contest home page uses it to show the
+   * paid places only — the full field belongs on the standings page, and a
+   * hundred rows at the bottom of a landing page buries the call to action.
+   */
+  limit?: number;
 }) {
   const [window, setWindow] = useState<ContestWindowKey>("overall");
 
@@ -133,6 +140,8 @@ export function ContestStandings({
     return [...ranked, ...rest];
   }, [window, overall, entries, minPicks]);
 
+  const visibleRows = limit != null ? rows.slice(0, limit) : rows;
+
   const hasRankedRows = rows.some((r) => r.rank != null);
 
   return (
@@ -179,7 +188,7 @@ export function ContestStandings({
               </tr>
             </thead>
             <tbody>
-              {rows.map((r) => (
+              {visibleRows.map((r) => (
                 <tr
                   key={r.entryId}
                   className={cn(

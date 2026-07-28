@@ -343,9 +343,10 @@ export default async function SupercapperPage() {
         <div className="container-page relative">
           <div className="flex flex-wrap items-end justify-between gap-3">
             <div>
-              <h2 className="text-2xl font-bold">Standings</h2>
+              <h2 className="text-2xl font-bold">In the money</h2>
               <p className="mt-1 text-sm text-muted">
-                Ranked by volume-adjusted ROI — your ROI counts more the more picks you post. Entrants need{" "}
+                The {winners} paid place{winners === 1 ? "" : "s"} as it stands. Ranked by
+                volume-adjusted ROI — your ROI counts more the more picks you post. Entrants need{" "}
                 {contest.minPicks} graded picks to qualify. Prizes are auto-calculated per ICM by finishing rank.
               </p>
             </div>
@@ -356,12 +357,26 @@ export default async function SupercapperPage() {
             )}
           </div>
           <div className="mt-6">
+            {/* Paid places only. The whole field lives on the standings page —
+                a hundred rows at the bottom of a landing page buries the CTA. */}
             <ContestStandings
               overall={overallStandings}
               entries={standingEntries}
               minPicks={contest.minPicks}
               myEntryId={myEntry?.id}
+              limit={winners}
             />
+          </div>
+          <div className="mt-6 flex justify-center">
+            <Link
+              href="/supercapper/standings"
+              className="inline-flex items-center gap-2 rounded-lg border border-border px-5 py-2.5 text-sm font-semibold hover:border-accent"
+            >
+              <ListOrdered className="h-4 w-4" /> Full standings
+              {overallStandings.length > winners && (
+                <span className="text-muted">· all {overallStandings.length} entrants</span>
+              )}
+            </Link>
           </div>
         </div>
       </section>

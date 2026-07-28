@@ -104,7 +104,7 @@ export default async function EntrantPage({ params }: { params: Promise<{ entryI
   return (
     <div className="container-page py-10">
       <Link
-        href="/supercapper"
+        href="/supercapper/standings"
         className="inline-flex items-center gap-1.5 text-sm font-medium text-muted hover:text-foreground"
       >
         <ArrowLeft className="h-4 w-4" /> Standings
