@@ -8,7 +8,7 @@ import { summarizeRatings } from "@/lib/reviews";
 import { isPickLocked } from "@/lib/pick-visibility";
 import { ReviewsList, type ReviewItem } from "@/components/reviews-list";
 import { Stars } from "@/components/stars";
-import { HandicapperJsonLd } from "@/components/json-ld";
+import { HandicapperJsonLd, BreadcrumbJsonLd } from "@/components/json-ld";
 import { StatCard } from "@/components/stat-card";
 import { PickCard } from "@/components/pick-card";
 import { showStakeLinks } from "@/lib/stake-server";
@@ -25,6 +25,7 @@ import { DASHBOARD_ORDER_SETTING, resolveSectionOrder } from "@/lib/dashboard-se
 import { isSubscriptionActive } from "@/lib/subscription-status";
 import { nowPaymentsConfigured } from "@/lib/nowpayments";
 import { enrichPickCrests } from "@/lib/pick-logos";
+import { MIN_INDEXABLE_PICKS } from "@/lib/seo";
 import type { ReactNode } from "react";
 
 export const dynamic = "force-dynamic";
@@ -50,6 +51,14 @@ export async function generateMetadata({
     title: `${handicapper.displayName} (@${handicapper.handle})`,
     description,
     alternates: { canonical: path },
+    // Thin profiles stay out of the index until they have a record to show
+    // (see MIN_INDEXABLE_PICKS). `follow` stays on so their outbound links
+    // still count. Counted on *graded* picks — totalPicks includes pending ones,
+    // which show no result and are exactly the thin content this is about, and
+    // the sitemap filters on graded picks too. The two have to agree.
+    ...(handicapper.stats.totalPicks - handicapper.stats.pending < MIN_INDEXABLE_PICKS
+      ? { robots: { index: false, follow: true } }
+      : {}),
     openGraph: {
       type: "profile",
       title: `${handicapper.displayName} — verified record on Blitz.tips`,
@@ -201,14 +210,28 @@ export default async function HandicapperProfilePage({
   return (
     <div>
       {!handicapper.suspendedAt && (
-        <HandicapperJsonLd
-          handle={handicapper.handle}
-          displayName={handicapper.displayName}
-          bio={handicapper.bio}
-          avatarUrl={handicapper.avatarUrl}
-          ratingValue={ratingSummary.average}
-          reviewCount={ratingSummary.count}
-        />
+        <>
+          <HandicapperJsonLd
+            handle={handicapper.handle}
+            displayName={handicapper.displayName}
+            bio={handicapper.bio}
+            avatarUrl={handicapper.avatarUrl}
+            ratingValue={ratingSummary.average}
+            reviewCount={ratingSummary.count}
+            prices={{
+              weekly: handicapper.weeklyPriceCents,
+              monthly: handicapper.monthlyPriceCents,
+              annual: handicapper.annualPriceCents,
+            }}
+            currency={handicapper.priceCurrency}
+          />
+          <BreadcrumbJsonLd
+            items={[
+              { name: "Handicappers", path: "/handicappers" },
+              { name: handicapper.displayName, path: `/handicappers/${handicapper.handle}` },
+            ]}
+          />
+        </>
       )}
       <div className="relative h-40 w-full overflow-hidden bg-gradient-to-r from-accent/20 via-surface-raised to-gold/15 sm:h-56">
         {handicapper.coverUrl && (

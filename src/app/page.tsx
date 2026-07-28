@@ -101,7 +101,10 @@ export default async function Home({
           </div>
 
           <div className="mt-14 grid grid-cols-2 gap-4 sm:grid-cols-4">
-            <Stat label="Handicappers" value={handicappers.length.toString()} />
+            <Stat
+              label={handicappers.length === 1 ? "Handicapper" : "Handicappers"}
+              value={handicappers.length.toString()}
+            />
             <Stat label="Picks tracked" value={totalPicks.toString()} />
             <Stat label="Verified records" value="100%" />
             <Stat label="Platform fee" value="Transparent" />
@@ -212,10 +215,19 @@ function HowItWorksCard({
   description: string;
 }) {
   return (
-    <div className="card p-6">
-      <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-accent/15 text-accent">{icon}</div>
-      <h3 className="mt-4 font-semibold">{title}</h3>
-      <p className="mt-2 text-sm text-muted">{description}</p>
+    // Icon and heading share a row rather than stacking: it saves a whole line
+    // of height per card and reads as one label instead of two.
+    <div className="card p-5">
+      {/* items-start keeps every icon in a row at the same height even when one
+          card's heading wraps to two lines; min-h-9 on the heading keeps a
+          single-line one optically centred against the icon. */}
+      <div className="flex items-start gap-3">
+        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-accent/15 text-accent">
+          {icon}
+        </span>
+        <h3 className="flex min-h-9 min-w-0 items-center text-sm font-semibold">{title}</h3>
+      </div>
+      <p className="mt-3 text-sm text-muted">{description}</p>
     </div>
   );
 }

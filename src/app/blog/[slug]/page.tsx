@@ -4,7 +4,7 @@ import { notFound } from "next/navigation";
 import { format } from "date-fns";
 import { ArrowLeft } from "lucide-react";
 import { getPublishedPost } from "@/lib/blog";
-import { ArticleJsonLd } from "@/components/json-ld";
+import { ArticleJsonLd, BreadcrumbJsonLd } from "@/components/json-ld";
 import { ShareButtons } from "@/components/share-buttons";
 import { siteUrl } from "@/lib/site";
 
@@ -57,6 +57,12 @@ export default async function BlogPostPage({ params }: { params: Promise<{ slug:
         publishedAt={post.publishedAt.toISOString()}
         updatedAt={post.updatedAt.toISOString()}
         authorName={authorName}
+      />
+      <BreadcrumbJsonLd
+        items={[
+          { name: "Blog", path: "/blog" },
+          { name: post.title, path: `/blog/${post.slug}` },
+        ]}
       />
 
       <Link href="/blog" className="inline-flex items-center gap-1.5 text-sm text-muted hover:text-foreground">

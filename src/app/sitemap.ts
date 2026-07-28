@@ -2,6 +2,7 @@ import type { MetadataRoute } from "next";
 import { prisma } from "@/lib/prisma";
 import { siteUrl } from "@/lib/site";
 import { publishedWhere } from "@/lib/blog";
+import { MIN_INDEXABLE_PICKS } from "@/lib/seo";
 
 // Generated at request time (not prerendered at build) so it can never fail the
 // build or ship a broken static copy; the DB read is best-effort and the route
@@ -37,8 +38,15 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   try {
     const [handicappers, posts] = await Promise.all([
       prisma.handicapperProfile.findMany({
+        // Profiles too thin to index (see MIN_INDEXABLE_PICKS on the profile
+        // page) are left out: a sitemap that advertises URLs carrying a noindex
+        // tag contradicts itself, and Search Console reports it as an error.
         where: { suspendedAt: null },
-        select: { handle: true, updatedAt: true },
+        select: {
+          handle: true,
+          updatedAt: true,
+          _count: { select: { picks: { where: { result: { not: "PENDING" } } } } },
+        },
       }),
       prisma.blogPost.findMany({
         where: publishedWhere(),
@@ -47,12 +55,14 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     ]);
     return [
       ...staticEntries,
-      ...handicappers.map((h) => ({
-        url: `${base}/handicappers/${h.handle}`,
-        lastModified: h.updatedAt,
-        changeFrequency: "daily" as const,
-        priority: 0.7,
-      })),
+      ...handicappers
+        .filter((h) => h._count.picks >= MIN_INDEXABLE_PICKS)
+        .map((h) => ({
+          url: `${base}/handicappers/${h.handle}`,
+          lastModified: h.updatedAt,
+          changeFrequency: "daily" as const,
+          priority: 0.7,
+        })),
       ...posts.map((p) => ({
         url: `${base}/blog/${p.slug}`,
         lastModified: p.updatedAt,

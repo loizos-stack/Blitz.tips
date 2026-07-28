@@ -402,10 +402,19 @@ function ordinal(n: number): string {
 
 function Rule({ icon, title, body }: { icon: React.ReactNode; title: string; body: string }) {
   return (
-    <div className="card p-6">
-      <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-accent/15 text-accent">{icon}</div>
-      <h3 className="mt-4 font-semibold">{title}</h3>
-      <p className="mt-2 text-sm text-muted">{body}</p>
+    // Icon and heading share a row rather than stacking — eight of these sit in
+    // a grid, so a line of height saved per card is a whole row off the section.
+    <div className="card p-5">
+      {/* items-start keeps every icon in a row at the same height even when one
+          card's heading wraps to two lines; min-h-9 on the heading keeps a
+          single-line one optically centred against the icon. */}
+      <div className="flex items-start gap-3">
+        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-accent/15 text-accent">
+          {icon}
+        </span>
+        <h3 className="flex min-h-9 min-w-0 items-center text-sm font-semibold">{title}</h3>
+      </div>
+      <p className="mt-3 text-sm text-muted">{body}</p>
     </div>
   );
 }

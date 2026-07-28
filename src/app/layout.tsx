@@ -23,33 +23,23 @@ const spaceGrotesk = Space_Grotesk({
   subsets: ["latin"],
 });
 
+// Google truncates a search snippet around 155-160 characters. The old copy ran
+// to 222 and was cut mid-sentence in the SERP, so the call to action never
+// showed. Keep any replacement under ~155 and put the offer in the first half.
 const DESCRIPTION =
-  "Blitz.tips is a marketplace of verified sports handicappers. Track real records, compare units and ROI, read subscriber reviews, and subscribe to the cappers who actually win — across the NFL, NBA, MLB, NHL, and soccer.";
+  "Verified sports handicappers with real, timestamped records. Compare units and ROI across NFL, NBA, MLB, NHL and soccer, then subscribe.";
 
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl()),
   title: {
-    default: "Blitz.tips — Follow the sharpest sports handicappers",
+    // Leads with what people actually search for rather than with brand voice:
+    // "sports handicappers" and "betting picks" are the queries, "follow the
+    // sharpest" is a slogan nobody types.
+    default: "Verified Sports Handicappers & Betting Picks — Blitz.tips",
     template: "%s — Blitz.tips",
   },
   description: DESCRIPTION,
   applicationName: "Blitz.tips",
-  keywords: [
-    "sports handicappers",
-    "verified betting records",
-    "sports betting picks",
-    "sports betting tips",
-    "handicapper leaderboard",
-    "NFL picks",
-    "NBA picks",
-    "MLB picks",
-    "NHL picks",
-    "soccer betting tips",
-    "player props",
-    "parlays",
-    "betting ROI",
-    "sports betting marketplace",
-  ],
   authors: [{ name: "Blitz.tips" }],
   creator: "Blitz.tips",
   publisher: "Blitz.tips",
