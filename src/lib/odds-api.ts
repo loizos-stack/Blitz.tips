@@ -125,6 +125,11 @@ const SOCCER_LEAGUE_PRIORITY = [
   "soccer_conmebol_copa_libertadores",
 ];
 
+// Where a UEFA competition we haven't listed slots in: right behind the
+// qualifying rounds above, ahead of the domestic leagues.
+const UNLISTED_EUROPEAN_RANK =
+  SOCCER_LEAGUE_PRIORITY.indexOf("soccer_uefa_europa_conference_league_qualification") + 0.5;
+
 // Cap on how many soccer leagues we carry at once — the main quota knob for
 // soccer. League discovery (/sports) and the tab-availability check (/events)
 // are free endpoints, so only the per-league odds and scores calls cost.
@@ -194,10 +199,20 @@ async function getSoccerLeagueKeys(apiKey: string): Promise<string[]> {
   if (active.size === 0) return [];
 
   // Marquee competitions first, then any other active league the tier exposes.
-  const ranked = [
-    ...SOCCER_LEAGUE_PRIORITY.filter((k) => active.has(k)),
-    ...[...active].filter((k) => !SOCCER_LEAGUE_PRIORITY.includes(k)),
-  ];
+  // A UEFA key we've never seen ranks with the European block rather than in the
+  // tail: the qualifying rounds are separate keys that get added, renamed and
+  // retired between seasons, and naming them one at a time is how they ended up
+  // behind a dozen domestic leagues and off the end of the MAX_SOCCER_LEAGUES
+  // cut. Ranking it after the tail wouldn't help — the cut lands well before
+  // there — so it has to sit inside the priority block to survive.
+  const rank = (key: string): number => {
+    const listed = SOCCER_LEAGUE_PRIORITY.indexOf(key);
+    if (listed !== -1) return listed;
+    if (key.startsWith("soccer_uefa_")) return UNLISTED_EUROPEAN_RANK;
+    return Number.MAX_SAFE_INTEGER;
+  };
+  // Equal ranks keep the upstream's own ordering (Array#sort is stable).
+  const ranked = [...active].sort((a, b) => rank(a) - rank(b));
   return ranked.slice(0, MAX_SOCCER_LEAGUES);
 }
 
