@@ -7,6 +7,7 @@ import { SPORT_LABELS, cn } from "@/lib/utils";
 import { isMoneylineOnly } from "@/lib/odds-api";
 import type { OddsFeedResult, UpcomingEvent, MarketOption } from "@/lib/odds-api";
 import { soccerLeagueMeta } from "@/lib/soccer-leagues";
+import { FlagIcon } from "@/components/flag-icon";
 import { SportIcon } from "@/components/sport-icon";
 import { TeamLogo } from "@/components/team-logo";
 import { LocalTime } from "@/components/local-time";
@@ -193,7 +194,7 @@ export function UpcomingGames({
                         the soccer tab is itself a mix of leagues. */}
                     {league ? (
                       <span className="flex min-w-0 items-center gap-1 font-medium text-muted">
-                        {league.flag && <span aria-hidden>{league.flag}</span>}
+                        <FlagIcon code={league.code} />
                         <span className="truncate">{league.league}</span>
                       </span>
                     ) : (

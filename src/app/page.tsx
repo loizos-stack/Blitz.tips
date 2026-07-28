@@ -38,7 +38,7 @@ export default async function Home({
     : null;
 
   const oddsFeed = sport
-    ? await getUpcomingEvents(sport)
+    ? await getUpcomingEvents(sport, { windowOnly: true })
     : await getAllUpcomingEvents(availableSports);
 
   // The "Find a Handicapper" finder: sport chips are the major sports offered by

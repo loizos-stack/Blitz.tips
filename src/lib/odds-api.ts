@@ -96,6 +96,12 @@ const SOCCER_LEAGUE_PRIORITY = [
   "soccer_fifa_world_cup_qualifiers_conmebol",
   "soccer_uefa_champs_league",
   "soccer_uefa_europa_league",
+  // The qualifying rounds are their own keys, and in July/August they're often
+  // the only European football being played — which is exactly when they were
+  // missing from the board.
+  "soccer_uefa_champs_league_qualification",
+  "soccer_uefa_europa_league_qualification",
+  "soccer_uefa_europa_conference_league_qualification",
   "soccer_epl",
   "soccer_spain_la_liga",
   "soccer_italy_serie_a",
@@ -266,9 +272,11 @@ async function resolveSportKeys(sport: PickSport, apiKey: string): Promise<strin
 }
 
 // How far ahead the "Today's lines" board looks. Kept as a wall-clock window
-// (next 48h) rather than a calendar-day check so it behaves consistently for
-// every visitor regardless of their timezone.
-const UPCOMING_WINDOW_MS = 48 * 60 * 60 * 1000;
+// rather than a calendar-day check so it behaves consistently for every visitor
+// regardless of their timezone. 36h covers tonight plus all of tomorrow from any
+// hour of the day — a board called "today's lines" shouldn't be showing Sunday's
+// card on Thursday.
+const UPCOMING_WINDOW_MS = 36 * 60 * 60 * 1000;
 
 function isWithinUpcomingWindow(commenceTime: Date, now: Date): boolean {
   const ms = commenceTime.getTime() - now.getTime();
@@ -298,7 +306,7 @@ export async function getAvailableHomepageSports(): Promise<PickSport[]> {
       // the board's cached odds response — getAllUpcomingEvents fetches the very
       // same feed — so it adds no billed calls beyond what the board already does.
       if (isMoneylineOnly(sport)) {
-        const feed = await getUpcomingEvents(sport);
+        const feed = await getUpcomingEvents(sport, { windowOnly: true });
         const hasPriced = feed.events.some((e) => e.markets.length > 0);
         return { sport, hasSoon: hasPriced, hasUpcoming: hasPriced };
       }
@@ -329,9 +337,11 @@ export async function getAvailableHomepageSports(): Promise<PickSport[]> {
     })
   );
 
-  // Prefer sports with a game in the next 48h; if none, fall back to sports
-  // with any upcoming game rather than leave the tab bar empty; if truly
-  // nothing anywhere, fall back to the full static list.
+  // Prefer sports with a game inside the board's window; if none, fall back to
+  // sports with any upcoming game rather than leave the tab bar empty; if truly
+  // nothing anywhere, fall back to the full static list. That second fallback
+  // can show a pill whose board is empty (the board is window-only, the pill
+  // isn't) — a tab bar with a "no games" message beats no tab bar at all.
   const soonSports = results.filter((r) => r.hasSoon).map((r) => r.sport);
   if (soonSports.length > 0) return soonSports;
 
@@ -503,7 +513,14 @@ async function fetchLeagueEvents(
   return events;
 }
 
-export async function getUpcomingEvents(sport: PickSport): Promise<OddsFeedResult> {
+export async function getUpcomingEvents(
+  sport: PickSport,
+  // The homepage board is a hard window: it promises today's lines, so a game
+  // four days out has no business on it even when the sport has nothing sooner.
+  // The pick forms are the opposite — a handicapper posting Sunday's NFL card on
+  // Wednesday is the normal case — so they take the fallback.
+  { windowOnly = false }: { windowOnly?: boolean } = {}
+): Promise<OddsFeedResult> {
   const apiKey = oddsApiKey();
   if (!apiKey) return { configured: false, supported: false, events: [] };
 
@@ -528,14 +545,15 @@ export async function getUpcomingEvents(sport: PickSport): Promise<OddsFeedResul
     .sort((a, b) => new Date(a.commenceTime).getTime() - new Date(b.commenceTime).getTime())
     .slice(0, cap);
 
-  // Prefer games in the next 48h (plus anything live); if this sport has nothing
-  // in that window, fall back to its next upcoming games rather than showing
-  // nothing.
+  // Games inside the window, plus anything currently live — a game in progress
+  // kicked off in the past but is exactly what someone is looking for. When the
+  // sport has nothing in the window, callers that aren't the board fall back to
+  // its next upcoming games rather than showing nothing.
   const now = new Date();
   const windowEvents = events.filter(
     (e) => isWithinUpcomingWindow(new Date(e.commenceTime), now) || Boolean(e.liveScore)
   );
-  let finalEvents = windowEvents.length > 0 ? windowEvents : events;
+  let finalEvents = windowEvents.length > 0 || windowOnly ? windowEvents : events;
 
   // UFC-only: The Odds API's MMA feed carries every promotion (UFC, PFL, etc.)
   // with no promotion tag, but the site only surfaces UFC. Cross-reference
@@ -585,7 +603,7 @@ export async function getAllUpcomingEvents(sports: PickSport[]): Promise<OddsFee
   if (!apiKey) return { configured: false, supported: false, events: [] };
   if (sports.length === 0) return { configured: true, supported: true, events: [] };
 
-  const feeds = await Promise.all(sports.map((s) => getUpcomingEvents(s)));
+  const feeds = await Promise.all(sports.map((s) => getUpcomingEvents(s, { windowOnly: true })));
   const events = feeds
     .flatMap((f) => (f.configured && f.supported ? f.events : []))
     .sort((a, b) => new Date(a.commenceTime).getTime() - new Date(b.commenceTime).getTime())
