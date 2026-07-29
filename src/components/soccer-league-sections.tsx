@@ -17,9 +17,11 @@ import { cn } from "@/lib/utils";
  * and they also make a long list scannable — you find your league, not your
  * kickoff time.
  *
- * Countries collapse. A busy midweek across twelve leagues is hundreds of rows,
- * and scrolling past eleven countries to reach yours is worse than one click.
- * The first country opens by default so the list never looks empty on arrival.
+ * Countries collapse, and they all start closed. A busy midweek across twenty
+ * leagues is hundreds of rows, and scrolling past nineteen countries to reach
+ * yours is worse than one click. Closed by default means the whole card is one
+ * screen you can read at a glance — pick your country, open it, and everything
+ * else stays out of the way.
  *
  * The caller keeps ownership of the match row itself via `renderEvent`, so the
  * two pick forms can group identically while keeping their own row layouts.
@@ -28,18 +30,12 @@ export function SoccerLeagueSections<
   T extends { id: string; sportKey: string; leagueLogo: string | null },
 >({ events, renderEvent }: { events: T[]; renderEvent: (event: T) => ReactNode }) {
   const countries = groupSoccerEvents(events);
-  const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
-
-  function isOpen(country: string, index: number): boolean {
-    // Undefined means "untouched", which is open for the first country and
-    // closed for the rest — so a click always does the obvious thing.
-    return collapsed[country] ?? index === 0;
-  }
+  const [openCountries, setOpenCountries] = useState<Record<string, boolean>>({});
 
   return (
     <>
-      {countries.map((country, index) => {
-        const open = isOpen(country.country, index);
+      {countries.map((country) => {
+        const open = Boolean(openCountries[country.country]);
         const matches = country.leagues.reduce((sum, l) => sum + l.events.length, 0);
 
         return (
@@ -47,7 +43,7 @@ export function SoccerLeagueSections<
             <button
               type="button"
               onClick={() =>
-                setCollapsed((prev) => ({ ...prev, [country.country]: !open }))
+                setOpenCountries((prev) => ({ ...prev, [country.country]: !open }))
               }
               aria-expanded={open}
               className="flex w-full items-center gap-2 border-b border-border pb-1 text-left font-display text-sm font-semibold transition-colors hover:text-brand"

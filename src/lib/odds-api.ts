@@ -3,7 +3,7 @@ import type { PickSport } from "@prisma/client";
 import { getTeamLogoUrl } from "@/lib/team-logos";
 import { formatMatchup } from "@/lib/utils";
 import { sportsDbConfigured, resolveSportsDbLogo, resolveSportsDbLeagueBadge } from "@/lib/sportsdb";
-import { soccerBadgeQuery } from "@/lib/soccer-leagues";
+import { soccerBadgeQuery, soccerLeagueMeta } from "@/lib/soccer-leagues";
 import { propMarketKeys, extraMarketKeys, buildGroups, type MarketGroup, type RawMarket } from "@/lib/odds-markets";
 import { getLiveGameStates, livePairKey, getUfcFighterSet, fighterKey } from "@/lib/espn-scores";
 
@@ -221,15 +221,21 @@ interface OddsApiSportEntry {
 // list is a free endpoint (doesn't count against the usage quota), so this is
 // cheap; it's cached on the same long window as odds. On failure we degrade to
 // the single fallback league so soccer never goes completely dark.
-async function getSoccerLeagueKeys(apiKey: string): Promise<string[]> {
-  const url = `${API_BASE}/sports?apiKey=${apiKey}`;
-  const res = await fetch(url, { next: { revalidate: REVALIDATE_SECONDS } });
-  if (!res.ok) return [SPORT_KEYS.SOCCER!];
-
+/** Every soccer competition the plan currently lists as in season. */
+async function getActiveSoccerKeys(apiKey: string): Promise<string[] | null> {
+  const res = await fetch(`${API_BASE}/sports?apiKey=${apiKey}`, {
+    next: { revalidate: REVALIDATE_SECONDS },
+  });
+  if (!res.ok) return null;
   const sports = (await res.json()) as OddsApiSportEntry[];
-  const active = new Set(
-    sports.filter((s) => s.group === "Soccer" && s.active).map((s) => s.key)
-  );
+  return sports.filter((s) => s.group === "Soccer" && s.active).map((s) => s.key);
+}
+
+async function getSoccerLeagueKeys(apiKey: string): Promise<string[]> {
+  const activeKeys = await getActiveSoccerKeys(apiKey);
+  if (activeKeys === null) return [SPORT_KEYS.SOCCER!];
+
+  const active = new Set(activeKeys);
   if (active.size === 0) return [];
 
   // Marquee competitions first, then any other active league the tier exposes.
@@ -648,6 +654,72 @@ export async function getUpcomingEvents(
  * sport's cached feed (getUpcomingEvents), so it adds no extra billed calls
  * beyond what the individual sport tabs already cost.
  */
+export interface SoccerLeagueDiagnostic {
+  sportKey: string;
+  country: string;
+  league: string;
+  /** Events the odds call returned for this league, before any board filtering. */
+  events: number;
+  /** Of those, how many kick off inside the board's window. */
+  inWindow: number;
+  /** How many carry at least one priced market. */
+  priced: number;
+  /** How many carry a handicap and a goals line, not just the 1X2. */
+  withSpreadAndTotal: number;
+}
+
+/**
+ * What the soccer feed actually resolved to right now: which competitions were
+ * selected out of everything the plan has active, and what each one returned.
+ *
+ * This exists because "why isn't the Europa League on the board?" has half a
+ * dozen possible answers — the key isn't active on the plan, it lost the cut at
+ * MAX_SOCCER_LEAGUES, its odds call failed, its games fall outside the window,
+ * or the books priced nothing — and from the outside they all look identical:
+ * a missing game. Admin-only, and it reuses the same cached responses the board
+ * does, so opening it costs no extra credits.
+ */
+export async function getSoccerFeedDiagnostics(): Promise<{
+  configured: boolean;
+  maxLeagues: number;
+  selected: SoccerLeagueDiagnostic[];
+  /** Active soccer keys the plan offers that didn't make the cut. */
+  skipped: string[];
+}> {
+  const apiKey = oddsApiKey();
+  if (!apiKey) return { configured: false, maxLeagues: MAX_SOCCER_LEAGUES, selected: [], skipped: [] };
+
+  const selectedKeys = await getSoccerLeagueKeys(apiKey);
+  const allActive = (await getActiveSoccerKeys(apiKey)) ?? [];
+  const now = new Date();
+
+  const selected = await Promise.all(
+    selectedKeys.map(async (sportKey): Promise<SoccerLeagueDiagnostic> => {
+      const events = await fetchLeagueEvents(sportKey, "SOCCER", apiKey);
+      const meta = soccerLeagueMeta(sportKey);
+      return {
+        sportKey,
+        country: meta.country,
+        league: meta.league,
+        events: events.length,
+        inWindow: events.filter((e) => isWithinUpcomingWindow(new Date(e.commenceTime), now)).length,
+        priced: events.filter((e) => e.markets.length > 0).length,
+        withSpreadAndTotal: events.filter(
+          (e) =>
+            e.markets.some((m) => m.betType === "SPREAD") && e.markets.some((m) => m.betType === "TOTAL")
+        ).length,
+      };
+    })
+  );
+
+  return {
+    configured: true,
+    maxLeagues: MAX_SOCCER_LEAGUES,
+    selected,
+    skipped: allActive.filter((k) => !selectedKeys.includes(k)),
+  };
+}
+
 export async function getAllUpcomingEvents(sports: PickSport[]): Promise<OddsFeedResult> {
   const apiKey = oddsApiKey();
   if (!apiKey) return { configured: false, supported: false, events: [] };
@@ -713,10 +785,20 @@ async function getScores(
 }
 
 function normalizeEvent(event: OddsApiEvent, sport: PickSport, sportKey: string): UpcomingEvent {
+  // One book per card, so the price and the "odds from X" label agree — but the
+  // book with the widest coverage rather than simply the most preferred one.
+  // Pinnacle is the sharp reference and wins every tie, yet on soccer it often
+  // posts the 1X2 and nothing else, which is why cards showed a moneyline and a
+  // dash under Spread and Total. A book that actually prices the handicap and
+  // the goal line beats a sharper book that doesn't price them at all.
+  const rank = (key: string) => {
+    const i = PREFERRED_BOOKMAKERS.indexOf(key);
+    return i === -1 ? PREFERRED_BOOKMAKERS.length : i;
+  };
   const bookmaker =
-    PREFERRED_BOOKMAKERS.map((key) => event.bookmakers.find((b) => b.key === key)).find(Boolean) ??
-    event.bookmakers[0] ??
-    null;
+    [...event.bookmakers].sort(
+      (a, b) => b.markets.length - a.markets.length || rank(a.key) - rank(b.key)
+    )[0] ?? null;
 
   const markets: MarketOption[] = [];
 

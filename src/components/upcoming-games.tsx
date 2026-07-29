@@ -76,7 +76,12 @@ export function UpcomingGames({
   // Narrowing to a sport must never show less of that sport than the mixed
   // board did, so the single-sport cap stays above the merged one. These are
   // horizontal carousels, so extra cards cost a scroll rather than page height.
-  const eventCap = sport ? 20 : 16;
+  // Soccer isn't one league, it's up to MAX_SOCCER_LEAGUES of them on one
+  // board, and they kick off in country order through the day — so a 20-card
+  // cap quietly cut the European evening games, which are the ones people came
+  // for. These are horizontal carousels, so extra cards cost a scroll rather
+  // than page height.
+  const eventCap = sport === "SOCCER" ? 48 : sport ? 20 : 16;
 
   return (
     <section className="relative overflow-hidden border-b border-border bg-surface/60 py-14">
