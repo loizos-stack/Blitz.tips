@@ -191,7 +191,25 @@ const MAX_SOCCER_LEAGUES = (() => {
 // the eu region — is included alongside the US books; up to 10 books count as
 // a single region, so this stays at the same 3-credit cost as one region. Keys
 // must be valid Odds API bookmaker keys or the whole request is rejected.
-const PREFERRED_BOOKMAKERS = ["pinnacle", "draftkings", "fanduel", "betmgm"];
+//
+// Env-overridable via ODDS_BOOKMAKERS (comma-separated) so the list can be
+// widened without a deploy — up to 10 books still bill as a single region, so
+// adding European books that actually price European football costs nothing.
+// The catch is that one invalid key rejects the whole request and drops us to
+// the regions=us fallback, which carries far less soccer; Admin → System →
+// Soccer feed shows a "us fallback" flag per league, so a bad key is visible
+// immediately rather than silently halving the board.
+const DEFAULT_BOOKMAKERS = ["pinnacle", "draftkings", "fanduel", "betmgm"];
+const PREFERRED_BOOKMAKERS = (() => {
+  const raw = process.env.ODDS_BOOKMAKERS?.trim();
+  if (!raw) return DEFAULT_BOOKMAKERS;
+  const keys = raw
+    .split(",")
+    .map((k) => k.trim().toLowerCase())
+    .filter(Boolean)
+    .slice(0, 10);
+  return keys.length > 0 ? keys : DEFAULT_BOOKMAKERS;
+})();
 const BOOKMAKERS_PARAM = PREFERRED_BOOKMAKERS.join(",");
 
 // All sports with odds-feed coverage. Preferred display order (major-4 first)
@@ -494,6 +512,28 @@ export function isSportSupported(sport: PickSport): boolean {
 // attaching live/final scores when a game in view has already started. A
 // failed request (bad key / out of season / quota / tier-gated league)
 // degrades to an empty list so one bad league never sinks the whole feed.
+export interface LeagueFetchInfo {
+  /** HTTP status of the odds call that produced the current data. */
+  status: number;
+  /** True when the bookmakers list was rejected and regions=us was used. */
+  usedFallback: boolean;
+  /** Bookmaker keys present anywhere in the response. */
+  books: string[];
+  /** Market keys present anywhere in the response (h2h / spreads / totals). */
+  markets: string[];
+  /** Events the upstream returned, before any of our filtering. */
+  rawEvents: number;
+}
+
+// Last response shape per league, recorded as the board builds. Populated on
+// every call, cache hit or not, since only the fetch itself is cached — so the
+// admin panel sees the same data the board is rendering from.
+const LEAGUE_FETCH_LOG = new Map<string, LeagueFetchInfo>();
+
+function recordLeagueFetch(sportKey: string, info: LeagueFetchInfo) {
+  LEAGUE_FETCH_LOG.set(sportKey, info);
+}
+
 async function fetchLeagueEvents(
   sportKey: string,
   sport: PickSport,
@@ -507,6 +547,7 @@ async function fetchLeagueEvents(
   // Prefer specific books (Pinnacle first). If the bookmakers list is rejected
   // for any reason, fall back to the plain US region so a bad key never blanks
   // the board.
+  let usedFallback = false;
   let res = await fetch(`${base}&bookmakers=${BOOKMAKERS_PARAM}`, {
     next: { revalidate },
   });
@@ -514,14 +555,26 @@ async function fetchLeagueEvents(
     console.error(
       `Odds API bookmakers request failed for ${sportKey}: ${res.status}; retrying with regions=us`
     );
+    usedFallback = true;
     res = await fetch(`${base}&regions=us`, { next: { revalidate } });
   }
   if (!res.ok) {
     console.error(`Odds API request failed for ${sportKey}: ${res.status}`);
+    recordLeagueFetch(sportKey, { status: res.status, usedFallback, books: [], markets: [], rawEvents: 0 });
     return [];
   }
 
   const data = (await res.json()) as OddsApiEvent[];
+  // What actually came back, for the admin diagnostic. A league can look
+  // identical from the outside whether the request 422'd, returned no games, or
+  // returned games no book has priced — this separates them.
+  recordLeagueFetch(sportKey, {
+    status: res.status,
+    usedFallback,
+    books: [...new Set(data.flatMap((e) => e.bookmakers.map((b) => b.key)))],
+    markets: [...new Set(data.flatMap((e) => e.bookmakers.flatMap((b) => b.markets.map((m) => m.key))))],
+    rawEvents: data.length,
+  });
   // Keep upcoming games plus anything that started recently (still live or
   // just wrapped up) so scores have something to attach to; a stale event
   // from hours ago rolls off on its own since it's excluded here.
@@ -666,6 +719,8 @@ export interface SoccerLeagueDiagnostic {
   priced: number;
   /** How many carry a handicap and a goals line, not just the 1X2. */
   withSpreadAndTotal: number;
+  /** What the upstream actually returned for this league. */
+  fetch: LeagueFetchInfo | null;
 }
 
 /**
@@ -682,12 +737,21 @@ export interface SoccerLeagueDiagnostic {
 export async function getSoccerFeedDiagnostics(): Promise<{
   configured: boolean;
   maxLeagues: number;
+  /** The books being asked for — the first thing to change if markets are thin. */
+  bookmakers: string[];
+  /** Hours the soccer odds response is cached for. */
+  cacheHours: number;
   selected: SoccerLeagueDiagnostic[];
   /** Active soccer keys the plan offers that didn't make the cut. */
   skipped: string[];
 }> {
   const apiKey = oddsApiKey();
-  if (!apiKey) return { configured: false, maxLeagues: MAX_SOCCER_LEAGUES, selected: [], skipped: [] };
+  const shared = {
+    maxLeagues: MAX_SOCCER_LEAGUES,
+    bookmakers: PREFERRED_BOOKMAKERS,
+    cacheHours: SOCCER_REVALIDATE_SECONDS / 3600,
+  };
+  if (!apiKey) return { configured: false, ...shared, selected: [], skipped: [] };
 
   const selectedKeys = await getSoccerLeagueKeys(apiKey);
   const allActive = (await getActiveSoccerKeys(apiKey)) ?? [];
@@ -708,13 +772,14 @@ export async function getSoccerFeedDiagnostics(): Promise<{
           (e) =>
             e.markets.some((m) => m.betType === "SPREAD") && e.markets.some((m) => m.betType === "TOTAL")
         ).length,
+        fetch: LEAGUE_FETCH_LOG.get(sportKey) ?? null,
       };
     })
   );
 
   return {
     configured: true,
-    maxLeagues: MAX_SOCCER_LEAGUES,
+    ...shared,
     selected,
     skipped: allActive.filter((k) => !selectedKeys.includes(k)),
   };
