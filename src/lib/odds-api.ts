@@ -167,21 +167,26 @@ const UNLISTED_EUROPEAN_RANK =
 // are free endpoints, so only the per-league odds and scores calls cost.
 //
 // Per league, per month, worst case (board viewed every day):
-//   odds   ~45  — 3 credits (markets × regions) once per SOCCER_REVALIDATE_SECONDS
+//   odds   ~90  — 6 credits (3 markets × the eu,us regions) once per
+//                 SOCCER_REVALIDATE_SECONDS
 //   scores ~350 — 2 credits (daysFrom is billed extra) per
 //                 SOCCER_SCORES_REVALIDATE_SECONDS, but only while games run
-// so roughly 400/league/month at the ceiling, and far less in practice since
-// both only bill on a cache miss caused by a real visitor. Both windows were
-// halved when this cap went from 12 to 20, so the ceiling for soccer as a whole
-// came down even as the number of competitions went up.
+// so roughly 450/league/month at the ceiling, and far less in practice since
+// both only bill on a cache miss caused by a real visitor.
+//
+// 30 rather than 20 because the live feed showed 41 competitions active at once
+// in late July and a cap of 20 cut 21 of them — Scotland, Turkey, Greece,
+// Switzerland, Denmark, Norway, Sweden, Poland, the EFL Cup and Serie B among
+// them. A cap that hides half the football on offer is the wrong dial to save
+// money on; the cache window is.
 //
 // Env-overridable so the cap can be tuned against live usage without a deploy.
 // Out-of-range or unparseable values fall back to the default rather than
 // blanking soccer or running the quota away.
-const DEFAULT_MAX_SOCCER_LEAGUES = 20;
+const DEFAULT_MAX_SOCCER_LEAGUES = 30;
 const MAX_SOCCER_LEAGUES = (() => {
   const raw = Number(process.env.MAX_SOCCER_LEAGUES?.trim());
-  if (!Number.isInteger(raw) || raw < 1 || raw > 30) return DEFAULT_MAX_SOCCER_LEAGUES;
+  if (!Number.isInteger(raw) || raw < 1 || raw > 60) return DEFAULT_MAX_SOCCER_LEAGUES;
   return raw;
 })();
 
@@ -212,6 +217,12 @@ const PREFERRED_BOOKMAKERS = (() => {
 })();
 const BOOKMAKERS_PARAM = PREFERRED_BOOKMAKERS.join(",");
 
+// Soccer asks by region rather than by book (see fetchLeagueEvents). Two
+// regions bill as two units, so this is the one line that doubles soccer's odds
+// cost — drop it to "eu" alone to halve that back, at the cost of the US prices
+// a US visitor can actually bet.
+const SOCCER_REGIONS = process.env.ODDS_SOCCER_REGIONS?.trim() || "eu,us";
+
 // All sports with odds-feed coverage. Preferred display order (major-4 first)
 // when a sport is available; getAvailableHomepageSports() filters this down
 // to whichever currently have upcoming games.
@@ -239,6 +250,55 @@ interface OddsApiSportEntry {
 // list is a free endpoint (doesn't count against the usage quota), so this is
 // cheap; it's cached on the same long window as odds. On failure we degrade to
 // the single fallback league so soccer never goes completely dark.
+/**
+ * Competitions we check for fixtures even when /sports doesn't list them as in
+ * season.
+ *
+ * The in-season list is the upstream's own judgement, and for the European cups
+ * it is wrong in exactly the window that matters: through July the Europa and
+ * Conference Leagues (and their qualifying rounds) are playing ties every week
+ * while /sports reports neither the competition nor its qualifier as active, so
+ * they never entered the ranking at all — not selected, not even skipped.
+ *
+ * The /events endpoint answers the only question that matters, "are there
+ * fixtures", and doesn't count against the usage quota, so probing costs
+ * nothing but tells us the truth.
+ */
+const PROBE_SOCCER_KEYS = [
+  "soccer_uefa_champs_league",
+  "soccer_uefa_champs_league_qualification",
+  "soccer_uefa_europa_league",
+  "soccer_uefa_europa_league_qualification",
+  "soccer_uefa_europa_conference_league",
+  "soccer_uefa_europa_conference_league_qualification",
+  "soccer_uefa_super_cup",
+];
+
+/** Keys from PROBE_SOCCER_KEYS that have upcoming fixtures despite being dormant. */
+async function probeDormantSoccerKeys(apiKey: string, active: Set<string>): Promise<string[]> {
+  const candidates = PROBE_SOCCER_KEYS.filter((key) => !active.has(key));
+  if (candidates.length === 0) return [];
+
+  const now = Date.now();
+  const found = await Promise.all(
+    candidates.map(async (key) => {
+      try {
+        const res = await fetch(`${API_BASE}/sports/${key}/events?apiKey=${apiKey}`, {
+          next: { revalidate: REVALIDATE_SECONDS },
+        });
+        // 404 = no such competition on this plan; anything else non-OK, skip too.
+        if (!res.ok) return null;
+        const events = (await res.json()) as { commence_time: string }[];
+        const upcoming = events.some((e) => new Date(e.commence_time).getTime() > now);
+        return upcoming ? key : null;
+      } catch {
+        return null;
+      }
+    })
+  );
+  return found.filter((key): key is string => key !== null);
+}
+
 /** Every soccer competition the plan currently lists as in season. */
 async function getActiveSoccerKeys(apiKey: string): Promise<string[] | null> {
   const res = await fetch(`${API_BASE}/sports?apiKey=${apiKey}`, {
@@ -254,6 +314,7 @@ async function getSoccerLeagueKeys(apiKey: string): Promise<string[]> {
   if (activeKeys === null) return [SPORT_KEYS.SOCCER!];
 
   const active = new Set(activeKeys);
+  for (const key of await probeDormantSoccerKeys(apiKey, active)) active.add(key);
   if (active.size === 0) return [];
 
   // Marquee competitions first, then any other active league the tier exposes.
@@ -544,11 +605,23 @@ async function fetchLeagueEvents(
     `${API_BASE}/sports/${sportKey}/odds` +
     `?apiKey=${apiKey}&markets=${marketsForSport(sport)}&oddsFormat=american`;
 
-  // Prefer specific books (Pinnacle first). If the bookmakers list is rejected
-  // for any reason, fall back to the plain US region so a bad key never blanks
-  // the board.
+  // Everything else prefers specific books (Pinnacle first). If the bookmakers
+  // list is rejected for any reason, both paths fall back to the plain US region
+  // so one bad parameter never blanks the board.
+  //
+  // Soccer asks by region instead of by book. The four-book list is three US
+  // sportsbooks plus Pinnacle, and the live feed showed the consequence plainly:
+  // every competition where Pinnacle came back had handicaps and goal lines,
+  // and every competition where it didn't — the Champions League qualifiers,
+  // Portugal, Austria, Chile, China — came back 1X2-only, because US books
+  // don't post handicaps on those. Belgium and the Libertadores came back with
+  // no book at all. `regions=eu,us` reaches every European book instead of one,
+  // and a region costs exactly what a book list costs, so the only price is the
+  // second region: 6 credits a call instead of 3.
   let usedFallback = false;
-  let res = await fetch(`${base}&bookmakers=${BOOKMAKERS_PARAM}`, {
+  const primary =
+    sport === "SOCCER" ? `${base}&regions=${SOCCER_REGIONS}` : `${base}&bookmakers=${BOOKMAKERS_PARAM}`;
+  let res = await fetch(primary, {
     next: { revalidate },
   });
   if (!res.ok) {
@@ -737,8 +810,16 @@ export interface SoccerLeagueDiagnostic {
 export async function getSoccerFeedDiagnostics(): Promise<{
   configured: boolean;
   maxLeagues: number;
-  /** The books being asked for — the first thing to change if markets are thin. */
+  /** The books being asked for — non-soccer only; soccer asks by region. */
   bookmakers: string[];
+  /** Regions soccer asks for. */
+  soccerRegions: string;
+  /**
+   * Competitions the plan doesn't list as in season but which have fixtures, so
+   * they were pulled in anyway. Empty means every European cup with games was
+   * already in the in-season list.
+   */
+  probed: string[];
   /** Hours the soccer odds response is cached for. */
   cacheHours: number;
   selected: SoccerLeagueDiagnostic[];
@@ -749,12 +830,16 @@ export async function getSoccerFeedDiagnostics(): Promise<{
   const shared = {
     maxLeagues: MAX_SOCCER_LEAGUES,
     bookmakers: PREFERRED_BOOKMAKERS,
+    soccerRegions: SOCCER_REGIONS,
     cacheHours: SOCCER_REVALIDATE_SECONDS / 3600,
   };
-  if (!apiKey) return { configured: false, ...shared, selected: [], skipped: [] };
+  if (!apiKey) {
+    return { configured: false, ...shared, probed: [], selected: [], skipped: [] };
+  }
 
   const selectedKeys = await getSoccerLeagueKeys(apiKey);
   const allActive = (await getActiveSoccerKeys(apiKey)) ?? [];
+  const probed = await probeDormantSoccerKeys(apiKey, new Set(allActive));
   const now = new Date();
 
   const selected = await Promise.all(
@@ -780,8 +865,11 @@ export async function getSoccerFeedDiagnostics(): Promise<{
   return {
     configured: true,
     ...shared,
+    probed,
     selected,
-    skipped: allActive.filter((k) => !selectedKeys.includes(k)),
+    // Everything in season plus anything the probe pulled in, minus what made
+    // the cut — so the two lists together account for every competition seen.
+    skipped: [...new Set([...allActive, ...probed])].filter((k) => !selectedKeys.includes(k)),
   };
 }
 

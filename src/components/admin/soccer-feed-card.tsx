@@ -36,11 +36,21 @@ export async function SoccerFeedCard() {
       </div>
 
       <p className="mt-1 text-xs text-muted">
-        Asking <span className="font-mono">{feed.bookmakers.join(", ")}</span>, cached{" "}
-        {feed.cacheHours}h. Set <span className="font-mono">ODDS_BOOKMAKERS</span> (up to 10,
-        comma-separated) to widen it — more books bill the same as one region, and European books
-        are the ones that price European football.
+        Soccer asks <span className="font-mono">regions={feed.soccerRegions}</span> (every book in
+        those regions), cached {feed.cacheHours}h. Other sports ask{" "}
+        <span className="font-mono">{feed.bookmakers.join(", ")}</span>. Tune with{" "}
+        <span className="font-mono">ODDS_SOCCER_REGIONS</span> and{" "}
+        <span className="font-mono">ODDS_BOOKMAKERS</span>; each region is billed separately, so
+        dropping to <span className="font-mono">eu</span> halves soccer&apos;s odds cost.
       </p>
+
+      {feed.probed.length > 0 && (
+        <p className="mt-3 rounded-lg border border-accent/40 bg-accent/10 p-3 text-xs text-foreground">
+          Pulled in despite not being listed as in season, because they have fixtures:{" "}
+          <span className="font-mono">{feed.probed.join(", ")}</span>. This is how the European
+          cups get on the board in July.
+        </p>
+      )}
 
       <p className="mt-1 text-xs text-muted">
         The competitions on the board, in the order they were picked. &ldquo;Window&rdquo; is what
