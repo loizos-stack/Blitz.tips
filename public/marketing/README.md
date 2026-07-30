@@ -30,20 +30,35 @@ All exports are 2× for retina.
 
 ## Video
 
-`supercapper-promo-1080x1920.mp4` — 13s, 9:16, H.264/yuv420p, ~1.4MB. Built by
-`scripts/build-promo-video.mjs`:
+| File | Size | Length | Use |
+|---|---|---|---|
+| `supercapper-promo-1080x1920.mp4` | 1080×1920 | 13s | TikTok, Reels, Shorts, Stories |
+| `supercapper-x-16x9-1920x1080.mp4` | 1920×1080 | 12s | X in-feed — full width on desktop, never letterboxed |
+| `supercapper-x-square-1080.mp4` | 1080×1080 | 9s | X in-feed, mobile-first — square takes more timeline height than 16:9 |
 
 ```bash
 npm run build
-node scripts/build-promo-video.mjs      # needs ffmpeg; falls back to imageio-ffmpeg
+node scripts/build-promo-video.mjs      # the 9:16 cut
+node scripts/build-x-videos.mjs         # both X cuts
+# both need ffmpeg; they fall back to imageio-ffmpeg
 ```
+
+All three are H.264 / yuv420p with `+faststart`, and all are **silent by
+design** — see the note below.
+
+The two X cuts are deliberately short. The timeline is a scroll: a loop that
+comes back around beats one that runs long enough to be swiped past. They're
+also entirely text-driven, because X autoplays muted and a video that needs
+sound to make sense makes no sense to most of the people who see it.
 
 Frames are driven by an explicit clock rather than CSS animations, so frame N is
 identical on every run regardless of machine speed.
 
-**It has no audio, deliberately.** TikTok and Reels expect you to add trending
-sound in the app — a baked-in track is a licensing problem and the first thing a
-creator would mute. Post it and pick audio on the platform.
+**No audio, deliberately.** TikTok and Reels expect you to add trending sound in
+the app — a baked-in track is a licensing problem and the first thing a creator
+would mute. Post it and pick audio on the platform. On X the reason is
+different but the answer is the same: it autoplays muted, so every claim is on
+screen and nothing depends on sound.
 
 9:16 covers TikTok, Reels, Shorts and Stories. Keep the important content away
 from the top and bottom ~15%, where the platform UI sits — the current cut keeps
