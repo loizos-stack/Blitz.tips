@@ -35,6 +35,15 @@ All exports are 2× for retina.
 | `supercapper-promo-1080x1920.mp4` | 1080×1920 | 13s | TikTok, Reels, Shorts, Stories |
 | `supercapper-x-16x9-1920x1080.mp4` | 1920×1080 | 12s | X in-feed — full width on desktop, never letterboxed |
 | `supercapper-x-square-1080.mp4` | 1080×1080 | 9s | X in-feed, mobile-first — square takes more timeline height than 16:9 |
+| `supercapper-x-9x16-1080x1920.mp4` | 1080×1920 | 10s | X vertical — fills a phone screen; also fine for Stories |
+
+**Two 9:16 files, on purpose.** `supercapper-promo` is the TikTok/Reels cut,
+where you land on one video at a time and 13 seconds is a normal ask.
+`supercapper-x-9x16` is three seconds shorter and leads with the prize instead
+of the logo, because X is a scroll. The X one also keeps every element inside
+the middle band: X doesn't always show a vertical video at full height in the
+timeline, so anything near the top or bottom edge can be cropped before someone
+taps.
 
 ```bash
 npm run build

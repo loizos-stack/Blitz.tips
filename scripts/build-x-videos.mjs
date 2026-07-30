@@ -298,5 +298,63 @@ async function renderVideo(chromium, spec) {
   console.log(`${out}\n`);
 }
 
+/**
+ * The 9:16 cut, tuned for X rather than for TikTok.
+ *
+ * There is already a 9:16 in this folder — supercapper-promo-1080x1920.mp4 —
+ * but it's built for TikTok and Reels, where you land on one video at a time
+ * and 13 seconds is a normal ask. X is a scroll, so this one is shorter and
+ * front-loads the number.
+ *
+ * The important difference is framing: X doesn't always show a vertical video
+ * at full height in the timeline, so anything near the top or bottom edge can
+ * be cropped away before someone taps. Everything here is kept inside the
+ * middle band, and the scenes are vertically centred, so a 4:5 or 1:1 crop
+ * still contains the whole message.
+ */
+const vertical = {
+  name: "supercapper-x-9x16-1080x1920.mp4",
+  w: 1080,
+  h: 1920,
+  duration: 10,
+  html: `
+  <div class="scene" id="s1">
+    <div class="kicker" style="font-size:28px;letter-spacing:.3em">Guaranteed prize pool</div>
+    <div class="pool" id="pool" style="font-size:230px;margin-top:18px">$0</div>
+    <div class="sub" style="font-size:44px;margin-top:16px">Free to enter</div>
+  </div>
+
+  <div class="scene" id="s2">
+    <!-- Left-aligned as a block, centred as a group: rows centred individually
+         put the 1, 2 and 3 at three different x positions, since the labels
+         are different lengths. -->
+
+    <div style="display:flex;flex-direction:column;align-items:flex-start;gap:44px">
+      <div class="line" style="gap:28px;font-size:48px">
+        <span class="tick" style="width:78px;height:78px;font-size:36px">1</span><span>Post your picks</span>
+      </div>
+      <div class="line" style="gap:28px;font-size:48px">
+        <span class="tick" style="width:78px;height:78px;font-size:36px">2</span><span>Graded in public</span>
+      </div>
+      <div class="line" style="gap:28px;font-size:48px">
+        <span class="tick" style="width:78px;height:78px;font-size:36px">3</span><span>Best ROI wins</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="scene" id="s3">
+    ${wordmark("110px")}
+    <div class="pill" style="font-size:32px;padding:16px 36px;margin-top:52px">${STARTS} → ${ENDS}</div>
+    <div class="url" style="font-size:54px;margin-top:40px">${URL}</div>
+    <div style="margin-top:34px;font-size:32px">${byline}</div>
+  </div>`,
+  render: `
+  drift(t,10);
+  show(document.getElementById('s1'),t,0.15,3.4);
+  show(document.getElementById('s2'),t,3.7,6.4);
+  show(document.getElementById('s3'),t,6.7,null);
+  countUp(document.getElementById('pool'),t,0.3,1.5,${POOL});`,
+};
+
 const chromium = await loadChromium();
-for (const spec of [landscape, square]) await renderVideo(chromium, spec);
+for (const spec of [landscape, square, vertical]) await renderVideo(chromium, spec);
