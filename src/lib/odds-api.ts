@@ -413,6 +413,15 @@ async function resolveSportKeys(sport: PickSport, apiKey: string): Promise<strin
 // card on Thursday.
 const UPCOMING_WINDOW_MS = 36 * 60 * 60 * 1000;
 
+// How many of a sport's leagues the tab-bar check looks at (see
+// getAvailableHomepageSports). Only soccer has more than one.
+const PILL_PROBE_LEAGUES = 4;
+
+// How many games per league get a TheSportsDB crest lookup (see
+// fetchLeagueEvents). Comfortably more than any one league contributes to a
+// board, but bounded so a 30-league soccer slate can't turn into 1,500 requests.
+const CREST_LOOKUP_PER_LEAGUE = 12;
+
 function isWithinUpcomingWindow(commenceTime: Date, now: Date): boolean {
   const ms = commenceTime.getTime() - now.getTime();
   return ms >= 0 && ms <= UPCOMING_WINDOW_MS;
@@ -446,8 +455,15 @@ export async function getAvailableHomepageSports(): Promise<PickSport[]> {
         return { sport, hasSoon: hasPriced, hasUpcoming: hasPriced };
       }
 
-      const sportKeys = await resolveSportKeys(sport, apiKey);
-      if (sportKeys.length === 0) return { sport, hasSoon: false, hasUpcoming: false };
+      const allKeys = await resolveSportKeys(sport, apiKey);
+      if (allKeys.length === 0) return { sport, hasSoon: false, hasUpcoming: false };
+
+      // This only decides whether a pill appears, and one league with a game is
+      // enough to answer that. Checking all of them would mean up to
+      // MAX_SOCCER_LEAGUES requests to render a single tab — on a cold cache
+      // that's a visible chunk of the page's load for a yes/no question. The
+      // list is ranked, so the leagues most likely to have a game are first.
+      const sportKeys = allKeys.slice(0, PILL_PROBE_LEAGUES);
 
       // Check each backing league (usually one) via the free /events endpoint.
       const perKey = await Promise.all(
@@ -661,9 +677,16 @@ async function fetchLeagueEvents(
   // the individual sports) from TheSportsDB. Only touches sides that came back
   // null, and each lookup degrades to null on any failure — so this never
   // blocks or breaks the board, just enriches it when a badge is found.
+  //
+  // Capped per league because this is two lookups per game and it runs for
+  // every league we carry: across MAX_SOCCER_LEAGUES that's hundreds of
+  // requests on a cold cache, all of them in front of the visitor. Games are
+  // ordered by kickoff, so the cap keeps crests on the ones actually near the
+  // top of a board; anything past it falls back to the sport icon, which is
+  // what a failed lookup does anyway.
   if (sportsDbConfigured()) {
     await Promise.all(
-      events.map(async (event) => {
+      events.slice(0, CREST_LOOKUP_PER_LEAGUE).map(async (event) => {
         if (event.awayTeamLogo == null) {
           event.awayTeamLogo = await resolveSportsDbLogo(sport, event.awayTeam);
         }

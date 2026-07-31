@@ -1,13 +1,11 @@
 import Link from "next/link";
+import { Suspense } from "react";
 import { ContestPromoStrip } from "@/components/cross-promo-strip";
 import { ShieldCheck, LineChart, Users, ArrowRight } from "lucide-react";
 import { listHandicapperDirectory, applyHandicapperFinder } from "@/lib/handicappers";
 import { HandicapperCard } from "@/components/handicapper-card";
 import { HandicapperFinder } from "@/components/handicapper-finder";
-import { UpcomingGames } from "@/components/upcoming-games";
-import { getUpcomingEvents, getAllUpcomingEvents, getAvailableHomepageSports } from "@/lib/odds-api";
-import { showStakeLinks } from "@/lib/stake-server";
-import { SPORT_LABELS } from "@/lib/utils";
+import { HomeBoard, HomeBoardSkeleton } from "@/components/home-board";
 import type { Metadata } from "next";
 import type { PickSport } from "@prisma/client";
 
@@ -25,28 +23,9 @@ export default async function Home({
   searchParams: Promise<{ sport?: string; find?: string; q?: string }>;
 }) {
   const params = await searchParams;
-  const [handicappers, unsortedSports] = await Promise.all([
-    listHandicapperDirectory(),
-    getAvailableHomepageSports(),
-  ]);
-
-  // Active sports, alphabetized by their display label so the tab order is
-  // predictable.
-  const availableSports = [...unsortedSports].sort((a, b) =>
-    (SPORT_LABELS[a] ?? a).localeCompare(SPORT_LABELS[b] ?? b)
-  );
-
-  // Default view merges every sport's games sorted by start time; picking a
-  // sport pill (?sport=...) narrows to just that sport. Each sport's feed is
-  // cached for an hour and the "all" view reuses those caches, so no extra
-  // billed calls.
-  const sport: PickSport | null = availableSports.includes(params.sport as PickSport)
-    ? (params.sport as PickSport)
-    : null;
-
-  const oddsFeed = sport
-    ? await getUpcomingEvents(sport, { windowOnly: true })
-    : await getAllUpcomingEvents(availableSports);
+  // Only the directory is awaited here. The odds board — the one slow,
+  // third-party-dependent thing on this page — streams in separately below.
+  const handicappers = await listHandicapperDirectory();
 
   // The "Find a Handicapper" finder: sport chips are the major sports offered by
   // at least one handicapper; the list is filtered/sorted by the active chip.
@@ -115,12 +94,9 @@ export default async function Home({
       <ContestPromoStrip />
 
       <div id="lines" />
-      <UpcomingGames
-        sport={sport}
-        feed={oddsFeed}
-        availableSports={availableSports}
-        showStake={await showStakeLinks()}
-      />
+      <Suspense fallback={<HomeBoardSkeleton />}>
+        <HomeBoard sportParam={params.sport} />
+      </Suspense>
 
       <section id="find" className="relative scroll-mt-20 overflow-hidden border-y border-border py-16">
         <div
