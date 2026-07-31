@@ -36,6 +36,24 @@ All exports are 2× for retina.
 | `supercapper-x-16x9-1920x1080.mp4` | 1920×1080 | 12s | X in-feed — full width on desktop, never letterboxed |
 | `supercapper-x-square-1080.mp4` | 1080×1080 | 9s | X in-feed, mobile-first — square takes more timeline height than 16:9 |
 | `supercapper-x-9x16-1080x1920.mp4` | 1080×1920 | 10s | X vertical — fills a phone screen; also fine for Stories |
+| `supercapper-motion-slip-1920x1080.mp4` | 1920×1080 | 12s | The graded slip — a pick lands, ticks, gets stamped WIN |
+| `supercapper-motion-climb-1080x1920.mp4` | 1080×1920 | 12s | The climb — a live board reorders and @you walks to first |
+| `supercapper-motion-wall-1080x1080.mp4` | 1080×1080 | 10s | The odds wall — prices flicker, then collapse into the mark |
+
+The three `motion-*` cuts are the animation-led set, built by
+`scripts/build-motion-videos.mjs`. Pass a name fragment to render just one
+(`node scripts/build-motion-videos.mjs slip`) — a full pass is three browsers
+and ~1,000 frames.
+
+They animate rather than fade: a digit-column odometer for the pool, a stamp
+that overshoots and kicks the card, a seeded confetti burst (fixed seed, so the
+same particles every render), rows that interpolate between orderings, and a
+price wall that arrives and leaves on a diagonal wave.
+
+**The handles and ROI figures in the climb are illustrative.** They're invented
+placeholders, deliberately not the seeded demo accounts, so nothing reads as a
+claim about a named account's real record. Once the board has a real field, a
+screen recording of the actual standings beats this — see "Not included" below.
 
 **Two 9:16 files, on purpose.** `supercapper-promo` is the TikTok/Reels cut,
 where you land on one video at a time and 13 seconds is a normal ask.
