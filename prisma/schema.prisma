@@ -116,6 +116,15 @@ model User {
   adminTabViews     AdminTabView[]      @relation("AdminTabViews")
   follows           Follow[]            @relation("UserFollows")
   pickTails         PickTail[]          @relation("UserPickTails")
+
+  // Referrals. `referralCode` is this user's own code to hand out;
+  // `referredById` is who brought them in, set once at signup and never after —
+  // attribution that can be edited later isn't attribution.
+  referralCode      String?             @unique
+  referredById      String?
+  referredBy        User?               @relation("UserReferrals", fields: [referredById], references: [id], onDelete: SetNull)
+  referrals         User[]              @relation("UserReferrals")
+  referredAt        DateTime?
   notifications     Notification[]
   pushSubscriptions PushSubscription[]
 

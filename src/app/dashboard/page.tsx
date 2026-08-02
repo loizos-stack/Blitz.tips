@@ -22,6 +22,9 @@ import { SubscriberReviews } from "@/components/dashboard/subscriber-reviews";
 import { enrichPickCrests } from "@/lib/pick-logos";
 import { getSetting } from "@/lib/settings";
 import { DASHBOARD_ORDER_SETTING, resolveSectionOrder } from "@/lib/dashboard-sections";
+import { ReferralCard } from "@/components/referral-card";
+import { referralStats } from "@/lib/referrals";
+import { siteUrl } from "@/lib/site";
 import type { ReactNode } from "react";
 
 export const metadata: Metadata = { title: "Dashboard" };
@@ -145,6 +148,10 @@ export default async function DashboardPage() {
     upcomingPicks,
     recentPicks,
   } = await loadDashboard(session.user.id);
+
+  // Allocates a code on first view, so existing accounts get one without a
+  // backfill.
+  const referrals = await referralStats(session.user.id);
 
   // Stacked sections, keyed by the section catalog. The page heading and verify
   // banner stay pinned to the top; the rest render in the catalog order.
@@ -339,6 +346,15 @@ export default async function DashboardPage() {
               </Link>
             </div>
           )}
+
+          <div className="mt-4">
+            <ReferralCard
+              baseUrl={siteUrl()}
+              code={referrals.code}
+              total={referrals.total}
+              handicappers={referrals.handicappers}
+            />
+          </div>
         </aside>
       </div>
     ),
