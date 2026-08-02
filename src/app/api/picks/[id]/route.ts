@@ -3,6 +3,7 @@ import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { settlePickSchema } from "@/lib/validations";
 import { logActivity } from "@/lib/audit";
+import { notifyPickSettled } from "@/lib/notifications";
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const session = await auth();
@@ -40,6 +41,23 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       // Audit who graded it — self-settled picks are flagged in the admin
       // panel so suspicious grading can be spot-checked.
       settledBy: parsed.data.result === "PENDING" ? null : session.user.id,
+    },
+  });
+
+  // Same announcement a graded pick gets from the auto-settler, so a
+  // hand-graded record behaves identically to a machine-graded one.
+  await notifyPickSettled({
+    id: updated.id,
+    matchup: updated.matchup,
+    selection: updated.selection,
+    odds: updated.odds,
+    units: updated.units,
+    result: updated.result,
+    handicapper: {
+      id: pick.handicapper.id,
+      userId: pick.handicapper.userId,
+      handle: pick.handicapper.handle,
+      displayName: pick.handicapper.displayName,
     },
   });
 

@@ -4,10 +4,11 @@ import { sendEmail } from "@/lib/email";
 import { sendPush } from "@/lib/push";
 import { sendTelegram } from "@/lib/telegram";
 import { sendDiscordDM } from "@/lib/discord";
-import { formatOdds } from "@/lib/odds";
+import { formatOdds, unitProfit } from "@/lib/odds";
 import { siteUrl } from "@/lib/site";
 import { emailWrapper, emailLinkPill, escapeHtml } from "@/lib/email-template";
 import { unsubscribeUrl, unsubscribePostUrl } from "@/lib/unsubscribe";
+import type { PickResult } from "@prisma/client";
 
 // Resolved via siteUrl() so a stale *.vercel.app value in NEXT_PUBLIC_APP_URL
 // never leaks into notification links (same rule as emails/Stripe redirects).
@@ -137,6 +138,127 @@ export async function notifyNewPick(pick: NewPickInput): Promise<void> {
     );
   } catch (e) {
     console.error("notifyNewPick failed:", e);
+  }
+}
+
+export interface SettledPickInput {
+  id: string;
+  matchup: string;
+  selection: string;
+  odds: number;
+  units: number;
+  /** Takes the full enum — PENDING and the no-action results return early. */
+  result: PickResult;
+  handicapper: { id: string; userId: string; handle: string; displayName: string };
+}
+
+/**
+ * Tell a handicapper's audience how a pick finished.
+ *
+ * The other half of notifyNewPick, and the half that was missing: a pick went
+ * out on four channels and then nothing ever came back. A result landing is the
+ * best moment this product gets — it's when a subscriber feels the thing they
+ * paid for, and it's the natural moment to prompt a share or a review — and it
+ * was passing in silence.
+ *
+ * Deliberately quieter than a new pick. Only people who could actually see the
+ * pick are told (a premium pick's result is part of what subscribers pay for,
+ * so it isn't teased to non-subscribers), only wins and losses go out at all —
+ * a push or a void is bookkeeping, not news — and it never emails, because a
+ * capper posting five a day would otherwise send five result emails a day and
+ * train everyone to filter the address. In-app, push and the chat channels
+ * only, all of which are glanceable and dismissible.
+ *
+ * Best-effort, like its sibling: it never throws into the settlement path.
+ */
+export async function notifyPickSettled(pick: SettledPickInput): Promise<void> {
+  try {
+    if (pick.result !== "WIN" && pick.result !== "LOSS") return;
+
+    const { handicapper } = pick;
+    const [follows, subs] = await Promise.all([
+      prisma.follow.findMany({ where: { handicapperId: handicapper.id }, select: { followerId: true } }),
+      prisma.subscription.findMany({
+        where: { handicapperId: handicapper.id, status: "ACTIVE" },
+        select: { subscriberId: true },
+      }),
+    ]);
+
+    const subscriberIds = new Set(subs.map((s) => s.subscriberId));
+    const recipientIds = new Set<string>([...follows.map((f) => f.followerId), ...subscriberIds]);
+    recipientIds.delete(handicapper.userId);
+    if (recipientIds.size === 0) return;
+
+    const users = await prisma.user.findMany({
+      where: { id: { in: [...recipientIds] }, suspendedAt: null },
+      select: {
+        id: true,
+        notifyPush: true,
+        notifyTelegram: true,
+        telegramChatId: true,
+        notifyDiscord: true,
+        discordUserId: true,
+      },
+    });
+
+    const won = pick.result === "WIN";
+    // The same units math the record itself is computed from, so a notification
+    // can never disagree with the profile it links to.
+    const delta = unitProfit(pick.odds, pick.units, pick.result);
+    const url = `/handicappers/${handicapper.handle}`;
+    const title = `${handicapper.displayName} ${won ? "won" : "lost"} — ${pick.selection}`;
+    const body = `${pick.matchup} · ${delta > 0 ? "+" : ""}${delta.toFixed(2)}u`;
+
+    await prisma.notification.createMany({
+      data: users.map((u) => ({
+        userId: u.id,
+        type: won ? "pick.won" : "pick.lost",
+        title,
+        body,
+        url,
+        handicapperId: handicapper.id,
+        pickId: pick.id,
+      })),
+    });
+
+    const pushUserIds = users.filter((u) => u.notifyPush).map((u) => u.id);
+    if (pushUserIds.length > 0) {
+      const subscriptions = await prisma.pushSubscription.findMany({
+        where: { userId: { in: pushUserIds } },
+      });
+      await Promise.allSettled(
+        subscriptions.map(async (s) => {
+          const { gone } = await sendPush(
+            { endpoint: s.endpoint, p256dh: s.p256dh, auth: s.auth },
+            { title, body, url }
+          );
+          if (gone) await prisma.pushSubscription.delete({ where: { id: s.id } }).catch(() => null);
+        })
+      );
+    }
+
+    await Promise.allSettled(
+      users
+        .filter((u) => u.notifyTelegram && u.telegramChatId)
+        .map(async (u) => {
+          const { gone } = await sendTelegram(
+            u.telegramChatId!,
+            `<b>${escapeHtml(title)}</b>\n${escapeHtml(body)}\n${SITE_URL}${url}`
+          );
+          if (gone) await prisma.user.update({ where: { id: u.id }, data: { telegramChatId: null } }).catch(() => null);
+        })
+    );
+
+    await Promise.allSettled(
+      users
+        .filter((u) => u.notifyDiscord && u.discordUserId)
+        .map(async (u) => {
+          const { gone } = await sendDiscordDM(u.discordUserId!, `**${title}**\n${body}\n${SITE_URL}${url}`);
+          if (gone) await prisma.user.update({ where: { id: u.id }, data: { discordUserId: null } }).catch(() => null);
+        })
+    );
+  } catch (e) {
+    console.error("notifyPickSettled failed:", e);
   }
 }
 
