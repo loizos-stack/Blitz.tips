@@ -115,6 +115,7 @@ model User {
   reviews           Review[]            @relation("UserReviews")
   adminTabViews     AdminTabView[]      @relation("AdminTabViews")
   follows           Follow[]            @relation("UserFollows")
+  pickTails         PickTail[]          @relation("UserPickTails")
   notifications     Notification[]
   pushSubscriptions PushSubscription[]
 
@@ -310,11 +311,40 @@ model Pick {
   // combined (multiplied) American odds; each leg keeps its own line.
   parlayLegs ParlayLeg[]
 
+  // Who backed or faded this pick. Social proof at the point of decision, and
+  // the raw material for a consensus view of the whole board.
+  tails PickTail[]
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@index([handicapperId, createdAt])
   @@index([result])
+}
+
+// A reader saying they're on a pick, or against it.
+//
+// One row per user per pick, with the side stored rather than implied, so
+// switching from tail to fade is an update rather than a delete plus an insert
+// — the count stays right and the history isn't a hole. Only picks the user can
+// actually see are tailable; the API enforces that, since a premium pick's
+// selection is exactly what a subscription buys.
+model PickTail {
+  id     String @id @default(cuid())
+  pickId String
+  pick   Pick   @relation(fields: [pickId], references: [id], onDelete: Cascade)
+  userId String
+  user   User   @relation("UserPickTails", fields: [userId], references: [id], onDelete: Cascade)
+
+  /** True = tailed (backing it), false = faded (against it). */
+  tailed Boolean
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([pickId, userId])
+  @@index([pickId])
+  @@index([userId])
 }
 
 // One selection within a parlay Pick. Legs are display-only detail; the parlay

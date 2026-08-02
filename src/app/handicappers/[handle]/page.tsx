@@ -6,6 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { getHandicapperByHandle } from "@/lib/handicappers";
 import { summarizeRatings } from "@/lib/reviews";
 import { isPickLocked } from "@/lib/pick-visibility";
+import { tailStates } from "@/lib/pick-tails";
 import { ReviewsList, type ReviewItem } from "@/components/reviews-list";
 import { Stars } from "@/components/stars";
 import { HandicapperJsonLd, BreadcrumbJsonLd } from "@/components/json-ld";
@@ -116,6 +117,12 @@ export default async function HandicapperProfilePage({
   const pendingPicks = picks.filter((p) => p.result === "PENDING");
   const settledPicks = picks.filter((p) => p.result !== "PENDING");
 
+  // Tail/fade lives on the pending tips — the ones a reader can still act on.
+  const tails = await tailStates(pendingPicks, session?.user?.id ?? null, {
+    isOwner: Boolean(isOwner),
+    unlocked,
+  });
+
   // Reviews are display-only here (writing happens in the subscriber dashboard).
   // Only APPROVED reviews are loaded, so the summary reflects the public set.
   const ratingSummary = summarizeRatings(handicapper.reviews.map((r) => r.rating));
@@ -176,7 +183,13 @@ export default async function HandicapperProfilePage({
         </h2>
         <div className="grid gap-4 sm:grid-cols-2">
           {pendingPicks.map((pick) => (
-            <PickCard key={pick.id} pick={pick} locked={isPickLocked(pick, unlocked)} showStake={showStake} />
+            <PickCard
+              key={pick.id}
+              pick={pick}
+              locked={isPickLocked(pick, unlocked)}
+              showStake={showStake}
+              tail={tails.get(pick.id)}
+            />
           ))}
         </div>
       </>

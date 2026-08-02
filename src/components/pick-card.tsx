@@ -1,4 +1,5 @@
 import { Lock, Layers } from "lucide-react";
+import { TailButtons } from "@/components/tail-buttons";
 import { format } from "date-fns";
 import type { Pick as PickModel, ParlayLeg } from "@prisma/client";
 import { ResultPill } from "@/components/result-pill";
@@ -66,11 +67,17 @@ export function PickCard({
   pick,
   locked = false,
   showStake = false,
+  tail,
 }: {
   pick: PickWithLegs;
   locked?: boolean;
   /** Renders the Stake partner link. Caller must have geo-gated to non-US. */
   showStake?: boolean;
+  /**
+   * Tail/fade counts and the reader's own position. Omitted where the control
+   * doesn't belong — a signed-out visitor, or the capper's own dashboard.
+   */
+  tail?: { tails: number; fades: number; mine: boolean | null; canTail: boolean; reason?: string };
 }) {
   const isParlay = pick.betType === "PARLAY";
   const legs = pick.parlayLegs ?? [];
@@ -183,6 +190,21 @@ export function PickCard({
       {showStake && pick.result === "PENDING" && pick.eventStartsAt > new Date() && (
         <div className="mt-3">
           <StakeCta variant="button" sport={pick.sport} event={pick.oddsApiEventId} />
+        </div>
+      )}
+
+      {/* Under the analysis, above the result: it belongs with the decision,
+          not with the outcome. */}
+      {tail && (
+        <div className="mt-3 border-t border-border pt-3">
+          <TailButtons
+            pickId={pick.id}
+            tails={tail.tails}
+            fades={tail.fades}
+            mine={tail.mine}
+            disabled={!tail.canTail}
+            disabledReason={tail.reason}
+          />
         </div>
       )}
 
