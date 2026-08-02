@@ -7,6 +7,7 @@ import { getHandicapperByHandle } from "@/lib/handicappers";
 import { summarizeRatings } from "@/lib/reviews";
 import { isPickLocked } from "@/lib/pick-visibility";
 import { tailStates } from "@/lib/pick-tails";
+import { ClvBanner } from "@/components/clv-banner";
 import { ReviewsList, type ReviewItem } from "@/components/reviews-list";
 import { Stars } from "@/components/stars";
 import { HandicapperJsonLd, BreadcrumbJsonLd } from "@/components/json-ld";
@@ -139,6 +140,8 @@ export default async function HandicapperProfilePage({
   // subscribe box stay pinned above them.
   const sections: Record<string, ReactNode> = {
     stats: (
+      <div className="flex flex-col gap-4">
+      <ClvBanner picks={handicapper.picksList} />
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
         <StatCard label="Record" value={handicapper.stats.record} />
         <StatCard
@@ -171,6 +174,7 @@ export default async function HandicapperProfilePage({
           }
           subTone={handicapper.last30Stats.unitsNet >= 0 ? "accent" : "danger"}
         />
+      </div>
       </div>
     ),
     pendingPlays: pendingPicks.length > 0 && (

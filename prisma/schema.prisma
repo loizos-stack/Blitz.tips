@@ -298,6 +298,14 @@ model Pick {
   // this pick to a final score.
   oddsApiEventId  String?
   oddsApiSportKey String?
+  // The last price this selection was available at before kickoff, and when it
+  // was captured. Comparing it to `odds` gives closing line value: whether the
+  // market moved toward the pick or away from it. CLV is the one metric that
+  // can't be produced by cherry-picking results — you either beat the close or
+  // you didn't — which makes it the strongest claim a verified-records site can
+  // make. Null when the pick wasn't board-sourced, or the capture didn't run.
+  closingOdds     Int?
+  closingOddsAt   DateTime?
   // Structured form of the selection, captured from the board when the pick was
   // made off the schedule. Lets the settler grade period markets and player
   // props without parsing the display string. Null for manually-entered picks,
