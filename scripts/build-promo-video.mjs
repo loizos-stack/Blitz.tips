@@ -149,7 +149,7 @@ body{font-family:'Space Grotesk',sans-serif;color:#fff}
       </span>
       <span class="wm-sub">Handicapping Contest</span>
     </span>
-    <div class="pill" style="margin-top:52px">Aug 3 2026 → Jan 10 2027</div>
+    <div class="pill" style="margin-top:52px">Aug 10 2026 → Jan 10 2027</div>
     <div class="url" style="margin-top:46px">blitz.tips/supercapper</div>
     <div class="byline" style="margin-top:38px"><img src="${logoMark}" alt=""/><span>Blitz<span class="green">.tips</span></span></div>
   </div>

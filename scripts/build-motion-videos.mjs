@@ -27,7 +27,7 @@ const FPS = 30;
 
 // The contest's own numbers — claims, so re-run this if they change in admin.
 const POOL = 10000;
-const STARTS = "Aug 3 2026";
+const STARTS = "Aug 10 2026";
 const ENDS = "Jan 10 2027";
 const URL = "blitz.tips/supercapper";
 

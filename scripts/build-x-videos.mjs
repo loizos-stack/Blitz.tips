@@ -37,7 +37,7 @@ const FPS = 30;
 // scheduled. A stale figure outliving the change is what gets screenshotted
 // back at you.
 const POOL = 10000;
-const STARTS = "Aug 3 2026";
+const STARTS = "Aug 10 2026";
 const ENDS = "Jan 10 2027";
 const URL = "blitz.tips/supercapper";
 
