@@ -75,6 +75,21 @@ const LEAGUES: Record<string, SoccerLeagueMeta> = {
   soccer_sweden_superettan: { country: "Sweden", code: "se", league: "Superettan", rank: 6 },
   soccer_poland_ekstraklasa: { country: "Poland", code: "pl", league: "Ekstraklasa", rank: 6 },
   soccer_spl: { country: "Scotland", code: "gb-sct", league: "Premiership", rank: 6 },
+  soccer_league_of_ireland: {
+    country: "Ireland",
+    code: "ie",
+    league: "Premier Division",
+    rank: 6,
+    // TheSportsDB files it under the state's formal name, so the badge lookup
+    // misses on the short one we display.
+    badgeCountry: "Republic of Ireland",
+  },
+  soccer_russia_premier_league: {
+    country: "Russia",
+    code: "ru",
+    league: "Premier League",
+    rank: 6,
+  },
 
   // Americas
   soccer_brazil_campeonato: { country: "Brazil", code: "br", league: "Série A", rank: 7 },

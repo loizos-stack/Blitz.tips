@@ -155,6 +155,29 @@ const SOCCER_LEAGUE_PRIORITY = [
   "soccer_uefa_european_championship",
   "soccer_conmebol_copa_america",
   "soccer_conmebol_copa_libertadores",
+  // Third tier: leagues the feed carries that the cap was cutting. Several run
+  // a summer calendar (the Scandinavians, Ireland, Japan, Korea), so in
+  // July/August they're mid-season while the European majors are two fixtures
+  // in — they carry the board in exactly the weeks it's thinnest.
+  //
+  // Named here rather than left to the tail because the tail is ordered by
+  // whatever /sports happens to return (see rank() below): an unlisted league
+  // survives the cut only by luck of upstream ordering, which is how these
+  // dropped off. Listing them makes them stable.
+  "soccer_turkey_super_league",
+  "soccer_spl",
+  "soccer_italy_serie_b",
+  "soccer_greece_super_league",
+  "soccer_switzerland_superleague",
+  "soccer_norway_eliteserien",
+  "soccer_sweden_allsvenskan",
+  "soccer_poland_ekstraklasa",
+  "soccer_japan_j_league",
+  "soccer_korea_kleague1",
+  "soccer_league_of_ireland",
+  "soccer_russia_premier_league",
+  "soccer_germany_liga3",
+  "soccer_sweden_superettan",
 ];
 
 // Where a UEFA competition we haven't listed slots in: right behind the
@@ -174,16 +197,26 @@ const UNLISTED_EUROPEAN_RANK =
 // so roughly 450/league/month at the ceiling, and far less in practice since
 // both only bill on a cache miss caused by a real visitor.
 //
-// 30 rather than 20 because the live feed showed 41 competitions active at once
-// in late July and a cap of 20 cut 21 of them — Scotland, Turkey, Greece,
-// Switzerland, Denmark, Norway, Sweden, Poland, the EFL Cup and Serie B among
-// them. A cap that hides half the football on offer is the wrong dial to save
-// money on; the cache window is.
+// 30 was still cutting 14 active competitions — Turkey, Scotland, Serie B,
+// Greece, Switzerland, Norway, Sweden (both divisions), Poland, Japan, Korea,
+// Ireland, Russia and 3. Liga. 45 carries the whole active set with headroom,
+// and the 40 named in SOCCER_LEAGUE_PRIORITY are protected by rank rather than
+// by cap headroom, so a busy week pushes an unnamed league off the end instead
+// of a league someone asked for.
+//
+// This is the expensive direction. At the ~450/league/month ceiling above, the
+// 15 extra slots are worth roughly 6,750 credits/month *worst case* — every
+// league in season, board viewed daily, every window a cache miss. Real burn is
+// far lower, because a league only bills when a visitor misses the 48h cache,
+// and the leagues at the bottom of the list are the least-viewed. If the quota
+// does tighten, the cheaper dials in order: raise SOCCER_REVALIDATE_SECONDS,
+// then set ODDS_SOCCER_REGIONS="eu" (halves the odds cost), then lower this.
+// Cutting the cap first is what produced this problem.
 //
 // Env-overridable so the cap can be tuned against live usage without a deploy.
 // Out-of-range or unparseable values fall back to the default rather than
 // blanking soccer or running the quota away.
-const DEFAULT_MAX_SOCCER_LEAGUES = 30;
+const DEFAULT_MAX_SOCCER_LEAGUES = 45;
 const MAX_SOCCER_LEAGUES = (() => {
   const raw = Number(process.env.MAX_SOCCER_LEAGUES?.trim());
   if (!Number.isInteger(raw) || raw < 1 || raw > 60) return DEFAULT_MAX_SOCCER_LEAGUES;
