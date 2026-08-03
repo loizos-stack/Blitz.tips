@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { format } from "date-fns";
+import { formatDate } from "@/lib/date-format";
 import { ArrowLeft, HelpCircle } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { formatCents } from "@/lib/utils";
@@ -24,7 +24,7 @@ export default async function ContestFaqPage() {
   const prize = contest ? formatCents(contest.prizePoolCents) : "the guaranteed pool";
   const minPicks = contest?.minPicks ?? 100;
   const dates = contest
-    ? `${format(contest.startsAt, "MMMM d, yyyy")} to ${format(contest.endsAt, "MMMM d, yyyy")}`
+    ? `${formatDate(contest.startsAt)} to ${formatDate(contest.endsAt)}`
     : "the published contest window";
 
   const faqs: { q: string; a: React.ReactNode }[] = [

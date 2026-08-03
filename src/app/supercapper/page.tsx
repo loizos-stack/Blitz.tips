@@ -3,7 +3,7 @@ import { SitePromoStrip } from "@/components/cross-promo-strip";
 import { UsernameGate } from "@/components/contest/username-gate";
 import { entrantAvatar } from "@/lib/contest-avatar";
 import Link from "next/link";
-import { format } from "date-fns";
+import { formatDate } from "@/lib/date-format";
 import { Trophy, Coins, ListChecks, Gift, CalendarClock, Gauge, LayoutDashboard, ListOrdered, Users, Crown, Layers } from "lucide-react";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
@@ -149,8 +149,8 @@ export default async function SupercapperPage() {
       })),
     }));
 
-  const dateRange = `${format(contest.startsAt, "MMM d, yyyy")} – ${format(contest.endsAt, "MMM d, yyyy")}`;
-  const regClosesLabel = format(registrationClosesAt, "MMM d, yyyy");
+  const dateRange = `${formatDate(contest.startsAt)} – ${formatDate(contest.endsAt)}`;
+  const regClosesLabel = formatDate(registrationClosesAt);
 
   return (
     <div>
@@ -320,8 +320,8 @@ export default async function SupercapperPage() {
             />
             <Rule
               icon={<Crown className="h-5 w-5" />}
-              title={`Supercapper crowned ${format(contest.endsAt, "MMM d, yyyy")}`}
-              body={`Picks run all the way to ${format(contest.endsAt, "MMM d, yyyy")}. That's when final ROI standings lock, the ICM prizes are calculated, and the top capper takes the crown.`}
+              title={`Supercapper crowned ${formatDate(contest.endsAt)}`}
+              body={`Picks run all the way to ${formatDate(contest.endsAt)}. That's when final ROI standings lock, the ICM prizes are calculated, and the top capper takes the crown.`}
             />
             <Rule
               icon={<CalendarClock className="h-5 w-5" />}

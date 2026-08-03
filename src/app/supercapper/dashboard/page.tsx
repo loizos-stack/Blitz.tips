@@ -4,7 +4,7 @@ import { EntrantAvatarUpload } from "@/components/contest/entrant-avatar-upload"
 import { entrantAvatar, avatarIsFromHandicapper } from "@/lib/contest-avatar";
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { format } from "date-fns";
+import { formatDate } from "@/lib/date-format";
 import { Trophy, ArrowLeft } from "lucide-react";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
@@ -101,8 +101,8 @@ export default async function ContestDashboardPage() {
                 minPicks: contest.minPicks,
                 winners: prizeLadder.length,
                 prizeLabel: formatCents(contest.prizePoolCents),
-                dateRange: `${format(contest.startsAt, "MMM d, yyyy")} – ${format(contest.endsAt, "MMM d, yyyy")}`,
-                registrationCloses: format(registrationClosesAt, "MMM d, yyyy"),
+                dateRange: `${formatDate(contest.startsAt)} – ${formatDate(contest.endsAt)}`,
+                registrationCloses: formatDate(registrationClosesAt),
                 dynamicPayouts: contest.dynamicPayouts,
               }}
             />
@@ -186,7 +186,7 @@ export default async function ContestDashboardPage() {
             <SupercapperLogo withContest withByline />
           </h1>
           <p className="mt-1 text-sm text-muted">
-            {PHASE_LABEL[phase]} · {format(contest.startsAt, "MMM d")}–{format(contest.endsAt, "MMM d, yyyy")} ·{" "}
+            {PHASE_LABEL[phase]} · {formatDate(contest.startsAt)}–{formatDate(contest.endsAt)} ·{" "}
             <span className="font-semibold text-gold">{formatCents(contest.prizePoolCents)} guaranteed</span>
           </p>
         </div>

@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { format } from "date-fns";
+import { formatDate } from "@/lib/date-format";
 import { ArrowLeft, ScrollText } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { contestRuleItems } from "@/lib/contest-rules";
@@ -36,8 +36,8 @@ export default async function ContestRulesPage() {
     minPicks: contest.minPicks,
     winners: prizeLadder.length,
     prizeLabel: formatCents(contest.prizePoolCents),
-    dateRange: `${format(contest.startsAt, "MMM d, yyyy")} – ${format(contest.endsAt, "MMM d, yyyy")}`,
-    registrationCloses: format(contest.registrationClosesAt ?? contest.endsAt, "MMM d, yyyy"),
+    dateRange: `${formatDate(contest.startsAt)} – ${formatDate(contest.endsAt)}`,
+    registrationCloses: formatDate(contest.registrationClosesAt ?? contest.endsAt),
     dynamicPayouts: contest.dynamicPayouts,
   });
 
@@ -57,7 +57,7 @@ export default async function ContestRulesPage() {
         </h1>
         <p className="mt-2 text-muted">
           These are the rules every entrant accepts before entering. They apply for the whole
-          contest, {format(contest.startsAt, "MMM d, yyyy")} – {format(contest.endsAt, "MMM d, yyyy")}.
+          contest, {formatDate(contest.startsAt)} – {formatDate(contest.endsAt)}.
         </p>
 
         <ol className="mt-8 flex flex-col gap-4">

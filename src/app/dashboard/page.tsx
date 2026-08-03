@@ -7,6 +7,7 @@ import { prisma } from "@/lib/prisma";
 import { computeStats } from "@/lib/odds";
 import { cumulativeUnits, formatUnits } from "@/lib/analytics";
 import { formatCents } from "@/lib/utils";
+import { formatDate } from "@/lib/date-format";
 import { PickCard } from "@/components/pick-card";
 import { showStakeLinks } from "@/lib/stake-server";
 import { HandicapperCard } from "@/components/handicapper-card";
@@ -351,7 +352,7 @@ export default async function DashboardPage() {
                     </Link>
                     <span className="shrink-0 text-muted">
                       {sub.currentPeriodEnd
-                        ? `renews ${sub.currentPeriodEnd.toLocaleDateString()}`
+                        ? `renews ${formatDate(sub.currentPeriodEnd)}`
                         : ""}
                     </span>
                   </li>

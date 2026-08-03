@@ -4,6 +4,7 @@ import { useCallback, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { format } from "date-fns";
+import { DATE_PATTERN, formatDateTime } from "@/lib/date-format";
 import { Plus, Check, Lock, X } from "lucide-react";
 import { SPORT_LABELS, formatCents } from "@/lib/utils";
 import { formatOdds } from "@/lib/odds";
@@ -153,7 +154,7 @@ export function ContestPickForm({
             textClassName="truncate font-display font-medium"
           />
           <span className="shrink-0 text-xs text-muted">
-            {format(new Date(event.commenceTime), "MMM d, h:mm a")}
+            {formatDateTime(new Date(event.commenceTime))}
           </span>
         </button>
 
@@ -253,7 +254,7 @@ export function ContestPickForm({
                 return (
                   <p className="rounded-lg border border-dashed border-border p-3 text-center text-xs text-muted">
                     No {SPORT_LABELS[sport]} games are posted for{" "}
-                    {format(new Date(opensAt!), "EEEE, MMM d")} yet — books usually price them a few
+                    {format(new Date(opensAt!), `EEEE ${DATE_PATTERN}`)} yet — books usually price them a few
                     days out. Check back closer to the start.
                   </p>
                 );

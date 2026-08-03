@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requirePermission } from "@/lib/permissions";
+import { formatDate } from "@/lib/date-format";
 
 export const dynamic = "force-dynamic";
 
@@ -69,7 +70,7 @@ export async function GET(request: Request) {
           userId: sub.subscriberId,
           type: "crypto.expiring",
           title: "Your pass expires soon",
-          body: `Your access to ${sub.handicapper.displayName} ends ${sub.currentPeriodEnd?.toLocaleDateString()}. Renew to keep their picks coming.`,
+          body: `Your access to ${sub.handicapper.displayName} ends ${sub.currentPeriodEnd ? formatDate(sub.currentPeriodEnd) : "soon"}. Renew to keep their picks coming.`,
           url: `/handicappers/${sub.handicapper.handle}`,
           handicapperId: sub.handicapperId,
         },

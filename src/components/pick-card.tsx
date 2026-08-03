@@ -1,6 +1,6 @@
 import { Lock, Layers } from "lucide-react";
 import { TailButtons } from "@/components/tail-buttons";
-import { format } from "date-fns";
+import { formatDateTime } from "@/lib/date-format";
 import type { Pick as PickModel, ParlayLeg } from "@prisma/client";
 import { ResultPill } from "@/components/result-pill";
 import { StakeCta } from "@/components/stake-cta";
@@ -100,7 +100,7 @@ export function PickCard({
             {isParlay ? <Layers className="h-4 w-4" /> : <SportIcon sport={pick.sport} className="h-4 w-4" />}
             {isParlay ? `${legs.length}-leg parlay` : SPORT_LABELS[pick.sport]}
           </span>
-          <span>{format(pick.eventStartsAt, "MMM d, h:mm a")}</span>
+          <span>{formatDateTime(pick.eventStartsAt)}</span>
         </div>
         <div className="mt-3 flex items-center gap-2 blur-sm select-none">
           <p className="font-display font-semibold">{pick.matchup}</p>
@@ -126,7 +126,7 @@ export function PickCard({
           {isParlay ? "Parlay" : SPORT_LABELS[pick.sport]}
           {!isParlay && pick.league ? ` · ${pick.league}` : ""}
         </span>
-        <span>{format(pick.eventStartsAt, "MMM d, h:mm a")}</span>
+        <span>{formatDateTime(pick.eventStartsAt)}</span>
       </div>
 
       {isParlay ? (

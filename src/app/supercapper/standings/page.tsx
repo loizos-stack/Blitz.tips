@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { entrantAvatar } from "@/lib/contest-avatar";
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { format } from "date-fns";
+import { formatDate } from "@/lib/date-format";
 import { ArrowLeft, LayoutDashboard, Users } from "lucide-react";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
@@ -119,7 +119,7 @@ export default async function SupercapperStandingsPage() {
         <div>
           <h1 className="text-3xl font-bold">Full standings</h1>
           <p className="mt-1 text-sm text-muted">
-            {PHASE_LABEL[phase]} · {format(contest.startsAt, "MMM d")}–{format(contest.endsAt, "MMM d, yyyy")} ·{" "}
+            {PHASE_LABEL[phase]} · {formatDate(contest.startsAt)}–{formatDate(contest.endsAt)} ·{" "}
             <span className="font-semibold text-gold">{formatCents(contest.prizePoolCents)} guaranteed</span> · {overallStandings.length} entrants
           </p>
         </div>
