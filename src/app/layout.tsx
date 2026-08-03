@@ -1,5 +1,4 @@
 import type { Metadata, Viewport } from "next";
-import Script from "next/script";
 import { Space_Grotesk } from "next/font/google";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 import { Analytics } from "@vercel/analytics/next";
@@ -13,6 +12,9 @@ import { AnnouncementBanner } from "@/components/announcement-banner";
 import { getCachedAnnouncement } from "@/lib/settings";
 import { RegisterServiceWorker } from "@/components/register-service-worker";
 import { DeferredWidgets } from "@/components/deferred-widgets";
+import { SitePopups } from "@/components/site-popups";
+import { AnalyticsGate } from "@/components/analytics-gate";
+import { needsCookieConsent } from "@/lib/geo";
 
 // Space Grotesk is the single web font — body/UI text and the sportier headings
 // and wordmark. (Monospace bits use the system mono stack; see globals.css.)
@@ -21,38 +23,33 @@ const spaceGrotesk = Space_Grotesk({
   subsets: ["latin"],
 });
 
+// Google truncates a search snippet around 155-160 characters. The old copy ran
+// to 222 and was cut mid-sentence in the SERP, so the call to action never
+// showed. Keep any replacement under ~155 and put the offer in the first half.
 const DESCRIPTION =
-  "Blitz.tips is a marketplace of verified sports handicappers. Track real records, compare units and ROI, read subscriber reviews, and subscribe to the cappers who actually win — across the NFL, NBA, MLB, NHL, and soccer.";
+  "Verified sports handicappers with real, timestamped records. Compare units and ROI across NFL, NBA, MLB, NHL and soccer, then subscribe.";
 
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl()),
   title: {
-    default: "Blitz.tips — Follow the sharpest sports handicappers",
+    // Leads with what people actually search for rather than with brand voice:
+    // "sports handicappers" and "betting picks" are the queries, "follow the
+    // sharpest" is a slogan nobody types.
+    default: "Verified Sports Handicappers & Betting Picks — Blitz.tips",
     template: "%s — Blitz.tips",
   },
   description: DESCRIPTION,
   applicationName: "Blitz.tips",
-  keywords: [
-    "sports handicappers",
-    "verified betting records",
-    "sports betting picks",
-    "sports betting tips",
-    "handicapper leaderboard",
-    "NFL picks",
-    "NBA picks",
-    "MLB picks",
-    "NHL picks",
-    "soccer betting tips",
-    "player props",
-    "parlays",
-    "betting ROI",
-    "sports betting marketplace",
-  ],
   authors: [{ name: "Blitz.tips" }],
   creator: "Blitz.tips",
   publisher: "Blitz.tips",
   category: "Sports",
-  alternates: { canonical: "/" },
+  // No `alternates.canonical` here on purpose. Metadata is inherited, so a
+  // canonical set on the root layout becomes every page's canonical unless that
+  // page overrides it — which told Google that /about, /buy-picks and the rest
+  // were duplicates of the homepage, and Search Console duly filed them under
+  // "Alternate page with proper canonical tag" and left them out of the index.
+  // Each page declares its own; the homepage's lives in app/page.tsx.
   formatDetection: { telephone: false, email: false, address: false },
   openGraph: {
     type: "website",
@@ -92,6 +89,9 @@ export default async function RootLayout({
   children: React.ReactNode;
 }>) {
   const announcement = await getCachedAnnouncement();
+  // Resolved once and shared: the prompt and the analytics gate must agree on
+  // whether this visitor needs consent, or one will contradict the other.
+  const consentRequired = await needsCookieConsent();
   return (
     <html
       lang="en"
@@ -107,20 +107,16 @@ export default async function RootLayout({
           <main className="flex-1">{children}</main>
           <Footer />
           <DeferredWidgets />
+          <SitePopups cookieConsentRequired={consentRequired} />
         </Providers>
+        {/* Cookieless and device-storage-free, so these sit outside the consent
+            gate — blocking them would cost the site its traffic numbers without
+            any compliance gain. */}
         <SpeedInsights />
         <Analytics />
-        {/* Google tag (gtag.js) — loaded after the page is interactive so it
-            never blocks first paint. */}
-        <Script src="https://www.googletagmanager.com/gtag/js?id=G-Z43Z20YSYL" strategy="afterInteractive" />
-        <Script id="google-analytics" strategy="afterInteractive">
-          {`
-            window.dataLayer = window.dataLayer || [];
-            function gtag(){dataLayer.push(arguments);}
-            gtag('js', new Date());
-            gtag('config', 'G-Z43Z20YSYL');
-          `}
-        </Script>
+        {/* Google Analytics writes cookies, so it only loads once consent
+            allows it. */}
+        <AnalyticsGate consentRequired={consentRequired} />
       </body>
     </html>
   );

@@ -134,9 +134,9 @@ body{font-family:'Space Grotesk',sans-serif;background:#222}
 // edit these in the contests panel without a migration — the prize pool already
 // changed that way — so re-check the live row before publishing anything that
 // puts a date in front of people.
-const STARTS = "August 3, 2026";
+const STARTS = "August 10, 2026";
 const ENDS = "January 10, 2027";
-const STARTS_SHORT = "Aug 3";
+const STARTS_SHORT = "Aug 10";
 const ENDS_SHORT = "Jan 10";
 
 const cards = [

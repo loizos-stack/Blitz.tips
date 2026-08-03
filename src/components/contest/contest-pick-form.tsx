@@ -4,6 +4,7 @@ import { useCallback, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { format } from "date-fns";
+import { DATE_PATTERN, formatDateTime } from "@/lib/date-format";
 import { Plus, Check, Lock, X } from "lucide-react";
 import { SPORT_LABELS, formatCents } from "@/lib/utils";
 import { formatOdds } from "@/lib/odds";
@@ -12,6 +13,7 @@ import type { MarketOption, UpcomingEvent } from "@/lib/odds-api";
 import type { CapperOnEvent } from "@/lib/contest-funnel";
 import { StakeCta } from "@/components/stake-cta";
 import { MatchupTeams } from "@/components/matchup-teams";
+import { ContestCountdown } from "@/components/contest/contest-countdown";
 import { SoccerLeagueSections } from "@/components/soccer-league-sections";
 
 const sportKeys = Object.keys(SPORT_LABELS);
@@ -49,11 +51,29 @@ type FeedState =
 export function ContestPickForm({
   contestId,
   showStake = false,
+  opensAt,
 }: {
   contestId: string;
   /** Renders the Stake partner link on the confirmation. Caller geo-gates. */
   showStake?: boolean;
+  /**
+   * Set before the contest opens. The board becomes browsable — sports, games,
+   * every market and price — but the submit button becomes a countdown. People
+   * can see what they'd be picking from before they can pick, which is a much
+   * better answer to "what is this?" than a sentence saying picks open later.
+   * The API refuses picks in this window regardless; this is the UI half.
+   */
+  opensAt?: string;
 }) {
+  const preview = Boolean(opensAt);
+
+  // In preview the board is narrowed to the contest's opening day: those are
+  // the games you could actually pick with your first pick, and showing
+  // tomorrow's card alongside them only invites planning a pick that expires
+  // before picks open. Compared on the viewer's own calendar day, since that's
+  // the day they mean when they read the date on a card.
+  const sameLocalDay = (a: string, b: string) =>
+    new Date(a).toDateString() === new Date(b).toDateString();
   const router = useRouter();
   const [sport, setSport] = useState("");
   const [feed, setFeed] = useState<FeedState>({ status: "idle" });
@@ -134,7 +154,7 @@ export function ContestPickForm({
             textClassName="truncate font-display font-medium"
           />
           <span className="shrink-0 text-xs text-muted">
-            {format(new Date(event.commenceTime), "MMM d, h:mm a")}
+            {formatDateTime(new Date(event.commenceTime))}
           </span>
         </button>
 
@@ -224,15 +244,32 @@ export function ContestPickForm({
             </p>
           )}
 
-          {feed.status === "ready" && (
-            <div className="flex max-h-[36rem] flex-col gap-3 overflow-y-auto overscroll-contain pr-1">
-              {sport === "SOCCER" ? (
-                <SoccerLeagueSections events={feed.events} renderEvent={renderEvent} />
-              ) : (
-                feed.events.map((event) => renderEvent(event))
-              )}
-            </div>
-          )}
+          {feed.status === "ready" &&
+            (() => {
+              const events = preview
+                ? feed.events.filter((e) => sameLocalDay(e.commenceTime, opensAt!))
+                : feed.events;
+
+              if (events.length === 0) {
+                return (
+                  <p className="rounded-lg border border-dashed border-border p-3 text-center text-xs text-muted">
+                    No {SPORT_LABELS[sport]} games are posted for{" "}
+                    {format(new Date(opensAt!), `EEEE ${DATE_PATTERN}`)} yet — books usually price them a few
+                    days out. Check back closer to the start.
+                  </p>
+                );
+              }
+
+              return (
+                <div className="flex max-h-[36rem] flex-col gap-3 overflow-y-auto overscroll-contain pr-1">
+                  {sport === "SOCCER" ? (
+                    <SoccerLeagueSections events={events} renderEvent={renderEvent} />
+                  ) : (
+                    events.map((event) => renderEvent(event))
+                  )}
+                </div>
+              );
+            })()}
 
       {selectedMarket && (
         <div className="rounded-lg bg-surface-raised p-3 text-sm">
@@ -267,13 +304,26 @@ export function ContestPickForm({
 
       {error && <p className="text-sm text-danger">{error}</p>}
 
-      <button
-        type="submit"
-        disabled={loading}
-        className="inline-flex items-center justify-center gap-2 rounded-lg bg-accent py-2.5 text-sm font-semibold text-accent-foreground hover:opacity-90 disabled:opacity-60"
-      >
-        <Plus className="h-4 w-4" /> {loading ? "Submitting…" : "Submit pick"}
-      </button>
+      {preview ? (
+        <div className="rounded-lg border border-accent/40 bg-accent/5 p-4 text-center">
+          <p className="text-xs font-semibold uppercase tracking-wide text-muted">Picks open in</p>
+          <div className="mt-2 flex justify-center">
+            <ContestCountdown target={opensAt!} label="" compact />
+          </div>
+          <p className="mt-3 text-xs text-muted">
+            Browse the board and the prices now — you can post your first pick the moment the
+            contest opens.
+          </p>
+        </div>
+      ) : (
+        <button
+          type="submit"
+          disabled={loading}
+          className="inline-flex items-center justify-center gap-2 rounded-lg bg-accent py-2.5 text-sm font-semibold text-accent-foreground hover:opacity-90 disabled:opacity-60"
+        >
+          <Plus className="h-4 w-4" /> {loading ? "Submitting…" : "Submit pick"}
+        </button>
+      )}
     </form>
   );
 }

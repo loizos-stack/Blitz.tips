@@ -115,6 +115,16 @@ model User {
   reviews           Review[]            @relation("UserReviews")
   adminTabViews     AdminTabView[]      @relation("AdminTabViews")
   follows           Follow[]            @relation("UserFollows")
+  pickTails         PickTail[]          @relation("UserPickTails")
+
+  // Referrals. `referralCode` is this user's own code to hand out;
+  // `referredById` is who brought them in, set once at signup and never after —
+  // attribution that can be edited later isn't attribution.
+  referralCode      String?             @unique
+  referredById      String?
+  referredBy        User?               @relation("UserReferrals", fields: [referredById], references: [id], onDelete: SetNull)
+  referrals         User[]              @relation("UserReferrals")
+  referredAt        DateTime?
   notifications     Notification[]
   pushSubscriptions PushSubscription[]
 
@@ -297,6 +307,14 @@ model Pick {
   // this pick to a final score.
   oddsApiEventId  String?
   oddsApiSportKey String?
+  // The last price this selection was available at before kickoff, and when it
+  // was captured. Comparing it to `odds` gives closing line value: whether the
+  // market moved toward the pick or away from it. CLV is the one metric that
+  // can't be produced by cherry-picking results — you either beat the close or
+  // you didn't — which makes it the strongest claim a verified-records site can
+  // make. Null when the pick wasn't board-sourced, or the capture didn't run.
+  closingOdds     Int?
+  closingOddsAt   DateTime?
   // Structured form of the selection, captured from the board when the pick was
   // made off the schedule. Lets the settler grade period markets and player
   // props without parsing the display string. Null for manually-entered picks,
@@ -310,11 +328,40 @@ model Pick {
   // combined (multiplied) American odds; each leg keeps its own line.
   parlayLegs ParlayLeg[]
 
+  // Who backed or faded this pick. Social proof at the point of decision, and
+  // the raw material for a consensus view of the whole board.
+  tails PickTail[]
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@index([handicapperId, createdAt])
   @@index([result])
+}
+
+// A reader saying they're on a pick, or against it.
+//
+// One row per user per pick, with the side stored rather than implied, so
+// switching from tail to fade is an update rather than a delete plus an insert
+// — the count stays right and the history isn't a hole. Only picks the user can
+// actually see are tailable; the API enforces that, since a premium pick's
+// selection is exactly what a subscription buys.
+model PickTail {
+  id     String @id @default(cuid())
+  pickId String
+  pick   Pick   @relation(fields: [pickId], references: [id], onDelete: Cascade)
+  userId String
+  user   User   @relation("UserPickTails", fields: [userId], references: [id], onDelete: Cascade)
+
+  /** True = tailed (backing it), false = faded (against it). */
+  tailed Boolean
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([pickId, userId])
+  @@index([pickId])
+  @@index([userId])
 }
 
 // One selection within a parlay Pick. Legs are display-only detail; the parlay

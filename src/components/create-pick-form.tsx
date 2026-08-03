@@ -2,7 +2,7 @@
 
 import { useCallback, useState } from "react";
 import { useRouter } from "next/navigation";
-import { format } from "date-fns";
+import { formatDateTime } from "@/lib/date-format";
 import { CalendarSearch, PencilLine, Plus, X } from "lucide-react";
 import { SPORT_LABELS, BET_TYPE_LABELS, cn, formatMatchup, usesVsSeparator } from "@/lib/utils";
 import { formatOdds } from "@/lib/odds";
@@ -239,7 +239,7 @@ export function CreatePickForm({
             <span className="truncate font-display font-medium">{event.matchup}</span>
           </span>
           <span className="ml-2 shrink-0 text-xs text-muted">
-            {format(new Date(event.commenceTime), "MMM d, h:mm a")}
+            {formatDateTime(new Date(event.commenceTime))}
           </span>
         </button>
 

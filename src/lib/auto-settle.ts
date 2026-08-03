@@ -1,5 +1,6 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
+import { notifyPickSettled } from "@/lib/notifications";
 import { oddsApiKey } from "@/lib/odds-api";
 import {
   getFinalPeriodScores,
@@ -292,6 +293,11 @@ export async function runAutoSettle(): Promise<AutoSettleReport> {
         oddsApiSportKey: { not: null },
         eventStartsAt: started,
       },
+      // The handicapper comes along so a graded pick can be announced without a
+      // second query per pick.
+      include: {
+        handicapper: { select: { id: true, userId: true, handle: true, displayName: true } },
+      },
     }),
     // Contest picks are always board-sourced, so every pending one is gradable.
     prisma.contestPick.findMany({
@@ -416,6 +422,17 @@ export async function runAutoSettle(): Promise<AutoSettleReport> {
     await prisma.pick.update({
       where: { id: pick.id },
       data: { result, settledAt: new Date(), settledBy: "auto" },
+    });
+    // Tell the followers. Awaited so a serverless invocation can't be frozen
+    // mid-send, but best-effort inside, so a failed channel never stops grading.
+    await notifyPickSettled({
+      id: pick.id,
+      matchup: pick.matchup,
+      selection: pick.selection,
+      odds: pick.odds,
+      units: pick.units,
+      result,
+      handicapper: pick.handicapper,
     });
     report.settled += 1;
   }

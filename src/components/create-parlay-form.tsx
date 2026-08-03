@@ -3,6 +3,7 @@
 import { useCallback, useState } from "react";
 import { useRouter } from "next/navigation";
 import { format } from "date-fns";
+import { formatDateTime } from "@/lib/date-format";
 import { CalendarSearch, PencilLine, ImageUp, Trash2, Layers, Plus, X } from "lucide-react";
 import { SPORT_LABELS, cn, formatMatchup, usesVsSeparator, parseMatchupSides } from "@/lib/utils";
 import { formatOdds, combineParlayOdds } from "@/lib/odds";
@@ -463,7 +464,7 @@ export function CreateParlayForm({
                       )}
                       <span className="truncate font-display font-medium">{event.matchup}</span>
                     </span>
-                    <span className="ml-2 shrink-0 text-xs text-muted">{format(new Date(event.commenceTime), "MMM d, h:mm a")}</span>
+                    <span className="ml-2 shrink-0 text-xs text-muted">{formatDateTime(new Date(event.commenceTime))}</span>
                   </button>
                   {openEvent === event.id && (
                     <div className="border-t border-border p-3">

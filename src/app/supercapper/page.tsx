@@ -1,9 +1,10 @@
 import type { Metadata } from "next";
+import { SitePromoStrip } from "@/components/cross-promo-strip";
 import { UsernameGate } from "@/components/contest/username-gate";
 import { entrantAvatar } from "@/lib/contest-avatar";
 import Link from "next/link";
-import { format } from "date-fns";
-import { Trophy, ShieldCheck, Coins, ListChecks, Gift, CalendarClock, Gauge, LayoutDashboard, ListOrdered, Users, Crown, Layers } from "lucide-react";
+import { formatDate } from "@/lib/date-format";
+import { Trophy, Coins, ListChecks, Gift, CalendarClock, Gauge, LayoutDashboard, ListOrdered, Users, Crown, Layers } from "lucide-react";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import {
@@ -148,35 +149,48 @@ export default async function SupercapperPage() {
       })),
     }));
 
-  const dateRange = `${format(contest.startsAt, "MMM d, yyyy")} – ${format(contest.endsAt, "MMM d, yyyy")}`;
-  const regClosesLabel = format(registrationClosesAt, "MMM d, yyyy");
+  const dateRange = `${formatDate(contest.startsAt)} – ${formatDate(contest.endsAt)}`;
+  const regClosesLabel = formatDate(registrationClosesAt);
 
   return (
     <div>
       {/* Hero */}
-      <section className="relative overflow-hidden border-b border-border">
-        <div aria-hidden className="pointer-events-none absolute inset-0 bg-[url('/hero-bg.svg')] bg-cover bg-bottom" />
-        <div aria-hidden className="pointer-events-none absolute inset-0 bg-gradient-to-b from-background/60 via-background/80 to-background" />
+      <section className="relative overflow-hidden border-b border-white/10 bg-[#0b0f14] text-white">
+        {/* Dark hero: the contest has its own identity, and the gold mark and
+            prize figure carry far more weight on charcoal than on the site's
+            light chrome. Matches the promo banner and the social graphics. */}
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-0 bg-[url('/hero-bg.svg')] bg-cover bg-bottom opacity-20"
+        />
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-0 bg-[radial-gradient(120%_80%_at_50%_0%,rgba(34,197,94,0.18),transparent_60%),radial-gradient(90%_70%_at_80%_100%,rgba(234,179,8,0.14),transparent_60%)]"
+        />
         <div className="container-page relative py-16 text-center">
-          <span className="inline-flex items-center gap-2 rounded-full border border-gold/40 bg-gold/10 px-3 py-1 text-xs font-semibold text-gold">
+          <span className="inline-flex items-center gap-2 rounded-full border border-[#eab308]/40 bg-[#eab308]/10 px-3 py-1 text-xs font-semibold text-[#eab308]">
             <Trophy className="h-3.5 w-3.5" /> {PHASE_LABEL[phase]}
           </span>
           <h1 className="mt-6 flex justify-center text-5xl md:text-7xl">
-            <SupercapperLogo withContest withByline />
+            <SupercapperLogo withContest withByline onDark />
           </h1>
-          {contest.tagline && <p className="mt-4 text-lg text-muted">{contest.tagline}</p>}
+          {contest.tagline && <p className="mt-4 text-lg text-white/70">{contest.tagline}</p>}
 
           <div className="mt-8 flex flex-col items-center">
-            <p className="text-sm font-semibold uppercase tracking-wide text-muted">Guaranteed prize pool</p>
-            <p className="font-display text-5xl font-extrabold text-accent md:text-7xl">
+            <p className="text-sm font-semibold uppercase tracking-wide text-white/60">Guaranteed prize pool</p>
+            <p className="font-display text-5xl font-extrabold text-[#eab308] md:text-7xl">
               {formatCents(contest.prizePoolCents)}
             </p>
-            <p className="mt-2 text-sm text-muted">{dateRange}</p>
+            <p className="mt-2 text-sm text-white/60">{dateRange}</p>
           </div>
 
           <div className="mt-8 flex flex-col items-center gap-6">
-            {phase === "upcoming" && <ContestCountdown target={contest.startsAt.toISOString()} label="Contest starts in" />}
-            {phase === "live" && <ContestCountdown target={contest.endsAt.toISOString()} label="Contest ends in" />}
+            {phase === "upcoming" && (
+              <ContestCountdown target={contest.startsAt.toISOString()} label="Contest starts in" onDark />
+            )}
+            {phase === "live" && (
+              <ContestCountdown target={contest.endsAt.toISOString()} label="Contest ends in" onDark />
+            )}
             {myEntry ? (
               // Already entered: skip the "entered" button and send them where they
               // actually want to go — their dashboard, or the full standings.
@@ -189,13 +203,13 @@ export default async function SupercapperPage() {
                 </Link>
                 <Link
                   href="/supercapper/standings"
-                  className="inline-flex items-center justify-center gap-2 rounded-lg border border-border px-6 py-3 text-sm font-semibold hover:border-muted"
+                  className="inline-flex items-center justify-center gap-2 rounded-lg border border-white/25 px-6 py-3 text-sm font-semibold text-white hover:border-white/50"
                 >
                   <ListOrdered className="h-4 w-4" /> Full standings
                 </Link>
                 <Link
                   href="/supercapper/consensus"
-                  className="inline-flex items-center justify-center gap-2 rounded-lg border border-border px-6 py-3 text-sm font-semibold hover:border-muted"
+                  className="inline-flex items-center justify-center gap-2 rounded-lg border border-white/25 px-6 py-3 text-sm font-semibold text-white hover:border-white/50"
                 >
                   <Users className="h-4 w-4" /> Consensus
                 </Link>
@@ -222,6 +236,8 @@ export default async function SupercapperPage() {
           </div>
         </div>
       </section>
+
+      <SitePromoStrip />
 
       {/* Prize breakdown */}
       <section className="relative overflow-hidden border-b border-border py-14">
@@ -259,14 +275,29 @@ export default async function SupercapperPage() {
 
       {/* How it works & rules */}
       <section className="relative overflow-hidden border-b border-border bg-surface/40 py-14">
-        <div aria-hidden className="pointer-events-none absolute inset-0 bg-[url('/hero-bg.svg')] bg-cover bg-center opacity-[0.08]" />
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-0 bg-[url('/lines-bg.svg')] bg-cover bg-center opacity-[0.07]"
+        />
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-0 bg-gradient-to-br from-accent/[0.07] via-transparent to-gold/[0.07]"
+        />
         <div className="container-page relative">
           <h2 className="text-center text-2xl font-bold">How it works &amp; rules</h2>
           <p className="mt-2 text-center text-sm text-muted">
             Everything you need to know — you agree to the full rules when you enter.
           </p>
           <div className="mt-8 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
-            <Rule icon={<Gift className="h-5 w-5" />} title="Free to enter" body="No buy-in, no catch. Sign in, hit enter, and start posting picks." />
+            {/* Free entry and the one-account rule belong together: "it's free"
+                invites the obvious follow-up "so what stops ten accounts?", and
+                answering it in the same box is more convincing than burying the
+                integrity rule at the end. */}
+            <Rule
+              icon={<Gift className="h-5 w-5" />}
+              title="Free to enter · one account each"
+              body="No buy-in, no catch — sign in, hit enter, start posting picks. One entry per person: we log the IP and device on every entry and every pick, and duplicate accounts, shared IPs or collusion are disqualified and forfeit any prize."
+            />
             <Rule icon={<Coins className="h-5 w-5" />} title="Best ROI wins" body="Ranked by volume-adjusted ROI — return on units risked, weighted by how many picks you post. Consistency all season beats a lucky short run." />
             <Rule
               icon={<ListChecks className="h-5 w-5" />}
@@ -289,8 +320,8 @@ export default async function SupercapperPage() {
             />
             <Rule
               icon={<Crown className="h-5 w-5" />}
-              title={`Supercapper crowned ${format(contest.endsAt, "MMM d, yyyy")}`}
-              body={`Picks run all the way to ${format(contest.endsAt, "MMM d, yyyy")}. That's when final ROI standings lock, the ICM prizes are calculated, and the top capper takes the crown.`}
+              title={`Supercapper crowned ${formatDate(contest.endsAt)}`}
+              body={`Picks run all the way to ${formatDate(contest.endsAt)}. That's when final ROI standings lock, the ICM prizes are calculated, and the top capper takes the crown.`}
             />
             <Rule
               icon={<CalendarClock className="h-5 w-5" />}
@@ -302,11 +333,6 @@ export default async function SupercapperPage() {
               title="Daily & weekly limits"
               body={`Max ${MAX_PICKS_PER_DAY} picks and ${MAX_UNITS_PER_DAY} units per day, and ${MAX_PICKS_PER_WEEK} picks per week. Limits reset daily at midnight UTC and weekly on Monday.`}
             />
-            <Rule
-              icon={<ShieldCheck className="h-5 w-5" />}
-              title="One account · fair play"
-              body="One entry per person. We log the IP and device on every entry and pick — duplicate accounts, shared IPs, or collusion are disqualified and forfeit any prize."
-            />
           </div>
         </div>
       </section>
@@ -317,9 +343,10 @@ export default async function SupercapperPage() {
         <div className="container-page relative">
           <div className="flex flex-wrap items-end justify-between gap-3">
             <div>
-              <h2 className="text-2xl font-bold">Standings</h2>
+              <h2 className="text-2xl font-bold">In the money</h2>
               <p className="mt-1 text-sm text-muted">
-                Ranked by volume-adjusted ROI — your ROI counts more the more picks you post. Entrants need{" "}
+                The {winners} paid place{winners === 1 ? "" : "s"} as it stands. Ranked by
+                volume-adjusted ROI — your ROI counts more the more picks you post. Entrants need{" "}
                 {contest.minPicks} graded picks to qualify. Prizes are auto-calculated per ICM by finishing rank.
               </p>
             </div>
@@ -330,12 +357,26 @@ export default async function SupercapperPage() {
             )}
           </div>
           <div className="mt-6">
+            {/* Paid places only. The whole field lives on the standings page —
+                a hundred rows at the bottom of a landing page buries the CTA. */}
             <ContestStandings
               overall={overallStandings}
               entries={standingEntries}
               minPicks={contest.minPicks}
               myEntryId={myEntry?.id}
+              limit={winners}
             />
+          </div>
+          <div className="mt-6 flex justify-center">
+            <Link
+              href="/supercapper/standings"
+              className="inline-flex items-center gap-2 rounded-lg border border-border px-5 py-2.5 text-sm font-semibold hover:border-accent"
+            >
+              <ListOrdered className="h-4 w-4" /> Full standings
+              {overallStandings.length > winners && (
+                <span className="text-muted">· all {overallStandings.length} entrants</span>
+              )}
+            </Link>
           </div>
         </div>
       </section>
@@ -361,10 +402,19 @@ function ordinal(n: number): string {
 
 function Rule({ icon, title, body }: { icon: React.ReactNode; title: string; body: string }) {
   return (
-    <div className="card p-6">
-      <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-accent/15 text-accent">{icon}</div>
-      <h3 className="mt-4 font-semibold">{title}</h3>
-      <p className="mt-2 text-sm text-muted">{body}</p>
+    // Icon and heading share a row rather than stacking — eight of these sit in
+    // a grid, so a line of height saved per card is a whole row off the section.
+    <div className="card p-5">
+      {/* items-start keeps every icon in a row at the same height even when one
+          card's heading wraps to two lines; min-h-9 on the heading keeps a
+          single-line one optically centred against the icon. */}
+      <div className="flex items-start gap-3">
+        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-accent/15 text-accent">
+          {icon}
+        </span>
+        <h3 className="flex min-h-9 min-w-0 items-center text-sm font-semibold">{title}</h3>
+      </div>
+      <p className="mt-3 text-sm text-muted">{body}</p>
     </div>
   );
 }

@@ -7,11 +7,13 @@ import { prisma } from "@/lib/prisma";
 import { computeStats } from "@/lib/odds";
 import { cumulativeUnits, formatUnits } from "@/lib/analytics";
 import { formatCents } from "@/lib/utils";
+import { formatDate } from "@/lib/date-format";
 import { PickCard } from "@/components/pick-card";
 import { showStakeLinks } from "@/lib/stake-server";
 import { HandicapperCard } from "@/components/handicapper-card";
 import { ManageBillingButton } from "@/components/manage-billing-button";
 import { VerifyEmailBanner } from "@/components/verify-email-banner";
+import { ContestPromoBanner } from "@/components/contest/contest-promo-banner";
 import { Avatar } from "@/components/avatar";
 import { StatCard } from "@/components/stat-card";
 import { UnitsChart } from "@/components/dashboard/units-chart";
@@ -21,6 +23,11 @@ import { SubscriberReviews } from "@/components/dashboard/subscriber-reviews";
 import { enrichPickCrests } from "@/lib/pick-logos";
 import { getSetting } from "@/lib/settings";
 import { DASHBOARD_ORDER_SETTING, resolveSectionOrder } from "@/lib/dashboard-sections";
+import { Radio } from "lucide-react";
+import { isInPlay, liveDetails } from "@/lib/live-picks";
+import { ReferralCard } from "@/components/referral-card";
+import { referralStats } from "@/lib/referrals";
+import { siteUrl } from "@/lib/site";
 import type { ReactNode } from "react";
 
 export const metadata: Metadata = { title: "Dashboard" };
@@ -144,6 +151,17 @@ export default async function DashboardPage() {
     upcomingPicks,
     recentPicks,
   } = await loadDashboard(session.user.id);
+
+  // Allocates a code on first view, so existing accounts get one without a
+  // backfill.
+  const referrals = await referralStats(session.user.id);
+
+  // A pick whose game has kicked off but isn't graded is neither upcoming nor a
+  // result — it's the most interesting thing on the page. Pull it out of the
+  // settled list and give it a clock.
+  const livePicks = recentPicks.filter((p) => isInPlay(p));
+  const settledPicks = recentPicks.filter((p) => !isInPlay(p));
+  const liveClock = await liveDetails(livePicks);
 
   // Stacked sections, keyed by the section catalog. The page heading and verify
   // banner stay pinned to the top; the rest render in the catalog order.
@@ -271,13 +289,38 @@ export default async function DashboardPage() {
                 </section>
               )}
 
+              {livePicks.length > 0 && (
+                <section>
+                  <h2 className="mb-3 flex items-center gap-2 font-semibold">
+                    <span className="flex items-center gap-1.5 text-danger">
+                      <Radio className="h-4 w-4 animate-pulse" /> In play
+                    </span>
+                    <span className="rounded-full bg-danger/10 px-2 py-0.5 text-xs font-medium text-danger">
+                      {livePicks.length}
+                    </span>
+                  </h2>
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    {livePicks.map((pick) => (
+                      <div key={pick.id}>
+                        {liveClock.get(pick.id) && (
+                          <p className="mb-1 text-xs font-semibold text-danger">
+                            {liveClock.get(pick.id)}
+                          </p>
+                        )}
+                        <PickAttribution pick={pick} showStake={showStake} />
+                      </div>
+                    ))}
+                  </div>
+                </section>
+              )}
+
               <section>
                 <h2 className="mb-3 font-semibold">Recent results</h2>
-                {recentPicks.length === 0 ? (
+                {settledPicks.length === 0 ? (
                   <p className="text-sm text-muted">No settled picks yet.</p>
                 ) : (
                   <div className="grid gap-4 sm:grid-cols-2">
-                    {recentPicks.map((pick) => (
+                    {settledPicks.map((pick) => (
                       <PickAttribution key={pick.id} pick={pick} showStake={showStake} />
                     ))}
                   </div>
@@ -309,7 +352,7 @@ export default async function DashboardPage() {
                     </Link>
                     <span className="shrink-0 text-muted">
                       {sub.currentPeriodEnd
-                        ? `renews ${sub.currentPeriodEnd.toLocaleDateString()}`
+                        ? `renews ${formatDate(sub.currentPeriodEnd)}`
                         : ""}
                     </span>
                   </li>
@@ -338,6 +381,15 @@ export default async function DashboardPage() {
               </Link>
             </div>
           )}
+
+          <div className="mt-4">
+            <ReferralCard
+              baseUrl={siteUrl()}
+              code={referrals.code}
+              total={referrals.total}
+              handicappers={referrals.handicappers}
+            />
+          </div>
         </aside>
       </div>
     ),
@@ -355,6 +407,10 @@ export default async function DashboardPage() {
           <VerifyEmailBanner />
         </div>
       )}
+
+      {/* Same contest promo the handicapper dashboard carries — the contest is
+          free and open to everyone, not just people who sell picks. */}
+      <ContestPromoBanner className="mt-6" />
 
       {order.map((key) =>
         sections[key] ? (

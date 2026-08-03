@@ -36,7 +36,7 @@ export async function ContestPromoBanner({ className }: { className?: string }) 
           </div>
           <p className="mt-2 text-sm text-white/70">
             Post your picks and compete for the{" "}
-            <span className="font-semibold text-accent">{formatCents(contest.prizePoolCents)} guaranteed</span> pool —
+            <span className="font-semibold text-[#eab308]">{formatCents(contest.prizePoolCents)} guaranteed</span> pool —
             free to enter, top {winners} paid by best ROI.
           </p>
         </div>

@@ -6,9 +6,11 @@ import { prisma } from "@/lib/prisma";
 import { getHandicapperByHandle } from "@/lib/handicappers";
 import { summarizeRatings } from "@/lib/reviews";
 import { isPickLocked } from "@/lib/pick-visibility";
+import { tailStates } from "@/lib/pick-tails";
+import { ClvBanner } from "@/components/clv-banner";
 import { ReviewsList, type ReviewItem } from "@/components/reviews-list";
 import { Stars } from "@/components/stars";
-import { HandicapperJsonLd } from "@/components/json-ld";
+import { HandicapperJsonLd, BreadcrumbJsonLd } from "@/components/json-ld";
 import { StatCard } from "@/components/stat-card";
 import { PickCard } from "@/components/pick-card";
 import { showStakeLinks } from "@/lib/stake-server";
@@ -25,6 +27,7 @@ import { DASHBOARD_ORDER_SETTING, resolveSectionOrder } from "@/lib/dashboard-se
 import { isSubscriptionActive } from "@/lib/subscription-status";
 import { nowPaymentsConfigured } from "@/lib/nowpayments";
 import { enrichPickCrests } from "@/lib/pick-logos";
+import { MIN_INDEXABLE_PICKS } from "@/lib/seo";
 import type { ReactNode } from "react";
 
 export const dynamic = "force-dynamic";
@@ -50,6 +53,14 @@ export async function generateMetadata({
     title: `${handicapper.displayName} (@${handicapper.handle})`,
     description,
     alternates: { canonical: path },
+    // Thin profiles stay out of the index until they have a record to show
+    // (see MIN_INDEXABLE_PICKS). `follow` stays on so their outbound links
+    // still count. Counted on *graded* picks — totalPicks includes pending ones,
+    // which show no result and are exactly the thin content this is about, and
+    // the sitemap filters on graded picks too. The two have to agree.
+    ...(handicapper.stats.totalPicks - handicapper.stats.pending < MIN_INDEXABLE_PICKS
+      ? { robots: { index: false, follow: true } }
+      : {}),
     openGraph: {
       type: "profile",
       title: `${handicapper.displayName} — verified record on Blitz.tips`,
@@ -107,6 +118,12 @@ export default async function HandicapperProfilePage({
   const pendingPicks = picks.filter((p) => p.result === "PENDING");
   const settledPicks = picks.filter((p) => p.result !== "PENDING");
 
+  // Tail/fade lives on the pending tips — the ones a reader can still act on.
+  const tails = await tailStates(pendingPicks, session?.user?.id ?? null, {
+    isOwner: Boolean(isOwner),
+    unlocked,
+  });
+
   // Reviews are display-only here (writing happens in the subscriber dashboard).
   // Only APPROVED reviews are loaded, so the summary reflects the public set.
   const ratingSummary = summarizeRatings(handicapper.reviews.map((r) => r.rating));
@@ -123,6 +140,8 @@ export default async function HandicapperProfilePage({
   // subscribe box stay pinned above them.
   const sections: Record<string, ReactNode> = {
     stats: (
+      <div className="flex flex-col gap-4">
+      <ClvBanner picks={handicapper.picksList} />
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
         <StatCard label="Record" value={handicapper.stats.record} />
         <StatCard
@@ -156,6 +175,7 @@ export default async function HandicapperProfilePage({
           subTone={handicapper.last30Stats.unitsNet >= 0 ? "accent" : "danger"}
         />
       </div>
+      </div>
     ),
     pendingPlays: pendingPicks.length > 0 && (
       <>
@@ -167,7 +187,13 @@ export default async function HandicapperProfilePage({
         </h2>
         <div className="grid gap-4 sm:grid-cols-2">
           {pendingPicks.map((pick) => (
-            <PickCard key={pick.id} pick={pick} locked={isPickLocked(pick, unlocked)} showStake={showStake} />
+            <PickCard
+              key={pick.id}
+              pick={pick}
+              locked={isPickLocked(pick, unlocked)}
+              showStake={showStake}
+              tail={tails.get(pick.id)}
+            />
           ))}
         </div>
       </>
@@ -201,14 +227,28 @@ export default async function HandicapperProfilePage({
   return (
     <div>
       {!handicapper.suspendedAt && (
-        <HandicapperJsonLd
-          handle={handicapper.handle}
-          displayName={handicapper.displayName}
-          bio={handicapper.bio}
-          avatarUrl={handicapper.avatarUrl}
-          ratingValue={ratingSummary.average}
-          reviewCount={ratingSummary.count}
-        />
+        <>
+          <HandicapperJsonLd
+            handle={handicapper.handle}
+            displayName={handicapper.displayName}
+            bio={handicapper.bio}
+            avatarUrl={handicapper.avatarUrl}
+            ratingValue={ratingSummary.average}
+            reviewCount={ratingSummary.count}
+            prices={{
+              weekly: handicapper.weeklyPriceCents,
+              monthly: handicapper.monthlyPriceCents,
+              annual: handicapper.annualPriceCents,
+            }}
+            currency={handicapper.priceCurrency}
+          />
+          <BreadcrumbJsonLd
+            items={[
+              { name: "Handicappers", path: "/handicappers" },
+              { name: handicapper.displayName, path: `/handicappers/${handicapper.handle}` },
+            ]}
+          />
+        </>
       )}
       <div className="relative h-40 w-full overflow-hidden bg-gradient-to-r from-accent/20 via-surface-raised to-gold/15 sm:h-56">
         {handicapper.coverUrl && (

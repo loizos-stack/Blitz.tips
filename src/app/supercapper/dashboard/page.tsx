@@ -4,7 +4,7 @@ import { EntrantAvatarUpload } from "@/components/contest/entrant-avatar-upload"
 import { entrantAvatar, avatarIsFromHandicapper } from "@/lib/contest-avatar";
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { format } from "date-fns";
+import { formatDate } from "@/lib/date-format";
 import { Trophy, ArrowLeft } from "lucide-react";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
@@ -101,8 +101,8 @@ export default async function ContestDashboardPage() {
                 minPicks: contest.minPicks,
                 winners: prizeLadder.length,
                 prizeLabel: formatCents(contest.prizePoolCents),
-                dateRange: `${format(contest.startsAt, "MMM d, yyyy")} – ${format(contest.endsAt, "MMM d, yyyy")}`,
-                registrationCloses: format(registrationClosesAt, "MMM d, yyyy"),
+                dateRange: `${formatDate(contest.startsAt)} – ${formatDate(contest.endsAt)}`,
+                registrationCloses: formatDate(registrationClosesAt),
                 dynamicPayouts: contest.dynamicPayouts,
               }}
             />
@@ -186,8 +186,8 @@ export default async function ContestDashboardPage() {
             <SupercapperLogo withContest withByline />
           </h1>
           <p className="mt-1 text-sm text-muted">
-            {PHASE_LABEL[phase]} · {format(contest.startsAt, "MMM d")}–{format(contest.endsAt, "MMM d, yyyy")} ·{" "}
-            {formatCents(contest.prizePoolCents)} guaranteed
+            {PHASE_LABEL[phase]} · {formatDate(contest.startsAt)}–{formatDate(contest.endsAt)} ·{" "}
+            <span className="font-semibold text-gold">{formatCents(contest.prizePoolCents)} guaranteed</span>
           </p>
         </div>
         {phase === "upcoming" && <ContestCountdown target={contest.startsAt.toISOString()} label="Starts in" />}
@@ -241,27 +241,32 @@ export default async function ContestDashboardPage() {
 
       {/* The pick column carries the market navigator (games, alternate lines,
           player props), so it gets the wider share of the split. */}
-      <div className="mt-8 grid gap-6 lg:grid-cols-[30rem_1fr]">
+      <div className="mt-8 grid gap-6 lg:grid-cols-[minmax(0,30rem)_minmax(0,1fr)]">
         {/* Make a pick */}
-        <div className="flex flex-col gap-4">
+        <div className="flex min-w-0 flex-col gap-4">
           <div className="card p-6">
             <p className="mb-1 text-lg font-semibold">Make a pick</p>
             <p className="mb-4 text-xs text-muted">
               Singles only — no parlays. Every market counts: moneylines, spreads, totals, alternate lines, 1st half /
               quarter / period markets, and player props.
             </p>
-            {accepting ? (
+            {accepting || phase === "upcoming" ? (
               myEntry.user.username ? (
-                <ContestPickForm contestId={contest.id} showStake={await showStakeLinks()} />
+                <ContestPickForm
+                  contestId={contest.id}
+                  showStake={await showStakeLinks()}
+                  // Before the contest opens the board is browsable but the
+                  // submit button is a countdown — see the games and prices
+                  // you'll be picking from rather than a sentence about waiting.
+                  opensAt={phase === "upcoming" ? contest.startsAt.toISOString() : undefined}
+                />
               ) : (
                 <UsernameGate compact />
               )
             ) : (
-              <p className="text-sm text-muted">
-                {phase === "upcoming"
-                  ? "Pick submission opens when the contest starts."
-                  : "The contest isn't accepting picks right now."}
-              </p>
+              // Only reachable once the contest has ended or settled — the
+              // upcoming case now shows the browsable board with a countdown.
+              <p className="text-sm text-muted">The contest isn&apos;t accepting picks right now.</p>
             )}
           </div>
 
@@ -278,7 +283,7 @@ export default async function ContestDashboardPage() {
         </div>
 
         {/* Your picks + leaderboard */}
-        <div className="flex flex-col gap-6">
+        <div className="flex min-w-0 flex-col gap-6">
           <div className="card p-0">
             <p className="px-5 pt-5 font-semibold">Your picks ({picks.length})</p>
             {picks.length === 0 ? (

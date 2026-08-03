@@ -1,10 +1,10 @@
 import Link from "next/link";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { format } from "date-fns";
+import { formatDate } from "@/lib/date-format";
 import { ArrowLeft } from "lucide-react";
 import { getPublishedPost } from "@/lib/blog";
-import { ArticleJsonLd } from "@/components/json-ld";
+import { ArticleJsonLd, BreadcrumbJsonLd } from "@/components/json-ld";
 import { ShareButtons } from "@/components/share-buttons";
 import { siteUrl } from "@/lib/site";
 
@@ -58,6 +58,12 @@ export default async function BlogPostPage({ params }: { params: Promise<{ slug:
         updatedAt={post.updatedAt.toISOString()}
         authorName={authorName}
       />
+      <BreadcrumbJsonLd
+        items={[
+          { name: "Blog", path: "/blog" },
+          { name: post.title, path: `/blog/${post.slug}` },
+        ]}
+      />
 
       <Link href="/blog" className="inline-flex items-center gap-1.5 text-sm text-muted hover:text-foreground">
         <ArrowLeft className="h-4 w-4" /> All posts
@@ -65,7 +71,7 @@ export default async function BlogPostPage({ params }: { params: Promise<{ slug:
 
       <h1 className="mt-4 text-3xl font-bold leading-tight md:text-4xl">{post.title}</h1>
       <p className="mt-3 text-sm text-muted">
-        {format(post.publishedAt, "MMMM d, yyyy")} · {authorName}
+        {formatDate(post.publishedAt)} · {authorName}
       </p>
 
       {post.coverImageUrl && (

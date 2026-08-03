@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { format } from "date-fns";
+import { formatDateTime } from "@/lib/date-format";
 import { Lock } from "lucide-react";
 import type { Pick as PickModel, PickResult } from "@prisma/client";
 import { ResultPill } from "@/components/result-pill";
@@ -59,7 +59,7 @@ export function HandicapperPickRow({
           {SPORT_LABELS[pick.sport]}
           {pick.league ? ` · ${pick.league}` : ""}
         </span>
-        <span>{format(pick.eventStartsAt, "MMM d, h:mm a")}</span>
+        <span>{formatDateTime(pick.eventStartsAt)}</span>
       </div>
 
       <div className="mt-3 flex items-center gap-2">

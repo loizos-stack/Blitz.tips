@@ -3,7 +3,7 @@ import type { PickSport } from "@prisma/client";
 import { getTeamLogoUrl } from "@/lib/team-logos";
 import { formatMatchup } from "@/lib/utils";
 import { sportsDbConfigured, resolveSportsDbLogo, resolveSportsDbLeagueBadge } from "@/lib/sportsdb";
-import { soccerBadgeQuery } from "@/lib/soccer-leagues";
+import { soccerBadgeQuery, soccerLeagueMeta } from "@/lib/soccer-leagues";
 import { propMarketKeys, extraMarketKeys, buildGroups, type MarketGroup, type RawMarket } from "@/lib/odds-markets";
 import { getLiveGameStates, livePairKey, getUfcFighterSet, fighterKey } from "@/lib/espn-scores";
 
@@ -21,14 +21,29 @@ import { getLiveGameStates, livePairKey, getUfcFighterSet, fighterKey } from "@/
 // nothing. Worst case still matters: with every sport tab getting clicked
 // daily, spend is sports x (30 days / (REVALIDATE_SECONDS/24h)) x 3 credits.
 // Soccer counts as up to MAX_SOCCER_LEAGUES "sports" here since it fans out
-// to that many billed odds calls. At 24h and the current caps that worst case
-// is roughly (8 + 12) x 30 x 3 ≈ 1,800 credits/month if literally every tab is
-// viewed every single day; real traffic concentrating on a few sports lands
-// well under that. Note this is only the odds spend — live scores
+// to that many billed odds calls, on its own longer window. At the current caps
+// that worst case is roughly (8 x 30 + 20 x 15) x 3 ≈ 1,620 credits/month if
+// literally every tab is viewed every single day; real traffic concentrating on
+// a few sports lands well under that. Note this is only the odds spend — live scores
 // (SCORES_REVALIDATE_SECONDS) cost more per league on game days, so look there
 // first when the quota gets tight, then at MAX_SOCCER_LEAGUES.
 // Missing THE_ODDS_API_KEY degrades to { configured: false } everywhere.
 const REVALIDATE_SECONDS = 24 * 60 * 60;
+
+// Soccer pays for its own breadth. Every other sport is one billed odds call;
+// soccer is one per league, so it alone decides the monthly bill — and the
+// arithmetic is a straight trade between how many leagues we carry and how
+// often we refresh them:
+//
+//   leagues x 3 credits x (30 days / cache days)
+//   12 leagues @ 24h = 1,080/month     20 leagues @ 48h = 900/month
+//
+// A wider window buys more competitions for less money. What it costs is
+// freshness, and soccer is the sport that can afford it: a 1X2 price moves far
+// less over a day than an NFL spread does, and the board is a shop window for
+// handicappers' tips rather than a place anyone places a bet. Every other sport
+// keeps the 24h window.
+const SOCCER_REVALIDATE_SECONDS = 48 * 60 * 60;
 
 // Live scores are only fetched when a game already in view has started (see
 // getUpcomingEvents), but each refresh is a billed call, and short windows
@@ -38,6 +53,17 @@ const REVALIDATE_SECONDS = 24 * 60 * 60;
 // dozen competitions, so it's the first knob to widen if the quota gets tight
 // — widening it beats dropping leagues.
 const SCORES_REVALIDATE_SECONDS = 45 * 60;
+
+// Soccer scores refresh on a wider window for the same reason as its odds: this
+// is billed per league and soccer is a dozen-plus of them. 90 minutes is a full
+// match, so a game gets picked up live around half-time and again at full time —
+// which is what the board needs it for (a LIVE badge and dropping finished
+// games), not a minute-by-minute scoreboard.
+const SOCCER_SCORES_REVALIDATE_SECONDS = 90 * 60;
+
+function scoresRevalidateForSport(sport: PickSport): number {
+  return sport === "SOCCER" ? SOCCER_SCORES_REVALIDATE_SECONDS : SCORES_REVALIDATE_SECONDS;
+}
 
 // How far back a started game stays eligible for a live/final score before
 // it's dropped from the feed entirely — long enough to cover a full game in
@@ -94,8 +120,21 @@ const SOCCER_LEAGUE_PRIORITY = [
   "soccer_fifa_world_cup",
   "soccer_fifa_world_cup_qualifiers_europe",
   "soccer_fifa_world_cup_qualifiers_conmebol",
+  // All three European cups rank together, proper and qualifying. The Europa
+  // and Conference Leagues aren't undercards — they're where most of the
+  // English, Scottish, Dutch and Scandinavian clubs a bettor follows actually
+  // play in Europe, and the Conference League in particular is the only
+  // European football some of them ever get.
   "soccer_uefa_champs_league",
   "soccer_uefa_europa_league",
+  "soccer_uefa_europa_conference_league",
+  // The qualifying rounds are their own keys, and in July/August they're often
+  // the only European football being played — which is exactly when they were
+  // missing from the board.
+  "soccer_uefa_champs_league_qualification",
+  "soccer_uefa_europa_league_qualification",
+  "soccer_uefa_europa_conference_league_qualification",
+  "soccer_uefa_super_cup",
   "soccer_epl",
   "soccer_spain_la_liga",
   "soccer_italy_serie_a",
@@ -113,30 +152,41 @@ const SOCCER_LEAGUE_PRIORITY = [
   "soccer_portugal_primeira_liga",
   "soccer_argentina_primera_division",
   "soccer_brazil_serie_b",
-  "soccer_uefa_europa_conference_league",
   "soccer_uefa_european_championship",
   "soccer_conmebol_copa_america",
   "soccer_conmebol_copa_libertadores",
 ];
+
+// Where a UEFA competition we haven't listed slots in: right behind the
+// qualifying rounds above, ahead of the domestic leagues.
+const UNLISTED_EUROPEAN_RANK =
+  SOCCER_LEAGUE_PRIORITY.indexOf("soccer_uefa_europa_conference_league_qualification") + 0.5;
 
 // Cap on how many soccer leagues we carry at once — the main quota knob for
 // soccer. League discovery (/sports) and the tab-availability check (/events)
 // are free endpoints, so only the per-league odds and scores calls cost.
 //
 // Per league, per month, worst case (board viewed every day):
-//   odds   ~90  — 3 credits (markets × regions) once per REVALIDATE_SECONDS
-//   scores ~700 — 2 credits (daysFrom is billed extra) per
-//                 SCORES_REVALIDATE_SECONDS, but only while games are running
-// so roughly 800/league/month at the ceiling, and far less in practice since
+//   odds   ~90  — 6 credits (3 markets × the eu,us regions) once per
+//                 SOCCER_REVALIDATE_SECONDS
+//   scores ~350 — 2 credits (daysFrom is billed extra) per
+//                 SOCCER_SCORES_REVALIDATE_SECONDS, but only while games run
+// so roughly 450/league/month at the ceiling, and far less in practice since
 // both only bill on a cache miss caused by a real visitor.
+//
+// 30 rather than 20 because the live feed showed 41 competitions active at once
+// in late July and a cap of 20 cut 21 of them — Scotland, Turkey, Greece,
+// Switzerland, Denmark, Norway, Sweden, Poland, the EFL Cup and Serie B among
+// them. A cap that hides half the football on offer is the wrong dial to save
+// money on; the cache window is.
 //
 // Env-overridable so the cap can be tuned against live usage without a deploy.
 // Out-of-range or unparseable values fall back to the default rather than
 // blanking soccer or running the quota away.
-const DEFAULT_MAX_SOCCER_LEAGUES = 12;
+const DEFAULT_MAX_SOCCER_LEAGUES = 30;
 const MAX_SOCCER_LEAGUES = (() => {
   const raw = Number(process.env.MAX_SOCCER_LEAGUES?.trim());
-  if (!Number.isInteger(raw) || raw < 1 || raw > 30) return DEFAULT_MAX_SOCCER_LEAGUES;
+  if (!Number.isInteger(raw) || raw < 1 || raw > 60) return DEFAULT_MAX_SOCCER_LEAGUES;
   return raw;
 })();
 
@@ -146,8 +196,32 @@ const MAX_SOCCER_LEAGUES = (() => {
 // the eu region — is included alongside the US books; up to 10 books count as
 // a single region, so this stays at the same 3-credit cost as one region. Keys
 // must be valid Odds API bookmaker keys or the whole request is rejected.
-const PREFERRED_BOOKMAKERS = ["pinnacle", "draftkings", "fanduel", "betmgm"];
+//
+// Env-overridable via ODDS_BOOKMAKERS (comma-separated) so the list can be
+// widened without a deploy — up to 10 books still bill as a single region, so
+// adding European books that actually price European football costs nothing.
+// The catch is that one invalid key rejects the whole request and drops us to
+// the regions=us fallback, which carries far less soccer; Admin → System →
+// Soccer feed shows a "us fallback" flag per league, so a bad key is visible
+// immediately rather than silently halving the board.
+const DEFAULT_BOOKMAKERS = ["pinnacle", "draftkings", "fanduel", "betmgm"];
+const PREFERRED_BOOKMAKERS = (() => {
+  const raw = process.env.ODDS_BOOKMAKERS?.trim();
+  if (!raw) return DEFAULT_BOOKMAKERS;
+  const keys = raw
+    .split(",")
+    .map((k) => k.trim().toLowerCase())
+    .filter(Boolean)
+    .slice(0, 10);
+  return keys.length > 0 ? keys : DEFAULT_BOOKMAKERS;
+})();
 const BOOKMAKERS_PARAM = PREFERRED_BOOKMAKERS.join(",");
+
+// Soccer asks by region rather than by book (see fetchLeagueEvents). Two
+// regions bill as two units, so this is the one line that doubles soccer's odds
+// cost — drop it to "eu" alone to halve that back, at the cost of the US prices
+// a US visitor can actually bet.
+const SOCCER_REGIONS = process.env.ODDS_SOCCER_REGIONS?.trim() || "eu,us";
 
 // All sports with odds-feed coverage. Preferred display order (major-4 first)
 // when a sport is available; getAvailableHomepageSports() filters this down
@@ -176,22 +250,88 @@ interface OddsApiSportEntry {
 // list is a free endpoint (doesn't count against the usage quota), so this is
 // cheap; it's cached on the same long window as odds. On failure we degrade to
 // the single fallback league so soccer never goes completely dark.
-async function getSoccerLeagueKeys(apiKey: string): Promise<string[]> {
-  const url = `${API_BASE}/sports?apiKey=${apiKey}`;
-  const res = await fetch(url, { next: { revalidate: REVALIDATE_SECONDS } });
-  if (!res.ok) return [SPORT_KEYS.SOCCER!];
+/**
+ * Competitions we check for fixtures even when /sports doesn't list them as in
+ * season.
+ *
+ * The in-season list is the upstream's own judgement, and for the European cups
+ * it is wrong in exactly the window that matters: through July the Europa and
+ * Conference Leagues (and their qualifying rounds) are playing ties every week
+ * while /sports reports neither the competition nor its qualifier as active, so
+ * they never entered the ranking at all — not selected, not even skipped.
+ *
+ * The /events endpoint answers the only question that matters, "are there
+ * fixtures", and doesn't count against the usage quota, so probing costs
+ * nothing but tells us the truth.
+ */
+const PROBE_SOCCER_KEYS = [
+  "soccer_uefa_champs_league",
+  "soccer_uefa_champs_league_qualification",
+  "soccer_uefa_europa_league",
+  "soccer_uefa_europa_league_qualification",
+  "soccer_uefa_europa_conference_league",
+  "soccer_uefa_europa_conference_league_qualification",
+  "soccer_uefa_super_cup",
+];
 
-  const sports = (await res.json()) as OddsApiSportEntry[];
-  const active = new Set(
-    sports.filter((s) => s.group === "Soccer" && s.active).map((s) => s.key)
+/** Keys from PROBE_SOCCER_KEYS that have upcoming fixtures despite being dormant. */
+async function probeDormantSoccerKeys(apiKey: string, active: Set<string>): Promise<string[]> {
+  const candidates = PROBE_SOCCER_KEYS.filter((key) => !active.has(key));
+  if (candidates.length === 0) return [];
+
+  const now = Date.now();
+  const found = await Promise.all(
+    candidates.map(async (key) => {
+      try {
+        const res = await fetch(`${API_BASE}/sports/${key}/events?apiKey=${apiKey}`, {
+          next: { revalidate: REVALIDATE_SECONDS },
+        });
+        // 404 = no such competition on this plan; anything else non-OK, skip too.
+        if (!res.ok) return null;
+        const events = (await res.json()) as { commence_time: string }[];
+        const upcoming = events.some((e) => new Date(e.commence_time).getTime() > now);
+        return upcoming ? key : null;
+      } catch {
+        return null;
+      }
+    })
   );
+  return found.filter((key): key is string => key !== null);
+}
+
+/** Every soccer competition the plan currently lists as in season. */
+async function getActiveSoccerKeys(apiKey: string): Promise<string[] | null> {
+  const res = await fetch(`${API_BASE}/sports?apiKey=${apiKey}`, {
+    next: { revalidate: REVALIDATE_SECONDS },
+  });
+  if (!res.ok) return null;
+  const sports = (await res.json()) as OddsApiSportEntry[];
+  return sports.filter((s) => s.group === "Soccer" && s.active).map((s) => s.key);
+}
+
+async function getSoccerLeagueKeys(apiKey: string): Promise<string[]> {
+  const activeKeys = await getActiveSoccerKeys(apiKey);
+  if (activeKeys === null) return [SPORT_KEYS.SOCCER!];
+
+  const active = new Set(activeKeys);
+  for (const key of await probeDormantSoccerKeys(apiKey, active)) active.add(key);
   if (active.size === 0) return [];
 
   // Marquee competitions first, then any other active league the tier exposes.
-  const ranked = [
-    ...SOCCER_LEAGUE_PRIORITY.filter((k) => active.has(k)),
-    ...[...active].filter((k) => !SOCCER_LEAGUE_PRIORITY.includes(k)),
-  ];
+  // A UEFA key we've never seen ranks with the European block rather than in the
+  // tail: the qualifying rounds are separate keys that get added, renamed and
+  // retired between seasons, and naming them one at a time is how they ended up
+  // behind a dozen domestic leagues and off the end of the MAX_SOCCER_LEAGUES
+  // cut. Ranking it after the tail wouldn't help — the cut lands well before
+  // there — so it has to sit inside the priority block to survive.
+  const rank = (key: string): number => {
+    const listed = SOCCER_LEAGUE_PRIORITY.indexOf(key);
+    if (listed !== -1) return listed;
+    if (key.startsWith("soccer_uefa_")) return UNLISTED_EUROPEAN_RANK;
+    return Number.MAX_SAFE_INTEGER;
+  };
+  // Equal ranks keep the upstream's own ordering (Array#sort is stable).
+  const ranked = [...active].sort((a, b) => rank(a) - rank(b));
   return ranked.slice(0, MAX_SOCCER_LEAGUES);
 }
 
@@ -225,7 +365,8 @@ function marketsForSport(sport: PickSport): string {
 const FIGHT_ODDS_REVALIDATE_SECONDS = 3 * 60 * 60;
 
 function oddsRevalidateForSport(sport: PickSport): number {
-  return isMoneylineOnly(sport) ? FIGHT_ODDS_REVALIDATE_SECONDS : REVALIDATE_SECONDS;
+  if (isMoneylineOnly(sport)) return FIGHT_ODDS_REVALIDATE_SECONDS;
+  return sport === "SOCCER" ? SOCCER_REVALIDATE_SECONDS : REVALIDATE_SECONDS;
 }
 
 // The upstream sport key(s) backing one of our PickSports. Usually one; soccer
@@ -266,9 +407,20 @@ async function resolveSportKeys(sport: PickSport, apiKey: string): Promise<strin
 }
 
 // How far ahead the "Today's lines" board looks. Kept as a wall-clock window
-// (next 48h) rather than a calendar-day check so it behaves consistently for
-// every visitor regardless of their timezone.
-const UPCOMING_WINDOW_MS = 48 * 60 * 60 * 1000;
+// rather than a calendar-day check so it behaves consistently for every visitor
+// regardless of their timezone. 36h covers tonight plus all of tomorrow from any
+// hour of the day — a board called "today's lines" shouldn't be showing Sunday's
+// card on Thursday.
+const UPCOMING_WINDOW_MS = 36 * 60 * 60 * 1000;
+
+// How many of a sport's leagues the tab-bar check looks at (see
+// getAvailableHomepageSports). Only soccer has more than one.
+const PILL_PROBE_LEAGUES = 4;
+
+// How many games per league get a TheSportsDB crest lookup (see
+// fetchLeagueEvents). Comfortably more than any one league contributes to a
+// board, but bounded so a 30-league soccer slate can't turn into 1,500 requests.
+const CREST_LOOKUP_PER_LEAGUE = 12;
 
 function isWithinUpcomingWindow(commenceTime: Date, now: Date): boolean {
   const ms = commenceTime.getTime() - now.getTime();
@@ -298,13 +450,20 @@ export async function getAvailableHomepageSports(): Promise<PickSport[]> {
       // the board's cached odds response — getAllUpcomingEvents fetches the very
       // same feed — so it adds no billed calls beyond what the board already does.
       if (isMoneylineOnly(sport)) {
-        const feed = await getUpcomingEvents(sport);
+        const feed = await getUpcomingEvents(sport, { windowOnly: true });
         const hasPriced = feed.events.some((e) => e.markets.length > 0);
         return { sport, hasSoon: hasPriced, hasUpcoming: hasPriced };
       }
 
-      const sportKeys = await resolveSportKeys(sport, apiKey);
-      if (sportKeys.length === 0) return { sport, hasSoon: false, hasUpcoming: false };
+      const allKeys = await resolveSportKeys(sport, apiKey);
+      if (allKeys.length === 0) return { sport, hasSoon: false, hasUpcoming: false };
+
+      // This only decides whether a pill appears, and one league with a game is
+      // enough to answer that. Checking all of them would mean up to
+      // MAX_SOCCER_LEAGUES requests to render a single tab — on a cold cache
+      // that's a visible chunk of the page's load for a yes/no question. The
+      // list is ranked, so the leagues most likely to have a game are first.
+      const sportKeys = allKeys.slice(0, PILL_PROBE_LEAGUES);
 
       // Check each backing league (usually one) via the free /events endpoint.
       const perKey = await Promise.all(
@@ -329,9 +488,11 @@ export async function getAvailableHomepageSports(): Promise<PickSport[]> {
     })
   );
 
-  // Prefer sports with a game in the next 48h; if none, fall back to sports
-  // with any upcoming game rather than leave the tab bar empty; if truly
-  // nothing anywhere, fall back to the full static list.
+  // Prefer sports with a game inside the board's window; if none, fall back to
+  // sports with any upcoming game rather than leave the tab bar empty; if truly
+  // nothing anywhere, fall back to the full static list. That second fallback
+  // can show a pill whose board is empty (the board is window-only, the pill
+  // isn't) — a tab bar with a "no games" message beats no tab bar at all.
   const soonSports = results.filter((r) => r.hasSoon).map((r) => r.sport);
   if (soonSports.length > 0) return soonSports;
 
@@ -428,6 +589,28 @@ export function isSportSupported(sport: PickSport): boolean {
 // attaching live/final scores when a game in view has already started. A
 // failed request (bad key / out of season / quota / tier-gated league)
 // degrades to an empty list so one bad league never sinks the whole feed.
+export interface LeagueFetchInfo {
+  /** HTTP status of the odds call that produced the current data. */
+  status: number;
+  /** True when the bookmakers list was rejected and regions=us was used. */
+  usedFallback: boolean;
+  /** Bookmaker keys present anywhere in the response. */
+  books: string[];
+  /** Market keys present anywhere in the response (h2h / spreads / totals). */
+  markets: string[];
+  /** Events the upstream returned, before any of our filtering. */
+  rawEvents: number;
+}
+
+// Last response shape per league, recorded as the board builds. Populated on
+// every call, cache hit or not, since only the fetch itself is cached — so the
+// admin panel sees the same data the board is rendering from.
+const LEAGUE_FETCH_LOG = new Map<string, LeagueFetchInfo>();
+
+function recordLeagueFetch(sportKey: string, info: LeagueFetchInfo) {
+  LEAGUE_FETCH_LOG.set(sportKey, info);
+}
+
 async function fetchLeagueEvents(
   sportKey: string,
   sport: PickSport,
@@ -438,24 +621,49 @@ async function fetchLeagueEvents(
     `${API_BASE}/sports/${sportKey}/odds` +
     `?apiKey=${apiKey}&markets=${marketsForSport(sport)}&oddsFormat=american`;
 
-  // Prefer specific books (Pinnacle first). If the bookmakers list is rejected
-  // for any reason, fall back to the plain US region so a bad key never blanks
-  // the board.
-  let res = await fetch(`${base}&bookmakers=${BOOKMAKERS_PARAM}`, {
+  // Everything else prefers specific books (Pinnacle first). If the bookmakers
+  // list is rejected for any reason, both paths fall back to the plain US region
+  // so one bad parameter never blanks the board.
+  //
+  // Soccer asks by region instead of by book. The four-book list is three US
+  // sportsbooks plus Pinnacle, and the live feed showed the consequence plainly:
+  // every competition where Pinnacle came back had handicaps and goal lines,
+  // and every competition where it didn't — the Champions League qualifiers,
+  // Portugal, Austria, Chile, China — came back 1X2-only, because US books
+  // don't post handicaps on those. Belgium and the Libertadores came back with
+  // no book at all. `regions=eu,us` reaches every European book instead of one,
+  // and a region costs exactly what a book list costs, so the only price is the
+  // second region: 6 credits a call instead of 3.
+  let usedFallback = false;
+  const primary =
+    sport === "SOCCER" ? `${base}&regions=${SOCCER_REGIONS}` : `${base}&bookmakers=${BOOKMAKERS_PARAM}`;
+  let res = await fetch(primary, {
     next: { revalidate },
   });
   if (!res.ok) {
     console.error(
       `Odds API bookmakers request failed for ${sportKey}: ${res.status}; retrying with regions=us`
     );
+    usedFallback = true;
     res = await fetch(`${base}&regions=us`, { next: { revalidate } });
   }
   if (!res.ok) {
     console.error(`Odds API request failed for ${sportKey}: ${res.status}`);
+    recordLeagueFetch(sportKey, { status: res.status, usedFallback, books: [], markets: [], rawEvents: 0 });
     return [];
   }
 
   const data = (await res.json()) as OddsApiEvent[];
+  // What actually came back, for the admin diagnostic. A league can look
+  // identical from the outside whether the request 422'd, returned no games, or
+  // returned games no book has priced — this separates them.
+  recordLeagueFetch(sportKey, {
+    status: res.status,
+    usedFallback,
+    books: [...new Set(data.flatMap((e) => e.bookmakers.map((b) => b.key)))],
+    markets: [...new Set(data.flatMap((e) => e.bookmakers.flatMap((b) => b.markets.map((m) => m.key))))],
+    rawEvents: data.length,
+  });
   // Keep upcoming games plus anything that started recently (still live or
   // just wrapped up) so scores have something to attach to; a stale event
   // from hours ago rolls off on its own since it's excluded here.
@@ -469,9 +677,16 @@ async function fetchLeagueEvents(
   // the individual sports) from TheSportsDB. Only touches sides that came back
   // null, and each lookup degrades to null on any failure — so this never
   // blocks or breaks the board, just enriches it when a badge is found.
+  //
+  // Capped per league because this is two lookups per game and it runs for
+  // every league we carry: across MAX_SOCCER_LEAGUES that's hundreds of
+  // requests on a cold cache, all of them in front of the visitor. Games are
+  // ordered by kickoff, so the cap keeps crests on the ones actually near the
+  // top of a board; anything past it falls back to the sport icon, which is
+  // what a failed lookup does anyway.
   if (sportsDbConfigured()) {
     await Promise.all(
-      events.map(async (event) => {
+      events.slice(0, CREST_LOOKUP_PER_LEAGUE).map(async (event) => {
         if (event.awayTeamLogo == null) {
           event.awayTeamLogo = await resolveSportsDbLogo(sport, event.awayTeam);
         }
@@ -494,7 +709,7 @@ async function fetchLeagueEvents(
   // its games has actually started.
   const now = new Date();
   if (events.some((e) => new Date(e.commenceTime) <= now)) {
-    const scores = await getScores(sportKey, apiKey);
+    const scores = await getScores(sportKey, apiKey, scoresRevalidateForSport(sport));
     for (const event of events) {
       event.liveScore = scores.get(event.id) ?? null;
     }
@@ -503,7 +718,14 @@ async function fetchLeagueEvents(
   return events;
 }
 
-export async function getUpcomingEvents(sport: PickSport): Promise<OddsFeedResult> {
+export async function getUpcomingEvents(
+  sport: PickSport,
+  // The homepage board is a hard window: it promises today's lines, so a game
+  // four days out has no business on it even when the sport has nothing sooner.
+  // The pick forms are the opposite — a handicapper posting Sunday's NFL card on
+  // Wednesday is the normal case — so they take the fallback.
+  { windowOnly = false }: { windowOnly?: boolean } = {}
+): Promise<OddsFeedResult> {
   const apiKey = oddsApiKey();
   if (!apiKey) return { configured: false, supported: false, events: [] };
 
@@ -528,14 +750,15 @@ export async function getUpcomingEvents(sport: PickSport): Promise<OddsFeedResul
     .sort((a, b) => new Date(a.commenceTime).getTime() - new Date(b.commenceTime).getTime())
     .slice(0, cap);
 
-  // Prefer games in the next 48h (plus anything live); if this sport has nothing
-  // in that window, fall back to its next upcoming games rather than showing
-  // nothing.
+  // Games inside the window, plus anything currently live — a game in progress
+  // kicked off in the past but is exactly what someone is looking for. When the
+  // sport has nothing in the window, callers that aren't the board fall back to
+  // its next upcoming games rather than showing nothing.
   const now = new Date();
   const windowEvents = events.filter(
     (e) => isWithinUpcomingWindow(new Date(e.commenceTime), now) || Boolean(e.liveScore)
   );
-  let finalEvents = windowEvents.length > 0 ? windowEvents : events;
+  let finalEvents = windowEvents.length > 0 || windowOnly ? windowEvents : events;
 
   // UFC-only: The Odds API's MMA feed carries every promotion (UFC, PFL, etc.)
   // with no promotion tag, but the site only surfaces UFC. Cross-reference
@@ -580,12 +803,105 @@ export async function getUpcomingEvents(sport: PickSport): Promise<OddsFeedResul
  * sport's cached feed (getUpcomingEvents), so it adds no extra billed calls
  * beyond what the individual sport tabs already cost.
  */
+export interface SoccerLeagueDiagnostic {
+  sportKey: string;
+  country: string;
+  league: string;
+  /** Events the odds call returned for this league, before any board filtering. */
+  events: number;
+  /** Of those, how many kick off inside the board's window. */
+  inWindow: number;
+  /** How many carry at least one priced market. */
+  priced: number;
+  /** How many carry a handicap and a goals line, not just the 1X2. */
+  withSpreadAndTotal: number;
+  /** What the upstream actually returned for this league. */
+  fetch: LeagueFetchInfo | null;
+}
+
+/**
+ * What the soccer feed actually resolved to right now: which competitions were
+ * selected out of everything the plan has active, and what each one returned.
+ *
+ * This exists because "why isn't the Europa League on the board?" has half a
+ * dozen possible answers — the key isn't active on the plan, it lost the cut at
+ * MAX_SOCCER_LEAGUES, its odds call failed, its games fall outside the window,
+ * or the books priced nothing — and from the outside they all look identical:
+ * a missing game. Admin-only, and it reuses the same cached responses the board
+ * does, so opening it costs no extra credits.
+ */
+export async function getSoccerFeedDiagnostics(): Promise<{
+  configured: boolean;
+  maxLeagues: number;
+  /** The books being asked for — non-soccer only; soccer asks by region. */
+  bookmakers: string[];
+  /** Regions soccer asks for. */
+  soccerRegions: string;
+  /**
+   * Competitions the plan doesn't list as in season but which have fixtures, so
+   * they were pulled in anyway. Empty means every European cup with games was
+   * already in the in-season list.
+   */
+  probed: string[];
+  /** Hours the soccer odds response is cached for. */
+  cacheHours: number;
+  selected: SoccerLeagueDiagnostic[];
+  /** Active soccer keys the plan offers that didn't make the cut. */
+  skipped: string[];
+}> {
+  const apiKey = oddsApiKey();
+  const shared = {
+    maxLeagues: MAX_SOCCER_LEAGUES,
+    bookmakers: PREFERRED_BOOKMAKERS,
+    soccerRegions: SOCCER_REGIONS,
+    cacheHours: SOCCER_REVALIDATE_SECONDS / 3600,
+  };
+  if (!apiKey) {
+    return { configured: false, ...shared, probed: [], selected: [], skipped: [] };
+  }
+
+  const selectedKeys = await getSoccerLeagueKeys(apiKey);
+  const allActive = (await getActiveSoccerKeys(apiKey)) ?? [];
+  const probed = await probeDormantSoccerKeys(apiKey, new Set(allActive));
+  const now = new Date();
+
+  const selected = await Promise.all(
+    selectedKeys.map(async (sportKey): Promise<SoccerLeagueDiagnostic> => {
+      const events = await fetchLeagueEvents(sportKey, "SOCCER", apiKey);
+      const meta = soccerLeagueMeta(sportKey);
+      return {
+        sportKey,
+        country: meta.country,
+        league: meta.league,
+        events: events.length,
+        inWindow: events.filter((e) => isWithinUpcomingWindow(new Date(e.commenceTime), now)).length,
+        priced: events.filter((e) => e.markets.length > 0).length,
+        withSpreadAndTotal: events.filter(
+          (e) =>
+            e.markets.some((m) => m.betType === "SPREAD") && e.markets.some((m) => m.betType === "TOTAL")
+        ).length,
+        fetch: LEAGUE_FETCH_LOG.get(sportKey) ?? null,
+      };
+    })
+  );
+
+  return {
+    configured: true,
+    ...shared,
+    probed,
+    selected,
+    // Everything in season plus anything the probe pulled in, minus what made
+    // the cut — so the two lists together account for every competition seen.
+    skipped: [...new Set([...allActive, ...probed])].filter((k) => !selectedKeys.includes(k)),
+  };
+}
+
 export async function getAllUpcomingEvents(sports: PickSport[]): Promise<OddsFeedResult> {
   const apiKey = oddsApiKey();
   if (!apiKey) return { configured: false, supported: false, events: [] };
   if (sports.length === 0) return { configured: true, supported: true, events: [] };
 
-  const feeds = await Promise.all(sports.map((s) => getUpcomingEvents(s)));
+  const feeds = await Promise.all(sports.map((s) => getUpcomingEvents(s, { windowOnly: true })));
   const events = feeds
     .flatMap((f) => (f.configured && f.supported ? f.events : []))
     .sort((a, b) => new Date(a.commenceTime).getTime() - new Date(b.commenceTime).getTime())
@@ -602,7 +918,11 @@ interface OddsApiScoreEntry {
   scores: { name: string; score: string }[] | null;
 }
 
-async function getScores(sportKey: string, apiKey: string): Promise<Map<string, LiveScore>> {
+async function getScores(
+  sportKey: string,
+  apiKey: string,
+  revalidate: number = SCORES_REVALIDATE_SECONDS
+): Promise<Map<string, LiveScore>> {
   // daysFrom costs an extra credit per call, but it can't be dropped: without
   // it the upstream returns live and upcoming games only, so a game that just
   // finished comes back with no entry at all — and `completed` is exactly what
@@ -615,7 +935,7 @@ async function getScores(sportKey: string, apiKey: string): Promise<Map<string, 
   // request only made when a game in view has actually started (see
   // hasStarted above) — most page loads never trigger it, so a short window
   // here doesn't meaningfully add to the monthly quota.
-  const res = await fetch(url, { next: { revalidate: SCORES_REVALIDATE_SECONDS } });
+  const res = await fetch(url, { next: { revalidate } });
   if (!res.ok) {
     console.error(`Odds API scores request failed for ${sportKey}: ${res.status}`);
     return new Map();
@@ -641,10 +961,20 @@ async function getScores(sportKey: string, apiKey: string): Promise<Map<string, 
 }
 
 function normalizeEvent(event: OddsApiEvent, sport: PickSport, sportKey: string): UpcomingEvent {
+  // One book per card, so the price and the "odds from X" label agree — but the
+  // book with the widest coverage rather than simply the most preferred one.
+  // Pinnacle is the sharp reference and wins every tie, yet on soccer it often
+  // posts the 1X2 and nothing else, which is why cards showed a moneyline and a
+  // dash under Spread and Total. A book that actually prices the handicap and
+  // the goal line beats a sharper book that doesn't price them at all.
+  const rank = (key: string) => {
+    const i = PREFERRED_BOOKMAKERS.indexOf(key);
+    return i === -1 ? PREFERRED_BOOKMAKERS.length : i;
+  };
   const bookmaker =
-    PREFERRED_BOOKMAKERS.map((key) => event.bookmakers.find((b) => b.key === key)).find(Boolean) ??
-    event.bookmakers[0] ??
-    null;
+    [...event.bookmakers].sort(
+      (a, b) => b.markets.length - a.markets.length || rank(a.key) - rank(b.key)
+    )[0] ?? null;
 
   const markets: MarketOption[] = [];
 

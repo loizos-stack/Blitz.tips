@@ -2,6 +2,7 @@ import type { MetadataRoute } from "next";
 import { prisma } from "@/lib/prisma";
 import { siteUrl } from "@/lib/site";
 import { publishedWhere } from "@/lib/blog";
+import { MIN_INDEXABLE_PICKS } from "@/lib/seo";
 
 // Generated at request time (not prerendered at build) so it can never fail the
 // build or ship a broken static copy; the DB read is best-effort and the route
@@ -17,6 +18,15 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     { url: `${base}/leaderboard`, lastModified: now, changeFrequency: "hourly", priority: 0.9 },
     { url: `${base}/handicappers`, lastModified: now, changeFrequency: "daily", priority: 0.9 },
     { url: `${base}/blog`, lastModified: now, changeFrequency: "weekly", priority: 0.7 },
+    // The contest is a whole product with five public pages; none of them were
+    // listed here, so nothing linked them to Google but the nav.
+    { url: `${base}/supercapper`, lastModified: now, changeFrequency: "daily", priority: 0.9 },
+    { url: `${base}/supercapper/standings`, lastModified: now, changeFrequency: "hourly", priority: 0.8 },
+    { url: `${base}/supercapper/consensus`, lastModified: now, changeFrequency: "hourly", priority: 0.7 },
+    { url: `${base}/supercapper/rules`, lastModified: now, changeFrequency: "monthly", priority: 0.6 },
+    { url: `${base}/supercapper/faq`, lastModified: now, changeFrequency: "monthly", priority: 0.6 },
+    { url: `${base}/buy-picks`, lastModified: now, changeFrequency: "monthly", priority: 0.7 },
+    { url: `${base}/about`, lastModified: now, changeFrequency: "monthly", priority: 0.6 },
     { url: `${base}/pricing`, lastModified: now, changeFrequency: "monthly", priority: 0.6 },
     { url: `${base}/faq`, lastModified: now, changeFrequency: "monthly", priority: 0.6 },
     { url: `${base}/contact`, lastModified: now, changeFrequency: "yearly", priority: 0.3 },
@@ -28,8 +38,15 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   try {
     const [handicappers, posts] = await Promise.all([
       prisma.handicapperProfile.findMany({
+        // Profiles too thin to index (see MIN_INDEXABLE_PICKS on the profile
+        // page) are left out: a sitemap that advertises URLs carrying a noindex
+        // tag contradicts itself, and Search Console reports it as an error.
         where: { suspendedAt: null },
-        select: { handle: true, updatedAt: true },
+        select: {
+          handle: true,
+          updatedAt: true,
+          _count: { select: { picks: { where: { result: { not: "PENDING" } } } } },
+        },
       }),
       prisma.blogPost.findMany({
         where: publishedWhere(),
@@ -38,12 +55,14 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     ]);
     return [
       ...staticEntries,
-      ...handicappers.map((h) => ({
-        url: `${base}/handicappers/${h.handle}`,
-        lastModified: h.updatedAt,
-        changeFrequency: "daily" as const,
-        priority: 0.7,
-      })),
+      ...handicappers
+        .filter((h) => h._count.picks >= MIN_INDEXABLE_PICKS)
+        .map((h) => ({
+          url: `${base}/handicappers/${h.handle}`,
+          lastModified: h.updatedAt,
+          changeFrequency: "daily" as const,
+          priority: 0.7,
+        })),
       ...posts.map((p) => ({
         url: `${base}/blog/${p.slug}`,
         lastModified: p.updatedAt,

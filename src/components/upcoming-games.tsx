@@ -7,6 +7,7 @@ import { SPORT_LABELS, cn } from "@/lib/utils";
 import { isMoneylineOnly } from "@/lib/odds-api";
 import type { OddsFeedResult, UpcomingEvent, MarketOption } from "@/lib/odds-api";
 import { soccerLeagueMeta } from "@/lib/soccer-leagues";
+import { FlagIcon } from "@/components/flag-icon";
 import { SportIcon } from "@/components/sport-icon";
 import { TeamLogo } from "@/components/team-logo";
 import { LocalTime } from "@/components/local-time";
@@ -75,7 +76,12 @@ export function UpcomingGames({
   // Narrowing to a sport must never show less of that sport than the mixed
   // board did, so the single-sport cap stays above the merged one. These are
   // horizontal carousels, so extra cards cost a scroll rather than page height.
-  const eventCap = sport ? 20 : 16;
+  // Soccer isn't one league, it's up to MAX_SOCCER_LEAGUES of them on one
+  // board, and they kick off in country order through the day — so a 20-card
+  // cap quietly cut the European evening games, which are the ones people came
+  // for. These are horizontal carousels, so extra cards cost a scroll rather
+  // than page height.
+  const eventCap = sport === "SOCCER" ? 48 : sport ? 20 : 16;
 
   return (
     <section className="relative overflow-hidden border-b border-border bg-surface/60 py-14">
@@ -193,7 +199,7 @@ export function UpcomingGames({
                         the soccer tab is itself a mix of leagues. */}
                     {league ? (
                       <span className="flex min-w-0 items-center gap-1 font-medium text-muted">
-                        {league.flag && <span aria-hidden>{league.flag}</span>}
+                        <FlagIcon code={league.code} />
                         <span className="truncate">{league.league}</span>
                       </span>
                     ) : (
