@@ -12,14 +12,36 @@ contest config, not rounded for effect — check `src/lib/contest.ts` and the
 | Free to enter | no entry fee anywhere in the join flow |
 | Best volume-adjusted ROI wins | `contestStandings` |
 | 100 graded picks to be prize-eligible | `minPicks = 100` |
-| Paid places start at 3, +1 per 10 entrants | `payoutSpotsForEntrants` |
+| Paid places start at 3; the 4th opens at 30 entrants, the 5th at 40 | `payoutSpotsForEntrants` |
 | Full pool always paid out | ICM chop across open places |
-| 1st place on the full 20-place ladder is $3,100 | `DEFAULT_SUPERCAPPER_SPLIT_CENTS[0]` |
 
 **Do not** claim "top 20 paid" as a flat fact. Twenty places is the *ladder*;
 the number actually paying depends on entrant count. With 30 entrants it's 4
 places sharing $10,000. Saying "top 20 paid" to a field of 30 is false and
 someone will screenshot it.
+
+**Do not quote a fixed first prize.** This file used to claim "$3,100 for 1st",
+taken from `DEFAULT_SUPERCAPPER_SPLIT_CENTS[0]`. That array only prefills the
+admin form. The contest runs with `dynamicPayouts` on, so the real ladder comes
+from `contestPrizeLadderCents(poolCents, payoutSpotsForEntrants(n))` and moves
+with the field:
+
+| Entrants | Paid places | 1st | 2nd | 3rd |
+|---|---|---|---|---|
+| under 30 | 3 | $4,467 | $3,217 | $2,316 |
+| 30–39 | 4 | $3,829 | $2,757 | $1,985 |
+| 40–49 | 5 | $3,472 | $2,500 | $1,800 |
+| 50–99 | 6 | $3,253 | $2,342 | $1,686 |
+| 100 | 11 | $2,878 | $2,072 | $1,492 |
+
+$10,000 is guaranteed and always fully paid; only the split moves. Quote the
+pool, not a place. If you want a number for 1st, read it off the live contest
+page rather than this table — the table is a snapshot of the formula, not of
+the row.
+
+**Note the direction.** A small field means a *bigger* first prize, not a
+smaller one. That's the honest early-entrant pitch, and it's the opposite of
+what people assume.
 
 ---
 
