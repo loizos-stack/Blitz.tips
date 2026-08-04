@@ -90,7 +90,7 @@ const byline = `<span class="byline"><img src="${logoMark}" alt=""/><span>Blitz<
 const digitColumn = (id, w, h) => `
   <span class="digit" style="width:${w}px;height:${h}px">
     <span class="digit-strip" id="${id}">${[0,1,2,3,4,5,6,7,8,9]
-      .map((n) => `<span style="height:${h}px;line-height:${h}px">${n}</span>`)
+      .map((n) => `<span style="display:block;height:${h}px;line-height:${h}px">${n}</span>`)
       .join("")}</span>
   </span>`;
 
@@ -135,6 +135,19 @@ body{font-family:'Space Grotesk',sans-serif;color:#fff}
   -webkit-background-clip:text;background-clip:text;color:transparent}
 .digit{display:inline-block;overflow:hidden;position:relative;text-align:center}
 .digit-strip{display:block;will-change:transform}
+/* Half of the odometer fix; the other half is display:block in digitColumn.
+   Both are required — verified by rendering each combination.
+   1. The digit spans must be blocks or "height" is ignored on them (inline,
+      non-replaced), all ten sit on one horizontal line, and translating the
+      strip moves the row out of the clip window instead of scrolling it.
+   2. The gradient must be re-declared here rather than inherited from .odo.
+      .odo clips its gradient to its own text, which reaches the "$" and ","
+      as direct text children but not digits inside an overflow:hidden,
+      composited .digit-strip.
+   With only one of the two applied the number renders as "$ ," — the
+   punctuation paints and every digit is missing. */
+.digit-strip span{background:linear-gradient(180deg,#fde68a,#eab308 55%,#ca8a04);
+  -webkit-background-clip:text;background-clip:text;color:transparent}
 
 /* Bet slip */
 .slip{position:relative;border-radius:28px;background:rgba(255,255,255,.05);

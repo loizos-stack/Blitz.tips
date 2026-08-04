@@ -39,6 +39,42 @@ All exports are 2× for retina.
 | `supercapper-motion-slip-1920x1080.mp4` | 1920×1080 | 12s | The graded slip — a pick lands, ticks, gets stamped WIN |
 | `supercapper-motion-climb-1080x1920.mp4` | 1080×1920 | 12s | The climb — a live board reorders and @you walks to first |
 | `supercapper-motion-wall-1080x1080.mp4` | 1080×1080 | 10s | The odds wall — prices flicker, then collapse into the mark |
+| `supercapper-tiktok-receipt-1080x1920.mp4` | 1080×1920 | 13s | TikTok — the argument, statement type only |
+| `supercapper-tiktok-slip-1080x1920.mp4` | 1080×1920 | 14s | TikTok — a pick lands, ticks, gets stamped WIN |
+| `supercapper-tiktok-ladder-1080x1920.mp4` | 1080×1920 | 13s | TikTok — "what's the catch", answered with the payout ladder |
+| `supercapper-tiktok-steps-1080x1920.mp4` | 1080×1920 | 12s | TikTok — the three-step explainer |
+
+## The TikTok set
+
+Built by `scripts/build-tiktok-videos.mjs`. Pass a name fragment to render one
+(`node scripts/build-tiktok-videos.mjs ladder`).
+
+**These are not the X vertical cut re-encoded**, even though both are 1080×1920.
+TikTok covers different parts of the frame and rewards a different opening:
+
+- **Safe box.** TikTok's action rail sits in the right ~180px from y≈900 down,
+  and the caption block eats the bottom ~380px. Everything stays inside
+  x 60–1020, y 200–1120. The script's `SAFE` constant explains why the bottom
+  inset is far bigger than the caption alone needs — the rail is the binding
+  constraint for anything *wide*, like the bet slip or the payout ladder.
+- **Hook on frame one.** Every cut is legible at t=0, no fade from black and no
+  logo sting. On a For You page the first frame is the thumbnail.
+- **Bigger type**, because TikTok overlays its own UI text on the frame.
+
+Silent, like the rest of the set, but for a different reason: TikTok is
+sound-on and expects you to add a trending track in the app. A baked-in track
+is a licensing problem and the first thing a creator mutes. Every claim is on
+screen, so the cuts still read muted.
+
+The four are deliberately different arguments, not four edits of one: `receipt`
+picks the fight, `slip` shows the mechanic, `ladder` handles the "free contest,
+$10,000, what's the catch" objection, and `steps` is the plain explainer. Post
+them in that order — the explainer converts best once someone has a reason to
+care.
+
+`ladder` never names a first prize, on purpose. The payout is computed from the
+field size, so any fixed figure is wrong; see the claims table in
+`docs/supercapper-twitter-kit.md`.
 
 The three `motion-*` cuts are the animation-led set, built by
 `scripts/build-motion-videos.mjs`. Pass a name fragment to render just one
