@@ -157,6 +157,22 @@ export function integrationStatus(): Integration[] {
       opt("VAPID_SUBJECT", process.env.VAPID_SUBJECT),
     ]),
 
+    // META_PAGE_ID is optional-but-load-bearing: reporting works without it,
+    // creating an ad does not (a creative has to run from a Page). Reported as
+    // optional so a read-only setup isn't flagged broken.
+    build(
+      "meta-ads",
+      "Meta Ads",
+      "The Ads tab can't reach Meta; campaign reporting and ad creation are unavailable.",
+      false,
+      [
+        req("META_ADS_ACCESS_TOKEN", process.env.META_ADS_ACCESS_TOKEN),
+        req("META_AD_ACCOUNT_ID", process.env.META_AD_ACCOUNT_ID),
+        opt("META_PAGE_ID", process.env.META_PAGE_ID),
+        opt("META_MAX_DAILY_BUDGET", process.env.META_MAX_DAILY_BUDGET),
+      ]
+    ),
+
     build(
       "cron",
       "Scheduled jobs",
