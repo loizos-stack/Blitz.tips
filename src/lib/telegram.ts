@@ -54,6 +54,22 @@ export async function sendTelegram(chatId: string, text: string): Promise<{ gone
  * notification; a broadcast that fails is the post you thought went out.
  */
 
+/**
+ * Per-call deadlines. Without one, an unreachable or slow api.telegram.org
+ * leaves the request hanging until the platform kills the function, and a
+ * killed function returns a gateway error page rather than anything readable —
+ * the caller sees "bad gateway" and has no idea Telegram was the problem.
+ * A timeout turns that into a fast, specific failure.
+ */
+const CHECK_TIMEOUT_MS = 10_000;
+const TEXT_TIMEOUT_MS = 15_000;
+const MEDIA_TIMEOUT_MS = 45_000;
+
+/** True when a fetch rejection was our own deadline rather than a network fault. */
+function isTimeout(e: unknown): boolean {
+  return e instanceof Error && (e.name === "TimeoutError" || e.name === "AbortError");
+}
+
 export interface TelegramSendResult {
   ok: boolean;
   messageId: string | null;
@@ -82,14 +98,21 @@ export async function getTelegramChat(
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ chat_id: chatId }),
       cache: "no-store",
+      signal: AbortSignal.timeout(CHECK_TIMEOUT_MS),
     });
     const json = (await res.json().catch(() => null)) as
       | (TelegramApiResponse & { result?: { title?: string; username?: string } })
       | null;
     if (!res.ok || !json?.ok) return { ok: false, title: null, error: apiError(json, res.status) };
     return { ok: true, title: json.result?.title ?? json.result?.username ?? null, error: null };
-  } catch {
-    return { ok: false, title: null, error: "Couldn't reach Telegram" };
+  } catch (e) {
+    return {
+      ok: false,
+      title: null,
+      error: isTimeout(e)
+        ? `Telegram didn't answer within ${CHECK_TIMEOUT_MS / 1000}s — the API may be unreachable from the server.`
+        : "Couldn't reach Telegram",
+    };
   }
 }
 
@@ -102,12 +125,19 @@ export async function broadcastText(chatId: string, text: string): Promise<Teleg
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ chat_id: chatId, text, parse_mode: "HTML", disable_web_page_preview: false }),
       cache: "no-store",
+      signal: AbortSignal.timeout(TEXT_TIMEOUT_MS),
     });
     const json = (await res.json().catch(() => null)) as TelegramApiResponse | null;
     if (!res.ok || !json?.ok) return { ok: false, messageId: null, error: apiError(json, res.status) };
     return { ok: true, messageId: String(json.result?.message_id ?? ""), error: null };
-  } catch {
-    return { ok: false, messageId: null, error: "Couldn't reach Telegram" };
+  } catch (e) {
+    return {
+      ok: false,
+      messageId: null,
+      error: isTimeout(e)
+        ? `Telegram didn't answer within ${TEXT_TIMEOUT_MS / 1000}s — the API may be unreachable from the server.`
+        : "Couldn't reach Telegram",
+    };
   }
 }
 
@@ -146,11 +176,18 @@ export async function broadcastMedia(
       method: "POST",
       body: form,
       cache: "no-store",
+      signal: AbortSignal.timeout(MEDIA_TIMEOUT_MS),
     });
     const json = (await res.json().catch(() => null)) as TelegramApiResponse | null;
     if (!res.ok || !json?.ok) return { ok: false, messageId: null, error: apiError(json, res.status) };
     return { ok: true, messageId: String(json.result?.message_id ?? ""), error: null };
-  } catch {
-    return { ok: false, messageId: null, error: "Couldn't reach Telegram" };
+  } catch (e) {
+    return {
+      ok: false,
+      messageId: null,
+      error: isTimeout(e)
+        ? `Upload didn't finish within ${MEDIA_TIMEOUT_MS / 1000}s — try a smaller file or a text-only post.`
+        : "Couldn't reach Telegram",
+    };
   }
 }
