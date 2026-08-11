@@ -93,6 +93,21 @@ export function PickCard({
     ? [homeLogo, awayLogo]
     : [awayLogo, homeLogo];
 
+  /**
+   * The affiliate link sits beside the stake, in the same row as the price and
+   * the units — that row is the bet, and the link belongs with it rather than
+   * floating underneath.
+   *
+   * Shown until the pick is graded, not until kickoff. A pick can be live and
+   * still worth backing in-play, and a card that silently drops its link the
+   * moment a game starts looks broken rather than deliberate. Once there's a
+   * result there is nothing left to place, so PENDING is the whole condition.
+   */
+  const betCta =
+    book && pick.result === "PENDING" ? (
+      <SportsbookCta book={book} variant="button" sport={pick.sport} event={pick.oddsApiEventId} />
+    ) : null;
+
   if (locked) {
     return (
       <div className="card relative overflow-hidden p-5">
@@ -160,8 +175,9 @@ export function PickCard({
               );
             })}
           </ul>
-          <div className="mt-3">
+          <div className="mt-3 flex flex-wrap items-center gap-3">
             <UnitsBadge units={pick.units} />
+            {betCta}
           </div>
         </>
       ) : (
@@ -180,19 +196,9 @@ export function PickCard({
             <span className="font-display font-semibold">{pick.selection}</span>
             <span className="font-semibold tabular-nums">{formatOdds(pick.odds)}</span>
             <UnitsBadge units={pick.units} />
+            {betCta}
           </div>
         </>
-      )}
-
-      {/* Directly under the price, not below the analysis: the moment someone
-          has read the line and the number is the moment they'd go and place it,
-          and burying the link under a paragraph loses that. Still only on a
-          game that hasn't started — you can't back one already graded or in
-          play. */}
-      {book && pick.result === "PENDING" && pick.eventStartsAt > new Date() && (
-        <div className="mt-3">
-          <SportsbookCta book={book} variant="button" sport={pick.sport} event={pick.oddsApiEventId} />
-        </div>
       )}
 
       {pick.analysis && <p className="mt-3 text-sm text-muted">{pick.analysis}</p>}

@@ -258,8 +258,10 @@ export function UpcomingGames({
                     </>
                   )}
 
+                  {/* Directly beneath the price grid — the link is about the
+                      numbers immediately above it, so the gap stays tight. */}
                   {book && (
-                    <div className="mt-3">
+                    <div className="mt-2">
                       <SportsbookCta book={book} variant="button" sport={event.sport} event={event.id} />
                     </div>
                   )}
