@@ -3,7 +3,8 @@ import { TailButtons } from "@/components/tail-buttons";
 import { formatDateTime } from "@/lib/date-format";
 import type { Pick as PickModel, ParlayLeg } from "@prisma/client";
 import { ResultPill } from "@/components/result-pill";
-import { StakeCta } from "@/components/stake-cta";
+import { SportsbookCta } from "@/components/sportsbook-cta";
+import type { Sportsbook } from "@/lib/sportsbooks";
 import { SportIcon } from "@/components/sport-icon";
 import { TeamLogo } from "@/components/team-logo";
 import { getTeamLogoUrl } from "@/lib/team-logos";
@@ -66,13 +67,13 @@ function UnitsBadge({ units }: { units: number }) {
 export function PickCard({
   pick,
   locked = false,
-  showStake = false,
+  book = null,
   tail,
 }: {
   pick: PickWithLegs;
   locked?: boolean;
   /** Renders the Stake partner link. Caller must have geo-gated to non-US. */
-  showStake?: boolean;
+  book?: Sportsbook | null;
   /**
    * Tail/fade counts and the reader's own position. Omitted where the control
    * doesn't belong — a signed-out visitor, or the capper's own dashboard.
@@ -187,9 +188,9 @@ export function PickCard({
 
       {/* Only worth offering on a game that hasn't started — you can't go and
           place a bet that's already graded or in play. */}
-      {showStake && pick.result === "PENDING" && pick.eventStartsAt > new Date() && (
+      {book && pick.result === "PENDING" && pick.eventStartsAt > new Date() && (
         <div className="mt-3">
-          <StakeCta variant="button" sport={pick.sport} event={pick.oddsApiEventId} />
+          <SportsbookCta book={book} variant="button" sport={pick.sport} event={pick.oddsApiEventId} />
         </div>
       )}
 

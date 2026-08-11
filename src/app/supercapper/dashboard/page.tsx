@@ -34,7 +34,7 @@ import { ContestPickForm } from "@/components/contest/contest-pick-form";
 import { ContestStandings } from "@/components/contest/contest-standings";
 import { ContestConversion } from "@/components/contest/contest-conversion";
 import { cappersBeating } from "@/lib/contest-funnel";
-import { showStakeLinks } from "@/lib/stake-server";
+import { sportsbookForVisitor } from "@/lib/sportsbooks";
 import { SupercapperLogo } from "@/components/contest/supercapper-logo";
 
 export const dynamic = "force-dynamic";
@@ -254,7 +254,7 @@ export default async function ContestDashboardPage() {
               myEntry.user.username ? (
                 <ContestPickForm
                   contestId={contest.id}
-                  showStake={await showStakeLinks()}
+                  book={await sportsbookForVisitor()}
                   // Before the contest opens the board is browsable but the
                   // submit button is a countdown — see the games and prices
                   // you'll be picking from rather than a sentence about waiting.

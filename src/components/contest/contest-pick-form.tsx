@@ -11,7 +11,8 @@ import { formatOdds } from "@/lib/odds";
 import { EventMarkets } from "@/components/event-markets";
 import type { MarketOption, UpcomingEvent } from "@/lib/odds-api";
 import type { CapperOnEvent } from "@/lib/contest-funnel";
-import { StakeCta } from "@/components/stake-cta";
+import { SportsbookCta } from "@/components/sportsbook-cta";
+import type { Sportsbook } from "@/lib/sportsbooks";
 import { MatchupTeams } from "@/components/matchup-teams";
 import { ContestCountdown } from "@/components/contest/contest-countdown";
 import { SoccerLeagueSections } from "@/components/soccer-league-sections";
@@ -50,12 +51,12 @@ type FeedState =
  */
 export function ContestPickForm({
   contestId,
-  showStake = false,
+  book = null,
   opensAt,
 }: {
   contestId: string;
   /** Renders the Stake partner link on the confirmation. Caller geo-gates. */
-  showStake?: boolean;
+  book?: Sportsbook | null;
   /**
    * Set before the contest opens. The board becomes browsable — sports, games,
    * every market and price — but the submit button becomes a countdown. People
@@ -220,7 +221,7 @@ export function ContestPickForm({
       {confirmation && (
         <PickConfirmation
           data={confirmation}
-          showStake={showStake}
+          book={book}
           onDismiss={() => setConfirmation(null)}
         />
       )}
@@ -336,11 +337,11 @@ export function ContestPickForm({
  */
 function PickConfirmation({
   data,
-  showStake,
+  book,
   onDismiss,
 }: {
   data: Confirmation;
-  showStake: boolean;
+  book: Sportsbook | null;
   onDismiss: () => void;
 }) {
   return (
@@ -362,9 +363,9 @@ function PickConfirmation({
         {data.matchup} · {data.selection} · {formatOdds(data.odds)}
       </p>
 
-      {showStake && (
+      {book && (
         <div className="mt-2.5">
-          <StakeCta variant="button" sport={data.sport} event={data.eventId} />
+          <SportsbookCta book={book} variant="button" sport={data.sport} event={data.eventId} />
         </div>
       )}
 

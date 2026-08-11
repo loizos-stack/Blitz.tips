@@ -9,7 +9,7 @@ import { cumulativeUnits, formatUnits } from "@/lib/analytics";
 import { formatCents } from "@/lib/utils";
 import { formatDate } from "@/lib/date-format";
 import { PickCard } from "@/components/pick-card";
-import { showStakeLinks } from "@/lib/stake-server";
+import { sportsbookForVisitor, type Sportsbook } from "@/lib/sportsbooks";
 import { HandicapperCard } from "@/components/handicapper-card";
 import { ManageBillingButton } from "@/components/manage-billing-button";
 import { VerifyEmailBanner } from "@/components/verify-email-banner";
@@ -136,7 +136,7 @@ export default async function DashboardPage() {
   const session = await auth();
   if (!session) redirect("/signin?callbackUrl=/dashboard");
 
-    const showStake = await showStakeLinks();
+    const book = await sportsbookForVisitor();
 
   const {
     currentUser,
@@ -283,7 +283,7 @@ export default async function DashboardPage() {
                   </h2>
                   <div className="grid gap-4 sm:grid-cols-2">
                     {upcomingPicks.map((pick) => (
-                      <PickAttribution key={pick.id} pick={pick} showStake={showStake} />
+                      <PickAttribution key={pick.id} pick={pick} book={book} />
                     ))}
                   </div>
                 </section>
@@ -307,7 +307,7 @@ export default async function DashboardPage() {
                             {liveClock.get(pick.id)}
                           </p>
                         )}
-                        <PickAttribution pick={pick} showStake={showStake} />
+                        <PickAttribution pick={pick} book={book} />
                       </div>
                     ))}
                   </div>
@@ -321,7 +321,7 @@ export default async function DashboardPage() {
                 ) : (
                   <div className="grid gap-4 sm:grid-cols-2">
                     {settledPicks.map((pick) => (
-                      <PickAttribution key={pick.id} pick={pick} showStake={showStake} />
+                      <PickAttribution key={pick.id} pick={pick} book={book} />
                     ))}
                   </div>
                 )}
@@ -426,7 +426,7 @@ export default async function DashboardPage() {
 type FeedPick = Prisma.PickGetPayload<{ include: { handicapper: true; parlayLegs: true } }>;
 
 // A feed pick with a link back to the handicapper who posted it.
-function PickAttribution({ pick, showStake }: { pick: FeedPick; showStake: boolean }) {
+function PickAttribution({ pick, book }: { pick: FeedPick; book: Sportsbook | null }) {
   return (
     <div>
       <Link
@@ -440,7 +440,7 @@ function PickAttribution({ pick, showStake }: { pick: FeedPick; showStake: boole
         />
         @{pick.handicapper.handle}
       </Link>
-      <PickCard pick={pick} showStake={showStake} />
+      <PickCard pick={pick} book={book} />
     </div>
   );
 }

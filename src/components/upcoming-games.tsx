@@ -1,7 +1,8 @@
 import { Fragment } from "react";
 import Link from "next/link";
 import { CalendarClock, Radio } from "lucide-react";
-import { StakeCta } from "@/components/stake-cta";
+import { SportsbookCta } from "@/components/sportsbook-cta";
+import type { Sportsbook } from "@/lib/sportsbooks";
 import { formatOdds } from "@/lib/odds";
 import { SPORT_LABELS, cn } from "@/lib/utils";
 import { isMoneylineOnly } from "@/lib/odds-api";
@@ -55,10 +56,10 @@ export function UpcomingGames({
   sport,
   feed,
   availableSports,
-  showStake = false,
+  book = null,
 }: {
   /** Renders the Stake partner CTA. Caller must have geo-gated to non-US. */
-  showStake?: boolean;
+  book?: Sportsbook | null;
   // Null on the default "all sports" view — the board merges every sport's
   // games sorted by start time. A non-null value means the visitor narrowed to
   // a single sport via a pill.
@@ -257,9 +258,9 @@ export function UpcomingGames({
                     </>
                   )}
 
-                  {showStake && (
+                  {book && (
                     <div className="mt-2">
-                      <StakeCta sport={event.sport} event={event.id} />
+                      <SportsbookCta book={book} sport={event.sport} event={event.id} />
                     </div>
                   )}
                 </div>

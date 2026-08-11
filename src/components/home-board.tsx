@@ -1,6 +1,6 @@
 import { UpcomingGames } from "@/components/upcoming-games";
 import { getUpcomingEvents, getAllUpcomingEvents, getAvailableHomepageSports } from "@/lib/odds-api";
-import { showStakeLinks } from "@/lib/stake-server";
+import { sportsbookForVisitor } from "@/lib/sportsbooks";
 import { SPORT_LABELS } from "@/lib/utils";
 import type { PickSport } from "@prisma/client";
 
@@ -43,7 +43,7 @@ export async function HomeBoard({ sportParam }: { sportParam?: string }) {
       sport={sport}
       feed={oddsFeed}
       availableSports={availableSports}
-      showStake={await showStakeLinks()}
+      book={await sportsbookForVisitor()}
     />
   );
 }

@@ -13,7 +13,7 @@ import { Stars } from "@/components/stars";
 import { HandicapperJsonLd, BreadcrumbJsonLd } from "@/components/json-ld";
 import { StatCard } from "@/components/stat-card";
 import { PickCard } from "@/components/pick-card";
-import { showStakeLinks } from "@/lib/stake-server";
+import { sportsbookForVisitor } from "@/lib/sportsbooks";
 import { PaginatedTrackRecord } from "@/components/paginated-track-record";
 import { SubscribeButton } from "@/components/subscribe-button";
 import { FollowButton } from "@/components/follow-button";
@@ -113,7 +113,7 @@ export default async function HandicapperProfilePage({
   }
 
   const unlocked = isOwner || isSubscribed;
-    const showStake = await showStakeLinks();
+    const book = await sportsbookForVisitor();
   const picks = await enrichPickCrests(handicapper.picksList);
   const pendingPicks = picks.filter((p) => p.result === "PENDING");
   const settledPicks = picks.filter((p) => p.result !== "PENDING");
@@ -191,7 +191,7 @@ export default async function HandicapperProfilePage({
               key={pick.id}
               pick={pick}
               locked={isPickLocked(pick, unlocked)}
-              showStake={showStake}
+              book={book}
               tail={tails.get(pick.id)}
             />
           ))}
