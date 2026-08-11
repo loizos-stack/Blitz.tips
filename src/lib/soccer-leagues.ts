@@ -152,6 +152,15 @@ const LEAGUES: Record<string, SoccerLeagueMeta> = {
     league: "Copa Libertadores",
     rank: 9,
   },
+  // Same billing as the Libertadores it feeds off. Without an entry here it fell
+  // through to the default — country "Other", rank 99 — and would have sorted
+  // below every domestic league on a board it had just fought its way onto.
+  soccer_conmebol_copa_sudamericana: {
+    country: "South America",
+    code: "",
+    league: "Copa Sudamericana",
+    rank: 9,
+  },
   soccer_conmebol_copa_america: { country: "South America", code: "", league: "Copa América", rank: 9 },
   soccer_africa_cup_of_nations: { country: "Africa", code: "", league: "Africa Cup of Nations", rank: 9 },
   soccer_fifa_world_cup: { country: "International", code: "", league: "World Cup", rank: 10 },

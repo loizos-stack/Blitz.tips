@@ -154,7 +154,13 @@ const SOCCER_LEAGUE_PRIORITY = [
   "soccer_brazil_serie_b",
   "soccer_uefa_european_championship",
   "soccer_conmebol_copa_america",
+  // The two South American club cups rank together, as the European three do.
+  // The Sudamericana is the continent's Europa League — the same clubs a
+  // Brazilian or Argentine bettor follows drop into it from the Libertadores —
+  // and it was unlisted, so it sat in the tail behind every domestic league and
+  // survived only by luck of upstream ordering.
   "soccer_conmebol_copa_libertadores",
+  "soccer_conmebol_copa_sudamericana",
   // Third tier: leagues the feed carries that the cap was cutting. Several run
   // a summer calendar (the Scandinavians, Ireland, Japan, Korea), so in
   // July/August they're mid-season while the European majors are two fixtures
@@ -200,7 +206,7 @@ const UNLISTED_EUROPEAN_RANK =
 // 30 was still cutting 14 active competitions — Turkey, Scotland, Serie B,
 // Greece, Switzerland, Norway, Sweden (both divisions), Poland, Japan, Korea,
 // Ireland, Russia and 3. Liga. 45 carries the whole active set with headroom,
-// and the 40 named in SOCCER_LEAGUE_PRIORITY are protected by rank rather than
+// and the 41 named in SOCCER_LEAGUE_PRIORITY are protected by rank rather than
 // by cap headroom, so a busy week pushes an unnamed league off the end instead
 // of a league someone asked for.
 //
@@ -287,11 +293,19 @@ interface OddsApiSportEntry {
  * Competitions we check for fixtures even when /sports doesn't list them as in
  * season.
  *
- * The in-season list is the upstream's own judgement, and for the European cups
- * it is wrong in exactly the window that matters: through July the Europa and
- * Conference Leagues (and their qualifying rounds) are playing ties every week
- * while /sports reports neither the competition nor its qualifier as active, so
- * they never entered the ranking at all — not selected, not even skipped.
+ * The in-season list is the upstream's own judgement, and for competitions that
+ * run in bursts it is wrong in exactly the window that matters: through July the
+ * Europa and Conference Leagues (and their qualifying rounds) are playing ties
+ * every week while /sports reports neither the competition nor its qualifier as
+ * active, so they never entered the ranking at all — not selected, not even
+ * skipped.
+ *
+ * The South American cups have the same shape and were missing for the same
+ * reason. Both run months of knockout rounds separated by long gaps — the
+ * Libertadores group stage ends in late May and the Round of 16 starts in
+ * mid-August — and through each gap they go dormant upstream. Being named in
+ * SOCCER_LEAGUE_PRIORITY doesn't save them: rank decides who survives the cap,
+ * and a competition that never reaches the ranking was never in the running.
  *
  * The /events endpoint answers the only question that matters, "are there
  * fixtures", and doesn't count against the usage quota, so probing costs
@@ -305,6 +319,10 @@ const PROBE_SOCCER_KEYS = [
   "soccer_uefa_europa_conference_league",
   "soccer_uefa_europa_conference_league_qualification",
   "soccer_uefa_super_cup",
+  // CONMEBOL. A key the plan doesn't carry 404s on the probe and is dropped, so
+  // listing one costs nothing but a free call even if the spelling is wrong.
+  "soccer_conmebol_copa_libertadores",
+  "soccer_conmebol_copa_sudamericana",
 ];
 
 /** Keys from PROBE_SOCCER_KEYS that have upcoming fixtures despite being dormant. */
