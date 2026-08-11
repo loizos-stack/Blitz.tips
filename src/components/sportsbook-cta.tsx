@@ -19,20 +19,20 @@ import type { PickSport } from "@prisma/client";
  */
 
 /**
- * 1win's wordmark. Two files, same shape as Stake's: the dark version for light
- * surfaces and a white knockout for dark ones.
+ * 1win's official wordmark. Two files, same shape as Stake's: the full mark for
+ * light surfaces and a white version for dark ones.
  *
- * These are rendered by scripts/build-sportsbook-logos.mjs and are a stand-in,
- * not 1win's official artwork — see that file. Swapping in the real asset means
- * overwriting the two files and changing LOGO_RATIO to match.
+ * Both are cut from docs/brand/1win-logo-source.png by
+ * scripts/build-sportsbook-logos.mjs. They share one crop box, so the single
+ * ratio below sizes both correctly — regenerate them together, never by hand.
  *
  * Height drives the size and width follows the ratio; setting height alone via
  * a class would distort it.
  */
-// Measured from the rendered glyphs by scripts/build-sportsbook-logos.mjs,
-// which prints the value to paste here. Swapping in 1win's official artwork
-// means changing this one number to match its proportions.
-const LOGO_RATIO = 1.939;
+// The trimmed artwork's own proportions, printed by the render script. It is
+// wider than a plain wordmark because 1win's mark carries an outline and a drop
+// shadow, so a given height buys noticeably more width than Stake's does.
+const LOGO_RATIO = 2.3832;
 
 function OneWinWordmark({ height, onDark }: { height: number; onDark?: boolean }) {
   return (

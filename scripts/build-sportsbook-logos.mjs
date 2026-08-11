@@ -6,10 +6,16 @@
  *
  *   node scripts/build-sportsbook-logos.mjs --from ~/Downloads/1win.png
  *
- * Takes 1win's own file (PNG with transparency), installs it as
- * public/1win-logo.png, derives the white knockout by forcing RGB to white
- * while preserving alpha — the same trick behind Stake's two files — and prints
- * the aspect ratio to paste into LOGO_RATIO in components/sportsbook-cta.tsx.
+ * Takes 1win's own file (PNG with transparency), trims its transparent margin,
+ * installs it as public/1win-logo.png, derives the dark-surface version by
+ * keeping the light parts of the mark and dropping the dark ones, downscales
+ * both to delivery size, and prints the aspect ratio to paste into LOGO_RATIO
+ * in components/sportsbook-cta.tsx.
+ *
+ * The master artwork lives at docs/brand/1win-logo-source.png, so the current
+ * files can be regenerated without going back to 1win for the asset:
+ *
+ *   node scripts/build-sportsbook-logos.mjs --from docs/brand/1win-logo-source.png
  *
  * ## Fallback: render a stand-in
  *
@@ -22,7 +28,7 @@
  *
  * Both paths end the same way: two files in public/ and one number to update.
  */
-import { readFileSync, readdirSync, statSync, writeFileSync, mkdirSync, copyFileSync, existsSync } from "fs";
+import { readFileSync, readdirSync, statSync, writeFileSync, mkdirSync, existsSync } from "fs";
 import { execFileSync } from "child_process";
 import { createRequire } from "module";
 import { tmpdir } from "os";
@@ -35,6 +41,15 @@ const OUT = join(ROOT, "public");
 const SCALE = 4;
 const W = 300;
 const H = 110;
+
+// Alpha at or below this counts as background when trimming the margin.
+const ALPHA_FLOOR = 8;
+// Splits an outlined mark into its light and dark parts. Mid-grey, so it lands
+// between the two tones of a high-contrast wordmark rather than inside either.
+const LUMA_SPLIT = 140;
+// Delivered height in px. The mark renders at 20-24px and Next serves a
+// retina srcset from this, so anything past a few hundred is dead weight.
+const DELIVERED_HEIGHT = 320;
 
 mkdirSync(OUT, { recursive: true });
 
@@ -83,29 +98,91 @@ if (fromArg !== -1) {
     process.exit(1);
   }
 
-  const dark = join(OUT, "1win-logo.png");
-  copyFileSync(src, dark);
-
-  // White knockout: force every pixel white and keep the original alpha, so the
-  // mark stays legible on dark surfaces. Anything without transparency will
-  // come out as a solid white block — that is the signal the source needs a
-  // transparent background, not a bug here.
-  const white = join(OUT, "1win-logo-white.png");
-  execFileSync("ffmpeg", [
-    "-y", "-loglevel", "error", "-i", dark,
-    "-vf", "format=rgba,geq=r='255':g='255':b='255':a='alpha(X,Y)'",
-    white,
-  ]);
-
   const dims = execFileSync("ffprobe", [
     "-v", "error", "-select_streams", "v:0",
-    "-show_entries", "stream=width,height", "-of", "csv=p=0:s=x", dark,
+    "-show_entries", "stream=width,height", "-of", "csv=p=0:s=x", src,
   ]).toString().trim();
-  const [w, h] = dims.split("x").map(Number);
+  const [sw, sh] = dims.split("x").map(Number);
 
-  console.log(`${dark}   ${w}x${h}  (from ${src})`);
-  console.log(`${white}   white knockout`);
-  console.log(`\nSet LOGO_RATIO in components/sportsbook-cta.tsx to ${(w / h).toFixed(4)}`);
+  // Decode to raw RGBA so the crop and the knockout can be decided per pixel.
+  const rawPath = join(tmpdir(), "1win-src.rgba");
+  execFileSync("ffmpeg", ["-y", "-loglevel", "error", "-i", src, "-f", "rawvideo", "-pix_fmt", "rgba", rawPath]);
+  const px = readFileSync(rawPath);
+  const at = (x, y) => (y * sw + x) * 4;
+
+  // Trim transparent margin. Exported artwork is usually padded, and that
+  // padding would render as an oversized gap next to the "Bet on" label while
+  // making the mark look smaller than the height it was given.
+  let x0 = sw, y0 = sh, x1 = -1, y1 = -1;
+  for (let y = 0; y < sh; y++) {
+    for (let x = 0; x < sw; x++) {
+      if (px[at(x, y) + 3] > ALPHA_FLOOR) {
+        if (x < x0) x0 = x;
+        if (x > x1) x1 = x;
+        if (y < y0) y0 = y;
+        if (y > y1) y1 = y;
+      }
+    }
+  }
+  if (x1 < 0) {
+    console.error(`${src} is fully transparent — nothing to install.`);
+    process.exit(1);
+  }
+  const cw = x1 - x0 + 1;
+  const ch = y1 - y0 + 1;
+
+  // Two buffers on one canvas. Sharing the crop box matters: the component
+  // sizes both files from a single LOGO_RATIO, so cropping each to its own
+  // content box would stretch one of them.
+  const full = Buffer.alloc(cw * ch * 4);
+  const white = Buffer.alloc(cw * ch * 4);
+  let light = 0;
+  for (let y = 0; y < ch; y++) {
+    for (let x = 0; x < cw; x++) {
+      const s = at(x + x0, y + y0);
+      const d = (y * cw + x) * 4;
+      const [r, g, b, a] = [px[s], px[s + 1], px[s + 2], px[s + 3]];
+      full[d] = r; full[d + 1] = g; full[d + 2] = b; full[d + 3] = a;
+
+      // The dark-surface version keeps the light parts of the mark and discards
+      // the dark ones. Forcing every pixel white and keeping alpha — the
+      // obvious approach — only works for a single-colour silhouette; on an
+      // outlined mark like 1win's it merges the letterforms with their own
+      // outline and drop shadow into one solid white blob.
+      const luma = r * 0.299 + g * 0.587 + b * 0.114;
+      const keep = luma > LUMA_SPLIT;
+      if (keep && a > ALPHA_FLOOR) light++;
+      white[d] = 255; white[d + 1] = 255; white[d + 2] = 255; white[d + 3] = keep ? a : 0;
+    }
+  }
+
+  // A mark that is entirely dark has nothing to keep, so the knockout would
+  // come out empty. Fall back to the silhouette, which is the right answer for
+  // a single-colour wordmark.
+  if (light === 0) {
+    for (let i = 0; i < cw * ch; i++) white[i * 4 + 3] = full[i * 4 + 3];
+  }
+
+  // Downscale to delivery size. The source is far larger than any rendered
+  // height, and lanczos on the full-resolution mask is what gives the edges
+  // their antialiasing back after the hard luma split above.
+  const outW = Math.round(DELIVERED_HEIGHT * (cw / ch));
+  const darkOut = join(OUT, "1win-logo.png");
+  const whiteOut = join(OUT, "1win-logo-white.png");
+  for (const [buf, out] of [[full, darkOut], [white, whiteOut]]) {
+    const tmp = join(tmpdir(), "1win-stage.rgba");
+    writeFileSync(tmp, buf);
+    execFileSync("ffmpeg", [
+      "-y", "-loglevel", "error",
+      "-f", "rawvideo", "-pix_fmt", "rgba", "-s", `${cw}x${ch}`, "-i", tmp,
+      "-vf", `scale=${outW}:${DELIVERED_HEIGHT}:flags=lanczos`, "-frames:v", "1", out,
+    ]);
+  }
+
+  console.log(`${src}  ${sw}x${sh} -> cropped ${cw}x${ch} -> ${outW}x${DELIVERED_HEIGHT}`);
+  console.log(`${darkOut}   full mark, for light surfaces`);
+  console.log(`${whiteOut}   ${light === 0 ? "white silhouette" : "light parts of the mark only"}, for dark surfaces`);
+  console.log(`\nSet LOGO_RATIO in components/sportsbook-cta.tsx to ${(cw / ch).toFixed(4)}`);
   process.exit(0);
 }
 
