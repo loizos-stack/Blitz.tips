@@ -135,6 +135,7 @@ function SignUpForm({ as, telegramBot }: { as: "subscriber" | "handicapper"; tel
           <div className="mt-3 flex justify-center">
             <TelegramLoginButton
               botUsername={telegramBot}
+              signupAs={as}
               callbackUrl={`/onboarding/country?as=${as}`}
               onError={setError}
             />

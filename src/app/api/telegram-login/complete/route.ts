@@ -2,7 +2,6 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { cookies } from "next/headers";
 import { prisma } from "@/lib/prisma";
-import { usernameSchema } from "@/lib/validations";
 import { verifyTelegramAuth, telegramLoginConfigured } from "@/lib/telegram-login";
 import { sendVerificationCode } from "@/lib/verification";
 import { logActivity } from "@/lib/audit";
@@ -23,13 +22,14 @@ import { REFERRAL_COOKIE, resolveReferrer } from "@/lib/referrals";
  * self-authenticating, so it is simply re-verified here. That is what
  * MAX_AUTH_AGE_MS bounds — a captured payload stops working shortly after it
  * was issued.
+ *
+ * Email is all this collects. Username and country are left null on purpose so
+ * the onboarding details step asks for them, which is exactly what a Google
+ * sign-up does — one chain, one place those rules live.
  */
 const bodySchema = z.object({
   telegram: z.unknown(),
   email: z.email("Enter a valid email"),
-  username: usernameSchema,
-  name: z.string().min(2, "Name is too short").max(60).optional(),
-  country: z.string().min(2).max(60).optional(),
 });
 
 export async function POST(request: Request) {
@@ -53,11 +53,7 @@ export async function POST(request: Request) {
     );
   }
 
-  const { username, country } = parsed.data;
   const normalizedEmail = parsed.data.email.toLowerCase();
-  // Telegram's own display name unless they typed one, and never empty: `name`
-  // is what the rest of the site addresses them by.
-  const name = parsed.data.name?.trim() || identity.name || `@${username}`;
 
   // Re-checked rather than trusted from /check: that response is advisory, and
   // the account could have been created by another tab in between.
@@ -78,10 +74,6 @@ export async function POST(request: Request) {
       { status: 409 }
     );
   }
-  if (await prisma.user.findUnique({ where: { username } })) {
-    return NextResponse.json({ error: "That username is taken" }, { status: 409 });
-  }
-
   const referralCookie = (await cookies()).get(REFERRAL_COOKIE)?.value;
   const referredById = await resolveReferrer(referralCookie);
 
@@ -89,13 +81,13 @@ export async function POST(request: Request) {
   try {
     user = await prisma.user.create({
       data: {
-        name,
-        username,
+        // Telegram's display name. Null when they have none, which the
+        // onboarding details step handles the same way it does for anyone else.
+        name: identity.name,
         email: normalizedEmail,
         // No passwordHash: this account signs in through Telegram. Setting a
         // password later goes through the ordinary reset-by-email flow.
         image: identity.photoUrl,
-        country: country ?? null,
         telegramChatId: identity.telegramId,
         ...(referredById ? { referredById, referredAt: new Date() } : {}),
       },
@@ -104,7 +96,7 @@ export async function POST(request: Request) {
   } catch (e) {
     // Unique-constraint race between the checks above and this create.
     if ((e as { code?: string })?.code === "P2002") {
-      return NextResponse.json({ error: "That email or username is already taken" }, { status: 409 });
+      return NextResponse.json({ error: "An account with that email already exists" }, { status: 409 });
     }
     throw e;
   }

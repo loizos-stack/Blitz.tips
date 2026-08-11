@@ -5,7 +5,6 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { signIn } from "next-auth/react";
 import { Send } from "lucide-react";
-import { COUNTRIES } from "@/lib/countries";
 import { fetchJson } from "@/lib/fetch-json";
 import { TELEGRAM_SIGNUP_KEY } from "@/components/telegram-login-button";
 
@@ -16,6 +15,11 @@ import { TELEGRAM_SIGNUP_KEY } from "@/components/telegram-login-button";
  * account model needs one — verification, receipts, digests, password reset. So
  * this asks for it, then creates the account against the signed payload the
  * widget produced.
+ *
+ * Email is the *only* field here, deliberately. Username and country are the
+ * onboarding chain's job, exactly as they are for a Google sign-up — asking
+ * twice would be the odd one out, and the details step already knows how to
+ * skip itself when nothing is missing.
  *
  * Reached only via the widget, which leaves that payload in sessionStorage.
  * Arriving here directly has nothing to work with and says so instead of
@@ -28,10 +32,7 @@ function TelegramSignUpForm() {
 
   const [payload, setPayload] = useState<string | null>(null);
   const [ready, setReady] = useState(false);
-  const [name, setName] = useState("");
-  const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
-  const [country, setCountry] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -47,17 +48,6 @@ function TelegramSignUpForm() {
         stored = null;
       }
       setPayload(stored);
-      // Prefill from what Telegram told us, so most people only type an email.
-      if (stored) {
-        try {
-          const data = JSON.parse(stored) as { first_name?: string; last_name?: string; username?: string };
-          const full = [data.first_name, data.last_name].filter(Boolean).join(" ").trim();
-          if (full) setName(full);
-          if (data.username) setUsername(data.username.toLowerCase().replace(/[^a-z0-9_]/g, "").slice(0, 20));
-        } catch {
-          // Prefill is a convenience; the server reads the payload itself.
-        }
-      }
       setReady(true);
     }, 0);
     return () => clearTimeout(t);
@@ -72,7 +62,7 @@ function TelegramSignUpForm() {
     const created = await fetchJson("/api/telegram-login/complete", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ telegram: JSON.parse(payload), name, username, email, country }),
+      body: JSON.stringify({ telegram: JSON.parse(payload), email }),
     });
 
     if (!created.ok) {
@@ -134,55 +124,20 @@ function TelegramSignUpForm() {
 
         <form onSubmit={handleSubmit} className="mt-6 space-y-4">
           <div>
-            <label htmlFor="tg-name" className="mb-1 block text-sm font-medium">Name</label>
-            <input
-              id="tg-name"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              required
-              minLength={2}
-              maxLength={60}
-              className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm"
-            />
-          </div>
-          <div>
-            <label htmlFor="tg-username" className="mb-1 block text-sm font-medium">Username</label>
-            <input
-              id="tg-username"
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              required
-              minLength={3}
-              maxLength={20}
-              pattern="[a-zA-Z0-9_]+"
-              className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm"
-            />
-          </div>
-          <div>
             <label htmlFor="tg-email" className="mb-1 block text-sm font-medium">Email</label>
             <input
               id="tg-email"
               type="email"
+              autoComplete="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
+              autoFocus
               className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm"
             />
-          </div>
-          <div>
-            <label htmlFor="tg-country" className="mb-1 block text-sm font-medium">Country</label>
-            <select
-              id="tg-country"
-              value={country}
-              onChange={(e) => setCountry(e.target.value)}
-              required
-              className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm"
-            >
-              <option value="" disabled>Select your country</option>
-              {COUNTRIES.map((c) => (
-                <option key={c} value={c}>{c}</option>
-              ))}
-            </select>
+            <p className="mt-1.5 text-xs text-muted">
+              We&apos;ll send a code to confirm it, then finish setting up your account.
+            </p>
           </div>
 
           {error && <p className="text-sm text-danger">{error}</p>}

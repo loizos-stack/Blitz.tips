@@ -35,10 +35,18 @@ declare global {
 export function TelegramLoginButton({
   botUsername,
   callbackUrl = "/welcome",
+  signupAs,
   onError,
 }: {
   botUsername: string;
   callbackUrl?: string;
+  /**
+   * Which path a *new* account is signing up for. Carried through to the
+   * completion page because the whole onboarding chain branches on it — without
+   * it, someone who chose "become a handicapper" would be walked through the
+   * subscriber steps instead.
+   */
+  signupAs?: "subscriber" | "handicapper";
   onError?: (message: string) => void;
 }) {
   const router = useRouter();
@@ -81,7 +89,7 @@ export function TelegramLoginButton({
       onError?.("Your browser blocked storage needed to finish signing up.");
       return;
     }
-    router.push("/signup/telegram");
+    router.push(signupAs ? `/signup/telegram?as=${signupAs}` : "/signup/telegram");
   };
 
   // Latest-value ref: Telegram calls one global callback, and the script below
