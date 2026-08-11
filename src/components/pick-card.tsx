@@ -184,15 +184,18 @@ export function PickCard({
         </>
       )}
 
-      {pick.analysis && <p className="mt-3 text-sm text-muted">{pick.analysis}</p>}
-
-      {/* Only worth offering on a game that hasn't started — you can't go and
-          place a bet that's already graded or in play. */}
+      {/* Directly under the price, not below the analysis: the moment someone
+          has read the line and the number is the moment they'd go and place it,
+          and burying the link under a paragraph loses that. Still only on a
+          game that hasn't started — you can't back one already graded or in
+          play. */}
       {book && pick.result === "PENDING" && pick.eventStartsAt > new Date() && (
         <div className="mt-3">
           <SportsbookCta book={book} variant="button" sport={pick.sport} event={pick.oddsApiEventId} />
         </div>
       )}
+
+      {pick.analysis && <p className="mt-3 text-sm text-muted">{pick.analysis}</p>}
 
       {/* Under the analysis, above the result: it belongs with the decision,
           not with the outcome. */}

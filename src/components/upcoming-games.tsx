@@ -259,8 +259,8 @@ export function UpcomingGames({
                   )}
 
                   {book && (
-                    <div className="mt-2">
-                      <SportsbookCta book={book} sport={event.sport} event={event.id} />
+                    <div className="mt-3">
+                      <SportsbookCta book={book} variant="button" sport={event.sport} event={event.id} />
                     </div>
                   )}
                 </div>

@@ -1,3 +1,4 @@
+import Image from "next/image";
 import { ArrowUpRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { StakeCta } from "@/components/stake-cta";
@@ -18,19 +19,31 @@ import type { PickSport } from "@prisma/client";
  */
 
 /**
- * 1win's wordmark, set in the site's own type rather than as an image.
+ * 1win's wordmark. Two files, same shape as Stake's: the dark version for light
+ * surfaces and a white knockout for dark ones.
  *
- * Deliberate: an approximated logo is worse than no logo, and tracing a
- * trademarked wordmark by hand produces something subtly wrong that reads as
- * counterfeit next to the real thing. Drop the official SVG from the affiliate
- * dashboard at public/1win-logo.svg and this becomes an <Image>, exactly like
- * StakeCta does with its supplied artwork.
+ * These are rendered by scripts/build-sportsbook-logos.mjs and are a stand-in,
+ * not 1win's official artwork — see that file. Swapping in the real asset means
+ * overwriting the two files and changing LOGO_RATIO to match.
+ *
+ * Height drives the size and width follows the ratio; setting height alone via
+ * a class would distort it.
  */
-function OneWinWordmark({ className }: { className?: string }) {
+// Measured from the rendered glyphs by scripts/build-sportsbook-logos.mjs,
+// which prints the value to paste here. Swapping in 1win's official artwork
+// means changing this one number to match its proportions.
+const LOGO_RATIO = 1.9381;
+
+function OneWinWordmark({ height, onDark }: { height: number; onDark?: boolean }) {
   return (
-    <span className={cn("font-extrabold tracking-tight", className)}>
-      1win
-    </span>
+    <Image
+      src={onDark ? "/1win-logo-white.png" : "/1win-logo.png"}
+      alt="1win"
+      width={Math.round(height * LOGO_RATIO)}
+      height={height}
+      className="inline-block w-auto"
+      style={{ height }}
+    />
   );
 }
 
@@ -60,11 +73,11 @@ export function SportsbookCta({ book, sport, event, variant = "inline", onDark =
         target="_blank"
         rel="sponsored noopener noreferrer"
         className={cn(
-          "inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs font-semibold hover:border-accent hover:text-accent",
+          "inline-flex items-center gap-2 rounded-xl border border-border px-4 py-2.5 text-sm font-semibold hover:border-accent hover:text-accent",
           className
         )}
       >
-        Bet on <OneWinWordmark className="text-sm" /> <ArrowUpRight className="h-3.5 w-3.5" />
+        Bet on <OneWinWordmark height={30} onDark={onDark} /> <ArrowUpRight className="h-4 w-4" />
       </a>
     );
   }
@@ -75,11 +88,11 @@ export function SportsbookCta({ book, sport, event, variant = "inline", onDark =
       target="_blank"
       rel="sponsored noopener noreferrer"
       className={cn(
-        "inline-flex items-center gap-1 text-[11px] font-medium text-muted hover:text-accent",
+        "inline-flex items-center gap-1.5 text-sm font-medium text-muted hover:text-accent",
         className
       )}
     >
-      Bet on <OneWinWordmark className="text-xs" /> <ArrowUpRight className="h-3 w-3" />
+      Bet on <OneWinWordmark height={24} onDark={onDark} /> <ArrowUpRight className="h-4 w-4" />
     </a>
   );
 }
