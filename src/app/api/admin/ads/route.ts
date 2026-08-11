@@ -19,6 +19,9 @@ import {
 } from "@/lib/meta-ads";
 
 export const dynamic = "force-dynamic";
+// Four sequential Graph calls, one of them an image upload. Well over the 10s
+// platform default on a slow round trip.
+export const maxDuration = 60;
 
 /**
  * Build a whole paused campaign in one request: campaign → ad set → creative →

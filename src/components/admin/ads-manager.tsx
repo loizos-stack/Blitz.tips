@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Megaphone, Plus, Play, Pause, ExternalLink, TriangleAlert, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatDate } from "@/lib/date-format";
+import { fetchJson } from "@/lib/fetch-json";
 import {
   CAMPAIGN_OBJECTIVES,
   CALL_TO_ACTIONS,
@@ -95,23 +96,17 @@ export function AdsManager({
     setBusy(id);
     setError(null);
     setNotice(null);
-    try {
-      const res = await fetch(`/api/admin/ads/${id}/status`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status: next }),
-      });
-      const json = await res.json();
-      if (!res.ok) setError(json.error ?? "Status change failed");
-      else {
-        setNotice(`${label} is now ${next}.`);
-        router.refresh();
-      }
-    } catch {
-      setError("Couldn't reach the server");
-    } finally {
-      setBusy(null);
+    const res = await fetchJson(`/api/admin/ads/${id}/status`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status: next }),
+    });
+    if (!res.ok) setError(res.error);
+    else {
+      setNotice(`${label} is now ${next}.`);
+      router.refresh();
     }
+    setBusy(null);
   }
 
   if (!configured) {
@@ -396,8 +391,8 @@ function CreateForm({
   async function submit() {
     setBusy(true);
     setErr(null);
-    try {
-      const res = await fetch("/api/admin/ads", {
+    {
+      const res = await fetchJson<{ partial?: { campaignId?: string; adSetId?: string } }>("/api/admin/ads", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -415,22 +410,19 @@ function CreateForm({
           callToAction,
         }),
       });
-      const json = await res.json();
       if (!res.ok) {
-        const partial = json.partial as { campaignId?: string; adSetId?: string } | undefined;
+        const partial = res.data?.partial;
         const orphans =
           partial && (partial.campaignId || partial.adSetId)
             ? ` Objects already created in Meta (delete them there): ${[partial.campaignId, partial.adSetId]
                 .filter(Boolean)
                 .join(", ")}.`
             : "";
-        setErr(`${json.error}${orphans}`);
+        setErr(`${res.error}${orphans}`);
+        setBusy(false);
         return;
       }
       onDone(`Created "${name}" — campaign, ad set and ad, all paused. Review in Meta, then set live here.`);
-    } catch {
-      setErr("Couldn't reach the server");
-    } finally {
       setBusy(false);
     }
   }

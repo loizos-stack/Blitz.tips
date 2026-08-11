@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Send, Info, Check, AlertCircle, Trash2, Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatDate, formatDateTime } from "@/lib/date-format";
+import { fetchJson } from "@/lib/fetch-json";
 
 const CAPTION_LIMIT = 1024;
 const TEXT_LIMIT = 4096;
@@ -143,24 +144,18 @@ function BroadcastPanel({
     setBusy(true);
     setErr(null);
     setOk(null);
-    try {
-      const res = await fetch("/api/admin/telegram/broadcast", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ chatId: target, text, asset: asset || null }),
-      });
-      const json = await res.json();
-      if (!res.ok) setErr(json.error ?? "Broadcast failed");
-      else {
-        setOk(`Posted to ${json.chatTitle ?? target}.`);
-        setText("");
-        onSent();
-      }
-    } catch {
-      setErr("Couldn't reach the server");
-    } finally {
-      setBusy(false);
+    const res = await fetchJson<{ chatTitle?: string }>("/api/admin/telegram/broadcast", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ chatId: target, text, asset: asset || null }),
+    });
+    if (!res.ok) setErr(res.error);
+    else {
+      setOk(`Posted to ${res.data?.chatTitle ?? target}.`);
+      setText("");
+      onSent();
     }
+    setBusy(false);
   }
 
   const field = "w-full rounded-lg border border-border bg-transparent px-3 py-2 text-sm";
@@ -288,37 +283,31 @@ function SpendPanel({ spend, onChanged }: { spend: SpendEntry[]; onChanged: () =
   async function add() {
     setBusy(true);
     setErr(null);
-    try {
-      const res = await fetch("/api/admin/telegram/spend", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          platform,
-          campaign,
-          spentOn,
-          spend: Number(amount),
-          currency,
-          impressions,
-          clicks,
-          notes,
-        }),
-      });
-      const json = await res.json();
-      if (!res.ok) setErr(json.error ?? "Couldn't save");
-      else {
-        setCampaign("");
-        setAmount("");
-        setImpressions("");
-        setClicks("");
-        setNotes("");
-        setShowForm(false);
-        onChanged();
-      }
-    } catch {
-      setErr("Couldn't reach the server");
-    } finally {
-      setBusy(false);
+    const res = await fetchJson("/api/admin/telegram/spend", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        platform,
+        campaign,
+        spentOn,
+        spend: Number(amount),
+        currency,
+        impressions,
+        clicks,
+        notes,
+      }),
+    });
+    if (!res.ok) setErr(res.error);
+    else {
+      setCampaign("");
+      setAmount("");
+      setImpressions("");
+      setClicks("");
+      setNotes("");
+      setShowForm(false);
+      onChanged();
     }
+    setBusy(false);
   }
 
   async function remove(id: string, label: string) {

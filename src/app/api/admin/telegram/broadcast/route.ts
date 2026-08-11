@@ -14,6 +14,10 @@ import {
 } from "@/lib/telegram";
 
 export const dynamic = "force-dynamic";
+// Posting an mp4 means streaming megabytes to Telegram inside the request. The
+// platform default (10s) is not enough for that, and a timeout surfaces to the
+// browser as a dead connection rather than an error anyone can read.
+export const maxDuration = 60;
 
 /**
  * Post to a Telegram channel through the bot.
@@ -68,55 +72,75 @@ export async function POST(request: Request) {
     );
   }
 
-  // Confirm the bot can actually see the chat before posting. Catches the two
-  // common setups — bot not added, or added without post rights — with
-  // Telegram's own wording rather than a silent no-op.
-  const chat = await getTelegramChat(chatId);
-  if (!chat.ok) {
+  // Everything past validation is wrapped: an unhandled throw here would return
+  // a platform error page, and a client parsing that as JSON reports a network
+  // failure — which sends you looking in entirely the wrong place. The
+  // recording and audit writes are inside the guard too, because a missing
+  // table would otherwise fail the same opaque way.
+  try {
+    // Confirm the bot can actually see the chat before posting. Catches the two
+    // common setups — bot not added, or added without post rights — with
+    // Telegram's own wording rather than a silent no-op.
+    const chat = await getTelegramChat(chatId);
+    if (!chat.ok) {
+      return NextResponse.json(
+        {
+          error: `Telegram won't return that chat: ${chat.error}. Add the bot as an administrator with "post messages".`,
+        },
+        { status: 400 }
+      );
+    }
+
+    let result;
+    if (asset) {
+      let bytes: Buffer;
+      try {
+        bytes = await readFile(join(process.cwd(), "public/marketing", asset));
+      } catch {
+        return NextResponse.json(
+          {
+            error: `Couldn't read ${asset} on the server. The marketing assets ship with the deployment, so this means the file was renamed or removed since the page listed it — reload and pick again.`,
+          },
+          { status: 500 }
+        );
+      }
+      result = await broadcastMedia(chatId, bytes, asset, text);
+    } else {
+      result = await broadcastText(chatId, text);
+    }
+
+    // Recorded whether or not it worked.
+    await prisma.telegramBroadcast.create({
+      data: {
+        chatId,
+        chatTitle: chat.title,
+        text,
+        asset,
+        messageId: result.messageId,
+        ok: result.ok,
+        error: result.error,
+        sentById: ctx.userId,
+        sentByEmail: ctx.email,
+      },
+    });
+
+    await logAdmin(
+      ctx.session,
+      result.ok ? "telegram.broadcast" : "telegram.broadcast.failed",
+      "TelegramChannel",
+      chatId,
+      `${asset ?? "text only"} · ${result.ok ? `message ${result.messageId}` : result.error}`
+    );
+
+    if (!result.ok) {
+      return NextResponse.json({ error: result.error ?? "Telegram rejected the post" }, { status: 502 });
+    }
+    return NextResponse.json({ ok: true, messageId: result.messageId, chatTitle: chat.title });
+  } catch (e) {
+    console.error("[telegram/broadcast]", e);
     return NextResponse.json(
-      { error: `Telegram won't return that chat: ${chat.error}. Add the bot as an administrator with "post messages".` },
-      { status: 400 }
+      { error: `Broadcast failed on the server: ${e instanceof Error ? e.message : String(e)}` },
+      { status: 500 }
     );
   }
-
-  let result;
-  if (asset) {
-    let bytes: Buffer;
-    try {
-      bytes = await readFile(join(process.cwd(), "public/marketing", asset));
-    } catch {
-      return NextResponse.json({ error: `No such marketing asset: ${asset}` }, { status: 400 });
-    }
-    result = await broadcastMedia(chatId, bytes, asset, text);
-  } else {
-    result = await broadcastText(chatId, text);
-  }
-
-  // Recorded whether or not it worked.
-  await prisma.telegramBroadcast.create({
-    data: {
-      chatId,
-      chatTitle: chat.title,
-      text,
-      asset,
-      messageId: result.messageId,
-      ok: result.ok,
-      error: result.error,
-      sentById: ctx.userId,
-      sentByEmail: ctx.email,
-    },
-  });
-
-  await logAdmin(
-    ctx.session,
-    result.ok ? "telegram.broadcast" : "telegram.broadcast.failed",
-    "TelegramChannel",
-    chatId,
-    `${asset ?? "text only"} · ${result.ok ? `message ${result.messageId}` : result.error}`
-  );
-
-  if (!result.ok) {
-    return NextResponse.json({ error: result.error ?? "Telegram rejected the post" }, { status: 502 });
-  }
-  return NextResponse.json({ ok: true, messageId: result.messageId, chatTitle: chat.title });
 }
