@@ -18,11 +18,17 @@ export async function GET(request: Request) {
   }
 
   const params = new URL(request.url).searchParams;
+  const sport = params.get("sport");
+  const league = params.get("league");
   console.info(
-    `[affiliate] 1win click sport=${params.get("sport") ?? "-"} event=${params.get("event") ?? "-"}`
+    `[affiliate] 1win click sport=${sport ?? "-"} league=${league ?? "-"} event=${params.get("event") ?? "-"}`
   );
 
-  const res = NextResponse.redirect(oneWinUrl(), 302);
+  // The destination is resolved here, not in the page: an unmapped league
+  // quietly falls back to the sport section, so the link in the markup is the
+  // same either way and the table can gain entries without a redeploy of
+  // anything that renders it.
+  const res = NextResponse.redirect(oneWinUrl({ sport, league }), 302);
   res.headers.set("Cache-Control", "no-store");
   return res;
 }

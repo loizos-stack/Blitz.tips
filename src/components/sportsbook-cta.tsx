@@ -51,6 +51,11 @@ interface Props {
   /** From sportsbookForVisitor(). Null renders nothing at all. */
   book: Sportsbook | null;
   sport?: PickSport | string | null;
+  /**
+   * Odds-API league key (e.g. "soccer_epl"). 1win deep-links on it where the
+   * competition is mapped; Stake has no equivalent and ignores it.
+   */
+  league?: string | null;
   /** Carried for click analytics only — neither book has a per-match URL we can build. */
   event?: string | null;
   variant?: "inline" | "button";
@@ -58,13 +63,13 @@ interface Props {
   className?: string;
 }
 
-export function SportsbookCta({ book, sport, event, variant = "inline", onDark = false, className }: Props) {
+export function SportsbookCta({ book, sport, league, event, variant = "inline", onDark = false, className }: Props) {
   if (book === null) return null;
   if (book === "stake") {
     return <StakeCta sport={sport} event={event} variant={variant} onDark={onDark} className={className} />;
   }
 
-  const href = oneWinGoHref({ sport, event });
+  const href = oneWinGoHref({ sport, league, event });
 
   if (variant === "button") {
     return (

@@ -265,7 +265,7 @@ export function UpcomingGames({
                       the card from the prices it refers to. */}
                   {book && (
                     <div className="mt-2 flex justify-end">
-                      <SportsbookCta book={book} variant="button" sport={event.sport} event={event.id} />
+                      <SportsbookCta book={book} variant="button" sport={event.sport} league={event.sportKey} event={event.id} />
                     </div>
                   )}
                 </div>

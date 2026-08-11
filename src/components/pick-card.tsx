@@ -105,7 +105,13 @@ export function PickCard({
    */
   const betCta =
     book && pick.result === "PENDING" ? (
-      <SportsbookCta book={book} variant="button" sport={pick.sport} event={pick.oddsApiEventId} />
+      <SportsbookCta
+        book={book}
+        variant="button"
+        sport={pick.sport}
+        league={pick.oddsApiSportKey}
+        event={pick.oddsApiEventId}
+      />
     ) : null;
 
   if (locked) {
