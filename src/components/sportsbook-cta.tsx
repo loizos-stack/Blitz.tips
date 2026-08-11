@@ -32,7 +32,7 @@ import type { PickSport } from "@prisma/client";
 // Measured from the rendered glyphs by scripts/build-sportsbook-logos.mjs,
 // which prints the value to paste here. Swapping in 1win's official artwork
 // means changing this one number to match its proportions.
-const LOGO_RATIO = 1.9381;
+const LOGO_RATIO = 1.939;
 
 function OneWinWordmark({ height, onDark }: { height: number; onDark?: boolean }) {
   return (

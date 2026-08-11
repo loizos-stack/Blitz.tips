@@ -1,25 +1,29 @@
 /**
- * Renders the 1win wordmark to public/, in the same two-file shape Stake uses:
- * a dark version for light surfaces and a white knockout for dark ones.
+ * Prepares the 1win wordmark files in public/, in the same two-file shape Stake
+ * uses: a dark version for light surfaces and a white knockout for dark ones.
+ *
+ * ## Preferred: point it at the official artwork
+ *
+ *   node scripts/build-sportsbook-logos.mjs --from ~/Downloads/1win.png
+ *
+ * Takes 1win's own file (PNG with transparency), installs it as
+ * public/1win-logo.png, derives the white knockout by forcing RGB to white
+ * while preserving alpha — the same trick behind Stake's two files — and prints
+ * the aspect ratio to paste into LOGO_RATIO in components/sportsbook-cta.tsx.
+ *
+ * ## Fallback: render a stand-in
  *
  *   npm run build                            # supplies the brand webfont
  *   node scripts/build-sportsbook-logos.mjs
  *
- * ## This is a stand-in, not the official asset
+ * With no --from, it sets "1win" in the site's own brand font. That is a
+ * placeholder, not their artwork, and should be replaced as soon as the real
+ * file is to hand.
  *
- * 1win's real wordmark is a custom typeface. What this renders is the site's
- * own brand font set to match its weight and proportions — close enough to read
- * as a logo and to sit correctly next to Stake's supplied artwork, but it is
- * not their file.
- *
- * Replace it the moment you have the real one: drop the official PNG/WebP at
- * public/1win-logo.png and the white version at public/1win-logo-white.png,
- * then update LOGO_RATIO in components/sportsbook-cta.tsx to the new artwork's
- * aspect ratio. Nothing else needs to change — the component already sizes from
- * height and derives width from that ratio, so a differently-proportioned file
- * only needs the one number.
+ * Both paths end the same way: two files in public/ and one number to update.
  */
-import { readFileSync, readdirSync, statSync, writeFileSync, mkdirSync } from "fs";
+import { readFileSync, readdirSync, statSync, writeFileSync, mkdirSync, copyFileSync, existsSync } from "fs";
+import { execFileSync } from "child_process";
 import { createRequire } from "module";
 import { tmpdir } from "os";
 import { join } from "path";
@@ -68,6 +72,44 @@ html,body{width:${W}px;height:${H}px;background:transparent}
 </style></head><body><div id="m">1win</div></body></html>`;
 
 let ratio = W / H;
+
+// --- Official artwork path -------------------------------------------------
+
+const fromArg = process.argv.indexOf("--from");
+if (fromArg !== -1) {
+  const src = process.argv[fromArg + 1];
+  if (!src || !existsSync(src)) {
+    console.error(`--from needs a path to an existing image (got: ${src ?? "nothing"})`);
+    process.exit(1);
+  }
+
+  const dark = join(OUT, "1win-logo.png");
+  copyFileSync(src, dark);
+
+  // White knockout: force every pixel white and keep the original alpha, so the
+  // mark stays legible on dark surfaces. Anything without transparency will
+  // come out as a solid white block — that is the signal the source needs a
+  // transparent background, not a bug here.
+  const white = join(OUT, "1win-logo-white.png");
+  execFileSync("ffmpeg", [
+    "-y", "-loglevel", "error", "-i", dark,
+    "-vf", "format=rgba,geq=r='255':g='255':b='255':a='alpha(X,Y)'",
+    white,
+  ]);
+
+  const dims = execFileSync("ffprobe", [
+    "-v", "error", "-select_streams", "v:0",
+    "-show_entries", "stream=width,height", "-of", "csv=p=0:s=x", dark,
+  ]).toString().trim();
+  const [w, h] = dims.split("x").map(Number);
+
+  console.log(`${dark}   ${w}x${h}  (from ${src})`);
+  console.log(`${white}   white knockout`);
+  console.log(`\nSet LOGO_RATIO in components/sportsbook-cta.tsx to ${(w / h).toFixed(4)}`);
+  process.exit(0);
+}
+
+// --- Stand-in path ---------------------------------------------------------
 
 const chromium = await loadChromium();
 const browser = await chromium.launch({ executablePath: process.env.PLAYWRIGHT_CHROMIUM ?? undefined });
