@@ -15,6 +15,9 @@ import { DeferredWidgets } from "@/components/deferred-widgets";
 import { SitePopups } from "@/components/site-popups";
 import { AnalyticsGate } from "@/components/analytics-gate";
 import { needsCookieConsent } from "@/lib/geo";
+import { cookies } from "next/headers";
+import { OddsFormatProvider } from "@/components/odds-format";
+import { ODDS_FORMAT_COOKIE, parseOddsFormat } from "@/lib/odds-format";
 
 // Space Grotesk is the single web font — body/UI text and the sportier headings
 // and wordmark. (Monospace bits use the system mono stack; see globals.css.)
@@ -92,6 +95,10 @@ export default async function RootLayout({
   // Resolved once and shared: the prompt and the analytics gate must agree on
   // whether this visitor needs consent, or one will contradict the other.
   const consentRequired = await needsCookieConsent();
+  // Seeds every price on the first paint. Reading a cookie opts the route into
+  // dynamic rendering, which costs nothing new here — needsCookieConsent()
+  // above already reads request headers.
+  const oddsFormat = parseOddsFormat((await cookies()).get(ODDS_FORMAT_COOKIE)?.value);
   return (
     <html
       lang="en"
@@ -101,13 +108,15 @@ export default async function RootLayout({
         <OrganizationJsonLd />
         <WebSiteJsonLd />
         <Providers>
-          <RegisterServiceWorker />
-          <AnnouncementBanner initialMessage={announcement} />
-          <NavBar />
-          <main className="flex-1">{children}</main>
-          <Footer />
-          <DeferredWidgets />
-          <SitePopups cookieConsentRequired={consentRequired} />
+          <OddsFormatProvider initial={oddsFormat}>
+            <RegisterServiceWorker />
+            <AnnouncementBanner initialMessage={announcement} />
+            <NavBar />
+            <main className="flex-1">{children}</main>
+            <Footer />
+            <DeferredWidgets />
+            <SitePopups cookieConsentRequired={consentRequired} />
+          </OddsFormatProvider>
         </Providers>
         {/* Cookieless and device-storage-free, so these sit outside the consent
             gate — blocking them would cost the site its traffic numbers without

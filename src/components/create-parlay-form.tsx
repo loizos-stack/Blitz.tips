@@ -6,7 +6,8 @@ import { format } from "date-fns";
 import { formatDateTime } from "@/lib/date-format";
 import { CalendarSearch, PencilLine, ImageUp, Trash2, Layers, Plus, X } from "lucide-react";
 import { SPORT_LABELS, cn, formatMatchup, usesVsSeparator, parseMatchupSides } from "@/lib/utils";
-import { formatOdds, combineParlayOdds } from "@/lib/odds";
+import { combineParlayOdds } from "@/lib/odds";
+import { Odds } from "@/components/odds-format";
 import { getTeamNames } from "@/lib/team-logos";
 import { TeamLogo } from "@/components/team-logo";
 import { TeamCrest } from "@/components/team-crest";
@@ -323,7 +324,7 @@ export function CreateParlayForm({
         <div className="flex items-center gap-2">
           {combined !== null && (
             <span className="rounded-full bg-accent/10 px-3 py-1 text-sm font-bold tabular-nums text-accent">
-              {formatOdds(combined)}
+              <Odds value={combined} />
             </span>
           )}
           <button
@@ -358,7 +359,7 @@ export function CreateParlayForm({
                 </span>
               </span>
               <span className="flex shrink-0 items-center gap-2">
-                <span className="tabular-nums text-muted">{formatOdds(leg.odds)}</span>
+                <span className="tabular-nums text-muted"><Odds value={leg.odds} /></span>
                 <button type="button" onClick={() => removeLeg(i)} aria-label="Remove leg" className="text-muted hover:text-danger">
                   <Trash2 className="h-4 w-4" />
                 </button>

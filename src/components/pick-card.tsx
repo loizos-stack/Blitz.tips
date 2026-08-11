@@ -8,7 +8,7 @@ import type { Sportsbook } from "@/lib/sportsbooks";
 import { SportIcon } from "@/components/sport-icon";
 import { TeamLogo } from "@/components/team-logo";
 import { getTeamLogoUrl } from "@/lib/team-logos";
-import { formatOdds } from "@/lib/odds";
+import { Odds } from "@/components/odds-format";
 import { SPORT_LABELS, BET_TYPE_LABELS, usesVsSeparator } from "@/lib/utils";
 import type { PickSport } from "@prisma/client";
 
@@ -123,7 +123,7 @@ export function PickCard({
         </div>
         <div className="mt-3 flex items-center gap-2 blur-sm select-none">
           <span className="text-sm">{BET_TYPE_LABELS[pick.betType]}</span>
-          <span className="text-sm font-semibold">{formatOdds(pick.odds)}</span>
+          <span className="text-sm font-semibold"><Odds value={pick.odds} /></span>
         </div>
         <div className="absolute inset-0 flex items-center justify-center bg-surface/70 backdrop-blur-[2px]">
           <div className="flex items-center gap-2 rounded-full border border-border bg-surface px-4 py-2 text-sm font-medium">
@@ -150,7 +150,7 @@ export function PickCard({
           <div className="mt-3 flex items-center justify-between">
             <p className="font-semibold">{legs.length}-leg parlay</p>
             <span className="rounded-full bg-accent/10 px-2.5 py-1 text-sm font-semibold tabular-nums text-accent">
-              {formatOdds(pick.odds)}
+              <Odds value={pick.odds} />
             </span>
           </div>
           <ul className="mt-3 divide-y divide-border rounded-lg border border-border">
@@ -170,7 +170,7 @@ export function PickCard({
                       <span className="block truncate font-display text-xs text-muted">{leg.matchup}</span>
                     </span>
                   </span>
-                  <span className="shrink-0 tabular-nums text-muted">{formatOdds(leg.odds)}</span>
+                  <span className="shrink-0 tabular-nums text-muted"><Odds value={leg.odds} /></span>
                 </li>
               );
             })}
@@ -194,7 +194,7 @@ export function PickCard({
           <div className="mt-2 flex flex-wrap items-center gap-3 text-sm">
             <span className="rounded-full bg-surface-raised px-2.5 py-1">{BET_TYPE_LABELS[pick.betType]}</span>
             <span className="font-display font-semibold">{pick.selection}</span>
-            <span className="font-semibold tabular-nums">{formatOdds(pick.odds)}</span>
+            <span className="font-semibold tabular-nums"><Odds value={pick.odds} /></span>
             <UnitsBadge units={pick.units} />
             {betCta}
           </div>

@@ -7,7 +7,7 @@ import { format } from "date-fns";
 import { DATE_PATTERN, formatDateTime } from "@/lib/date-format";
 import { Plus, Check, Lock, X } from "lucide-react";
 import { SPORT_LABELS, formatCents } from "@/lib/utils";
-import { formatOdds } from "@/lib/odds";
+import { Odds } from "@/components/odds-format";
 import { EventMarkets } from "@/components/event-markets";
 import type { MarketOption, UpcomingEvent } from "@/lib/odds-api";
 import type { CapperOnEvent } from "@/lib/contest-funnel";
@@ -284,7 +284,7 @@ export function ContestPickForm({
             />
           )}
           <p className="mt-0.5 text-xs text-muted">
-            {selectedMarket.selection} · {formatOdds(selectedMarket.odds)}
+            {selectedMarket.selection} · <Odds value={selectedMarket.odds} />
           </p>
         </div>
       )}
@@ -360,7 +360,7 @@ function PickConfirmation({
         </button>
       </div>
       <p className="mt-0.5 text-xs text-muted">
-        {data.matchup} · {data.selection} · {formatOdds(data.odds)}
+        {data.matchup} · {data.selection} · <Odds value={data.odds} />
       </p>
 
       {book && (
@@ -396,7 +396,7 @@ function PickConfirmation({
                   ) : (
                     <span className="font-medium">
                       {c.selection}
-                      {c.odds != null ? ` ${formatOdds(c.odds)}` : ""}
+                      {c.odds != null ? <> <Odds value={c.odds} /></> : null}
                     </span>
                   )}
                 </span>

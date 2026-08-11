@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { formatDateTime } from "@/lib/date-format";
 import { CalendarSearch, PencilLine, Plus, X } from "lucide-react";
 import { SPORT_LABELS, BET_TYPE_LABELS, cn, formatMatchup, usesVsSeparator } from "@/lib/utils";
-import { formatOdds } from "@/lib/odds";
+import { Odds } from "@/components/odds-format";
 import { getTeamNames } from "@/lib/team-logos";
 import { TeamLogo } from "@/components/team-logo";
 import { TeamCrest } from "@/components/team-crest";
@@ -350,7 +350,7 @@ export function CreatePickForm({
               </div>
               <p className="mt-0.5 text-muted">
                 {BET_TYPE_LABELS[selectedMarket.betType]} · {selectedMarket.selection} ·{" "}
-                <span className="tabular-nums">{formatOdds(selectedMarket.odds)}</span>
+                <span className="tabular-nums"><Odds value={selectedMarket.odds} /></span>
               </p>
             </div>
           )}

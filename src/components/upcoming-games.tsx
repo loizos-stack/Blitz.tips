@@ -3,7 +3,7 @@ import Link from "next/link";
 import { CalendarClock, Radio } from "lucide-react";
 import { SportsbookCta } from "@/components/sportsbook-cta";
 import type { Sportsbook } from "@/lib/sportsbooks";
-import { formatOdds } from "@/lib/odds";
+import { Odds } from "@/components/odds-format";
 import { SPORT_LABELS, cn } from "@/lib/utils";
 import { isMoneylineOnly } from "@/lib/odds-api";
 import type { OddsFeedResult, UpcomingEvent, MarketOption } from "@/lib/odds-api";
@@ -47,7 +47,7 @@ function cell(market: MarketOption | null) {
   return (
     <span className="tabular-nums">
       {point && <span className="font-semibold">{point} </span>}
-      <span className={point ? "text-muted" : "font-semibold"}>{formatOdds(market.odds)}</span>
+      <span className={point ? "text-muted" : "font-semibold"}><Odds value={market.odds} /></span>
     </span>
   );
 }
@@ -259,9 +259,12 @@ export function UpcomingGames({
                   )}
 
                   {/* Directly beneath the price grid — the link is about the
-                      numbers immediately above it, so the gap stays tight. */}
+                      numbers immediately above it, so the gap stays tight.
+                      Right-aligned to sit under the odds columns: full width, it
+                      landed under the Away/Home labels on the opposite side of
+                      the card from the prices it refers to. */}
                   {book && (
-                    <div className="mt-2">
+                    <div className="mt-2 flex justify-end">
                       <SportsbookCta book={book} variant="button" sport={event.sport} event={event.id} />
                     </div>
                   )}

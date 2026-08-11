@@ -10,7 +10,7 @@ import { TeamLogo } from "@/components/team-logo";
 import { PickShareButton } from "@/components/pick-share-button";
 import { isPickLocked } from "@/lib/pick-visibility";
 import { pickShareInfo } from "@/lib/pick-share";
-import { formatOdds } from "@/lib/odds";
+import { Odds } from "@/components/odds-format";
 import { SPORT_LABELS, BET_TYPE_LABELS, usesVsSeparator } from "@/lib/utils";
 
 const SETTLE_OPTIONS: PickResult[] = ["WIN", "LOSS", "PUSH", "VOID"];
@@ -75,7 +75,7 @@ export function HandicapperPickRow({
       <div className="mt-2 flex flex-wrap items-center gap-3 text-sm">
         <span className="rounded-full bg-surface-raised px-2.5 py-1">{BET_TYPE_LABELS[pick.betType]}</span>
         {pick.betType !== "PARLAY" && <span className="font-display font-semibold">{pick.selection}</span>}
-        <span className="font-semibold tabular-nums">{formatOdds(pick.odds)}</span>
+        <span className="font-semibold tabular-nums"><Odds value={pick.odds} /></span>
         <span className="inline-flex items-baseline gap-1 rounded-lg border border-accent/30 bg-accent/10 px-2 py-0.5">
           <span className="font-bold tabular-nums text-accent">{pick.units}u</span>
           <span className="text-[10px] font-semibold uppercase tracking-wide text-accent/80">risk</span>
