@@ -8,6 +8,7 @@ import { formatOdds, unitProfit } from "@/lib/odds";
 import { siteUrl } from "@/lib/site";
 import { emailWrapper, emailLinkPill, escapeHtml } from "@/lib/email-template";
 import { unsubscribeUrl, unsubscribePostUrl } from "@/lib/unsubscribe";
+import { announceFreePick } from "@/lib/telegram-autopost";
 import type { PickResult } from "@prisma/client";
 
 // Resolved via siteUrl() so a stale *.vercel.app value in NEXT_PUBLIC_APP_URL
@@ -32,6 +33,22 @@ interface NewPickInput {
 export async function notifyNewPick(pick: NewPickInput): Promise<void> {
   try {
     const { handicapper } = pick;
+
+    // Before the early return below. A handicapper with no followers yet is
+    // exactly the one the public channel post is worth most to, and bailing on
+    // an empty recipient list would silently skip them.
+    await announceFreePick({
+      id: pick.id,
+      matchup: pick.matchup,
+      selection: pick.selection,
+      odds: pick.odds,
+      isPremium: pick.isPremium,
+      handicapper: {
+        userId: handicapper.userId,
+        handle: handicapper.handle,
+        displayName: handicapper.displayName,
+      },
+    });
 
     const [follows, subs] = await Promise.all([
       prisma.follow.findMany({ where: { handicapperId: handicapper.id }, select: { followerId: true } }),

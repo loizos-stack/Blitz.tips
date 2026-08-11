@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Send, Info, Check, AlertCircle, Trash2, Plus } from "lucide-react";
+import { Send, Info, Check, AlertCircle, Trash2, Plus, Radio } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatDate, formatDateTime } from "@/lib/date-format";
 import { fetchJson } from "@/lib/fetch-json";
@@ -19,6 +19,8 @@ interface Broadcast {
   messageId: string | null;
   ok: boolean;
   error: string | null;
+  /** Null for a manual post; "free-pick" for an automatic one. */
+  source: string | null;
   sentByEmail: string;
   createdAt: string;
 }
@@ -37,6 +39,7 @@ interface SpendEntry {
 
 interface Props {
   configured: boolean;
+  autopost: { enabled: boolean; channel: string | null };
   assets: string[];
   broadcasts: Broadcast[];
   spend: SpendEntry[];
@@ -46,7 +49,7 @@ function money(cents: number, currency: string): string {
   return (cents / 100).toLocaleString("en-US", { style: "currency", currency });
 }
 
-export function TelegramManager({ configured, assets, broadcasts, spend }: Props) {
+export function TelegramManager({ configured, autopost, assets, broadcasts, spend }: Props) {
   const router = useRouter();
   const [tab, setTab] = useState<"broadcast" | "spend">("broadcast");
 
@@ -70,12 +73,15 @@ export function TelegramManager({ configured, assets, broadcasts, spend }: Props
       </div>
 
       {tab === "broadcast" ? (
-        <BroadcastPanel
-          configured={configured}
-          assets={assets}
-          broadcasts={broadcasts}
-          onSent={() => router.refresh()}
-        />
+        <>
+          <AutopostPanel configured={configured} autopost={autopost} onSaved={() => router.refresh()} />
+          <BroadcastPanel
+            configured={configured}
+            assets={assets}
+            broadcasts={broadcasts}
+            onSent={() => router.refresh()}
+          />
+        </>
       ) : (
         <SpendPanel spend={spend} onChanged={() => router.refresh()} />
       )}
@@ -244,6 +250,11 @@ function BroadcastPanel({
                       <AlertCircle className="h-4 w-4 text-danger" />
                     )}
                     {b.chatTitle ?? b.chatId}
+                    {b.source === "free-pick" && (
+                      <span className="rounded-full bg-accent/10 px-2 py-0.5 text-xs font-semibold text-accent">
+                        auto · free tip
+                      </span>
+                    )}
                     {b.asset && (
                       <span className="rounded-full bg-surface-raised px-2 py-0.5 text-xs text-muted">
                         {b.asset.replace("supercapper-", "")}
@@ -442,6 +453,102 @@ function SpendPanel({ spend, onChanged }: { spend: SpendEntry[]; onChanged: () =
             </tbody>
           </table>
         </div>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Auto-post control. Free tips only — that constraint is enforced server-side
+ * in announceFreePick, but it is stated here too because "will this leak my
+ * paid picks" is the first thing anyone will want answered before switching it
+ * on.
+ */
+function AutopostPanel({
+  configured,
+  autopost,
+  onSaved,
+}: {
+  configured: boolean;
+  autopost: { enabled: boolean; channel: string | null };
+  onSaved: () => void;
+}) {
+  const [enabled, setEnabled] = useState(autopost.enabled);
+  const [channel, setChannel] = useState(autopost.channel ?? "");
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const [ok, setOk] = useState<string | null>(null);
+
+  async function save(next: boolean) {
+    setBusy(true);
+    setErr(null);
+    setOk(null);
+    const res = await fetchJson("/api/admin/telegram/autopost", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ enabled: next, channel: channel.trim() }),
+    });
+    if (!res.ok) setErr(res.error);
+    else {
+      setEnabled(next);
+      setOk(next ? `Free tips will post to ${channel.trim()}.` : "Auto-posting is off.");
+      onSaved();
+    }
+    setBusy(false);
+  }
+
+  return (
+    <div className="rounded-2xl border border-border p-5">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h3 className="flex items-center gap-2 font-semibold">
+            <Radio className="h-4 w-4" /> Auto-post new free tips
+            <span
+              className={cn(
+                "rounded-full px-2 py-0.5 text-xs font-semibold",
+                enabled ? "bg-success/10 text-success" : "bg-surface-raised text-muted"
+              )}
+            >
+              {enabled ? "ON" : "OFF"}
+            </span>
+          </h3>
+          <p className="mt-1 max-w-2xl text-sm text-muted">
+            Posts to the channel whenever a handicapper publishes a <strong>free</strong> tip, with
+            a link to their profile. <strong>Premium tips are never posted</strong> — that would
+            hand paid content to everyone and is blocked server-side, not just hidden here.
+          </p>
+        </div>
+      </div>
+
+      {err && <div className="mt-3 rounded-lg border border-danger/40 bg-danger/5 p-3 text-sm text-danger">{err}</div>}
+      {ok && <div className="mt-3 rounded-lg border border-success/40 bg-success/5 p-3 text-sm text-success">{ok}</div>}
+
+      <div className="mt-4 flex flex-wrap items-end gap-3">
+        <label className="text-sm">
+          <span className="mb-1 block font-medium">Channel</span>
+          <input
+            value={channel}
+            onChange={(e) => setChannel(e.target.value)}
+            placeholder="@yourchannel"
+            className="w-64 rounded-lg border border-border bg-transparent px-3 py-2 text-sm"
+          />
+        </label>
+        <button
+          onClick={() => save(!enabled)}
+          disabled={busy || !configured || (!enabled && !channel.trim())}
+          className={cn(
+            "rounded-full px-5 py-2 text-sm font-semibold disabled:opacity-50",
+            enabled ? "border border-border text-muted" : "bg-accent text-white"
+          )}
+        >
+          {busy ? "Saving…" : enabled ? "Turn off" : "Turn on"}
+        </button>
+      </div>
+      {!enabled && (
+        <p className="mt-2 text-xs text-muted">
+          Turning it on checks the bot can post to that channel first, so a broken setup fails here
+          rather than silently on the next tip.
+        </p>
       )}
     </div>
   );

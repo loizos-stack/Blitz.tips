@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { guardAdminPage } from "@/lib/permissions";
 import { telegramConfigured } from "@/lib/telegram";
 import { TelegramManager } from "@/components/admin/telegram-manager";
+import { getAutopostConfig } from "@/lib/telegram-autopost";
 
 export const dynamic = "force-dynamic";
 
@@ -16,7 +17,8 @@ export default async function AdminTelegramPage() {
     .then((files) => files.filter((f) => /\.(png|mp4)$/.test(f)).sort())
     .catch(() => [] as string[]);
 
-  const [broadcasts, spend] = await Promise.all([
+  const [autopost, broadcasts, spend] = await Promise.all([
+    getAutopostConfig(),
     prisma.telegramBroadcast.findMany({ orderBy: { createdAt: "desc" }, take: 25 }),
     prisma.adSpendEntry.findMany({ orderBy: { spentOn: "desc" }, take: 50 }),
   ]);
@@ -24,6 +26,7 @@ export default async function AdminTelegramPage() {
   return (
     <TelegramManager
       configured={telegramConfigured()}
+      autopost={autopost}
       assets={assets}
       broadcasts={broadcasts.map((b) => ({
         id: b.id,
@@ -34,6 +37,7 @@ export default async function AdminTelegramPage() {
         messageId: b.messageId,
         ok: b.ok,
         error: b.error,
+        source: b.source,
         sentByEmail: b.sentByEmail,
         createdAt: b.createdAt.toISOString(),
       }))}

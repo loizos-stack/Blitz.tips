@@ -883,6 +883,10 @@ model TelegramBroadcast {
   /// thing you most need to see in the history.
   ok          Boolean  @default(false)
   error       String?
+  /// Null for a manual post from the admin panel; otherwise what triggered it
+  /// (e.g. "free-pick"). Kept as its own column rather than encoded into
+  /// sentByEmail, so the history can tell an automatic post from a person's.
+  source      String?
   sentById    String
   sentByEmail String
   createdAt   DateTime @default(now())
