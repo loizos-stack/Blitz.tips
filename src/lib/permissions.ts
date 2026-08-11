@@ -30,6 +30,7 @@ export type AdminPermission =
   | "emails"
   | "promos"
   | "ads"
+  | "telegram"
   | "media"
   | "system"
   | "tickets"
@@ -62,6 +63,7 @@ export const ADMIN_PERMISSIONS: PermissionDef[] = [
   { key: "emails", label: "Emails", href: "/admin/emails", description: "Send mass email to users and handicappers" },
   { key: "promos", label: "Promos", href: "/admin/promos", description: "Create and manage promo codes" },
   { key: "ads", label: "Ads", href: "/admin/ads", description: "Create and track Meta (Facebook/Instagram) ad campaigns" },
+  { key: "telegram", label: "Telegram", href: "/admin/telegram", description: "Broadcast to Telegram channels and log ad spend from networks with no API" },
   { key: "media", label: "Media", href: "/admin/media", description: "Moderate profile and cover images" },
   { key: "system", label: "System", href: "/admin/system", description: "Announcements, odds quota, auto-settlement" },
   { key: "tickets", label: "Tickets", href: "/admin/tickets", description: "View and reply to support tickets from the contact form" },

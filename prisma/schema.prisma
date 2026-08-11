@@ -110,20 +110,20 @@ model User {
   accounts Account[]
   sessions Session[]
 
-  handicapper       HandicapperProfile?
-  subscriptions     Subscription[]      @relation("SubscriberSubscriptions")
-  reviews           Review[]            @relation("UserReviews")
-  adminTabViews     AdminTabView[]      @relation("AdminTabViews")
-  follows           Follow[]            @relation("UserFollows")
-  pickTails         PickTail[]          @relation("UserPickTails")
+  handicapper   HandicapperProfile?
+  subscriptions Subscription[]      @relation("SubscriberSubscriptions")
+  reviews       Review[]            @relation("UserReviews")
+  adminTabViews AdminTabView[]      @relation("AdminTabViews")
+  follows       Follow[]            @relation("UserFollows")
+  pickTails     PickTail[]          @relation("UserPickTails")
 
   // Referrals. `referralCode` is this user's own code to hand out;
   // `referredById` is who brought them in, set once at signup and never after —
   // attribution that can be edited later isn't attribution.
-  referralCode      String?             @unique
+  referralCode      String?            @unique
   referredById      String?
-  referredBy        User?               @relation("UserReferrals", fields: [referredById], references: [id], onDelete: SetNull)
-  referrals         User[]              @relation("UserReferrals")
+  referredBy        User?              @relation("UserReferrals", fields: [referredById], references: [id], onDelete: SetNull)
+  referrals         User[]             @relation("UserReferrals")
   referredAt        DateTime?
   notifications     Notification[]
   pushSubscriptions PushSubscription[]
@@ -353,7 +353,9 @@ model PickTail {
   userId String
   user   User   @relation("UserPickTails", fields: [userId], references: [id], onDelete: Cascade)
 
-  /** True = tailed (backing it), false = faded (against it). */
+  /**
+   * True = tailed (backing it), false = faded (against it).
+   */
   tailed Boolean
 
   createdAt DateTime @default(now())
@@ -745,30 +747,30 @@ enum ContestStatus {
 }
 
 model Contest {
-  id              String        @id @default(cuid())
-  slug            String        @unique
-  name            String
-  tagline         String?
+  id                   String        @id @default(cuid())
+  slug                 String        @unique
+  name                 String
+  tagline              String?
   // Guaranteed pool (equals the sum of prizeSplitCents), stored in cents.
-  prizePoolCents  Int
-  currency        String        @default("USD")
+  prizePoolCents       Int
+  currency             String        @default("USD")
   // Cents awarded to each place; index 0 = 1st. Length = number of winners.
-  prizeSplitCents Int[]         @default([])
+  prizeSplitCents      Int[]         @default([])
   // Minimum settled picks an entry needs before it's ranked.
-  minPicks        Int           @default(20)
-  startsAt        DateTime
-  endsAt          DateTime
+  minPicks             Int           @default(20)
+  startsAt             DateTime
+  endsAt               DateTime
   // Entries close on this date (defaults to endsAt when null). After it, the
   // field — and therefore the number of paid places — is locked.
   registrationClosesAt DateTime?
   // When true, paid places scale with the number of entrants (one extra place
   // per 10 joiners, min 3) and the ladder is derived from prizePoolCents rather
   // than the stored prizeSplitCents.
-  dynamicPayouts  Boolean       @default(false)
-  status          ContestStatus @default(DRAFT)
-  settledAt       DateTime?
-  createdAt       DateTime      @default(now())
-  updatedAt       DateTime      @updatedAt
+  dynamicPayouts       Boolean       @default(false)
+  status               ContestStatus @default(DRAFT)
+  settledAt            DateTime?
+  createdAt            DateTime      @default(now())
+  updatedAt            DateTime      @updatedAt
 
   entries ContestEntry[]
   ipLogs  ContestIpLog[]
@@ -856,4 +858,59 @@ model ContestPick {
   @@index([entryId])
   @@index([result])
   @@index([result, eventStartsAt])
+}
+
+/**
+ * A post sent to a Telegram channel through the bot.
+ * This is the *owned-channel* half of Telegram promotion. Telegram's paid ad
+ * platform (ads.telegram.org) has no public API — no endpoint creates a
+ * campaign or returns its stats — so paid spend is recorded by hand in
+ * AdSpendEntry instead. Broadcasting to a channel we control is the part that
+ * can actually be automated, and it reaches the same audience.
+ */
+model TelegramBroadcast {
+  id          String   @id @default(cuid())
+  /// Target as entered: @channelhandle or a numeric chat id.
+  chatId      String
+  /// Channel title at send time, so history stays readable after a rename.
+  chatTitle   String?
+  text        String
+  /// Attached file under public/marketing. Null for a text-only post.
+  asset       String?
+  /// Telegram's message id — what you need to find or delete the post later.
+  messageId   String?
+  /// Failures are kept, not discarded: a broadcast that didn't land is the
+  /// thing you most need to see in the history.
+  ok          Boolean  @default(false)
+  error       String?
+  sentById    String
+  sentByEmail String
+  createdAt   DateTime @default(now())
+
+  @@index([createdAt])
+}
+
+/**
+ * Manually recorded ad spend, for platforms with no API to pull it from.
+ * Telegram Ads is the reason this exists, but `platform` is free text rather
+ * than an enum so Reddit, TikTok or a podcast sponsorship can be logged here
+ * too without a migration per network. Meta is deliberately NOT recorded here —
+ * its numbers come live from the Marketing API, and a hand-typed second copy of
+ * a figure the API already owns would only ever drift.
+ */
+model AdSpendEntry {
+  id          String   @id @default(cuid())
+  platform    String
+  campaign    String
+  /// The day the spend applies to, not when it was typed in.
+  spentOn     DateTime
+  spendCents  Int
+  currency    String   @default("USD")
+  impressions Int?
+  clicks      Int?
+  notes       String?
+  createdById String
+  createdAt   DateTime @default(now())
+
+  @@index([platform, spentOn])
 }
