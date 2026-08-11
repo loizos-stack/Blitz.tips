@@ -48,33 +48,38 @@ The schedule tables already respect this; keep the rule if you extend them.
 
 ---
 
-# Phase 1 — Pre-launch (Mon 3 Aug → Sun 9 Aug)
+# Phase 1 — Pre-launch (Tue 11 Aug → Sat 15 Aug)
 
-The contest is **open for entries now** and **starts Mon 10 Aug**. That's the
+The contest is **open for entries now** and **starts Sun 16 Aug**. That's the
 whole pre-launch frame: join before the gun so you don't spot the field a week
 of picks. Do not say "starting soon" without the date — it reads as vapour.
 
+**Re-anchored twice.** The start moved Aug 3 → Aug 10 → Aug 16, the second time
+after the contest had already gone live for a day. If you scheduled anything
+from an earlier version of this file, delete it — those slots carry dead dates.
+
 ## Schedule
+
+Five days rather than seven, because the window shrank. Two posts dropped
+(P5 and P12) rather than compressing the cadence; the ones kept are the ones
+that carry a date or an objection.
 
 | Day | A 07:40 | B 12:20 | C 17:10 | D 21:50 | E 14:05 |
 |---|---|---|---|---|---|
-| Mon 3 | P1 | P2 | P3 | P4 | — |
-| Tue 4 | P5 | P6 | P7 | P8 | — |
-| Wed 5 | P9 | P10 | P11 | P12 | — |
-| Thu 6 | P13 | P15 | P14 | P2 | — |
-| Fri 7 | P16 | P17 | P18 | P6 | — |
-| Sat 8 | P19 | P21 | P20 | P3 | P10 |
-| Sun 9 | P22 | P13 | P23 | P24 | P8 |
+| Tue 11 | P1 | P2 | P3 | P4 | — |
+| Wed 12 | P9 | P6 | P7 | P8 | — |
+| Thu 13 | P13 | P10 | P11 | P15 | — |
+| Fri 14 | P16 | P17 | P18 | P6 | — |
+| Sat 15 | P22 | P21 | P20 | P24 | P14 |
 
-Six posts run twice (P2, P3, P6, P8, P10, P13); each pair is ≥72h apart in a
-different slot letter.
+Only P6 runs twice (Wed B → Fri D): 3 days apart, different slot letter.
 
 ## The posts
 
 **P1 — The offer, plainly** · `supercapper-starts-1600x900.png`
 > $10,000. Free to enter. Nothing for sale.
 >
-> The Supercapper contest opens Aug 10: post your plays, every one graded in
+> The Supercapper contest opens Aug 16: post your plays, every one graded in
 > public, best ROI takes the biggest slice.
 >
 > Entries are open now.
@@ -86,7 +91,7 @@ different slot letter.
 >
 > Everyone says they're up. Almost nobody posts a record you can check.
 >
-> Free contest. Public grading. Best ROI wins. Starts Aug 10.
+> Free contest. Public grading. Best ROI wins. Starts Aug 16.
 
 **P3 — Can't-delete-a-loser** · `supercapper-motion-slip-1920x1080.mp4`
 > Every pick is timestamped against live odds and graded automatically when the
@@ -108,7 +113,7 @@ different slot letter.
 **P5 — The 100-pick bar** · `supercapper-howitworks-1600x900.png`
 > Saying the hard part up front: 100 graded picks to be prize-eligible.
 >
-> This isn't a one-week parlay sprint. It's a five-month record — Aug 10 to
+> This isn't a one-week parlay sprint. It's a five-month record — Aug 16 to
 > Jan 10.
 >
 > If that's not your thing, this contest isn't either.
@@ -120,9 +125,9 @@ different slot letter.
 > at +4% beats someone who hit a 3-teamer in March.
 
 **P7 — Countdown** · `supercapper-countdown-1080x1350.png`
-> Six days out.
+> Four days out.
 >
-> Aug 10 2026 → Jan 10 2027. Five months of graded picks, $10,000 guaranteed,
+> Aug 16 2026 → Jan 10 2027. Five months of graded picks, $10,000 guaranteed,
 > free to enter.
 >
 > Entries open now — join before the first slate so you're not spotting the
@@ -162,7 +167,7 @@ different slot letter.
 **P12 — Late-night hook** · `supercapper-x-9x16-1080x1920.mp4`
 > If you've been keeping a record in a spreadsheet nobody's ever seen —
 >
-> $10,000, free to enter, starts Aug 10. Best ROI over five months.
+> $10,000, free to enter, starts Aug 16. Best ROI over five months.
 >
 > Time to find out whether the spreadsheet was right.
 
@@ -184,12 +189,12 @@ different slot letter.
 >
 > We built a contest where you don't have to answer. The site answers for you.
 >
-> $10K. Free. Starts Aug 10.
+> $10K. Free. Starts Aug 16.
 
-**P16 — Three days out** · `supercapper-starts-square-1080.png`
-> Three days.
+**P16 — Two days out** · `supercapper-starts-square-1080.png`
+> Two days.
 >
-> Aug 10. $10,000 guaranteed. Free to enter. Best ROI over five months takes
+> Aug 16. $10,000 guaranteed. Free to enter. Best ROI over five months takes
 > the biggest slice.
 >
 > blitz.tips/supercapper
@@ -198,7 +203,7 @@ different slot letter.
 > Whatever you're on this weekend — imagine it graded, timestamped and ranked
 > against everyone else's.
 >
-> That starts Aug 10. Entries are open now.
+> That starts Aug 16. Entries are open now.
 
 **P18 — Rules in the open** · no media
 > Full rules, payout structure and the ICM chop are all published before it
@@ -213,10 +218,10 @@ different slot letter.
 >
 > Ours can go badly in public. That's the point.
 >
-> $10,000, free, starts Aug 10.
+> $10,000, free, starts Aug 16.
 
 **P20 — You can still join late (but)** · no media
-> You can enter after Aug 10 — registration runs to Sep 27.
+> You can enter after Aug 16 — registration runs to Sep 27.
 >
 > But every day you wait is a day of graded picks the field has and you don't,
 > and you need 100 to be eligible at all.
@@ -235,25 +240,25 @@ different slot letter.
 > Tomorrow.
 >
 > $10,000 guaranteed · free to enter · best volume-adjusted ROI wins ·
-> Aug 10 2026 → Jan 10 2027
+> Aug 16 2026 → Jan 10 2027
 
 **P23 — The pitch in one line** · `supercapper-promo-1080x1920.mp4`
 > Post your picks. They grade themselves. Best ROI over five months wins the
 > biggest share of $10,000.
 >
-> Free. Starts tomorrow — Aug 10.
+> Free. Starts tomorrow — Aug 16.
 
 **P24 — Last night** · `supercapper-dates-1600x900.png`
 > Last night before the board opens.
 >
-> Aug 10 → Jan 10. Every pick graded in public. $10,000 guaranteed, paid out in
+> Aug 16 → Jan 10. Every pick graded in public. $10,000 guaranteed, paid out in
 > full whatever the turnout.
 >
 > blitz.tips/supercapper
 
 ---
 
-# Phase 2 — Launch day (Mon 10 Aug)
+# Phase 2 — Launch day (Sun 16 Aug)
 
 Five slots. Add **F at 09:30** — launch day earns one extra.
 
@@ -301,7 +306,7 @@ tweet 1. **Pin this.** Swap the banner to
 
 ---
 
-# Phase 3 — In-contest evergreen (from Tue 11 Aug)
+# Phase 3 — In-contest evergreen (from Mon 17 Aug)
 
 Once real data exists, **screenshots beat everything in this file.** Shift the
 mix toward them as soon as the board has entrants: aim for two of the four
@@ -358,10 +363,10 @@ Keep the same A/B/C/D cadence. Suggested weekly shape:
 
 - **Check the numbers against the live row.** $10,000 and 100 picks are in every
   second post here. The pool has already been edited once ($25,000 → $10,000)
-  and the start once (Aug 3 → Aug 10). If either moves again, this file and
+  and the start twice (Aug 3 → Aug 10 → Aug 16). If either moves again, this file and
   every scheduled post move with it.
-- **The assets say Aug 10.** They were re-rendered for the new date. Delete any
-  older export you still have — the previous set said Aug 3.
+- **The assets say Aug 16.** They were re-rendered for the new date. Delete any
+  older export you still have — earlier sets said Aug 3 and Aug 10.
 - **P20 and E6 depend on registration closing Sep 27.** Confirm that's still the
   `registrationClosesAt` value before those slots run.
 - **Compliance carries over** from `supercapper-twitter-kit.md`: 18+ / 21+ where

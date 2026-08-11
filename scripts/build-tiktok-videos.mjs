@@ -69,7 +69,7 @@ const SAFE = { left: 60, right: 60, top: 200, bottom: 800 };
 
 // The contest's own numbers — claims, so re-run this if they change in admin.
 const POOL = 10000;
-const STARTS = "Aug 10 2026";
+const STARTS = "Aug 16 2026";
 const URL = "blitz.tips/supercapper";
 
 mkdirSync(OUT, { recursive: true });

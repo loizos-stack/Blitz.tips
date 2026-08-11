@@ -19,9 +19,9 @@ All exports are 2× for retina.
 | `supercapper-square-1080.png` | 1080×1080 | Instagram feed, X in-feed square |
 | `supercapper-vertical-1080x1350.png` | 1080×1350 | Instagram portrait (most feed space) |
 | `supercapper-banner-1500x500.png` | 1500×500 | X profile header |
-| `supercapper-starts-1600x900.png` | 1600×900 | "Starts Aug 10" — the pre-launch push |
+| `supercapper-starts-1600x900.png` | 1600×900 | "Starts Aug 16" — the pre-launch push |
 | `supercapper-dates-1600x900.png` | 1600×900 | Key dates, both ends, with the enter-anytime caveat |
-| `supercapper-starts-square-1080.png` | 1080×1080 | "Starts Aug 10", square |
+| `supercapper-starts-square-1080.png` | 1080×1080 | "Starts Aug 16", square |
 | `supercapper-countdown-1080x1350.png` | 1080×1350 | Season run, portrait |
 | `supercapper-x-money-dates-1600x900.png` | 1600×900 | Money + dates, the default X post |
 | `supercapper-x-payout-1600x900.png` | 1600×900 | How the pool pays — answers "will I actually get paid" |
@@ -130,14 +130,15 @@ everything in the middle band for that reason.
 ## Dates
 
 `STARTS` / `ENDS` at the top of the script are the seeded contest window —
-**August 10, 2026 → January 10, 2027** — taken from the `Contest` row's `startsAt`
+**August 16, 2026 → January 10, 2027** — taken from the `Contest` row's `startsAt`
 and `endsAt`.
 
 Verify against the live row before publishing. An admin can change these in the
 contests panel without a migration, so the values here are the best available
 source, not proof of what production currently holds. The pool has been edited
-once ($25,000 → $10,000) and the start once (Aug 3 → Aug 10), which is exactly
-how these drift.
+once ($25,000 → $10,000) and the start twice (Aug 3 → Aug 10 → Aug 16), which
+is exactly how these drift. The second start move happened *after* the contest
+had already gone live, so treat any artwork you can't date as suspect.
 
 `registrationClosesAt` is **September 27, 2026**, set by the dynamic-payouts
 migration. (This section previously said it was null and that entries stayed
