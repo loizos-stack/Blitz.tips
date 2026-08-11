@@ -173,6 +173,22 @@ export function integrationStatus(): Integration[] {
       ]
     ),
 
+    // Not previously reported, which is how a broken inbound path stayed
+    // invisible: without the secret the route 401s every caller, the sending
+    // side eventually disables the endpoint, and customer replies are dropped
+    // in silence. INBOUND_EMAIL_DOMAIN only shapes the reply-to address, so
+    // it's optional.
+    build(
+      "inbound",
+      "Inbound email → tickets",
+      "Customer replies to ticket emails are rejected with 401 and never reach the Tickets tab.",
+      false,
+      [
+        req("INBOUND_WEBHOOK_SECRET", process.env.INBOUND_WEBHOOK_SECRET),
+        opt("INBOUND_EMAIL_DOMAIN", process.env.INBOUND_EMAIL_DOMAIN),
+      ]
+    ),
+
     build(
       "cron",
       "Scheduled jobs",
