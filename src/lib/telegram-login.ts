@@ -47,9 +47,28 @@ export const MAX_AUTH_AGE_MS = 15 * 60 * 1000;
 const botToken = process.env.TELEGRAM_BOT_TOKEN ?? "";
 const botUsername = process.env.TELEGRAM_BOT_USERNAME ?? "";
 
-/** Both are required: the token signs the payload, the username renders the widget. */
+/**
+ * Master switch, off unless explicitly turned on.
+ *
+ * It has to be its own flag rather than presence of the bot credentials: those
+ * two variables are already set in production for channel broadcasts and free-
+ * tip auto-posting, so keying off them would have switched login on the moment
+ * BotFather's /setdomain was run. Off by default means the feature stays idle
+ * until someone decides otherwise, and turning it on is one variable.
+ */
+const loginEnabled = (process.env.TELEGRAM_LOGIN_ENABLED ?? "").trim().toLowerCase() === "true";
+
+/**
+ * The single gate every part of Telegram login passes through — the widget on
+ * the auth pages, both API routes, and `verifyTelegramAuth` itself, which means
+ * the NextAuth provider refuses too. One switch, no half-enabled state where a
+ * button renders against a dead endpoint.
+ *
+ * Both credentials are still required: the token signs the payload, the
+ * username renders the widget.
+ */
 export function telegramLoginConfigured(): boolean {
-  return botToken.length > 0 && botUsername.length > 0;
+  return loginEnabled && botToken.length > 0 && botUsername.length > 0;
 }
 
 export function telegramBotUsername(): string {
