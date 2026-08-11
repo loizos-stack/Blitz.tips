@@ -65,22 +65,31 @@ target is the Odds-API key each competition already carries in our data —
 If the console is awkward, copying the address bar from a handful of competition
 pages works just as well — each URL is one complete table row.
 
-## Priority
+## Status
 
-Sport sections first: six of them cover every link on the site, since an
-unmapped competition falls back to its sport.
+**Sport sections: done.** Every sport we carry lands on its own 1win section, so
+no link falls back to the sportsbook home except the two below.
 
-| Our sport | Needs |
+| Our sport | Section |
 |---|---|
-| SOCCER | ✅ `football-18` |
-| NBA / WNBA / NCAAB | basketball section |
-| NHL | ice-hockey section |
-| MLB | baseball section |
-| NFL / NCAAF | american-football section |
-| MMA | MMA section |
+| SOCCER | `football-18` |
+| NFL, NCAAF | `american-football-21` |
+| NBA, WNBA, NCAAB | `basketball-23` |
+| MLB | `baseball-29` |
+| NHL | `ice-hockey-35` |
+| TENNIS | `tennis-33` |
+| UFC_MMA | `ufc-137` |
+| GOLF, OTHER | *none seen — falls back to `/betting`* |
 
-Then competitions, most-trafficked first — the top-five European leagues and the
-UEFA competitions account for most soccer traffic on the board.
+Several of ours share a section on purpose: 1win organises by sport and lists the
+competitions inside, so the college and women's leagues land on the page that
+carries them.
+
+**Competitions: one of them** (`uefa-europa-league-39438`). This is where the
+remaining value is, most-trafficked first — the top-five European leagues and
+the UEFA competitions account for most soccer traffic on the board. Everything
+unmapped already lands on the right sport, so this is refinement rather than
+repair.
 
 ## Per-fixture links
 

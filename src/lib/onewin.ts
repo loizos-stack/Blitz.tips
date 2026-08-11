@@ -60,10 +60,30 @@ interface OneWinSegment {
   verified?: boolean;
 }
 
-/** Our sport → 1win's sport section. */
+/**
+ * Our sport → 1win's sport section. Every segment below was copied from a live
+ * URL, so all of them are verified.
+ *
+ * Several of our sports share one section, which is right rather than a
+ * shortcut: 1win organises by sport and lists the competitions inside, so the
+ * college and women's leagues land on the page that carries them. Getting a
+ * competition-level link for those needs an entry in LEAGUE_SEGMENTS, not a
+ * different section here.
+ *
+ * GOLF and OTHER are deliberately absent — no section link has been seen for
+ * them, so they fall back to the sportsbook home rather than guess.
+ */
 const SPORT_SECTIONS: Partial<Record<PickSport, OneWinSegment>> = {
-  // From the link above.
   SOCCER: { segment: "football-18", verified: true },
+  NFL: { segment: "american-football-21", verified: true },
+  NCAAF: { segment: "american-football-21", verified: true },
+  NBA: { segment: "basketball-23", verified: true },
+  WNBA: { segment: "basketball-23", verified: true },
+  NCAAB: { segment: "basketball-23", verified: true },
+  MLB: { segment: "baseball-29", verified: true },
+  NHL: { segment: "ice-hockey-35", verified: true },
+  TENNIS: { segment: "tennis-33", verified: true },
+  UFC_MMA: { segment: "ufc-137", verified: true },
 };
 
 /**
