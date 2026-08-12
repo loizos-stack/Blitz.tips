@@ -14,6 +14,7 @@ All exports are 2× for retina.
 
 | File | Size | Use |
 |---|---|---|
+| `supercapper-promo-640x360.png` | 640×360 | Small ad slots and embeds. The only file here that ships at its named size rather than @2x — it is rendered at 2x and downscaled, so it stays sharp without needing anyone to resize it |
 | `supercapper-hero-1600x900.png` | 1600×900 | Pinned post, link preview, in-feed on X |
 | `supercapper-howitworks-1600x900.png` | 1600×900 | Thread post 2, or a standalone explainer |
 | `supercapper-square-1080.png` | 1080×1080 | Instagram feed, X in-feed square |
