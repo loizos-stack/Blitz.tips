@@ -33,7 +33,7 @@ All exports are 2× for retina.
 
 | File | Size | Length | Use |
 |---|---|---|---|
-| `blitz-telegram-1080x1080.mp4` | 1080×1080 | 4.5s | Telegram ads and channel posts. Blitz.tips logo sting — a bolt strikes, detonates, and the blast resolves into the lockup. Site branding, not the contest's. Silent, which is what Telegram autoplays inline, and it fades out at the end so the loop restarts cleanly. Rebuild with `node scripts/build-telegram-ad.mjs` |
+| `blitz-telegram-1920x1080.mp4` | 1920×1080 | 4.5s | Telegram ads and channel posts. Blitz.tips logo sting — a bolt strikes, detonates, and the blast resolves into the lockup. Site branding, not the contest's. Silent, which is what Telegram autoplays inline, and it fades out at the end so the loop restarts cleanly. Rebuild with `node scripts/build-telegram-ad.mjs` |
 | `supercapper-promo-1080x1920.mp4` | 1080×1920 | 13s | TikTok, Reels, Shorts, Stories |
 | `supercapper-x-16x9-1920x1080.mp4` | 1920×1080 | 12s | X in-feed — full width on desktop, never letterboxed |
 | `supercapper-x-square-1080.mp4` | 1080×1080 | 9s | X in-feed, mobile-first — square takes more timeline height than 16:9 |

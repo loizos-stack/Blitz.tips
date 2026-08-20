@@ -8,7 +8,7 @@
  * Blitz.tips lockup. Silent MP4, which is what Telegram autoplays inline.
  *
  * Drawn on a canvas rather than with DOM elements like the other motion
- * scripts. The blast is ~140 particles and a shockwave, which is a lot of
+ * scripts. The blast is ~210 particles and a shockwave, which is a lot of
  * layers to composite, and every frame here has to be a pure function of `t`:
  * the renderer steps time by hand and screenshots, so anything reading a live
  * clock or calling Math.random() per frame would flicker. Particle parameters
@@ -106,21 +106,21 @@ function makeRng(seed) {
 }
 
 const rand = makeRng(0xb1172);
-const PARTICLES = Array.from({ length: 140 }, () => {
+const PARTICLES = Array.from({ length: 210 }, () => {
   const a = rand() * Math.PI * 2;
   return {
     a,
     // Squared so most particles are slow and a few outrun them — an even
     // spread reads as a mechanical ring rather than a blast.
-    speed: 420 + Math.pow(rand(), 2) * 2100,
-    size: 3 + rand() * 11,
+    speed: 640 + Math.pow(rand(), 2) * 3400,
+    size: 4.5 + rand() * 16,
     life: 0.75 + rand() * 0.85,
     spin: (rand() - 0.5) * 14,
     // Mostly the bolt's own gold, a few green to seed the wordmark's colour.
     green: rand() < 0.22,
     // Start spread along the bolt rather than from a single point.
-    ox: (rand() - 0.5) * 90,
-    oy: (rand() - 0.5) * 190,
+    ox: (rand() - 0.5) * 130,
+    oy: (rand() - 0.5) * 270,
   };
 });
 
@@ -130,7 +130,9 @@ function drawGrid(ctx, W, H, alpha) {
   ctx.globalAlpha = alpha;
   ctx.strokeStyle = "rgba(255,255,255,0.055)";
   ctx.lineWidth = Math.max(1, W / 900);
-  const step = W / 16;
+  // Keyed to the short side, so a wide frame gets more cells rather than
+  // bigger ones — otherwise the backdrop reads as a different texture at 16:9.
+  const step = Math.min(W, H) / 16;
   ctx.beginPath();
   for (let x = 0; x <= W; x += step) { ctx.moveTo(x, 0); ctx.lineTo(x, H); }
   for (let y = 0; y <= H; y += step) { ctx.moveTo(0, y); ctx.lineTo(W, y); }
@@ -187,7 +189,12 @@ window.render = function (t) {
   const ctx = c.getContext("2d");
   const W = c.width, H = c.height;
   const cx = W / 2, cy = H / 2;
-  const K = W / 1080; // one scale factor, so the scene is resolution-independent
+  // One scale factor, keyed to height rather than width. A 16:9 frame is wider
+  // than the square it replaced, not taller: scaling by width would inflate
+  // everything by 78% and push the lockup toward the edges. Keying to height
+  // keeps the composition identical and spends the extra width on breathing
+  // room, which is what a wide frame is for.
+  const K = H / 1080;
 
   ctx.clearRect(0, 0, W, H);
   ctx.fillStyle = "#0b0f14";
@@ -216,7 +223,7 @@ window.render = function (t) {
       const u = clamp(t / T.strikeEnd);
       // Drops in from above and overshoots into place.
       y = cy - (1 - backOut(u)) * H * 0.55;
-      scale = (7 + 12 * (1 - easeOut(u))) * K;
+      scale = (10 + 16 * (1 - easeOut(u))) * K;
       alpha = clamp(u * 2.6);
       glow = 0.5 + 0.5 * u;
       // Motion streak while it is still travelling.
@@ -234,7 +241,7 @@ window.render = function (t) {
       // Charging: breathes, then stretches taut just before it goes.
       const pulse = 1 + 0.045 * Math.sin((t - T.strikeEnd) * 7.5);
       const wind = sinceBlast > 0 ? 1 + sinceBlast * 9 : 1 - clamp(-sinceBlast / 0.22) * 0.07;
-      scale = 7 * K * pulse * wind;
+      scale = 10 * K * pulse * wind;
       alpha = sinceBlast > 0 ? clamp(1 - sinceBlast / 0.13) : 1;
       glow = 1 + charge * 1.4;
     }
@@ -246,7 +253,7 @@ window.render = function (t) {
     // Shockwave: fast out, thinning as it goes.
     const ringT = clamp(sinceBlast / 0.85);
     if (ringT < 1) {
-      const r = easeOut(ringT) * W * 0.72;
+      const r = easeOut(ringT) * Math.hypot(W, H) * 0.62;
       ctx.save();
       ctx.globalAlpha = (1 - ringT) * 0.75;
       ctx.strokeStyle = "rgba(253,224,71,0.9)";
@@ -333,33 +340,33 @@ window.render = function (t) {
 };
 `;
 
-function pageHtml(size) {
+function pageHtml(w, h) {
   return `<!doctype html><html><head><meta charset="utf-8"><style>
 @font-face{font-family:'Space Grotesk';src:url(data:font/woff2;base64,${font}) format('woff2');font-weight:300 800;font-display:block}
 *{margin:0;padding:0}
-html,body{width:${size}px;height:${size}px;background:#0b0f14;overflow:hidden}
+html,body{width:${w}px;height:${h}px;background:#0b0f14;overflow:hidden}
 canvas{display:block}
 /* Forces the face to load before any canvas text is measured — canvas does not
    participate in font loading, so measureText would silently use a fallback. */
 #probe{position:absolute;left:-9999px;font-family:'Space Grotesk';font-weight:800}
 </style></head><body>
 <div id="probe">Blitz.tips</div>
-<canvas id="c" width="${size}" height="${size}"></canvas>
+<canvas id="c" width="${w}" height="${h}"></canvas>
 <script>${SCENE}
 window.render(0);
 </script></body></html>`;
 }
 
-async function renderVideo(chromium, { name, size }) {
-  const frames = join(tmpdir(), `tg-ad-${size}`);
+async function renderVideo(chromium, { name, w, h }) {
+  const frames = join(tmpdir(), `tg-ad-${w}x${h}`);
   rmSync(frames, { recursive: true, force: true });
   mkdirSync(frames, { recursive: true });
 
-  const htmlPath = join(tmpdir(), `tg-ad-${size}.html`);
-  writeFileSync(htmlPath, pageHtml(size));
+  const htmlPath = join(tmpdir(), `tg-ad-${w}x${h}.html`);
+  writeFileSync(htmlPath, pageHtml(w, h));
 
   const browser = await chromium.launch({ executablePath: process.env.PLAYWRIGHT_CHROMIUM ?? undefined });
-  const page = await browser.newPage({ viewport: { width: size, height: size } });
+  const page = await browser.newPage({ viewport: { width: w, height: h } });
   await page.goto(`file://${htmlPath}`, { waitUntil: "load" });
   await page.evaluate(() => document.fonts.ready);
   await page.waitForTimeout(400);
@@ -394,4 +401,4 @@ async function renderVideo(chromium, { name, size }) {
 }
 
 const chromium = await loadChromium();
-await renderVideo(chromium, { name: "blitz-telegram-1080x1080.mp4", size: 1080 });
+await renderVideo(chromium, { name: "blitz-telegram-1920x1080.mp4", w: 1920, h: 1080 });
