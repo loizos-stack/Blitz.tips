@@ -135,9 +135,9 @@ body{font-family:'Space Grotesk',sans-serif;background:#222}
 // edit these in the contests panel without a migration — the prize pool already
 // changed that way — so re-check the live row before publishing anything that
 // puts a date in front of people.
-const STARTS = "August 16, 2026";
+const STARTS = "September 7, 2026";
 const ENDS = "January 10, 2027";
-const STARTS_SHORT = "Aug 16";
+const STARTS_SHORT = "Sep 7";
 const ENDS_SHORT = "Jan 10";
 
 const cards = [
@@ -266,7 +266,7 @@ const cards = [
         <span class="gold" style="font-weight:800">$10,000 guaranteed</span> · Free to enter
       </div>
       <div class="pill" style="font-size:21px;margin-top:6px">
-        ${STARTS_SHORT} 2026 → ${ENDS_SHORT} 2027 · five months of graded picks
+        ${STARTS_SHORT} 2026 → ${ENDS_SHORT} 2027 · four months of graded picks
       </div>
       <div class="url" style="font-size:28px;margin-top:16px">blitz.tips/supercapper</div>
     </div>`,
