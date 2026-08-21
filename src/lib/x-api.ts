@@ -460,6 +460,36 @@ function isTimeout(e: unknown): boolean {
 }
 
 /**
+ * What a rejection from /2/tweets actually means.
+ *
+ * These three look alike from the outside — a failed post — and lead to
+ * entirely different places. Getting them confused costs real time: a 402 was
+ * once read as a tier problem and sent someone looking at app permissions when
+ * the account had simply run out of credits.
+ */
+function describeXRejection(status: number): string {
+  if (status === 402) {
+    return (
+      " — your X API credits are exhausted. This is billing, not configuration:" +
+      " nothing in the app or its permissions will change it. Top up or change plan" +
+      " under Products/Billing in the X developer portal."
+    );
+  }
+  if (status === 403) {
+    return (
+      " — usually the app's permission is set to Read rather than Read and write," +
+      " or tweet.write wasn't granted. Note that changing the permission is not enough" +
+      " on its own: scopes are fixed when the account connects, so disconnect and" +
+      " reconnect afterwards."
+    );
+  }
+  if (status === 429) {
+    return " — rate limited. Wait for the window to reset rather than retrying immediately.";
+  }
+  return "";
+}
+
+/**
  * Publishes a post. Never throws — the caller records the outcome either way,
  * and a failed post is the history row you most want to keep.
  */
@@ -494,10 +524,10 @@ export async function postTweet(opts: {
     if (!res.ok) {
       // 403 here is usually the access tier rather than a bad request, and
       // saying so saves a long hunt through the developer portal.
-      const hint =
-        res.status === 403
-          ? " (a 403 on /2/tweets usually means the app's access tier doesn't allow posting, or tweet.write wasn't granted)"
-          : "";
+      // The status is the diagnosis here, and each one points somewhere
+      // completely different. Naming them saves a hunt through the developer
+      // portal that otherwise starts by suspecting this code.
+      const hint = describeXRejection(res.status);
       return { ok: false, tweetId: null, error: `X rejected the post (${res.status})${hint}: ${text.slice(0, 300)}` };
     }
     const body = JSON.parse(text) as { data?: { id?: string } };
