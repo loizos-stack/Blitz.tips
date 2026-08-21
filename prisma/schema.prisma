@@ -918,3 +918,62 @@ model AdSpendEntry {
 
   @@index([platform, spentOn])
 }
+
+/**
+ * The X (Twitter) account the admin panel posts as.
+ * A row, not a SiteSetting pair, because posting to X needs a live credential
+ * rather than a static token. Unlike Telegram — where one bot token in the
+ * environment is the whole story — X will only accept a post in *user context*,
+ * so the panel holds an OAuth grant that expires and has to be refreshed.
+ * Single-row by construction: `id` is a fixed key, so connecting a different
+ * account replaces the grant instead of quietly accumulating several and
+ * leaving "which one did that post go to?" unanswerable.
+ */
+model XAccount {
+  /// Always "default". One connected account, enforced by the primary key.
+  id           String   @id @default("default")
+  /// X's numeric user id — stable across handle changes, unlike `username`.
+  xUserId      String
+  /// Handle at connect time, for display. Re-read on refresh.
+  username     String
+  name         String?
+  /// Encrypted at rest: these are live credentials, not identifiers. A leaked
+  /// refresh token is an account takeover, so unlike the Discord user id next
+  /// door these never sit in the database in the clear.
+  accessToken  String   @db.Text
+  refreshToken String?  @db.Text
+  /// When the access token dies. Refreshed ahead of this, not after it.
+  expiresAt    DateTime
+  /// Granted scopes, so the UI can say why a post was rejected rather than
+  /// showing a bare 403.
+  scopes       String
+  connectedAt  DateTime @default(now())
+  connectedBy  String
+  updatedAt    DateTime @updatedAt
+}
+
+/**
+ * Every post the panel has attempted, successful or not.
+ * Deliberately shaped like TelegramBroadcast: a failed send is the row you most
+ * want to see, so failures are kept rather than discarded.
+ */
+model XPost {
+  id          String   @id @default(cuid())
+  /// Handle posted as, captured at send time so history survives a rename.
+  username    String
+  text        String
+  /// Attached file under public/marketing. Null for a text-only post.
+  asset       String?
+  /// X's tweet id — what you need to find or delete the post later.
+  tweetId     String?
+  ok          Boolean  @default(false)
+  error       String?
+  /// Null for a manual post; otherwise what triggered it, matching the same
+  /// column on TelegramBroadcast.
+  source      String?
+  sentById    String
+  sentByEmail String
+  createdAt   DateTime @default(now())
+
+  @@index([createdAt])
+}
