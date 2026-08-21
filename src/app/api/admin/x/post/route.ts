@@ -59,7 +59,7 @@ export async function POST(request: Request) {
   // platform error page, and a client parsing that as JSON reports a network
   // failure — which sends you looking in entirely the wrong place.
   try {
-    let media: { bytes: Buffer; mime: string } | undefined;
+    let media: { bytes: Buffer; mime: string; filename: string } | undefined;
     if (asset) {
       let bytes: Buffer;
       try {
@@ -73,7 +73,12 @@ export async function POST(request: Request) {
         );
       }
       const ext = asset.toLowerCase().split(".").pop();
-      media = { bytes, mime: ext === "mp4" ? "video/mp4" : ext === "png" ? "image/png" : "image/jpeg" };
+      media = {
+        bytes,
+        mime: ext === "mp4" ? "video/mp4" : ext === "png" ? "image/png" : "image/jpeg",
+        // X rejects a file part with no filename, so pass the real one through.
+        filename: asset,
+      };
     }
 
     const result = await postTweet({ text, media });
