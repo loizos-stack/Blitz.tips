@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { requirePermission } from "@/lib/permissions";
 import { logAdmin } from "@/lib/audit";
 import { X_MAX_CHARS, getConnectedAccount, postTweet, xConfigured, xLength } from "@/lib/x-api";
+import { upstreamFailed } from "@/lib/api-status";
 
 export const dynamic = "force-dynamic";
 // Uploading an mp4 means streaming megabytes to X inside the request. The
@@ -98,7 +99,9 @@ export async function POST(request: Request) {
       `${result.ok ? "Posted" : "Failed to post"} as @${account.username}${asset ? ` with ${asset}` : ""}`
     );
 
-    if (!result.ok) return NextResponse.json({ error: result.error }, { status: 502 });
+    // Not 502 — see lib/api-status: Cloudflare would replace the body with its
+    // own error page and the reason X gave would never reach the browser.
+    if (!result.ok) return upstreamFailed(result.error ?? "X rejected the post");
 
     return NextResponse.json({
       ok: true,

@@ -3,6 +3,7 @@ import { readFile } from "fs/promises";
 import { join, basename } from "path";
 import { prisma } from "@/lib/prisma";
 import { requirePermission } from "@/lib/permissions";
+import { upstreamFailed } from "@/lib/api-status";
 import { logAdmin } from "@/lib/audit";
 import {
   TELEGRAM_CAPTION_LIMIT,
@@ -133,7 +134,9 @@ export async function POST(request: Request) {
     );
 
     if (!result.ok) {
-      return NextResponse.json({ error: result.error ?? "Telegram rejected the post" }, { status: 502 });
+      // Not 502 — see lib/api-status. This is the exact failure that once showed
+      // as a bare Cloudflare page instead of "bot is not a member of the channel".
+      return upstreamFailed(result.error ?? "Telegram rejected the post");
     }
     return NextResponse.json({ ok: true, messageId: result.messageId, chatTitle: chat.title });
   } catch (e) {
