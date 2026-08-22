@@ -704,12 +704,26 @@ export async function runBlitzOdds(now = new Date()): Promise<RunReport> {
           // request costs the same however many books come back, so narrowing
           // it on the wire would buy nothing and could only lose data.
           const collected: ApiEvent[] = [];
+          const offered = new Set<string>();
           for (const date of datesCovering(now, settings.baselineFromMinutes)) {
             if (!afford(budget, 1, 1, settings.provider)) break;
             const day = await fetchRundownDay(rundownId, date, books);
             if (day.events) collected.push(...day.events);
             else if (day.error && !fetchError) fetchError = day.error;
+            for (const b of day.availableBooks) offered.add(b);
           }
+
+          // The book filter is ours, so a list matching nothing produces a
+          // perfectly successful request with no usable prices — identical in
+          // every visible way to a quiet day. Say exactly what was asked for and
+          // what was on offer; it is a one-line fix once you can see it.
+          if (books.length > 0 && offered.size > 0 && !books.some((b) => offered.has(b))) {
+            const reason =
+              `None of the configured books (${books.join(", ")}) are carried here. ` +
+              `This feed offered: ${[...offered].sort().join(", ")}.`;
+            if (!error) error = reason;
+          }
+
           events = collected.length > 0 || !fetchError ? collected : null;
         } else {
           if (!afford(budget, markets.length, 1, settings.provider)) break;

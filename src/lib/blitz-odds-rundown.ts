@@ -252,6 +252,20 @@ const REQUEST_TIMEOUT_MS = 20_000;
 export interface RundownFetch {
   events: NormalEvent[] | null;
   error: string | null;
+  /**
+   * Every book the response carried, before the local filter.
+   *
+   * The filter is ours, not the API's, so a book list that matches nothing
+   * produces a perfectly successful request with zero usable prices — the exact
+   * shape of a quiet day. Reporting what WAS on offer is what turns that into a
+   * fixable message instead of a mystery.
+   */
+  availableBooks: string[];
+}
+
+/** Book keys present on an event, ignoring the configured filter. */
+function booksOn(ev: RdEvent): string[] {
+  return Object.entries(ev.lines ?? {}).map(([id, line]) => bookKey(line, id));
 }
 
 /**
@@ -281,14 +295,24 @@ export async function fetchRundownDay(
           : res.status === 404
             ? " — usually a wrong sport id; run scripts/probe-rundown.mjs to list the real ones"
             : "";
-      return { events: null, error: `Rundown responded ${res.status}${hint}. ${body.slice(0, 200)}`.trim() };
+      return {
+        events: null,
+        error: `Rundown responded ${res.status}${hint}. ${body.slice(0, 200)}`.trim(),
+        availableBooks: [],
+      };
     }
     const json = (await res.json()) as RdEventsResponse;
-    const events = (json.events ?? [])
+    const raw = json.events ?? [];
+    const availableBooks = [...new Set(raw.flatMap(booksOn))];
+    const events = raw
       .map((e) => normalizeEvent(e, wantedBooks))
       .filter((e): e is NormalEvent => e !== null);
-    return { events, error: null };
+    return { events, error: null, availableBooks };
   } catch (e) {
-    return { events: null, error: e instanceof Error ? e.message : String(e) };
+    return {
+      events: null,
+      error: e instanceof Error ? e.message : String(e),
+      availableBooks: [],
+    };
   }
 }
