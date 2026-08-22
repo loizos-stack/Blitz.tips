@@ -1,0 +1,88 @@
+name: Blitz Odds watcher
+
+# Polls the odds feed for prices shortening at several sportsbooks before
+# kickoff, and delivers the alerts.
+#
+# Why this exists: Vercel's Hobby plan allows only one cron run per day, and a
+# drop detector that runs daily detects nothing. This workflow supplies the
+# cadence instead — the same arrangement auto-settle.yml already uses.
+#
+# CAVEAT worth knowing: GitHub's scheduler is best-effort. A workflow set to
+# every 5 minutes routinely fires 10-15 minutes late when the shared runners are
+# busy, and can skip a slot entirely. For a tool whose value is catching a move
+# before a game starts, that is a real limitation — if Blitz Odds proves useful,
+# Vercel Pro (which allows minute-level crons) is the fix, at which point this
+# file can be deleted and the schedule moved into vercel.json.
+#
+# COST: every run spends odds-feed credits. The watcher enforces its own daily
+# cap (Admin -> Blitz Odds -> Daily credit cap) and stops when it is reached, so
+# a stuck or over-frequent schedule cannot drain the quota — but the cap is the
+# safety net, not the plan. Check the panel's usage meter after the first day.
+#
+# Setup (one time):
+#   1. Repo -> Settings -> Secrets and variables -> Actions -> New repository secret
+#        CRON_SECRET  = the same value as the CRON_SECRET env var in Vercel
+#        SITE_URL     = https://blitz.tips        (optional; defaults to that)
+#   2. Switch the watcher on in Admin -> Blitz Odds. Until then this returns
+#      immediately, spends nothing, and simply reports that it is off.
+
+on:
+  schedule:
+    # Every 10 minutes, matching the watcher's default pollMinutes. If you lower
+    # the poll interval in the panel, lower it here too — the panel setting
+    # describes the cadence, this file supplies it.
+    - cron: "*/10 * * * *"
+  # Lets you run a cycle by hand from the Actions tab.
+  workflow_dispatch:
+
+# A slow cycle must never overlap the next one: two runs polling at once would
+# double-spend credits and race on the same snapshot rows.
+concurrency:
+  group: blitz-odds
+  cancel-in-progress: false
+
+jobs:
+  watch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Run a Blitz Odds cycle
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+          SITE_URL: ${{ secrets.SITE_URL || 'https://blitz.tips' }}
+        run: |
+          if [ -z "$CRON_SECRET" ]; then
+            echo "::error::CRON_SECRET repository secret is not set — see the header of this file."
+            exit 1
+          fi
+
+          http_status=$(curl -sS -o response.json -w '%{http_code}' \
+            --max-time 120 \
+            -H "Authorization: Bearer $CRON_SECRET" \
+            "$SITE_URL/api/cron/blitz-odds")
+
+          echo "HTTP $http_status"
+          cat response.json
+          echo
+
+          if [ "$http_status" != "200" ]; then
+            echo "::error::Blitz Odds returned HTTP $http_status"
+            exit 1
+          fi
+
+          # Surface spend and findings in the run summary, so the cost of the
+          # tool is visible from the Actions tab without opening the site.
+          {
+            echo "### Blitz Odds"
+            echo ""
+            echo "| | |"
+            echo "|---|---|"
+            echo "| Events watched | $(jq -r '.eventsSeen // 0' response.json) |"
+            echo "| Drops found | $(jq -r '.dropsFound // 0' response.json) |"
+            echo "| Credits spent | $(jq -r '.credits // 0' response.json) |"
+            echo "| Requests | $(jq -r '.requests // 0' response.json) |"
+            stopped=$(jq -r '.stoppedReason // empty' response.json)
+            if [ -n "$stopped" ]; then
+              echo ""
+              echo "**Stopped early:** $stopped"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"

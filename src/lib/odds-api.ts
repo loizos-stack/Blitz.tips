@@ -457,6 +457,23 @@ async function resolveSportKeys(sport: PickSport, apiKey: string): Promise<strin
   return key ? [key] : [];
 }
 
+/**
+ * Every league key a sport currently fans out to, resolved live.
+ *
+ * Exported for the Blitz Odds watcher, which needs the same league set the
+ * board carries — soccer's in-season competitions and tennis's active tours
+ * included — and must not re-derive it. Duplicating this is how the two would
+ * drift into watching different leagues than the site displays.
+ */
+export async function watchableSportKeys(sport: PickSport): Promise<string[]> {
+  const apiKey = oddsApiKey();
+  if (!apiKey) return [];
+  return resolveSportKeys(sport, apiKey);
+}
+
+/** The upstream base URL, so the watcher bills against the same host. */
+export const ODDS_API_BASE = API_BASE;
+
 // How far ahead the "Today's lines" board looks. Kept as a wall-clock window
 // rather than a calendar-day check so it behaves consistently for every visitor
 // regardless of their timezone. 36h covers tonight plus all of tomorrow from any

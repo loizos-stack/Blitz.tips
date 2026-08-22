@@ -977,3 +977,174 @@ model XPost {
 
   @@index([createdAt])
 }
+
+// --- Blitz Odds -------------------------------------------------------------
+// Private line-movement watcher. Polls the odds feed, keeps a short history of
+// every price it sees, and raises an alert when a selection shortens at more
+// than one sportsbook before kickoff.
+
+/**
+ * One price, from one book, for one selection, at one moment.
+ * This is the only table in the app that grows with time rather than with user
+ * activity, so it is pruned aggressively (see pruneSnapshots): a drop is
+ * detected against a lookback of minutes, and nothing here has any value once
+ * the game has started.
+ */
+model OddsSnapshot {
+  id String @id @default(cuid())
+
+  /// The Odds API event id, and the league key it came from.
+  eventId  String
+  sportKey String
+
+  /// Market + selection identify what was priced. `point` separates the rungs
+  /// of a handicap or total — "Over 8.5" and "Over 9.5" are different bets and
+  /// must never be compared to each other.
+  marketKey String
+  selection String
+  point     Float?
+
+  bookmaker String
+  /// American, as the feed returns it and as picks are stored.
+  price     Int
+
+  commenceTime DateTime
+  capturedAt   DateTime @default(now())
+
+  // The detector reads one (event, market, selection, point) line across books
+  // over a short window; this index is that query.
+  @@index([eventId, marketKey, selection, point, capturedAt])
+  @@index([capturedAt])
+}
+
+/**
+ * A detected shortening, confirmed across at least `bookCount` books.
+ * Kept after notification so the panel has a feed and so a repeat move on the
+ * same selection can be measured against what was already reported rather than
+ * re-alerting on the same drift.
+ */
+model OddsDrop {
+  id String @id @default(cuid())
+
+  eventId      String
+  sportKey     String
+  sport        PickSport
+  matchup      String
+  commenceTime DateTime
+
+  marketKey   String
+  /// Human label for the market, resolved at detection time so the feed reads
+  /// the same as the pick forms.
+  marketLabel String
+  selection   String
+  point       Float?
+
+  /// Books that moved, and the size of the move in implied-probability points
+  /// (not raw American, which is non-linear — see lib/blitz-odds).
+  bookCount    Int
+  books        String
+  openPrice    Int
+  currentPrice Int
+  probDelta    Float
+
+  /// Minutes between detection and kickoff, frozen at detection time.
+  minutesToStart Int
+
+  notifiedAt DateTime?
+  detectedAt DateTime  @default(now())
+
+  @@index([detectedAt])
+  @@index([eventId, marketKey, selection, point])
+}
+
+/**
+ * What the watcher is allowed to do. A single row (id = "default").
+ * Every field here exists to bound spend. The feed bills per request as
+ * (markets x regions), so an unbounded watcher is an unbounded bill — the whole
+ * rest of the site runs on roughly 1,600 credits a month, and a naive poller
+ * would exceed that before lunch.
+ */
+model OddsWatchSettings {
+  id String @id @default("default")
+
+  enabled Boolean @default(false)
+
+  /// Poll cadence, and how far ahead of kickoff to start watching.
+  pollMinutes   Int @default(10)
+  leadHours     Int @default(6)
+  /// Alerts stop this many minutes before kickoff.
+  cutoffMinutes Int @default(15)
+
+  /// A move must be at least this many implied-probability points, and appear
+  /// at this many distinct books, to raise an alert.
+  minProbDelta Float @default(2.0)
+  minBooks     Int   @default(2)
+
+  /// Market depth. Game lines come from one bulk request per league and are
+  /// cheap; the rest are per-event and are where the bill is made.
+  watchGameLines    Boolean @default(true)
+  watchAlternates   Boolean @default(false)
+  watchProps        Boolean @default(false)
+  watchSoccerExtras Boolean @default(false)
+
+  /// Hard ceiling. The poller stops when the day's spend reaches this, and says
+  /// so, rather than quietly draining the quota.
+  dailyCreditCap Int @default(2000)
+  /// Most events to deepen in one run, so an unusually busy slate cannot make
+  /// a single run cost multiples of a normal one.
+  maxDeepEvents  Int @default(20)
+
+  /// Leagues to watch. Empty = every league the board already carries.
+  sportKeys String @default("")
+
+  /// Cached league resolution, and when it was taken.
+  ///
+  /// Resolving soccer probes nine dormant competition keys, and each probe is a
+  /// billed request. At a ten-minute cadence that is over a thousand credits a
+  /// day spent deciding *what* to watch, before watching anything — so the
+  /// answer is cached here on its own slow schedule rather than left to the
+  /// framework's fetch cache, which is invisible, not guaranteed to survive
+  /// between serverless invocations, and the wrong thing to trust with money.
+  leaguesJson String   @default("")
+  leaguesAt   DateTime?
+
+  /// Where alerts go.
+  notifyOnSite   Boolean @default(true)
+  notifyPush     Boolean @default(true)
+  notifyTelegram Boolean @default(true)
+
+  /// Private Telegram destination — a direct chat with the bot, NOT the public
+  /// broadcast channel. Held separately from the broadcast target on purpose:
+  /// this tool is private, and a shared setting is one mistake away from
+  /// pushing line movement to every subscriber. Falls back to
+  /// TELEGRAM_ALERT_CHAT_ID when blank; alerts are skipped if neither is set.
+  telegramChatId String @default("")
+
+  updatedAt DateTime @updatedAt
+}
+
+/**
+ * One run of the watcher, with what it cost.
+ * The credit column is the point: spend is invisible until it is on a page, and
+ * this is what the panel's usage meter and the daily cap are both computed from.
+ */
+model OddsPollRun {
+  id String @id @default(cuid())
+
+  startedAt  DateTime  @default(now())
+  finishedAt DateTime?
+
+  /// Billed units consumed, counted as (markets x regions) per request the same
+  /// way the upstream bills them.
+  credits  Int @default(0)
+  requests Int @default(0)
+
+  eventsSeen Int @default(0)
+  dropsFound Int @default(0)
+
+  /// Set when the run stopped early — budget cap hit, feed unavailable.
+  stoppedReason String?
+  error         String?
+
+  @@index([startedAt])
+}
