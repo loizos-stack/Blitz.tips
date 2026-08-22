@@ -16,11 +16,6 @@ const nextConfig: NextConfig = {
       // Avatars carried over from a Telegram sign-in. next/image rejects any
       // host that isn't listed, so without this the avatar renders broken.
       { protocol: "https", hostname: "t.me" },
-      // SportsDataIO doesn't host crests — it returns Wikimedia URLs. The
-      // primary logos are SVG, which next/image passes through unoptimized on
-      // its own, but the wordmarks include PNG thumbnails that do go through
-      // the optimizer and would 400 without this entry.
-      { protocol: "https", hostname: "upload.wikimedia.org" },
     ],
   },
   async headers() {
