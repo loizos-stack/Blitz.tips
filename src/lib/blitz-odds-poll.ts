@@ -91,6 +91,14 @@ export interface RunReport {
   marketsSeen: string[];
   /** Books that actually priced something — the check on a wrong book key. */
   booksSeen: string[];
+  /**
+   * Upcoming kickoffs the watcher currently knows about, at any distance.
+   *
+   * The single number that separates a genuinely quiet slate from a feed that
+   * is rejecting every request: both report zero events in-window, but only one
+   * of them knows about any fixtures at all.
+   */
+  fixturesKnown: number;
 }
 
 export interface WatchSettings {
@@ -342,7 +350,9 @@ async function refreshFixtures(
   budget: Budget,
   now: Date,
   settings: WatchSettings
-): Promise<void> {
+): Promise<{ error: string | null; stored: number }> {
+  let error: string | null = null;
+  let stored = 0;
   const stale = new Date(now.getTime() - FIXTURE_CACHE_MINUTES * 60_000);
 
   for (const { sport, sportKey } of leagues) {
@@ -360,15 +370,18 @@ async function refreshFixtures(
       // UTC belongs to tomorrow — so the horizon may straddle two dates.
       const collected: ApiEvent[] = [];
       for (const date of datesCovering(now, settings.baselineFromMinutes)) {
-        if (!afford(budget, 1, 1, settings.provider)) return;
+        if (!afford(budget, 1, 1, settings.provider)) return { error, stored };
         const day = await fetchRundownDay(rundownId, date, []);
         if (day.events) collected.push(...day.events);
+        else if (day.error && !error) error = day.error;
       }
       events = collected;
     } else {
       // The events endpoint carries no markets or regions; bill it as one unit.
-      if (!afford(budget, 1, 1, settings.provider)) return;
-      events = (await fetchOdds(`${ODDS_API_BASE}/sports/${sportKey}/events?apiKey=${apiKey}`)).events;
+      if (!afford(budget, 1, 1, settings.provider)) return { error, stored };
+      const res = await fetchOdds(`${ODDS_API_BASE}/sports/${sportKey}/events?apiKey=${apiKey}`);
+      events = res.events;
+      if (!res.events && res.error && !error) error = res.error;
     }
 
     if (!events) continue;
@@ -382,11 +395,14 @@ async function refreshFixtures(
         create: { eventId: ev.id, sportKey, sport, matchup, commenceTime, refreshedAt: now },
         update: { sportKey, sport, matchup, commenceTime, refreshedAt: now },
       });
+      stored += 1;
     }
   }
 
   // Games that have started are no longer of any use to this tool.
   await prisma.oddsFixture.deleteMany({ where: { commenceTime: { lt: new Date(now.getTime() - 3_600_000) } } });
+
+  return { error, stored };
 }
 
 /**
@@ -621,6 +637,7 @@ export async function runBlitzOdds(now = new Date()): Promise<RunReport> {
     error: null,
     marketsSeen: [],
     booksSeen: [],
+    fixturesKnown: 0,
   };
 
   const settings = await getWatchSettings();
@@ -664,11 +681,16 @@ export async function runBlitzOdds(now = new Date()): Promise<RunReport> {
 
     // Cheap first: learn which leagues have a kickoff coming, so the expensive
     // requests are only made where there is something to watch.
-    await refreshFixtures(allLeagues, apiKey, budget, now, settings);
+    const fixtures = await refreshFixtures(allLeagues, apiKey, budget, now, settings);
+    if (fixtures.error && !error) error = fixtures.error;
     const leagues = await leaguesWithImminentGames(allLeagues, settings, now);
 
     if (allLeagues.length > 0 && leagues.length === 0 && !budget.stopped) {
-      budget.stopped = `Nothing within ${settings.baselineFromMinutes} min of kickoff across ${allLeagues.length} league(s).`;
+      const known = await prisma.oddsFixture.count();
+      budget.stopped =
+        known === 0
+          ? `No fixtures known across ${allLeagues.length} league(s) — the feed returned no schedule, which usually means the key or the sport ids are wrong.`
+          : `Nothing within ${settings.baselineFromMinutes} min of kickoff (${known} fixture(s) known across ${allLeagues.length} league(s)).`;
     }
 
     // Both bands, in one shape, so the fetch filter and the detector cannot
@@ -831,6 +853,7 @@ export async function runBlitzOdds(now = new Date()): Promise<RunReport> {
     error,
     marketsSeen: [...marketsSeen],
     booksSeen: [...booksSeen],
+    fixturesKnown: await prisma.oddsFixture.count(),
   };
 }
 

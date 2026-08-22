@@ -78,7 +78,7 @@ jobs:
           # Totals across the whole run. Reporting only the last pass would
           # understate spend by a factor of POLL_PASSES, and spend is the number
           # this summary exists to show.
-          tot_credits=0; tot_requests=0; tot_drops=0; last_events=0
+          tot_credits=0; tot_requests=0; tot_drops=0; last_events=0; last_fixtures=0
           for pass in $(seq 1 "$POLL_PASSES"); do
             [ "$pass" -gt 1 ] && sleep "$POLL_SECONDS"
             echo "--- pass $pass/$POLL_PASSES"
@@ -106,6 +106,7 @@ jobs:
               tot_requests=$((tot_requests + $(jq -r '.requests // 0' response.json)))
               tot_drops=$((tot_drops + $(jq -r '.dropsFound // 0' response.json)))
               last_events=$(jq -r '.eventsSeen // 0' response.json)
+              last_fixtures=$(jq -r '.fixturesKnown // 0' response.json)
             fi
           done
 
@@ -136,6 +137,7 @@ jobs:
             echo "|---|---|"
             echo "| Passes | $POLL_PASSES (every ${POLL_SECONDS}s) |"
             echo "| Events in window (last pass) | $last_events |"
+            echo "| Fixtures known | $last_fixtures |"
             echo "| Drops found | $tot_drops |"
             echo "| Credits spent | $tot_credits |"
             echo "| Requests | $tot_requests |"
