@@ -1008,8 +1008,14 @@ model OddsSnapshot {
   /// American, as the feed returns it and as picks are stored.
   price     Int
 
-  commenceTime DateTime
-  capturedAt   DateTime @default(now())
+  commenceTime   DateTime
+  /// Minutes remaining before kickoff at the moment this price was captured.
+  ///
+  /// Stored rather than derived at read time because every rule in this tool is
+  /// expressed relative to kickoff, and a poll that arrives late must be judged
+  /// on when it actually landed — not on when it was scheduled to.
+  minutesToStart Int
+  capturedAt     DateTime @default(now())
 
   // The detector reads one (event, market, selection, point) line across books
   // over a short window; this index is that query.
@@ -1047,8 +1053,11 @@ model OddsDrop {
   currentPrice Int
   probDelta    Float
 
-  /// Minutes between detection and kickoff, frozen at detection time.
-  minutesToStart Int
+  /// Minutes to kickoff at each side of the comparison, frozen at detection
+  /// time. Stored rather than recomputed because a delayed poll must not be
+  /// reported as though it had sampled the windows precisely.
+  baselineMinutes Int
+  minutesToStart  Int
 
   notifiedAt DateTime?
   detectedAt DateTime  @default(now())
@@ -1069,11 +1078,25 @@ model OddsWatchSettings {
 
   enabled Boolean @default(false)
 
-  /// Poll cadence, and how far ahead of kickoff to start watching.
-  pollMinutes   Int @default(10)
-  leadHours     Int @default(6)
-  /// Alerts stop this many minutes before kickoff.
-  cutoffMinutes Int @default(15)
+  /// Poll cadence. Must be fast enough to land at least one sample in the
+  /// baseline window AND one in the alert window, or a game yields nothing.
+  pollMinutes Int @default(5)
+
+  /// The two windows the whole tool turns on, in minutes before kickoff.
+  ///
+  /// Baseline is drawn from [baselineTo, baselineFrom] — 16-30 minutes out by
+  /// default. An alert can only fire inside the last `alertWithin` minutes.
+  /// Nothing earlier than baselineFrom is fetched at all, which is what makes
+  /// this affordable: most leagues, most of the day, have no game that close.
+  baselineFromMinutes Int @default(30)
+  baselineToMinutes   Int @default(16)
+  alertWithinMinutes  Int @default(15)
+
+  /// Books to price against, as comma-separated feed keys. Up to ten bill as a
+  /// single region, so a short list costs no less than a long one — but one
+  /// invalid key rejects the entire request, so this is not a field to
+  /// experiment in blind. `booksSeen` on the run log reports which answered.
+  bookmakers String @default("bet365,betano")
 
   /// A move must be at least this many implied-probability points, and appear
   /// at this many distinct books, to raise an alert.
@@ -1105,7 +1128,7 @@ model OddsWatchSettings {
   /// answer is cached here on its own slow schedule rather than left to the
   /// framework's fetch cache, which is invisible, not guaranteed to survive
   /// between serverless invocations, and the wrong thing to trust with money.
-  leaguesJson String   @default("")
+  leaguesJson String    @default("")
   leaguesAt   DateTime?
 
   /// Where alerts go.
@@ -1142,9 +1165,45 @@ model OddsPollRun {
   eventsSeen Int @default(0)
   dropsFound Int @default(0)
 
+  /// Books that actually returned a price this run, comma separated.
+  ///
+  /// The one reliable way to tell a wrong book key from a book that simply is
+  /// not pricing a game. The feed rejects an unknown key by failing the whole
+  /// request, so a configured book that never appears here is the first thing
+  /// to check when nothing ever alerts.
+  booksSeen String @default("")
+
   /// Set when the run stopped early — budget cap hit, feed unavailable.
   stoppedReason String?
   error         String?
 
   @@index([startedAt])
+}
+
+/**
+ * Upcoming kickoffs, refreshed on a slow schedule.
+ * This exists purely to avoid paying to find out that nothing is starting soon.
+ * The watcher only cares about games inside the last half hour before kickoff,
+ * and most leagues, most of the time, have none — but discovering that by
+ * requesting odds costs the same as requesting odds for a full slate.
+ * The upstream's events endpoint is far cheaper than an odds request, so the
+ * schedule is fetched from there occasionally and every poll in between reads
+ * this table for free. On a quiet hour the watcher makes no odds requests at
+ * all.
+ */
+model OddsFixture {
+  id String @id @default(cuid())
+
+  eventId  String    @unique
+  sportKey String
+  sport    PickSport
+
+  matchup      String
+  commenceTime DateTime
+
+  refreshedAt DateTime @default(now())
+
+  // The poll's only question: which leagues have a game starting soon.
+  @@index([commenceTime])
+  @@index([sportKey, commenceTime])
 }

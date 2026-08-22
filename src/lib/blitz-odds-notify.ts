@@ -34,7 +34,8 @@ export function dropTitle(drop: OddsDrop): string {
 export function dropBody(drop: OddsDrop): string {
   return (
     `${drop.matchup} · ${formatMove(drop.openPrice, drop.currentPrice)} ` +
-    `(+${drop.probDelta.toFixed(1)} pts) at ${drop.bookCount} books · ${drop.minutesToStart} min to start`
+    `(+${drop.probDelta.toFixed(1)} pts) at ${drop.bookCount} books · ` +
+    `${drop.baselineMinutes} → ${drop.minutesToStart} min before start`
   );
 }
 
@@ -45,7 +46,11 @@ function telegramMessage(drop: OddsDrop): string {
     ``,
     `${esc(formatMove(drop.openPrice, drop.currentPrice))}  (+${drop.probDelta.toFixed(1)} probability points)`,
     `Moved at <b>${drop.bookCount}</b> books: ${esc(drop.books)}`,
-    `Kickoff in ${drop.minutesToStart} min`,
+    ``,
+    // The windows actually sampled, not the ones configured — a late poll
+    // compares 34 minutes to 6, and saying so keeps the claim checkable.
+    `Compared ${drop.baselineMinutes} min out against ${drop.minutesToStart} min out`,
+    `⏱ Kickoff in ${drop.minutesToStart} min`,
   ].join("\n");
 }
 

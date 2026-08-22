@@ -16,8 +16,9 @@ export const dynamic = "force-dynamic";
  */
 const CLAMPS: Record<string, { min: number; max: number }> = {
   pollMinutes: { min: 2, max: 240 },
-  leadHours: { min: 1, max: 48 },
-  cutoffMinutes: { min: 0, max: 180 },
+  baselineFromMinutes: { min: 2, max: 240 },
+  baselineToMinutes: { min: 1, max: 239 },
+  alertWithinMinutes: { min: 1, max: 120 },
   minProbDelta: { min: 0.25, max: 50 },
   minBooks: { min: 1, max: 10 },
   dailyCreditCap: { min: 0, max: 500_000 },
@@ -65,6 +66,34 @@ export async function POST(request: Request) {
   }
   if (typeof body.telegramChatId === "string") {
     data.telegramChatId = body.telegramChatId.trim();
+  }
+  if (typeof body.bookmakers === "string") {
+    // Ten is the upstream's limit for one region's worth of billing, and more
+    // than ten silently changes what a request costs.
+    data.bookmakers = body.bookmakers
+      .split(",")
+      .map((b: string) => b.trim().toLowerCase())
+      .filter(Boolean)
+      .slice(0, 10)
+      .join(",");
+  }
+
+  // The windows have to nest, or the tool asks an impossible question: a
+  // baseline that starts inside the alert window compares a price to itself.
+  const from = Number(data.baselineFromMinutes ?? body.baselineFromMinutes);
+  const to = Number(data.baselineToMinutes ?? body.baselineToMinutes);
+  const alert = Number(data.alertWithinMinutes ?? body.alertWithinMinutes);
+  if (Number.isFinite(from) && Number.isFinite(to) && from <= to) {
+    return NextResponse.json(
+      { error: "The baseline window's start must be further out than its end (e.g. 30 → 16)." },
+      { status: 400 }
+    );
+  }
+  if (Number.isFinite(to) && Number.isFinite(alert) && to <= alert) {
+    return NextResponse.json(
+      { error: "The baseline must end before the alert window opens (e.g. baseline to 16, alert within 15)." },
+      { status: 400 }
+    );
   }
 
   const saved = await prisma.oddsWatchSettings.upsert({

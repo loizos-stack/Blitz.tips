@@ -20,6 +20,7 @@ CREATE TABLE "OddsSnapshot" (
     "bookmaker" TEXT NOT NULL,
     "price" INTEGER NOT NULL,
     "commenceTime" TIMESTAMP(3) NOT NULL,
+    "minutesToStart" INTEGER NOT NULL,
     "capturedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     CONSTRAINT "OddsSnapshot_pkey" PRIMARY KEY ("id")
@@ -42,6 +43,7 @@ CREATE TABLE "OddsDrop" (
     "openPrice" INTEGER NOT NULL,
     "currentPrice" INTEGER NOT NULL,
     "probDelta" DOUBLE PRECISION NOT NULL,
+    "baselineMinutes" INTEGER NOT NULL,
     "minutesToStart" INTEGER NOT NULL,
     "notifiedAt" TIMESTAMP(3),
     "detectedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -53,9 +55,11 @@ CREATE TABLE "OddsDrop" (
 CREATE TABLE "OddsWatchSettings" (
     "id" TEXT NOT NULL DEFAULT 'default',
     "enabled" BOOLEAN NOT NULL DEFAULT false,
-    "pollMinutes" INTEGER NOT NULL DEFAULT 10,
-    "leadHours" INTEGER NOT NULL DEFAULT 6,
-    "cutoffMinutes" INTEGER NOT NULL DEFAULT 15,
+    "pollMinutes" INTEGER NOT NULL DEFAULT 5,
+    "baselineFromMinutes" INTEGER NOT NULL DEFAULT 30,
+    "baselineToMinutes" INTEGER NOT NULL DEFAULT 16,
+    "alertWithinMinutes" INTEGER NOT NULL DEFAULT 15,
+    "bookmakers" TEXT NOT NULL DEFAULT 'bet365,betano',
     "minProbDelta" DOUBLE PRECISION NOT NULL DEFAULT 2.0,
     "minBooks" INTEGER NOT NULL DEFAULT 2,
     "watchGameLines" BOOLEAN NOT NULL DEFAULT true,
@@ -85,10 +89,24 @@ CREATE TABLE "OddsPollRun" (
     "requests" INTEGER NOT NULL DEFAULT 0,
     "eventsSeen" INTEGER NOT NULL DEFAULT 0,
     "dropsFound" INTEGER NOT NULL DEFAULT 0,
+    "booksSeen" TEXT NOT NULL DEFAULT '',
     "stoppedReason" TEXT,
     "error" TEXT,
 
     CONSTRAINT "OddsPollRun_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "OddsFixture" (
+    "id" TEXT NOT NULL,
+    "eventId" TEXT NOT NULL,
+    "sportKey" TEXT NOT NULL,
+    "sport" "PickSport" NOT NULL,
+    "matchup" TEXT NOT NULL,
+    "commenceTime" TIMESTAMP(3) NOT NULL,
+    "refreshedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "OddsFixture_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateIndex
@@ -105,4 +123,13 @@ CREATE INDEX "OddsDrop_eventId_marketKey_selection_point_idx" ON "OddsDrop"("eve
 
 -- CreateIndex
 CREATE INDEX "OddsPollRun_startedAt_idx" ON "OddsPollRun"("startedAt");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "OddsFixture_eventId_key" ON "OddsFixture"("eventId");
+
+-- CreateIndex
+CREATE INDEX "OddsFixture_commenceTime_idx" ON "OddsFixture"("commenceTime");
+
+-- CreateIndex
+CREATE INDEX "OddsFixture_sportKey_commenceTime_idx" ON "OddsFixture"("sportKey", "commenceTime");
 

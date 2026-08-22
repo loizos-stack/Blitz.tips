@@ -10,8 +10,10 @@ import { fetchJson } from "@/lib/fetch-json";
 interface Settings {
   enabled: boolean;
   pollMinutes: number;
-  leadHours: number;
-  cutoffMinutes: number;
+  baselineFromMinutes: number;
+  baselineToMinutes: number;
+  alertWithinMinutes: number;
+  bookmakers: string;
   minProbDelta: number;
   minBooks: number;
   watchGameLines: boolean;
@@ -33,6 +35,7 @@ interface Estimate {
   deepCredits: number;
   perRun: number;
   perDay: number;
+  quietPerDay: number;
 }
 
 interface DropRow {
@@ -47,6 +50,7 @@ interface DropRow {
   openPrice: number;
   currentPrice: number;
   probDelta: number;
+  baselineMinutes: number;
   minutesToStart: number;
   notifiedAt: string | null;
   detectedAt: string;
@@ -59,6 +63,7 @@ interface RunRow {
   requests: number;
   eventsSeen: number;
   dropsFound: number;
+  booksSeen: string;
   stoppedReason: string | null;
   error: string | null;
 }
@@ -251,8 +256,8 @@ export function BlitzOddsManager({
             <p className="text-xs text-muted">spent today</p>
           </div>
           <div>
-            <p className="text-2xl font-bold">{estimate.leagues}</p>
-            <p className="text-xs text-muted">leagues watched</p>
+            <p className="text-2xl font-bold">{estimate.quietPerDay.toLocaleString()}</p>
+            <p className="text-xs text-muted">per quiet day</p>
           </div>
         </div>
 
@@ -270,17 +275,22 @@ export function BlitzOddsManager({
         {overBudget && (
           <p className="mt-3 flex items-start gap-2 text-xs text-danger">
             <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-            At this cadence and depth a full day costs {estimate.perDay.toLocaleString()} credits, more than the{" "}
-            {s.dailyCreditCap.toLocaleString()} cap — so the watcher will stop part-way through each day. Either
-            raise the cap, poll less often, or watch fewer markets.
+            If every watched league had a game kicking off at once, all day, that would cost{" "}
+            {estimate.perDay.toLocaleString()} credits against a {s.dailyCreditCap.toLocaleString()} cap — so
+            the watcher would stop part-way through. That is the worst case, not the expectation; real spend
+            sits far closer to the quiet figure. Narrow the league list if you want the worst case inside the
+            cap too.
           </p>
         )}
 
         <p className="mt-3 flex items-start gap-2 text-xs text-muted">
           <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-          Game lines cost {estimate.gameLineCredits} per cycle — one bulk request per league, however many games
-          it holds. The deep markets cost {estimate.deepCredits}, because props, alternates, corners and cards
-          are only sold per event. That gap is why the deep tier is capped at {s.maxDeepEvents} games.
+          &ldquo;Projected per day&rdquo; is the worst case: every league with a game inside the window on
+          every cycle. Most of the day nothing is close to kickoff and the watcher spends only the{" "}
+          {estimate.quietPerDay.toLocaleString()} credits it takes to refresh the fixture list — that is what
+          keeps this affordable. Game lines are {estimate.gameLineCredits} per busy cycle, one bulk request per
+          league however many games it holds; deep markets add {estimate.deepCredits}, because props,
+          alternates, corners and cards are sold per event.
         </p>
       </div>
 
@@ -314,26 +324,48 @@ export function BlitzOddsManager({
             hint="Off means the scheduled cycle returns immediately and spends nothing."
           />
 
-          <div className="grid gap-4 sm:grid-cols-3">
+          <fieldset className="space-y-3 rounded-lg border border-border p-4">
+            <legend className="px-1 text-sm font-semibold">Windows</legend>
+            <p className="text-xs text-muted">
+              A baseline price is taken between {s.baselineFromMinutes} and {s.baselineToMinutes} minutes
+              before kickoff, and compared against the price inside the last {s.alertWithinMinutes} minutes.
+              Movement earlier in the day is invisible to this tool by design.
+            </p>
+            <div className="grid gap-4 sm:grid-cols-3">
+              <Num
+                label="Baseline from (min before)"
+                value={s.baselineFromMinutes}
+                onChange={(n) => set("baselineFromMinutes", n)}
+                hint="Nothing further out than this is fetched at all — this is the main cost control."
+              />
+              <Num
+                label="Baseline to (min before)"
+                value={s.baselineToMinutes}
+                onChange={(n) => set("baselineToMinutes", n)}
+                hint="Must be greater than the alert window below."
+              />
+              <Num
+                label="Alert within (min before)"
+                value={s.alertWithinMinutes}
+                onChange={(n) => set("alertWithinMinutes", n)}
+                hint="Alerts fire only inside this final stretch, and stop at kickoff."
+              />
+            </div>
             <Num
               label="Poll every (minutes)"
               value={s.pollMinutes}
               onChange={(n) => set("pollMinutes", n)}
-              hint="Also change the cron in .github/workflows/blitz-odds.yml — this describes the cadence, that file supplies it."
+              hint="Must be fast enough to sample BOTH windows — a game whose baseline was never captured raises nothing. Change the cron in .github/workflows/blitz-odds.yml to match; this setting describes the cadence, that file supplies it."
             />
-            <Num
-              label="Watch from (hours before)"
-              value={s.leadHours}
-              onChange={(n) => set("leadHours", n)}
-              hint="Games further out than this are ignored."
-            />
-            <Num
-              label="Stop alerts (minutes before)"
-              value={s.cutoffMinutes}
-              onChange={(n) => set("cutoffMinutes", n)}
-              hint="No alert once a game is this close to kickoff."
-            />
-          </div>
+            {s.pollMinutes * 2 > s.baselineFromMinutes - s.baselineToMinutes + 1 && (
+              <p className="flex items-start gap-2 text-xs text-danger">
+                <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                Polling every {s.pollMinutes} min may not land a sample inside a{" "}
+                {s.baselineFromMinutes - s.baselineToMinutes + 1}-minute baseline window. Poll at least twice
+                as often as the window is wide, or games will silently produce nothing.
+              </p>
+            )}
+          </fieldset>
 
           <div className="grid gap-4 sm:grid-cols-2">
             <Num
@@ -425,6 +457,22 @@ export function BlitzOddsManager({
           </fieldset>
 
           <label className="block">
+            <span className="text-sm font-medium">Books</span>
+            <input
+              value={s.bookmakers}
+              onChange={(e) => set("bookmakers", e.target.value)}
+              placeholder="bet365,betano"
+              className="mt-1 w-full rounded-lg border border-border bg-transparent px-3 py-2 text-sm"
+            />
+            <span className="mt-1 block text-xs text-muted">
+              Comma-separated feed keys. Up to ten bill as a single region, so a short list costs no less
+              than a long one — but <strong>one unrecognised key rejects the entire request</strong>, which
+              looks exactly like &ldquo;no games found&rdquo;. Check the Books column in Recent cycles below
+              to see which actually answered.
+            </span>
+          </label>
+
+          <label className="block">
             <span className="text-sm font-medium">Leagues</span>
             <input
               value={s.sportKeys}
@@ -465,7 +513,7 @@ export function BlitzOddsManager({
                   <th className="pb-2 pr-3 font-medium">Game</th>
                   <th className="pb-2 pr-3 font-medium">Move</th>
                   <th className="pb-2 pr-3 font-medium">Books</th>
-                  <th className="pb-2 pr-3 font-medium">To start</th>
+                  <th className="pb-2 pr-3 font-medium">Window</th>
                   <th className="pb-2 font-medium">Detected</th>
                 </tr>
               </thead>
@@ -494,7 +542,10 @@ export function BlitzOddsManager({
                       <span className="font-medium">{d.bookCount}</span>
                       <span className="block max-w-[16rem] truncate text-xs text-muted">{d.books}</span>
                     </td>
-                    <td className="py-2 pr-3 whitespace-nowrap">{d.minutesToStart} min</td>
+                    <td className="py-2 pr-3 whitespace-nowrap">
+                      {d.baselineMinutes} → {d.minutesToStart} min
+                      <span className="block text-xs text-muted">before kickoff</span>
+                    </td>
                     <td className="py-2 whitespace-nowrap text-xs text-muted">
                       {formatDateTime(d.detectedAt)}
                       {!d.notifiedAt && <span className="block text-danger">not sent</span>}
@@ -522,6 +573,7 @@ export function BlitzOddsManager({
                   <th className="pb-2 pr-3 font-medium">Requests</th>
                   <th className="pb-2 pr-3 font-medium">Events</th>
                   <th className="pb-2 pr-3 font-medium">Drops</th>
+                  <th className="pb-2 pr-3 font-medium">Books</th>
                   <th className="pb-2 font-medium">Note</th>
                 </tr>
               </thead>
@@ -533,6 +585,13 @@ export function BlitzOddsManager({
                     <td className="py-2 pr-3">{r.requests}</td>
                     <td className="py-2 pr-3">{r.eventsSeen}</td>
                     <td className="py-2 pr-3">{r.dropsFound}</td>
+                    <td className="py-2 pr-3 text-xs">
+                      {r.booksSeen ? (
+                        r.booksSeen
+                      ) : (
+                        <span className="text-muted">none</span>
+                      )}
+                    </td>
                     <td className="py-2 text-xs text-muted">
                       {r.error ? <span className="text-danger">{r.error}</span> : r.stoppedReason ?? "—"}
                     </td>

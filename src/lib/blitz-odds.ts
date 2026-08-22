@@ -58,12 +58,22 @@ export function validAmerican(n: number | null | undefined): n is number {
 }
 
 /**
- * One line as we hold it: the same selection priced by one book over time.
- * `prices` is oldest-first.
+ * One observation of a price, tagged by how long was left before kickoff.
+ *
+ * Time-to-kickoff rather than a wall-clock timestamp, because every rule in
+ * this tool is expressed relative to the start of the game. Storing the
+ * relative figure at capture time means a delayed poll cannot silently be
+ * treated as if it had arrived on schedule.
  */
+export interface PricePoint {
+  price: number;
+  minutesToStart: number;
+}
+
+/** The same selection priced by one book across the run-up to kickoff. */
 export interface BookHistory {
   bookmaker: string;
-  prices: { price: number; capturedAt: Date }[];
+  prices: PricePoint[];
 }
 
 export interface BookMove {
@@ -71,6 +81,9 @@ export interface BookMove {
   from: number;
   to: number;
   delta: number;
+  /** Minutes-to-kickoff of each side of the comparison, so the claim is checkable. */
+  fromMinutes: number;
+  toMinutes: number;
 }
 
 export interface DropSignal {
@@ -83,44 +96,79 @@ export interface DropSignal {
   currentPrice: number;
 }
 
+export interface WindowOpts {
+  minProbDelta: number;
+  minBooks: number;
+  /** Baseline is drawn from [baselineTo, baselineFrom] minutes before kickoff. */
+  baselineFrom: number;
+  baselineTo: number;
+  /** An alert may only fire inside [0, alertWithin] minutes before kickoff. */
+  alertWithin: number;
+}
+
 /**
- * Decide whether one selection is dropping.
+ * The latest observation inside a minutes-to-kickoff window.
  *
- * Two rules, and the second is what makes this worth having:
+ * "Latest" means smallest minutes-remaining. For the baseline that gives the
+ * price as it stood entering the final stretch, which is what makes the claim
+ * "it shortened during the last fifteen minutes" true rather than approximate —
+ * taking the 30-minute price instead would credit this window with movement
+ * that happened before it.
+ */
+function latestIn(prices: PricePoint[], from: number, to: number): PricePoint | null {
+  const inWindow = prices.filter(
+    (p) => validAmerican(p.price) && p.minutesToStart <= from && p.minutesToStart >= to
+  );
+  if (inWindow.length === 0) return null;
+  return inWindow.reduce((best, p) => (p.minutesToStart < best.minutesToStart ? p : best));
+}
+
+/**
+ * Decide whether one selection is dropping into kickoff.
  *
- *   1. Each book must shorten by at least `minProbDelta` points.
+ * The comparison is between two fixed windows rather than "then versus now":
+ * a baseline taken 16-30 minutes out, and the current price inside the last 15
+ * minutes. That is a deliberately narrow question — late money, not all-day
+ * drift — and it means a line that moved hours earlier and then sat still
+ * raises nothing.
+ *
+ * Two rules decide it:
+ *
+ *   1. Each book must shorten by at least `minProbDelta` points between those
+ *      two windows.
  *   2. At least `minBooks` distinct books must do it.
  *
- * A single book moving is noise — it can be a stale quote, a limit adjustment,
- * one trader's opinion, or the book simply correcting an error. It is when
- * independent books move the same way that the move carries information, which
- * is exactly why the request was for movement across more than one sportsbook.
+ * A single book moving is noise — a stale quote, a limit adjustment, one
+ * trader's opinion. It is independent books agreeing that carries information.
  *
- * Books that drifted out are ignored rather than netted off. A market where two
- * books shorten and two lengthen is genuinely disagreeing, and averaging that to
- * zero would hide the thing worth seeing; requiring N books to shorten keeps the
- * signal and lets the disagreement show up as a smaller book count.
+ * Books that drifted out are ignored rather than netted off. A market where one
+ * book shortens and another lengthens is genuinely disagreeing, and averaging
+ * that to zero would hide it; requiring N books to shorten keeps the signal and
+ * lets disagreement show up as a smaller book count.
  */
-export function detectDrop(
-  histories: BookHistory[],
-  opts: { minProbDelta: number; minBooks: number }
-): DropSignal | null {
+export function detectDrop(histories: BookHistory[], opts: WindowOpts): DropSignal | null {
   const moves: BookMove[] = [];
 
   for (const h of histories) {
-    const usable = h.prices.filter((p) => validAmerican(p.price));
-    if (usable.length < 2) continue;
+    const base = latestIn(h.prices, opts.baselineFrom, opts.baselineTo);
+    const now = latestIn(h.prices, opts.alertWithin, 0);
+    // Both windows must have been sampled. If the poller missed one — a late
+    // run, a book that only opened a price inside the last minutes — there is
+    // nothing to compare and inventing a baseline would manufacture a drop.
+    if (!base || !now) continue;
+    if (base.price === now.price) continue;
 
-    // Baseline is the oldest price inside the lookback window, not the
-    // all-time open: the caller decides the window, and a drop is "since we
-    // started watching this window", so slow all-day drift doesn't keep
-    // re-alerting.
-    const from = usable[0].price;
-    const to = usable[usable.length - 1].price;
-    if (from === to) continue;
-
-    const delta = probabilityDelta(from, to);
-    if (delta >= opts.minProbDelta) moves.push({ bookmaker: h.bookmaker, from, to, delta });
+    const delta = probabilityDelta(base.price, now.price);
+    if (delta >= opts.minProbDelta) {
+      moves.push({
+        bookmaker: h.bookmaker,
+        from: base.price,
+        to: now.price,
+        delta,
+        fromMinutes: base.minutesToStart,
+        toMinutes: now.minutesToStart,
+      });
+    }
   }
 
   if (moves.length < opts.minBooks) return null;
@@ -151,24 +199,30 @@ export function lineKey(marketKey: string, selection: string, point: number | nu
   return `${marketKey}|${selection}|${point ?? ""}`;
 }
 
-/**
- * Whether an alert is still worth sending.
- *
- * Alerts stop `cutoffMinutes` before kickoff. Past that the price is about to
- * be academic — you cannot reasonably act on it, and books pull or freeze lines
- * into the off — so a late alert is noise that trains you to ignore the useful
- * ones.
- */
-export function withinAlertWindow(
-  commenceTime: Date,
-  now: Date,
-  cutoffMinutes: number
-): boolean {
-  return commenceTime.getTime() - now.getTime() > cutoffMinutes * 60_000;
-}
-
 export function minutesToStart(commenceTime: Date, now: Date): number {
   return Math.round((commenceTime.getTime() - now.getTime()) / 60_000);
+}
+
+/**
+ * Whether a game is close enough to kickoff for an alert to be sent.
+ *
+ * The window is the final `alertWithin` minutes, and it closes at kickoff: once
+ * a game has started the price is no longer bettable as a pre-match line, so a
+ * late alert is noise that trains you to ignore the useful ones.
+ */
+export function inAlertWindow(minutes: number, alertWithin: number): boolean {
+  return minutes > 0 && minutes <= alertWithin;
+}
+
+/**
+ * Whether a game is close enough to be worth spending a request on.
+ *
+ * Everything earlier than the baseline window is irrelevant to this tool, and
+ * not fetching it is the single largest saving available — most of the day, most
+ * leagues have nothing within half an hour of kickoff and cost nothing at all.
+ */
+export function inWatchWindow(minutes: number, baselineFrom: number): boolean {
+  return minutes > 0 && minutes <= baselineFrom;
 }
 
 /**

@@ -38,8 +38,17 @@ on:
   # watcher's pollMinutes — the panel setting describes the cadence, this file
   # supplies it.
   #
+  # FIVE MINUTES IS THE MINIMUM THAT WORKS, and it is tight. A drop is only
+  # found when BOTH windows were sampled: one price between 16 and 30 minutes
+  # before kickoff, another inside the final 15. A fourteen-minute baseline
+  # window needs at least two chances to land in it, and GitHub's scheduler is
+  # best-effort — it routinely fires late and occasionally skips a slot, so a
+  # game can silently produce nothing through no fault of the watcher. If this
+  # tool matters, Vercel Pro's minute-level cron is the fix; this is the
+  # workaround.
+  #
   # schedule:
-  #   - cron: "*/10 * * * *"
+  #   - cron: "*/5 * * * *"
 
   # Runs a cycle by hand from the Actions tab. Works today against whatever
   # SITE_URL points at, and is the right way to smoke-test a preview deploy.

@@ -28,8 +28,10 @@ export default async function BlitzOddsPage() {
       settings={{
         enabled: settings.enabled,
         pollMinutes: settings.pollMinutes,
-        leadHours: settings.leadHours,
-        cutoffMinutes: settings.cutoffMinutes,
+        baselineFromMinutes: settings.baselineFromMinutes,
+        baselineToMinutes: settings.baselineToMinutes,
+        alertWithinMinutes: settings.alertWithinMinutes,
+        bookmakers: settings.bookmakers,
         minProbDelta: settings.minProbDelta,
         minBooks: settings.minBooks,
         watchGameLines: settings.watchGameLines,
@@ -58,6 +60,7 @@ export default async function BlitzOddsPage() {
         openPrice: d.openPrice,
         currentPrice: d.currentPrice,
         probDelta: d.probDelta,
+        baselineMinutes: d.baselineMinutes,
         minutesToStart: d.minutesToStart,
         notifiedAt: d.notifiedAt?.toISOString() ?? null,
         detectedAt: d.detectedAt.toISOString(),
@@ -69,6 +72,7 @@ export default async function BlitzOddsPage() {
         requests: r.requests,
         eventsSeen: r.eventsSeen,
         dropsFound: r.dropsFound,
+        booksSeen: r.booksSeen,
         stoppedReason: r.stoppedReason,
         error: r.error,
       }))}

@@ -15,7 +15,8 @@ import {
   detectDrop,
   lineKey,
   minutesToStart,
-  withinAlertWindow,
+  inAlertWindow,
+  inWatchWindow,
   isNewInformation,
   validAmerican,
   type BookHistory,
@@ -24,36 +25,52 @@ import {
 /**
  * Blitz Odds — the poll cycle.
  *
+ * WHAT IT ANSWERS. Did this price shorten in the last fifteen minutes before
+ * kickoff, at more than one book? A baseline is taken 16-30 minutes out, the
+ * current price is read inside the final 15, and an alert fires only on the
+ * difference between those two windows. Movement earlier in the day is
+ * deliberately invisible to this tool.
+ *
  * COST IS THE DESIGN. The upstream bills every odds request as
  * (markets x regions), and the rest of this site runs on roughly 1,600 credits
- * a month by caching odds for a full day. A drop detector cannot cache: it
- * exists to see change, so it must re-ask, and re-asking is the entire expense.
+ * a month by caching odds for a full day. A drop detector cannot cache — it
+ * exists to see change — so re-asking is the entire expense.
  *
- * Two tiers, and the gap between them is enormous:
+ * Three things keep that affordable, in order of how much they save:
  *
- *   Game lines  — ONE bulk request per league returns every upcoming event with
- *                 every book. 3 markets x 1 region = 3 credits, whether the
- *                 league has one game or forty. This is nearly free and is why
- *                 it is the default.
+ *   1. Only games inside the last half hour are fetched at all. Most leagues,
+ *      most of the day, have none — and the fixture cache means discovering
+ *      that costs nothing (see refreshFixtures).
+ *   2. Game lines come from ONE bulk request per league covering every game in
+ *      it, at 3 markets x 1 region = 3 credits. Up to ten named books bill as a
+ *      single region, so restricting to two books costs no more than one.
+ *   3. Deep markets — alternates, props, corners, cards — are sold per event
+ *      and cost multiples more, so they are opt-in and capped per cycle.
  *
- *   Deep markets — alternates, player props, corners and cards are only offered
- *                 per event. Roughly 6-15 markets x 1 region *per game*. A slate
- *                 of 40 games polled every ten minutes costs more in an
- *                 afternoon than the whole site does in a year.
+ * The whole cycle stops dead at `dailyCreditCap`, checked before each request
+ * against that request's own price, so the ceiling cannot be stepped over by a
+ * large request.
  *
- * So the deep tier is opt-in, capped at `maxDeepEvents` games per run, and the
- * whole cycle stops dead at `dailyCreditCap`. The cap is checked before each
- * request against that request's own price, so the ceiling cannot be stepped
- * over by a large request — it is a ceiling, not a suggestion.
+ * TIMING IS THE RISK. Both windows must actually be sampled: miss the baseline
+ * and there is nothing to compare, miss the final fifteen and the alert never
+ * fires. That makes this tool far more sensitive to a late or skipped run than
+ * the earlier design was, which matters because GitHub's scheduler is
+ * best-effort. Poll fast enough to get several samples in each window.
  */
 
 const REQUEST_TIMEOUT_MS = 20_000;
 
-/** How far back the detector compares. Older snapshots are still pruned later. */
-const LOOKBACK_MINUTES = 90;
-
 /** Snapshots are worthless once a game is under way; keep a small tail for the feed. */
 const SNAPSHOT_RETENTION_HOURS = 6;
+
+/**
+ * How long a cached fixture list is reused before being refetched.
+ *
+ * Kickoff times move rarely and by minutes; an hour-old schedule is still
+ * accurate enough to decide which leagues to look at, and refreshing it more
+ * often would spend more than the odds requests it saves.
+ */
+const FIXTURE_CACHE_MINUTES = 60;
 
 export interface RunReport {
   ran: boolean;
@@ -65,13 +82,17 @@ export interface RunReport {
   error: string | null;
   /** Market keys that returned data this run — feeds the "verified" column. */
   marketsSeen: string[];
+  /** Books that actually priced something — the check on a wrong book key. */
+  booksSeen: string[];
 }
 
 export interface WatchSettings {
   enabled: boolean;
   pollMinutes: number;
-  leadHours: number;
-  cutoffMinutes: number;
+  baselineFromMinutes: number;
+  baselineToMinutes: number;
+  alertWithinMinutes: number;
+  bookmakers: string;
   minProbDelta: number;
   minBooks: number;
   watchGameLines: boolean;
@@ -234,19 +255,98 @@ function afford(budget: Budget, markets: number, regions: number): boolean {
   return true;
 }
 
-async function fetchOdds(url: string): Promise<ApiEvent[] | null> {
+interface FetchResult {
+  events: ApiEvent[] | null;
+  /** Human-readable reason, surfaced to the panel rather than only the logs. */
+  error: string | null;
+}
+
+async function fetchOdds(url: string): Promise<FetchResult> {
   try {
     const res = await fetch(url, { cache: "no-store", signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS) });
     if (!res.ok) {
-      console.error(`Blitz Odds request failed: ${res.status}`);
-      return null;
+      const body = await res.text().catch(() => "");
+      // A 422 here almost always means a bookmaker key the feed does not know:
+      // it rejects the entire request rather than ignoring the unknown name, so
+      // one typo silently yields "no games ever" unless it is called out.
+      const hint =
+        res.status === 422
+          ? " — usually an unrecognised bookmaker or market key; check the Books setting"
+          : "";
+      const reason = `Feed responded ${res.status}${hint}. ${body.slice(0, 200)}`.trim();
+      console.error(`Blitz Odds request failed: ${reason}`);
+      return { events: null, error: reason };
     }
     const json = await res.json();
-    return Array.isArray(json) ? (json as ApiEvent[]) : [json as ApiEvent];
+    return { events: Array.isArray(json) ? (json as ApiEvent[]) : [json as ApiEvent], error: null };
   } catch (e) {
-    console.error("Blitz Odds request errored:", e);
-    return null;
+    const reason = e instanceof Error ? e.message : String(e);
+    console.error("Blitz Odds request errored:", reason);
+    return { events: null, error: reason };
   }
+}
+
+/**
+ * Refresh the cached kickoff list for the leagues we watch.
+ *
+ * Uses the events endpoint, which carries no prices and is billed far below an
+ * odds request. This is what lets a poll skip a league entirely: without it,
+ * finding out that nothing starts in the next half hour costs exactly as much
+ * as a full slate of prices would.
+ */
+async function refreshFixtures(
+  leagues: League[],
+  apiKey: string,
+  budget: Budget,
+  now: Date
+): Promise<void> {
+  const stale = new Date(now.getTime() - FIXTURE_CACHE_MINUTES * 60_000);
+
+  for (const { sport, sportKey } of leagues) {
+    const fresh = await prisma.oddsFixture.findFirst({
+      where: { sportKey, refreshedAt: { gte: stale } },
+      select: { id: true },
+    });
+    if (fresh) continue;
+
+    // The events endpoint carries no markets or regions; bill it as one unit.
+    if (!afford(budget, 1, 1)) return;
+
+    const { events } = await fetchOdds(
+      `${ODDS_API_BASE}/sports/${sportKey}/events?apiKey=${apiKey}`
+    );
+    if (!events) continue;
+
+    for (const ev of events) {
+      const commenceTime = new Date(ev.commence_time);
+      if (Number.isNaN(commenceTime.getTime())) continue;
+      const matchup = formatMatchup(sport, ev.away_team ?? "", ev.home_team ?? "");
+      await prisma.oddsFixture.upsert({
+        where: { eventId: ev.id },
+        create: { eventId: ev.id, sportKey, sport, matchup, commenceTime, refreshedAt: now },
+        update: { sportKey, sport, matchup, commenceTime, refreshedAt: now },
+      });
+    }
+  }
+
+  // Games that have started are no longer of any use to this tool.
+  await prisma.oddsFixture.deleteMany({ where: { commenceTime: { lt: new Date(now.getTime() - 3_600_000) } } });
+}
+
+/** Leagues with a kickoff inside the watch window — the only ones worth pricing. */
+async function leaguesWithImminentGames(
+  leagues: League[],
+  settings: WatchSettings,
+  now: Date
+): Promise<League[]> {
+  const horizon = new Date(now.getTime() + settings.baselineFromMinutes * 60_000);
+  const soon = await prisma.oddsFixture.findMany({
+    where: { commenceTime: { gt: now, lte: horizon } },
+    select: { sportKey: true },
+    distinct: ["sportKey"],
+  });
+  const keys = new Set(soon.map((f) => f.sportKey));
+  return leagues.filter((l) => keys.has(l.sportKey));
 }
 
 /**
@@ -261,9 +361,10 @@ function snapshotRows(
   ev: ApiEvent,
   sportKey: string,
   capturedAt: Date
-): { rows: SnapshotRow[]; marketsSeen: Set<string> } {
+): { rows: SnapshotRow[]; marketsSeen: Set<string>; booksSeen: Set<string> } {
   const rows: SnapshotRow[] = [];
   const marketsSeen = new Set<string>();
+  const booksSeen = new Set<string>();
   const commenceTime = new Date(ev.commence_time);
 
   for (const book of ev.bookmakers ?? []) {
@@ -271,6 +372,7 @@ function snapshotRows(
       for (const o of market.outcomes ?? []) {
         if (!validAmerican(o.price)) continue;
         marketsSeen.add(market.key);
+        booksSeen.add(book.key);
         const selection = o.description ? `${o.description} ${o.name}` : o.name;
         rows.push({
           eventId: ev.id,
@@ -281,12 +383,13 @@ function snapshotRows(
           bookmaker: book.title || book.key,
           price: Math.round(o.price),
           commenceTime,
+          minutesToStart: minutesToStart(commenceTime, capturedAt),
           capturedAt,
         });
       }
     }
   }
-  return { rows, marketsSeen };
+  return { rows, marketsSeen, booksSeen };
 }
 
 interface SnapshotRow {
@@ -298,6 +401,7 @@ interface SnapshotRow {
   bookmaker: string;
   price: number;
   commenceTime: Date;
+  minutesToStart: number;
   capturedAt: Date;
 }
 
@@ -325,6 +429,7 @@ export interface DetectedDrop {
   openPrice: number;
   currentPrice: number;
   probDelta: number;
+  baselineMinutes: number;
   minutesToStart: number;
 }
 
@@ -341,11 +446,19 @@ export async function detectDropsFor(
   now: Date
 ): Promise<DetectedDrop[]> {
   const found: DetectedDrop[] = [];
-  const since = new Date(now.getTime() - LOOKBACK_MINUTES * 60_000);
 
   for (const ev of events) {
-    if (!withinAlertWindow(ev.commenceTime, now, settings.cutoffMinutes)) continue;
+    const left = minutesToStart(ev.commenceTime, now);
+    // Only games actually inside the final stretch can raise anything. A game
+    // still 25 minutes out is being sampled for its baseline, not judged.
+    if (!inAlertWindow(left, settings.alertWithinMinutes)) continue;
 
+    // Everything captured since the baseline window opened. Bounded by the
+    // window rather than a fixed lookback so the query cannot drag in prices
+    // from hours earlier that this tool has no opinion about.
+    const since = new Date(
+      ev.commenceTime.getTime() - settings.baselineFromMinutes * 60_000
+    );
     const snaps = await prisma.oddsSnapshot.findMany({
       where: { eventId: ev.eventId, capturedAt: { gte: since } },
       orderBy: { capturedAt: "asc" },
@@ -354,19 +467,22 @@ export async function detectDropsFor(
 
     // Group into one history per (line, book).
     const lines = new Map<string, Map<string, BookHistory>>();
-    for (const s of snaps) {
-      const lk = lineKey(s.marketKey, s.selection, s.point);
+    for (const snap of snaps) {
+      const lk = lineKey(snap.marketKey, snap.selection, snap.point);
       let books = lines.get(lk);
       if (!books) lines.set(lk, (books = new Map()));
-      let hist = books.get(s.bookmaker);
-      if (!hist) books.set(s.bookmaker, (hist = { bookmaker: s.bookmaker, prices: [] }));
-      hist.prices.push({ price: s.price, capturedAt: s.capturedAt });
+      let hist = books.get(snap.bookmaker);
+      if (!hist) books.set(snap.bookmaker, (hist = { bookmaker: snap.bookmaker, prices: [] }));
+      hist.prices.push({ price: snap.price, minutesToStart: snap.minutesToStart });
     }
 
     for (const [lk, books] of lines) {
       const signal = detectDrop([...books.values()], {
         minProbDelta: settings.minProbDelta,
         minBooks: settings.minBooks,
+        baselineFrom: settings.baselineFromMinutes,
+        baselineTo: settings.baselineToMinutes,
+        alertWithin: settings.alertWithinMinutes,
       });
       if (!signal) continue;
 
@@ -380,6 +496,13 @@ export async function detectDropsFor(
         orderBy: { detectedAt: "desc" },
       });
       if (!isNewInformation(signal, prior?.probDelta ?? null, settings.minProbDelta)) continue;
+
+      // Report the windows that were actually sampled, not the ones configured.
+      // A late poll produces a baseline at, say, 34 minutes rather than 30, and
+      // saying so is the difference between a checkable claim and a plausible
+      // one.
+      const baselineMinutes = Math.max(...signal.moves.map((m) => m.fromMinutes));
+      const currentMinutes = Math.min(...signal.moves.map((m) => m.toMinutes));
 
       found.push({
         eventId: ev.eventId,
@@ -396,7 +519,8 @@ export async function detectDropsFor(
         openPrice: signal.openPrice,
         currentPrice: signal.currentPrice,
         probDelta: Number(signal.probDelta.toFixed(2)),
-        minutesToStart: minutesToStart(ev.commenceTime, now),
+        baselineMinutes,
+        minutesToStart: currentMinutes,
       });
     }
   }
@@ -421,6 +545,7 @@ export async function runBlitzOdds(now = new Date()): Promise<RunReport> {
     stoppedReason: null,
     error: null,
     marketsSeen: [],
+    booksSeen: [],
   };
 
   const settings = await getWatchSettings();
@@ -442,6 +567,7 @@ export async function runBlitzOdds(now = new Date()): Promise<RunReport> {
 
   const run = await prisma.oddsPollRun.create({ data: {} });
   const marketsSeen = new Set<string>();
+  const booksSeen = new Set<string>();
   const seenEvents = new Map<
     string,
     { eventId: string; sport: PickSport; sportKey: string; matchup: string; commenceTime: Date }
@@ -450,8 +576,22 @@ export async function runBlitzOdds(now = new Date()): Promise<RunReport> {
   let error: string | null = null;
 
   try {
-    const windowEnd = new Date(now.getTime() + settings.leadHours * 3_600_000);
-    const leagues = await resolveLeagues(settings);
+    const allLeagues = await resolveLeagues(settings);
+
+    // Cheap first: learn which leagues have a kickoff coming, so the expensive
+    // requests are only made where there is something to watch.
+    await refreshFixtures(allLeagues, apiKey, budget, now);
+    const leagues = await leaguesWithImminentGames(allLeagues, settings, now);
+
+    const books = settings.bookmakers
+      .split(",")
+      .map((b) => b.trim().toLowerCase())
+      .filter(Boolean);
+    // Up to ten named books bill as one region. Naming books rather than a
+    // region is also the only way to reach a book like bet365, which does not
+    // live in the US region the props endpoint uses.
+    const bookParam = books.length > 0 ? `bookmakers=${books.join(",")}` : "regions=us";
+
     const pending: SnapshotRow[] = [];
 
     // --- Tier 1: game lines, one bulk request per league --------------------
@@ -462,19 +602,27 @@ export async function runBlitzOdds(now = new Date()): Promise<RunReport> {
 
         const url =
           `${ODDS_API_BASE}/sports/${sportKey}/odds` +
-          `?apiKey=${apiKey}&regions=us&oddsFormat=american&markets=${markets.join(",")}`;
-        const events = await fetchOdds(url);
-        if (!events) continue;
+          `?apiKey=${apiKey}&${bookParam}&oddsFormat=american&markets=${markets.join(",")}`;
+        const { events, error: fetchError } = await fetchOdds(url);
+        if (!events) {
+          // Keep the first reason: a bad book key fails every league
+          // identically, and repeating it would bury anything else.
+          if (fetchError && !error) error = fetchError;
+          continue;
+        }
 
         for (const ev of events) {
           const commenceTime = new Date(ev.commence_time);
-          // Outside the watch window, or too close to kickoff to act on.
-          if (commenceTime > windowEnd) continue;
-          if (!withinAlertWindow(commenceTime, now, settings.cutoffMinutes)) continue;
+          // Only the run-up to kickoff. Everything else is outside this tool's
+          // question and would be paid for twice — once to fetch, once to store.
+          if (!inWatchWindow(minutesToStart(commenceTime, now), settings.baselineFromMinutes)) {
+            continue;
+          }
 
-          const { rows, marketsSeen: seen } = snapshotRows(ev, sportKey, now);
+          const { rows, marketsSeen: mSeen, booksSeen: bSeen } = snapshotRows(ev, sportKey, now);
           pending.push(...rows);
-          for (const k of seen) marketsSeen.add(k);
+          for (const k of mSeen) marketsSeen.add(k);
+          for (const k of bSeen) booksSeen.add(k);
           seenEvents.set(ev.id, {
             eventId: ev.id,
             sport,
@@ -502,14 +650,15 @@ export async function runBlitzOdds(now = new Date()): Promise<RunReport> {
 
       const url =
         `${ODDS_API_BASE}/sports/${ev.sportKey}/events/${ev.eventId}/odds` +
-        `?apiKey=${apiKey}&regions=us&oddsFormat=american&markets=${markets.map((m) => m.key).join(",")}`;
-      const events = await fetchOdds(url);
+        `?apiKey=${apiKey}&${bookParam}&oddsFormat=american&markets=${markets.map((m) => m.key).join(",")}`;
+      const { events } = await fetchOdds(url);
       if (!events) continue;
 
       for (const raw of events) {
-        const { rows, marketsSeen: seen } = snapshotRows(raw, ev.sportKey, now);
+        const { rows, marketsSeen: mSeen, booksSeen: bSeen } = snapshotRows(raw, ev.sportKey, now);
         pending.push(...rows);
-        for (const k of seen) marketsSeen.add(k);
+        for (const k of mSeen) marketsSeen.add(k);
+        for (const k of bSeen) booksSeen.add(k);
       }
     }
 
@@ -537,6 +686,7 @@ export async function runBlitzOdds(now = new Date()): Promise<RunReport> {
       requests: budget.requests,
       eventsSeen: seenEvents.size,
       dropsFound,
+      booksSeen: [...booksSeen].join(", "),
       stoppedReason: budget.stopped,
       error,
     },
@@ -551,6 +701,7 @@ export async function runBlitzOdds(now = new Date()): Promise<RunReport> {
     stoppedReason: budget.stopped,
     error,
     marketsSeen: [...marketsSeen],
+    booksSeen: [...booksSeen],
   };
 }
 
@@ -570,23 +721,52 @@ export async function pruneSnapshots(now = new Date()): Promise<number> {
 /**
  * What a run would cost at the current settings, without spending anything.
  *
- * Shown in the panel before the switch is thrown. The whole point of this tool
- * failing quietly is a drained quota, and a number on screen beforehand is the
+ * Shown in the panel before the switch is thrown, because the way this tool
+ * fails quietly is a drained quota, and a number on screen beforehand is the
  * cheapest possible way to avoid that.
+ *
+ * Two figures, because they differ by an order of magnitude and the difference
+ * is the whole point:
+ *
+ *   busy   — every watched league has a game inside the window at once. The
+ *            honest worst case, and what the daily cap has to survive.
+ *   quiet  — nothing is starting soon, so only the hourly schedule refresh runs.
+ *
+ * Real spend sits between them and is dominated by how many leagues are being
+ * watched, which is why narrowing the league list is the advice the panel gives.
  */
 export async function estimateRunCost(
   settings: WatchSettings
-): Promise<{ leagues: number; gameLineCredits: number; deepCredits: number; perRun: number; perDay: number }> {
+): Promise<{
+  leagues: number;
+  gameLineCredits: number;
+  deepCredits: number;
+  perRun: number;
+  perDay: number;
+  quietPerDay: number;
+}> {
   const leagues = await resolveLeagues(settings);
   const gameLineCredits = settings.watchGameLines ? leagues.length * GAME_LINE_MARKETS.length : 0;
 
   // Deep spend is per event and dominated by whichever sport is deepest, so the
-  // estimate uses the widest market list any watched league would ask for —
-  // an estimate that under-promises is worse than useless here.
+  // estimate uses the widest market list any watched league would ask for — an
+  // estimate that under-promises is worse than useless here.
   const widest = leagues.reduce((max, l) => Math.max(max, deepMarketsFor(l.sportKey, settings).length), 0);
   const deepCredits = widest * settings.maxDeepEvents;
 
   const perRun = gameLineCredits + deepCredits;
   const runsPerDay = settings.pollMinutes > 0 ? Math.floor((24 * 60) / settings.pollMinutes) : 0;
-  return { leagues: leagues.length, gameLineCredits, deepCredits, perRun, perDay: perRun * runsPerDay };
+
+  // The schedule refresh runs at most once an hour per league and is billed as
+  // a single unit, so it is the floor on a completely quiet day.
+  const refreshesPerDay = leagues.length * Math.floor(24 * (60 / FIXTURE_CACHE_MINUTES));
+
+  return {
+    leagues: leagues.length,
+    gameLineCredits,
+    deepCredits,
+    perRun,
+    perDay: perRun * runsPerDay + refreshesPerDay,
+    quietPerDay: refreshesPerDay,
+  };
 }
