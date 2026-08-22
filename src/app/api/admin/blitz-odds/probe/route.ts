@@ -15,10 +15,19 @@ export const maxDuration = 60;
  *
  * A POST, like the manual cycle, because it spends a request. It reads only —
  * nothing is written — and runs server-side so the key stays on the server.
+ *
+ * Authorized either by an admin holding the `odds` permission (the panel's
+ * button) or by CRON_SECRET, so the answer can also be fetched from the Actions
+ * tab against a deployment that has no browser session — which is the only way
+ * to reach a preview build. Same authority the cron route already carries, and
+ * this one cannot even write.
  */
-export async function POST() {
-  const ctx = await requirePermission("odds");
-  if (!ctx) return NextResponse.json({ error: "Not permitted" }, { status: 403 });
+export async function POST(request: Request) {
+  const cronSecret = process.env.CRON_SECRET;
+  const isCron = Boolean(cronSecret) && request.headers.get("authorization") === `Bearer ${cronSecret}`;
+  if (!isCron && !(await requirePermission("odds"))) {
+    return NextResponse.json({ error: "Not permitted" }, { status: 403 });
+  }
 
   return NextResponse.json(await probeRundown());
 }
