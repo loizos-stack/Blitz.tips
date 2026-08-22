@@ -12,7 +12,8 @@ interface Settings {
   pollMinutes: number;
   baselineFromMinutes: number;
   baselineToMinutes: number;
-  alertWithinMinutes: number;
+  alertFromMinutes: number;
+  alertToMinutes: number;
   bookmakers: string;
   minProbDelta: number;
   minBooks: number;
@@ -327,42 +328,50 @@ export function BlitzOddsManager({
           <fieldset className="space-y-3 rounded-lg border border-border p-4">
             <legend className="px-1 text-sm font-semibold">Windows</legend>
             <p className="text-xs text-muted">
-              A baseline price is taken between {s.baselineFromMinutes} and {s.baselineToMinutes} minutes
-              before kickoff, and compared against the price inside the last {s.alertWithinMinutes} minutes.
-              Movement earlier in the day is invisible to this tool by design.
+              A baseline price is taken {s.baselineFromMinutes}–{s.baselineToMinutes} minutes before kickoff
+              and compared against the price {s.alertFromMinutes}–{s.alertToMinutes} minutes before kickoff.
+              Nothing outside those two bands is ever fetched — not earlier, and not in the final{" "}
+              {s.alertToMinutes} minutes — which is what keeps this cheap. The band ends at{" "}
+              {s.alertToMinutes} minutes so an alert always leaves time to act on it.
             </p>
-            <div className="grid gap-4 sm:grid-cols-3">
+            <div className="grid gap-4 sm:grid-cols-2">
               <Num
                 label="Baseline from (min before)"
                 value={s.baselineFromMinutes}
                 onChange={(n) => set("baselineFromMinutes", n)}
-                hint="Nothing further out than this is fetched at all — this is the main cost control."
+                hint="Nothing further out than this is fetched at all — the main cost control."
               />
               <Num
                 label="Baseline to (min before)"
                 value={s.baselineToMinutes}
                 onChange={(n) => set("baselineToMinutes", n)}
-                hint="Must be greater than the alert window below."
+                hint="Must be greater than the alert band's start."
               />
               <Num
-                label="Alert within (min before)"
-                value={s.alertWithinMinutes}
-                onChange={(n) => set("alertWithinMinutes", n)}
-                hint="Alerts fire only inside this final stretch, and stop at kickoff."
+                label="Alert from (min before)"
+                value={s.alertFromMinutes}
+                onChange={(n) => set("alertFromMinutes", n)}
+                hint="The earliest an alert may fire."
+              />
+              <Num
+                label="Alert to (min before)"
+                value={s.alertToMinutes}
+                onChange={(n) => set("alertToMinutes", n)}
+                hint="The latest. Alerts stop here, so there is still time to place the bet."
               />
             </div>
             <Num
-              label="Poll every (minutes)"
+              label="Effective poll cadence (minutes)"
               value={s.pollMinutes}
               onChange={(n) => set("pollMinutes", n)}
-              hint="Must be fast enough to sample BOTH windows — a game whose baseline was never captured raises nothing. Change the cron in .github/workflows/blitz-odds.yml to match; this setting describes the cadence, that file supplies it."
+              hint="How often a cycle actually runs — the workflow fires every 5 minutes and polls 5 times per run, so this is 1. Used to project spend and to check the cadence against the alert band; the workflow is what actually sets it."
             />
-            {s.pollMinutes * 2 > s.baselineFromMinutes - s.baselineToMinutes + 1 && (
+            {s.pollMinutes * 2 > s.alertFromMinutes - s.alertToMinutes + 1 && (
               <p className="flex items-start gap-2 text-xs text-danger">
                 <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-                Polling every {s.pollMinutes} min may not land a sample inside a{" "}
-                {s.baselineFromMinutes - s.baselineToMinutes + 1}-minute baseline window. Poll at least twice
-                as often as the window is wide, or games will silently produce nothing.
+                The alert band is only {s.alertFromMinutes - s.alertToMinutes + 1} minutes wide, and polling
+                every {s.pollMinutes} min is not frequent enough to reliably land a sample inside it — games
+                will silently produce nothing. Poll at least twice as often as the band is wide.
               </p>
             )}
           </fieldset>

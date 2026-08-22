@@ -15,10 +15,11 @@ export const dynamic = "force-dynamic";
  * here, on the server, not only in the form.
  */
 const CLAMPS: Record<string, { min: number; max: number }> = {
-  pollMinutes: { min: 2, max: 240 },
+  pollMinutes: { min: 1, max: 240 },
   baselineFromMinutes: { min: 2, max: 240 },
   baselineToMinutes: { min: 1, max: 239 },
-  alertWithinMinutes: { min: 1, max: 120 },
+  alertFromMinutes: { min: 2, max: 120 },
+  alertToMinutes: { min: 0, max: 119 },
   minProbDelta: { min: 0.25, max: 50 },
   minBooks: { min: 1, max: 10 },
   dailyCreditCap: { min: 0, max: 500_000 },
@@ -82,16 +83,23 @@ export async function POST(request: Request) {
   // baseline that starts inside the alert window compares a price to itself.
   const from = Number(data.baselineFromMinutes ?? body.baselineFromMinutes);
   const to = Number(data.baselineToMinutes ?? body.baselineToMinutes);
-  const alert = Number(data.alertWithinMinutes ?? body.alertWithinMinutes);
+  const alertFrom = Number(data.alertFromMinutes ?? body.alertFromMinutes);
+  const alertTo = Number(data.alertToMinutes ?? body.alertToMinutes);
   if (Number.isFinite(from) && Number.isFinite(to) && from <= to) {
     return NextResponse.json(
-      { error: "The baseline window's start must be further out than its end (e.g. 30 → 16)." },
+      { error: "The baseline band must start further out than it ends (e.g. 30 → 16)." },
       { status: 400 }
     );
   }
-  if (Number.isFinite(to) && Number.isFinite(alert) && to <= alert) {
+  if (Number.isFinite(alertFrom) && Number.isFinite(alertTo) && alertFrom <= alertTo) {
     return NextResponse.json(
-      { error: "The baseline must end before the alert window opens (e.g. baseline to 16, alert within 15)." },
+      { error: "The alert band must start further out than it ends (e.g. 15 → 10)." },
+      { status: 400 }
+    );
+  }
+  if (Number.isFinite(to) && Number.isFinite(alertFrom) && to <= alertFrom) {
+    return NextResponse.json(
+      { error: "The bands must not overlap — the baseline has to end before the alert band opens (e.g. baseline 30→16, alert 15→10)." },
       { status: 400 }
     );
   }

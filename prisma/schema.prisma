@@ -1078,19 +1078,30 @@ model OddsWatchSettings {
 
   enabled Boolean @default(false)
 
-  /// Poll cadence. Must be fast enough to land at least one sample in the
-  /// baseline window AND one in the alert window, or a game yields nothing.
-  pollMinutes Int @default(5)
+  /// Effective poll cadence in minutes — how often a cycle actually runs, NOT
+  /// how often the workflow is scheduled. The workflow fires every 5 minutes and
+  /// polls 5 times within each run, so the real figure is 1. Used to project
+  /// spend and to warn when the cadence is too slow for the alert band.
+  pollMinutes Int @default(1)
 
   /// The two windows the whole tool turns on, in minutes before kickoff.
   ///
   /// Baseline is drawn from [baselineTo, baselineFrom] — 16-30 minutes out by
-  /// default. An alert can only fire inside the last `alertWithin` minutes.
-  /// Nothing earlier than baselineFrom is fetched at all, which is what makes
-  /// this affordable: most leagues, most of the day, have no game that close.
+  /// default — and compared against a price inside the alert band
+  /// [alertTo, alertFrom], 10-15 minutes out.
+  ///
+  /// The alert band has a FLOOR as well as a ceiling on purpose. An alert that
+  /// arrives two minutes before kickoff is not actionable, and the point of the
+  /// floor is to guarantee there is still time to place the bet when the message
+  /// lands.
+  ///
+  /// Nothing outside these bands is ever fetched, which is what keeps the tool
+  /// affordable: the 0-9 minute run-in and everything beyond 30 minutes cost
+  /// nothing at all.
   baselineFromMinutes Int @default(30)
   baselineToMinutes   Int @default(16)
-  alertWithinMinutes  Int @default(15)
+  alertFromMinutes    Int @default(15)
+  alertToMinutes      Int @default(10)
 
   /// Books to price against, as comma-separated feed keys. Up to ten bill as a
   /// single region, so a short list costs no less than a long one — but one

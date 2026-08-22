@@ -25,11 +25,11 @@ import {
 /**
  * Blitz Odds — the poll cycle.
  *
- * WHAT IT ANSWERS. Did this price shorten in the last fifteen minutes before
- * kickoff, at more than one book? A baseline is taken 16-30 minutes out, the
- * current price is read inside the final 15, and an alert fires only on the
- * difference between those two windows. Movement earlier in the day is
- * deliberately invisible to this tool.
+ * WHAT IT ANSWERS. Did this price shorten going into kickoff, at more than one
+ * book? A baseline is taken 16-30 minutes out, the current price is read 10-15
+ * minutes out, and an alert fires only on the difference between those two
+ * bands. Movement earlier in the day is deliberately invisible to this tool,
+ * and the alert band stops at 10 minutes so there is still time to act.
  *
  * COST IS THE DESIGN. The upstream bills every odds request as
  * (markets x regions), and the rest of this site runs on roughly 1,600 credits
@@ -38,8 +38,9 @@ import {
  *
  * Three things keep that affordable, in order of how much they save:
  *
- *   1. Only games inside the last half hour are fetched at all. Most leagues,
- *      most of the day, have none — and the fixture cache means discovering
+ *   1. Only games inside one of the two bands are fetched at all — never in the
+ *      0-9 minute run-in, never beyond 30 minutes. Most leagues, most of the
+ *      day, have no game in either, and the fixture cache means discovering
  *      that costs nothing (see refreshFixtures).
  *   2. Game lines come from ONE bulk request per league covering every game in
  *      it, at 3 markets x 1 region = 3 credits. Up to ten named books bill as a
@@ -51,11 +52,12 @@ import {
  * against that request's own price, so the ceiling cannot be stepped over by a
  * large request.
  *
- * TIMING IS THE RISK. Both windows must actually be sampled: miss the baseline
- * and there is nothing to compare, miss the final fifteen and the alert never
- * fires. That makes this tool far more sensitive to a late or skipped run than
- * the earlier design was, which matters because GitHub's scheduler is
- * best-effort. Poll fast enough to get several samples in each window.
+ * TIMING IS THE RISK, and the alert band is the binding constraint. Both bands
+ * must actually be sampled: miss the baseline and there is nothing to compare,
+ * miss the alert band and nothing is ever reported. The baseline band is 15
+ * minutes wide and forgiving; the alert band is only 6, so a scheduler that
+ * drifts by more than a few minutes will simply skip games. That is why the
+ * workflow polls several times per scheduled run rather than once.
  */
 
 const REQUEST_TIMEOUT_MS = 20_000;
@@ -91,7 +93,8 @@ export interface WatchSettings {
   pollMinutes: number;
   baselineFromMinutes: number;
   baselineToMinutes: number;
-  alertWithinMinutes: number;
+  alertFromMinutes: number;
+  alertToMinutes: number;
   bookmakers: string;
   minProbDelta: number;
   minBooks: number;
@@ -333,18 +336,36 @@ async function refreshFixtures(
   await prisma.oddsFixture.deleteMany({ where: { commenceTime: { lt: new Date(now.getTime() - 3_600_000) } } });
 }
 
-/** Leagues with a kickoff inside the watch window — the only ones worth pricing. */
+/**
+ * Leagues with a kickoff inside one of the two bands — the only ones worth
+ * pricing right now.
+ *
+ * The ranges are matched exactly, not merged into "anything within 30 minutes".
+ * A league whose only imminent game is four minutes from kickoff has nothing
+ * this tool can use: the alert band has already closed, so the response would be
+ * fetched, paid for, and discarded. Excluding it here is the difference between
+ * paying for a game once and paying for it through its whole run-in.
+ */
 async function leaguesWithImminentGames(
   leagues: League[],
   settings: WatchSettings,
   now: Date
 ): Promise<League[]> {
-  const horizon = new Date(now.getTime() + settings.baselineFromMinutes * 60_000);
+  const at = (minutes: number) => new Date(now.getTime() + minutes * 60_000);
+
   const soon = await prisma.oddsFixture.findMany({
-    where: { commenceTime: { gt: now, lte: horizon } },
+    where: {
+      OR: [
+        // Baseline band.
+        { commenceTime: { gte: at(settings.baselineToMinutes), lte: at(settings.baselineFromMinutes) } },
+        // Alert band.
+        { commenceTime: { gte: at(settings.alertToMinutes), lte: at(settings.alertFromMinutes) } },
+      ],
+    },
     select: { sportKey: true },
     distinct: ["sportKey"],
   });
+
   const keys = new Set(soon.map((f) => f.sportKey));
   return leagues.filter((l) => keys.has(l.sportKey));
 }
@@ -449,9 +470,9 @@ export async function detectDropsFor(
 
   for (const ev of events) {
     const left = minutesToStart(ev.commenceTime, now);
-    // Only games actually inside the final stretch can raise anything. A game
-    // still 25 minutes out is being sampled for its baseline, not judged.
-    if (!inAlertWindow(left, settings.alertWithinMinutes)) continue;
+    // Only games inside the alert band can raise anything. A game still 25
+    // minutes out is being sampled for its baseline, not judged.
+    if (!inAlertWindow(left, settings.alertFromMinutes, settings.alertToMinutes)) continue;
 
     // Everything captured since the baseline window opened. Bounded by the
     // window rather than a fixed lookback so the query cannot drag in prices
@@ -482,7 +503,8 @@ export async function detectDropsFor(
         minBooks: settings.minBooks,
         baselineFrom: settings.baselineFromMinutes,
         baselineTo: settings.baselineToMinutes,
-        alertWithin: settings.alertWithinMinutes,
+        alertFrom: settings.alertFromMinutes,
+        alertTo: settings.alertToMinutes,
       });
       if (!signal) continue;
 
@@ -583,6 +605,15 @@ export async function runBlitzOdds(now = new Date()): Promise<RunReport> {
     await refreshFixtures(allLeagues, apiKey, budget, now);
     const leagues = await leaguesWithImminentGames(allLeagues, settings, now);
 
+    // Both bands, in one shape, so the fetch filter and the detector cannot
+    // drift apart.
+    const windows = {
+      baselineFrom: settings.baselineFromMinutes,
+      baselineTo: settings.baselineToMinutes,
+      alertFrom: settings.alertFromMinutes,
+      alertTo: settings.alertToMinutes,
+    };
+
     const books = settings.bookmakers
       .split(",")
       .map((b) => b.trim().toLowerCase())
@@ -615,9 +646,7 @@ export async function runBlitzOdds(now = new Date()): Promise<RunReport> {
           const commenceTime = new Date(ev.commence_time);
           // Only the run-up to kickoff. Everything else is outside this tool's
           // question and would be paid for twice — once to fetch, once to store.
-          if (!inWatchWindow(minutesToStart(commenceTime, now), settings.baselineFromMinutes)) {
-            continue;
-          }
+          if (!inWatchWindow(minutesToStart(commenceTime, now), windows)) continue;
 
           const { rows, marketsSeen: mSeen, booksSeen: bSeen } = snapshotRows(ev, sportKey, now);
           pending.push(...rows);

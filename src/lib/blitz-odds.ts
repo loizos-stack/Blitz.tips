@@ -102,8 +102,9 @@ export interface WindowOpts {
   /** Baseline is drawn from [baselineTo, baselineFrom] minutes before kickoff. */
   baselineFrom: number;
   baselineTo: number;
-  /** An alert may only fire inside [0, alertWithin] minutes before kickoff. */
-  alertWithin: number;
+  /** The current price is read from [alertTo, alertFrom] minutes before kickoff. */
+  alertFrom: number;
+  alertTo: number;
 }
 
 /**
@@ -126,11 +127,15 @@ function latestIn(prices: PricePoint[], from: number, to: number): PricePoint | 
 /**
  * Decide whether one selection is dropping into kickoff.
  *
- * The comparison is between two fixed windows rather than "then versus now":
- * a baseline taken 16-30 minutes out, and the current price inside the last 15
- * minutes. That is a deliberately narrow question — late money, not all-day
- * drift — and it means a line that moved hours earlier and then sat still
- * raises nothing.
+ * The comparison is between two fixed bands rather than "then versus now": a
+ * baseline taken 16-30 minutes out, and the current price 10-15 minutes out.
+ * That is a deliberately narrow question — late money, not all-day drift — and
+ * it means a line that moved hours earlier and then sat still raises nothing.
+ *
+ * The lower edge of the alert band matters as much as the upper one. Reporting
+ * a move two minutes before kickoff is not useful: by the time the message is
+ * read the price is gone. Ending the band at 10 minutes guarantees there is
+ * still time to act on what the alert says.
  *
  * Two rules decide it:
  *
@@ -151,7 +156,7 @@ export function detectDrop(histories: BookHistory[], opts: WindowOpts): DropSign
 
   for (const h of histories) {
     const base = latestIn(h.prices, opts.baselineFrom, opts.baselineTo);
-    const now = latestIn(h.prices, opts.alertWithin, 0);
+    const now = latestIn(h.prices, opts.alertFrom, opts.alertTo);
     // Both windows must have been sampled. If the poller missed one — a late
     // run, a book that only opened a price inside the last minutes — there is
     // nothing to compare and inventing a baseline would manufacture a drop.
@@ -204,25 +209,31 @@ export function minutesToStart(commenceTime: Date, now: Date): number {
 }
 
 /**
- * Whether a game is close enough to kickoff for an alert to be sent.
+ * Whether a game is inside the band where an alert may fire.
  *
- * The window is the final `alertWithin` minutes, and it closes at kickoff: once
- * a game has started the price is no longer bettable as a pre-match line, so a
- * late alert is noise that trains you to ignore the useful ones.
+ * Both edges are enforced. Too early and the late money has not arrived yet;
+ * too late and the alert cannot be acted on, which trains you to ignore the
+ * ones that can.
  */
-export function inAlertWindow(minutes: number, alertWithin: number): boolean {
-  return minutes > 0 && minutes <= alertWithin;
+export function inAlertWindow(minutes: number, alertFrom: number, alertTo: number): boolean {
+  return minutes <= alertFrom && minutes >= alertTo;
 }
 
 /**
- * Whether a game is close enough to be worth spending a request on.
+ * Whether a game is worth spending a request on right now.
  *
- * Everything earlier than the baseline window is irrelevant to this tool, and
- * not fetching it is the single largest saving available — most of the day, most
- * leagues have nothing within half an hour of kickoff and cost nothing at all.
+ * True only inside the baseline band or the alert band — never in the gap
+ * between kickoff and the alert floor, and never before the baseline opens.
+ * This is the single largest saving in the tool: for any given game the feed is
+ * asked about it during roughly 21 minutes of its life and ignored the rest of
+ * the time, and most leagues on most days are never asked about at all.
  */
-export function inWatchWindow(minutes: number, baselineFrom: number): boolean {
-  return minutes > 0 && minutes <= baselineFrom;
+export function inWatchWindow(
+  minutes: number,
+  opts: { baselineFrom: number; baselineTo: number; alertFrom: number; alertTo: number }
+): boolean {
+  const inBaseline = minutes <= opts.baselineFrom && minutes >= opts.baselineTo;
+  return inBaseline || inAlertWindow(minutes, opts.alertFrom, opts.alertTo);
 }
 
 /**
