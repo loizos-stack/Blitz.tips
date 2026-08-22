@@ -73,7 +73,7 @@ interface RunRow {
 /** What one live Rundown call reports back. Mirrors RundownProbe on the server. */
 interface Probe {
   base: string | null;
-  tried: { base: string; status: number }[];
+  tried: { base: string; status: number; contentType: string; body: string }[];
   sports: { id: number; name: string }[];
   sampled: { sportId: number; name: string; date: string; events: number } | null;
   books: string[];
@@ -412,11 +412,19 @@ export function BlitzOddsManager({
 
               {probe && (
                 <div className="mt-4 space-y-3 text-xs">
-                  <div className="flex flex-wrap gap-x-6 gap-y-1">
+                  <div className="space-y-1">
                     {probe.tried.map((t) => (
-                      <span key={t.base} className={cn(t.status === 200 ? "text-accent" : "text-muted")}>
-                        <code>{t.base}</code> → {t.status === 0 ? "no answer" : `HTTP ${t.status}`}
-                      </span>
+                      <div key={t.base}>
+                        <span className={cn(t.status === 200 ? "text-accent" : "text-muted")}>
+                          <code>{t.base}</code> → {t.status === 0 ? "no answer" : `HTTP ${t.status}`}
+                        </span>
+                        {/* The body is the half that says what actually went
+                            wrong; a status on its own cannot tell a rejected
+                            key from a path that does not exist. */}
+                        {t.base !== probe.base && t.body && (
+                          <p className="mt-0.5 break-all text-muted">{t.body}</p>
+                        )}
+                      </div>
                     ))}
                   </div>
 

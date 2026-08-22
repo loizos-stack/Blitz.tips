@@ -323,7 +323,10 @@ export async function fetchRundownDay(
 export interface RundownProbe {
   /** The host that answered, or null if none did. */
   base: string | null;
-  tried: { base: string; status: number }[];
+  // The body matters as much as the status. A host answered 200 with something
+  // that was not JSON, and discarding it left the one useful fact unreadable —
+  // whether that was an error page, an empty body, or a shape not mapped here.
+  tried: { base: string; status: number; contentType: string; body: string }[];
   sports: { id: number; name: string }[];
   sampled: { sportId: number; name: string; date: string; events: number } | null;
   /** Book names carried on the sampled event — what the Books setting must match. */
@@ -378,6 +381,10 @@ export async function probeRundown(): Promise<RundownProbe> {
           "x-rapidapi-key": key,
           "x-rapidapi-host": new URL(base).host,
           "X-TheRundown-Key": key,
+          // The direct product names its header differently from the RapidAPI
+          // one, and which of the two this key belongs to is the open question.
+          // Sending both costs nothing and rules one of them out.
+          "x-api-key": key,
           Accept: "application/json",
         },
         cache: "no-store",
@@ -390,15 +397,19 @@ export async function probeRundown(): Promise<RundownProbe> {
       } catch {
         /* keep the text for the error line */
       }
-      return { status: res.status, json, text };
+      return { status: res.status, json, text, contentType: res.headers.get("content-type") ?? "" };
     } catch (e) {
-      return { status: 0, json: null, text: e instanceof Error ? e.message : String(e) };
+      const text = e instanceof Error ? e.message : String(e);
+      return { status: 0, json: null, text, contentType: "" };
     }
   };
 
+  // Whitespace-collapsed so an HTML page reads as one line rather than fifty.
+  const snippet = (text: string) => text.replace(/\s+/g, " ").trim().slice(0, 300);
+
   for (const base of new Set(candidates)) {
     const r = await call(base, "/sports");
-    out.tried.push({ base, status: r.status });
+    out.tried.push({ base, status: r.status, contentType: r.contentType, body: snippet(r.text) });
     if (r.status === 200 && r.json) {
       out.base = base;
       const list = (r.json as { sports?: { sport_id?: number; id?: number; sport_name?: string; name?: string }[] })
@@ -413,8 +424,12 @@ export async function probeRundown(): Promise<RundownProbe> {
   }
 
   if (!out.base) {
-    out.error =
-      "No host answered. Either the key belongs to a host not tried above — set RUNDOWN_API_BASE to it — or it is not valid for this product.";
+    // A 200 that is not JSON is a different problem from a rejection, and
+    // saying "no host answered" about one is simply wrong — a host did answer.
+    const answered = out.tried.find((t) => t.status === 200);
+    out.error = answered
+      ? `${answered.base} answered 200 but not with JSON (content-type ${answered.contentType || "unset"}). The path or the response shape differs from the one mapped — the body is below.`
+      : "Every host refused. Either the key belongs to a host not tried above — set RUNDOWN_API_BASE to it — or it is not valid for this product.";
     return out;
   }
 
