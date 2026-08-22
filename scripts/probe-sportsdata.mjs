@@ -93,6 +93,16 @@ function summarise(json) {
   if (Array.isArray(books) && books.length) {
     const names = [...new Set(books.map((b) => b.Sportsbook ?? b.SportsbookName).filter(Boolean))];
     bits.push(`books: ${names.length ? names.slice(0, 4).join(", ") : "unnamed"}`);
+
+    // The free tier returns real field names carrying falsified values, which
+    // is the one failure mode that looks like success. American odds are
+    // undefined between -100 and +100, so a price inside that range is proof
+    // the numbers are fake rather than merely unusual.
+    const prices = books.flatMap((b) => [b.HomeMoneyLine, b.AwayMoneyLine].filter((n) => typeof n === "number"));
+    const fake = prices.filter((n) => Math.abs(n) < 100);
+    if (names.includes("Scrambled") || fake.length > prices.length / 2) {
+      bits.push("!! VALUES SCRAMBLED — trial tier, not real prices");
+    }
   }
 
   if (keys.includes("Competition") || keys.includes("Name")) {

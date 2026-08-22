@@ -91,6 +91,7 @@ interface SdGame {
   GameID?: number | string;
   GameId?: number | string;
   GlobalGameID?: number | string;
+  GlobalGameId?: number | string;
   DateTime?: string;
   Day?: string;
   Status?: string;
@@ -110,6 +111,10 @@ interface SdGame {
 interface SdOdds {
   Sportsbook?: string;
   SportsbookName?: string;
+  SportsbookId?: number | string;
+  // Set when a book has taken the line down. A withdrawn price is not a price
+  // anyone can bet, so these are dropped rather than displayed as live.
+  Unlisted?: string | null;
   HomeMoneyLine?: number | null;
   AwayMoneyLine?: number | null;
   HomePointSpread?: number | null;
@@ -135,7 +140,9 @@ interface SdTeam {
 // Accessors that tolerate the naming variants, so one wrong guess about a field
 // name doesn't blank a whole feed.
 const gameId = (g: SdGame): string | null => {
-  const raw = g.GameID ?? g.GameId ?? g.GlobalGameID;
+  // `GameId`/`GlobalGameId` carry a lowercase `d` on the live feed; the
+  // capitalised spellings are kept because their docs use both.
+  const raw = g.GameID ?? g.GameId ?? g.GlobalGameID ?? g.GlobalGameId;
   return raw === undefined || raw === null ? null : String(raw);
 };
 const homeName = (g: SdGame): string => g.HomeTeamName ?? g.HomeTeam ?? "";
@@ -187,6 +194,45 @@ export function sdDate(d: Date): string {
  * whenever a book is terse.
  */
 const DEFAULT_JUICE = -110;
+
+/**
+ * Whether a number can be an American price at all.
+ *
+ * American odds are undefined between -100 and +100: -100 already means even
+ * money, so -49 would be a bookmaker paying more than double on a favourite. No
+ * real book quotes it, which makes this a structural check rather than a
+ * judgement about whether a price looks sharp — it can only ever reject data
+ * that is wrong.
+ *
+ * It exists because their free tier serves scrambled values (-49 moneylines,
+ * 1.4 MLB totals) under the same field names as real ones. Nothing downstream
+ * could tell the difference, and the board would publish them as prices to bet.
+ */
+export function validAmerican(n: number | null | undefined): boolean {
+  return typeof n === "number" && Number.isFinite(n) && Math.abs(n) >= 100;
+}
+
+/**
+ * Whether a book's row is safe to show.
+ *
+ * One bad number condemns the whole row rather than just its own market. A
+ * scrambled feed corrupts the points too — and a 0.3-run MLB spread priced at a
+ * perfectly ordinary -110 is more dangerous than an obviously broken one,
+ * because it looks real.
+ */
+export function oddsPlausible(odds: SdOdds): boolean {
+  if (odds.Unlisted) return false;
+  const prices = [
+    odds.HomeMoneyLine,
+    odds.AwayMoneyLine,
+    odds.HomePointSpreadPayout,
+    odds.AwayPointSpreadPayout,
+    odds.OverPayout,
+    odds.UnderPayout,
+  ].filter((p) => p !== null && p !== undefined);
+  if (prices.length === 0) return false;
+  return prices.every(validAmerican);
+}
 
 export function marketsFromOdds(odds: SdOdds, home: string, away: string): MarketOption[] {
   const out: MarketOption[] = [];
@@ -254,15 +300,18 @@ const BOOK_PREFERENCE = (process.env.SPORTSDATA_BOOKS ?? "Pinnacle,BetOnline,Boo
   .map((b) => b.trim().toLowerCase())
   .filter(Boolean);
 
-export function chooseBook(books: SdOdds[]): SdOdds | null {
+export function chooseBook(all: SdOdds[]): SdOdds | null {
+  // Filter before preferring, so a preferred book that has pulled its line or
+  // is serving nonsense loses to a lesser book that is quoting real prices.
+  const books = all.filter(oddsPlausible);
   if (books.length === 0) return null;
   for (const want of BOOK_PREFERENCE) {
     const hit = books.find((b) => (b.Sportsbook ?? b.SportsbookName ?? "").toLowerCase() === want);
     if (hit) return hit;
   }
-  // None of the preferred books priced it — take the first that has any line at
-  // all rather than showing nothing.
-  return books.find((b) => b.HomeMoneyLine != null || b.OverUnder != null || b.HomePointSpread != null) ?? books[0];
+  // None of the preferred books priced it — take the first real line rather
+  // than showing nothing.
+  return books[0];
 }
 
 export function bookName(odds: SdOdds | null): string | null {
