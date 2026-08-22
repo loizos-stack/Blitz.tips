@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { requirePermission } from "@/lib/permissions";
 import { logAdmin } from "@/lib/audit";
 import { estimateRunCost, getWatchSettings } from "@/lib/blitz-odds-poll";
+import { rundownConfigured } from "@/lib/blitz-odds-rundown";
 
 export const dynamic = "force-dynamic";
 
@@ -64,6 +65,22 @@ export async function POST(request: Request) {
       .map((s: string) => s.trim())
       .filter(Boolean)
       .join(",");
+  }
+  if (typeof body.provider === "string") {
+    const provider = body.provider.trim().toLowerCase();
+    if (provider !== "oddsapi" && provider !== "rundown") {
+      return NextResponse.json({ error: "Provider must be oddsapi or rundown." }, { status: 400 });
+    }
+    // Refusing to switch to a provider with no key is worth a hard error: the
+    // alternative is a watcher that runs, spends nothing, finds nothing, and
+    // gives no clue why.
+    if (provider === "rundown" && !rundownConfigured()) {
+      return NextResponse.json(
+        { error: "Set RUNDOWN_API_KEY before switching to Rundown — without it the watcher would run and find nothing." },
+        { status: 400 }
+      );
+    }
+    data.provider = provider;
   }
   if (typeof body.telegramChatId === "string") {
     data.telegramChatId = body.telegramChatId.trim();

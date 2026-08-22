@@ -1078,6 +1078,19 @@ model OddsWatchSettings {
 
   enabled Boolean @default(false)
 
+  /// Which feed the watcher reads. "oddsapi" is the same provider the public
+  /// board uses; "rundown" is a separate subscription reached only by this tool.
+  ///
+  /// Worth keeping separate rather than switching the whole site: the two bill
+  /// on completely different axes — the Odds API per (markets x regions), so
+  /// asking for more costs more, and Rundown per request, so it doesn't. A
+  /// runaway watcher on its own provider also cannot take the public board's
+  /// odds down with it.
+  ///
+  /// Defaults to oddsapi because the Rundown adapter's field mapping has never
+  /// met a live response; see lib/blitz-odds-rundown.
+  provider String @default("oddsapi")
+
   /// Effective poll cadence in minutes — how often a cycle actually runs, NOT
   /// how often the workflow is scheduled. The workflow fires every 5 minutes and
   /// polls 5 times within each run, so the real figure is 1. Used to project

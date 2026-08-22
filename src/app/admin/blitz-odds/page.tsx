@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { guardAdminPage } from "@/lib/permissions";
 import { oddsApiKey } from "@/lib/odds-api";
 import { telegramConfigured } from "@/lib/telegram";
+import { rundownConfigured } from "@/lib/blitz-odds-rundown";
 import { getWatchSettings, estimateRunCost, creditsUsedToday } from "@/lib/blitz-odds-poll";
 import { alertChatId } from "@/lib/blitz-odds-notify";
 import { unverifiedMarketKeys } from "@/lib/blitz-odds-markets";
@@ -24,9 +25,11 @@ export default async function BlitzOddsPage() {
     <BlitzOddsManager
       configured={Boolean(oddsApiKey())}
       telegramReady={telegramConfigured() && Boolean(alertChatId(settings))}
+      rundownReady={rundownConfigured()}
       unverifiedMarkets={unverifiedMarketKeys()}
       settings={{
         enabled: settings.enabled,
+        provider: settings.provider,
         pollMinutes: settings.pollMinutes,
         baselineFromMinutes: settings.baselineFromMinutes,
         baselineToMinutes: settings.baselineToMinutes,

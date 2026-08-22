@@ -12,6 +12,12 @@ import {
   type WatchMarket,
 } from "@/lib/blitz-odds-markets";
 import {
+  rundownConfigured,
+  rundownSportIds,
+  fetchRundownDay,
+  datesCovering,
+} from "@/lib/blitz-odds-rundown";
+import {
   detectDrop,
   lineKey,
   minutesToStart,
@@ -90,6 +96,7 @@ export interface RunReport {
 
 export interface WatchSettings {
   enabled: boolean;
+  provider: string;
   pollMinutes: number;
   baselineFromMinutes: number;
   baselineToMinutes: number;
@@ -166,6 +173,25 @@ interface League {
   sportKey: string;
 }
 
+/**
+ * Rundown addresses a sport by a numeric id, not a league key, so its "leagues"
+ * are synthesised as `rundown:<id>`. Keeping the same League shape means the
+ * fixture cache, the band filter and the settings' league list all work
+ * unchanged across both providers.
+ */
+function rundownLeagues(): League[] {
+  return Object.entries(rundownSportIds()).map(([sport, id]) => ({
+    sport: sport as PickSport,
+    sportKey: `rundown:${id}`,
+  }));
+}
+
+/** The numeric sport id inside a `rundown:<id>` key, or null if it isn't one. */
+function rundownIdFor(sportKey: string): number | null {
+  const m = /^rundown:(\d+)$/.exec(sportKey);
+  return m ? Number(m[1]) : null;
+}
+
 async function resolveLeagues(settings: WatchSettings, now = new Date()): Promise<League[]> {
   const configured = settings.sportKeys
     .split(",")
@@ -174,6 +200,10 @@ async function resolveLeagues(settings: WatchSettings, now = new Date()): Promis
 
   const filter = (all: League[]) =>
     configured.length === 0 ? all : all.filter((l) => configured.includes(l.sportKey));
+
+  // Rundown's sport list is a fixed table rather than something discovered from
+  // the API, so there is nothing to cache and nothing to spend finding out.
+  if (settings.provider === "rundown") return filter(rundownLeagues());
 
   const fresh =
     settings.leaguesAt !== null &&
@@ -247,8 +277,12 @@ interface Budget {
  * budget, so a 15-market per-event request cannot sail past a cap with 3
  * credits left on it.
  */
-function afford(budget: Budget, markets: number, regions: number): boolean {
-  const price = markets * regions;
+function afford(budget: Budget, markets: number, regions: number, provider = "oddsapi"): boolean {
+  // Rundown bills a flat request, whatever it contains. Charging it the Odds
+  // API's (markets x regions) would overstate spend threefold and trip the cap
+  // for no reason; charging the Odds API a flat 1 would let it run three times
+  // over. The unit has to follow the provider.
+  const price = provider === "rundown" ? 1 : markets * regions;
   if (budget.spent + price > budget.cap) {
     budget.stopped = `Daily credit cap reached (${budget.cap}).`;
     return false;
@@ -301,7 +335,8 @@ async function refreshFixtures(
   leagues: League[],
   apiKey: string,
   budget: Budget,
-  now: Date
+  now: Date,
+  settings: WatchSettings
 ): Promise<void> {
   const stale = new Date(now.getTime() - FIXTURE_CACHE_MINUTES * 60_000);
 
@@ -312,12 +347,25 @@ async function refreshFixtures(
     });
     if (fresh) continue;
 
-    // The events endpoint carries no markets or regions; bill it as one unit.
-    if (!afford(budget, 1, 1)) return;
+    const rundownId = rundownIdFor(sportKey);
+    let events: ApiEvent[] | null = null;
 
-    const { events } = await fetchOdds(
-      `${ODDS_API_BASE}/sports/${sportKey}/events?apiKey=${apiKey}`
-    );
+    if (rundownId !== null) {
+      // Rundown answers a day at a time, and a game 20 minutes away at 23:50
+      // UTC belongs to tomorrow — so the horizon may straddle two dates.
+      const collected: ApiEvent[] = [];
+      for (const date of datesCovering(now, settings.baselineFromMinutes)) {
+        if (!afford(budget, 1, 1, settings.provider)) return;
+        const day = await fetchRundownDay(rundownId, date, []);
+        if (day.events) collected.push(...day.events);
+      }
+      events = collected;
+    } else {
+      // The events endpoint carries no markets or regions; bill it as one unit.
+      if (!afford(budget, 1, 1, settings.provider)) return;
+      events = (await fetchOdds(`${ODDS_API_BASE}/sports/${sportKey}/events?apiKey=${apiKey}`)).events;
+    }
+
     if (!events) continue;
 
     for (const ev of events) {
@@ -602,7 +650,7 @@ export async function runBlitzOdds(now = new Date()): Promise<RunReport> {
 
     // Cheap first: learn which leagues have a kickoff coming, so the expensive
     // requests are only made where there is something to watch.
-    await refreshFixtures(allLeagues, apiKey, budget, now);
+    await refreshFixtures(allLeagues, apiKey, budget, now, settings);
     const leagues = await leaguesWithImminentGames(allLeagues, settings, now);
 
     // Both bands, in one shape, so the fetch filter and the detector cannot
@@ -629,12 +677,32 @@ export async function runBlitzOdds(now = new Date()): Promise<RunReport> {
     if (settings.watchGameLines) {
       const markets = GAME_LINE_MARKETS.map((m) => m.key);
       for (const { sport, sportKey } of leagues) {
-        if (!afford(budget, markets.length, 1)) break;
+        const rundownId = rundownIdFor(sportKey);
+        let events: ApiEvent[] | null = null;
+        let fetchError: string | null = null;
 
-        const url =
-          `${ODDS_API_BASE}/sports/${sportKey}/odds` +
-          `?apiKey=${apiKey}&${bookParam}&oddsFormat=american&markets=${markets.join(",")}`;
-        const { events, error: fetchError } = await fetchOdds(url);
+        if (rundownId !== null) {
+          // Books are filtered from the response, not requested — a Rundown
+          // request costs the same however many books come back, so narrowing
+          // it on the wire would buy nothing and could only lose data.
+          const collected: ApiEvent[] = [];
+          for (const date of datesCovering(now, settings.baselineFromMinutes)) {
+            if (!afford(budget, 1, 1, settings.provider)) break;
+            const day = await fetchRundownDay(rundownId, date, books);
+            if (day.events) collected.push(...day.events);
+            else if (day.error && !fetchError) fetchError = day.error;
+          }
+          events = collected.length > 0 || !fetchError ? collected : null;
+        } else {
+          if (!afford(budget, markets.length, 1, settings.provider)) break;
+          const res = await fetchOdds(
+            `${ODDS_API_BASE}/sports/${sportKey}/odds` +
+              `?apiKey=${apiKey}&${bookParam}&oddsFormat=american&markets=${markets.join(",")}`
+          );
+          events = res.events;
+          fetchError = res.error;
+        }
+
         if (!events) {
           // Keep the first reason: a bad book key fails every league
           // identically, and repeating it would bury anything else.
@@ -775,12 +843,22 @@ export async function estimateRunCost(
   quietPerDay: number;
 }> {
   const leagues = await resolveLeagues(settings);
-  const gameLineCredits = settings.watchGameLines ? leagues.length * GAME_LINE_MARKETS.length : 0;
+  const rundown = settings.provider === "rundown";
+
+  // Rundown charges a flat request whatever it contains, so a league costs 1
+  // regardless of how many markets or books come back — which is why its
+  // projection is so much lower for the same coverage.
+  const perLeague = rundown ? 1 : GAME_LINE_MARKETS.length;
+  const gameLineCredits = settings.watchGameLines ? leagues.length * perLeague : 0;
 
   // Deep spend is per event and dominated by whichever sport is deepest, so the
   // estimate uses the widest market list any watched league would ask for — an
   // estimate that under-promises is worse than useless here.
-  const widest = leagues.reduce((max, l) => Math.max(max, deepMarketsFor(l.sportKey, settings).length), 0);
+  // Rundown has no per-event endpoint in this adapter — its day request already
+  // carries every book — so the deep tier simply does not apply to it.
+  const widest = rundown
+    ? 0
+    : leagues.reduce((max, l) => Math.max(max, deepMarketsFor(l.sportKey, settings).length), 0);
   const deepCredits = widest * settings.maxDeepEvents;
 
   const perRun = gameLineCredits + deepCredits;

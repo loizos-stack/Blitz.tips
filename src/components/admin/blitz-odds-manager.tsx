@@ -9,6 +9,7 @@ import { fetchJson } from "@/lib/fetch-json";
 
 interface Settings {
   enabled: boolean;
+  provider: string;
   pollMinutes: number;
   baselineFromMinutes: number;
   baselineToMinutes: number;
@@ -72,6 +73,7 @@ interface RunRow {
 interface Props {
   configured: boolean;
   telegramReady: boolean;
+  rundownReady: boolean;
   unverifiedMarkets: string[];
   settings: Settings;
   estimate: Estimate;
@@ -140,6 +142,7 @@ function Toggle({
 export function BlitzOddsManager({
   configured,
   telegramReady,
+  rundownReady,
   unverifiedMarkets,
   settings: initial,
   estimate: initialEstimate,
@@ -324,6 +327,42 @@ export function BlitzOddsManager({
             onChange={(v) => set("enabled", v)}
             hint="Off means the scheduled cycle returns immediately and spends nothing."
           />
+
+          <label className="block">
+            <span className="text-sm font-medium">Feed</span>
+            <select
+              value={s.provider}
+              onChange={(e) => set("provider", e.target.value)}
+              className="mt-1 w-full rounded-lg border border-border bg-transparent px-3 py-2 text-sm"
+            >
+              <option value="oddsapi">The Odds API — shared with the public board</option>
+              <option value="rundown">Rundown — separate subscription, this tool only</option>
+            </select>
+            <span className="mt-1 block text-xs text-muted">
+              {s.provider === "rundown" ? (
+                <>
+                  Rundown bills per request rather than per market, so the book list below costs nothing
+                  either way and every book it carries is fetched and filtered here. It also keeps this tool
+                  off the quota the public board depends on.
+                  {!rundownReady && (
+                    <span className="mt-1 block text-danger">
+                      <code>RUNDOWN_API_KEY</code> is not set — saving this will be refused.
+                    </span>
+                  )}
+                  <span className="mt-1 block">
+                    The field mapping has never seen a live response. Run{" "}
+                    <code>node scripts/probe-rundown.mjs</code> and check the Books column below before
+                    trusting it.
+                  </span>
+                </>
+              ) : (
+                <>
+                  Shares the quota the public board runs on, and bills per (markets × regions) — so the book
+                  and market lists below both cost money here.
+                </>
+              )}
+            </span>
+          </label>
 
           <fieldset className="space-y-3 rounded-lg border border-border p-4">
             <legend className="px-1 text-sm font-semibold">Windows</legend>
