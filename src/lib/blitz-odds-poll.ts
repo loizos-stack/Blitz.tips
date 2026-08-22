@@ -12,7 +12,6 @@ import {
   type WatchMarket,
 } from "@/lib/blitz-odds-markets";
 import {
-  rundownConfigured,
   rundownSportIds,
   fetchRundownDay,
   datesCovering,
@@ -222,10 +221,16 @@ async function resolveLeagues(settings: WatchSettings, now = new Date()): Promis
     for (const sportKey of await watchableSportKeys(sport)) all.push({ sport, sportKey });
   }
 
-  await prisma.oddsWatchSettings.update({
-    where: { id: "default" },
-    data: { leaguesJson: JSON.stringify(all), leaguesAt: now },
-  });
+  // An empty result is never cached. Resolution depends on the upstream being
+  // reachable, so one transient failure would otherwise store "no leagues" for
+  // six hours — during which the watcher runs, spends nothing, finds nothing,
+  // and looks exactly like a quiet day. Better to retry next cycle.
+  if (all.length > 0) {
+    await prisma.oddsWatchSettings.update({
+      where: { id: "default" },
+      data: { leaguesJson: JSON.stringify(all), leaguesAt: now },
+    });
+  }
 
   return filter(all);
 }
@@ -648,10 +653,23 @@ export async function runBlitzOdds(now = new Date()): Promise<RunReport> {
   try {
     const allLeagues = await resolveLeagues(settings);
 
+    // A run that watches nothing is indistinguishable from a quiet one unless it
+    // says so — both report zero everything. Naming the reason is what makes a
+    // misconfigured league list findable rather than mistaken for no games.
+    if (allLeagues.length === 0) {
+      budget.stopped = settings.sportKeys.trim()
+        ? `No league matched the configured list (${settings.sportKeys}).`
+        : "No leagues resolved — the feed may be unreachable or the key rejected.";
+    }
+
     // Cheap first: learn which leagues have a kickoff coming, so the expensive
     // requests are only made where there is something to watch.
     await refreshFixtures(allLeagues, apiKey, budget, now, settings);
     const leagues = await leaguesWithImminentGames(allLeagues, settings, now);
+
+    if (allLeagues.length > 0 && leagues.length === 0 && !budget.stopped) {
+      budget.stopped = `Nothing within ${settings.baselineFromMinutes} min of kickoff across ${allLeagues.length} league(s).`;
+    }
 
     // Both bands, in one shape, so the fetch filter and the detector cannot
     // drift apart.
