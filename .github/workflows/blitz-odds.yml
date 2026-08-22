@@ -27,13 +27,28 @@ name: Blitz Odds watcher
 #      immediately, spends nothing, and simply reports that it is off.
 
 on:
-  schedule:
-    # Every 10 minutes, matching the watcher's default pollMinutes. If you lower
-    # the poll interval in the panel, lower it here too — the panel setting
-    # describes the cadence, this file supplies it.
-    - cron: "*/10 * * * *"
-  # Lets you run a cycle by hand from the Actions tab.
+  # The schedule is deliberately commented out until this is merged and the
+  # route exists on the production domain. Left enabled it hit
+  # https://blitz.tips/api/cron/blitz-odds every 10 minutes, got the site's
+  # not-found page, and failed the job — a recurring red cross on a feature that
+  # simply is not deployed yet, which is the fastest way to teach everyone to
+  # ignore CI.
+  #
+  # AFTER MERGING: uncomment the two lines below. Keep the interval matching the
+  # watcher's pollMinutes — the panel setting describes the cadence, this file
+  # supplies it.
+  #
+  # schedule:
+  #   - cron: "*/10 * * * *"
+
+  # Runs a cycle by hand from the Actions tab. Works today against whatever
+  # SITE_URL points at, and is the right way to smoke-test a preview deploy.
   workflow_dispatch:
+    inputs:
+      site_url:
+        description: "Override the target site (e.g. a preview URL). Defaults to the SITE_URL secret."
+        required: false
+        default: ""
 
 # A slow cycle must never overlap the next one: two runs polling at once would
 # double-spend credits and race on the same snapshot rows.
@@ -48,7 +63,7 @@ jobs:
       - name: Run a Blitz Odds cycle
         env:
           CRON_SECRET: ${{ secrets.CRON_SECRET }}
-          SITE_URL: ${{ secrets.SITE_URL || 'https://blitz.tips' }}
+          SITE_URL: ${{ inputs.site_url || secrets.SITE_URL || 'https://blitz.tips' }}
         run: |
           if [ -z "$CRON_SECRET" ]; then
             echo "::error::CRON_SECRET repository secret is not set — see the header of this file."
@@ -61,13 +76,28 @@ jobs:
             "$SITE_URL/api/cron/blitz-odds")
 
           echo "HTTP $http_status"
-          cat response.json
-          echo
 
           if [ "$http_status" != "200" ]; then
             echo "::error::Blitz Odds returned HTTP $http_status"
+            head -c 2000 response.json
             exit 1
           fi
+
+          # A 200 is not proof of success. The site answers an unknown path with
+          # its own not-found PAGE — HTML, status 200 — so checking the status
+          # alone let a missing route through, and the failure then surfaced as
+          # an unreadable jq parse error four commands later. Confirm the body is
+          # actually the JSON this endpoint returns before trusting any of it.
+          if ! jq -e 'type == "object" and has("credits")' response.json >/dev/null 2>&1; then
+            echo "::error::Expected JSON from /api/cron/blitz-odds but got something else. \
+          The usual cause is that $SITE_URL does not have this route deployed yet — check that the \
+          Blitz Odds branch is live on that domain."
+            head -c 2000 response.json
+            exit 1
+          fi
+
+          cat response.json
+          echo
 
           # Surface spend and findings in the run summary, so the cost of the
           # tool is visible from the Actions tab without opening the site.
