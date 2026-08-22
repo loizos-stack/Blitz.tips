@@ -365,16 +365,35 @@ export async function probeRundown(): Promise<RundownProbe> {
     return out;
   }
 
-  // The same product is sold through RapidAPI and directly, and the key itself
-  // does not say which — so both are tried rather than guessed at.
+  // The key itself does not say which host it belongs to, and the first live
+  // check ruled out both of the obvious answers: the RapidAPI listing refused
+  // with "You are not subscribed to this API", and api.therundown.io/v1 served
+  // the marketing website as HTML. So the list is wider than a guess and every
+  // entry is reported, which turns one run into an answer rather than another
+  // round of the same question.
+  //
+  // rundown.io is included alongside therundown.io deliberately: the
+  // subscription was described as being with the former, and assuming they are
+  // the same company is exactly the sort of assumption that produced the two
+  // dead hosts above.
   const candidates = [
     process.env.RUNDOWN_API_BASE?.trim(),
     "https://therundown-therundown-v1.p.rapidapi.com",
+    "https://api.therundown.io/v2",
     "https://api.therundown.io/v1",
+    "https://therundown.io/api/v2",
+    "https://therundown.io/api/v1",
+    "https://api.rundown.io/v1",
+    "https://api.rundown.io",
   ].filter((b): b is string => Boolean(b));
 
   const key = rundownKey() ?? "";
-  const call = async (base: string, path: string) => {
+  // Discovery walks several hosts, most of which are expected to be wrong. At
+  // the full timeout a few dead ones would exhaust the function's own budget
+  // before reaching the live one, so the walk gets a short leash and the real
+  // request that follows keeps the normal one.
+  const DISCOVERY_TIMEOUT_MS = 6_000;
+  const call = async (base: string, path: string, timeoutMs = REQUEST_TIMEOUT_MS) => {
     try {
       const res = await fetch(`${base}${path}`, {
         headers: {
@@ -388,7 +407,7 @@ export async function probeRundown(): Promise<RundownProbe> {
           Accept: "application/json",
         },
         cache: "no-store",
-        signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+        signal: AbortSignal.timeout(timeoutMs),
       });
       const text = await res.text();
       let json: unknown = null;
@@ -408,7 +427,7 @@ export async function probeRundown(): Promise<RundownProbe> {
   const snippet = (text: string) => text.replace(/\s+/g, " ").trim().slice(0, 300);
 
   for (const base of new Set(candidates)) {
-    const r = await call(base, "/sports");
+    const r = await call(base, "/sports", DISCOVERY_TIMEOUT_MS);
     out.tried.push({ base, status: r.status, contentType: r.contentType, body: snippet(r.text) });
     if (r.status === 200 && r.json) {
       out.base = base;
