@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Zap, Play, Info, AlertCircle, TrendingDown, Save } from "lucide-react";
+import { Zap, Play, Info, AlertCircle, TrendingDown, Save, Stethoscope } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatDateTime } from "@/lib/date-format";
 import { fetchJson } from "@/lib/fetch-json";
@@ -67,6 +67,18 @@ interface RunRow {
   dropsFound: number;
   booksSeen: string;
   stoppedReason: string | null;
+  error: string | null;
+}
+
+/** What one live Rundown call reports back. Mirrors RundownProbe on the server. */
+interface Probe {
+  base: string | null;
+  tried: { base: string; status: number }[];
+  sports: { id: number; name: string }[];
+  sampled: { sportId: number; name: string; date: string; events: number } | null;
+  books: string[];
+  lineFields: { moneyline: string[]; spread: string[]; total: string[] };
+  sampleLine: unknown;
   error: string | null;
 }
 
@@ -156,6 +168,7 @@ export function BlitzOddsManager({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [note, setNote] = useState<string | null>(null);
+  const [probe, setProbe] = useState<Probe | null>(null);
 
   const set = <K extends keyof Settings>(key: K, value: Settings[K]) =>
     setS((prev) => ({ ...prev, [key]: value }));
@@ -204,6 +217,20 @@ export function BlitzOddsManager({
         : "Cycle finished."
     );
     router.refresh();
+  }
+
+  async function runProbe() {
+    setBusy(true);
+    setError(null);
+    setNote(null);
+    setProbe(null);
+    const res = await fetchJson<Probe>("/api/admin/blitz-odds/probe", { method: "POST" });
+    setBusy(false);
+    if (!res.ok || !res.data) {
+      setError(res.error ?? "The probe failed.");
+      return;
+    }
+    setProbe(res.data);
   }
 
   if (!configured) {
@@ -350,9 +377,8 @@ export function BlitzOddsManager({
                     </span>
                   )}
                   <span className="mt-1 block">
-                    The field mapping has never seen a live response. Run{" "}
-                    <code>node scripts/probe-rundown.mjs</code> and check the Books column below before
-                    trusting it.
+                    The field mapping has never seen a live response. Check the feed below before trusting
+                    it.
                   </span>
                 </>
               ) : (
@@ -363,6 +389,98 @@ export function BlitzOddsManager({
               )}
             </span>
           </label>
+
+          {s.provider === "rundown" && (
+            <div className="rounded-lg border border-border p-4">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <p className="text-sm font-medium">Check the feed</p>
+                  <p className="mt-0.5 text-xs text-muted">
+                    One live read. Reports which host answered, the sport ids, and the book and field names a
+                    real response carries — the three things this adapter guesses, and the three that make a
+                    cycle cost money while finding nothing.
+                  </p>
+                </div>
+                <button
+                  onClick={runProbe}
+                  disabled={busy}
+                  className="inline-flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm font-medium hover:border-accent disabled:opacity-60"
+                >
+                  <Stethoscope className="h-4 w-4" /> Check
+                </button>
+              </div>
+
+              {probe && (
+                <div className="mt-4 space-y-3 text-xs">
+                  <div className="flex flex-wrap gap-x-6 gap-y-1">
+                    {probe.tried.map((t) => (
+                      <span key={t.base} className={cn(t.status === 200 ? "text-accent" : "text-muted")}>
+                        <code>{t.base}</code> → {t.status === 0 ? "no answer" : `HTTP ${t.status}`}
+                      </span>
+                    ))}
+                  </div>
+
+                  {probe.error && (
+                    <p className="flex items-start gap-2 text-danger">
+                      <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                      {probe.error}
+                    </p>
+                  )}
+
+                  {probe.sports.length > 0 && (
+                    <p>
+                      <span className="font-medium">Sport ids:</span>{" "}
+                      {probe.sports.map((sp) => `${sp.name}=${sp.id}`).join(", ")}
+                    </p>
+                  )}
+
+                  {probe.sampled && (
+                    <p>
+                      <span className="font-medium">Sampled:</span> {probe.sampled.name} (id{" "}
+                      {probe.sampled.sportId}) on {probe.sampled.date} — {probe.sampled.events} event
+                      {probe.sampled.events === 1 ? "" : "s"}.
+                    </p>
+                  )}
+
+                  {probe.books.length > 0 && (
+                    <>
+                      <p>
+                        <span className="font-medium">Books carried:</span> {probe.books.join(", ")}
+                      </p>
+                      {(() => {
+                        // The whole point of the check: a configured book the feed
+                        // never sends means every cycle stores nothing, silently.
+                        const configuredBooks = s.bookmakers
+                          .split(",")
+                          .map((b) => b.trim().toLowerCase())
+                          .filter(Boolean);
+                        const missing = configuredBooks.filter((b) => !probe.books.includes(b));
+                        if (configuredBooks.length === 0) return null;
+                        return missing.length === 0 ? (
+                          <p className="text-accent">Every configured book is on that list.</p>
+                        ) : (
+                          <p className="text-danger">
+                            Not carried under {missing.length === 1 ? "this name" : "these names"}:{" "}
+                            {missing.join(", ")}. Nothing will ever be stored for{" "}
+                            {missing.length === 1 ? "it" : "them"} — copy the names above into Books.
+                          </p>
+                        );
+                      })()}
+                    </>
+                  )}
+
+                  {probe.sampleLine != null && (
+                    <div>
+                      <p className="font-medium">One line, as it arrives:</p>
+                      <pre className="mt-1 max-h-64 overflow-auto rounded-lg border border-border p-3">
+                        {JSON.stringify(probe.sampleLine, null, 2)}
+                      </pre>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
 
           <fieldset className="space-y-3 rounded-lg border border-border p-4">
             <legend className="px-1 text-sm font-semibold">Windows</legend>

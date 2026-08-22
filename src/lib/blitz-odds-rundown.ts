@@ -316,3 +316,142 @@ export async function fetchRundownDay(
     };
   }
 }
+
+
+// --- Probe ------------------------------------------------------------------
+
+export interface RundownProbe {
+  /** The host that answered, or null if none did. */
+  base: string | null;
+  tried: { base: string; status: number }[];
+  sports: { id: number; name: string }[];
+  sampled: { sportId: number; name: string; date: string; events: number } | null;
+  /** Book names carried on the sampled event — what the Books setting must match. */
+  books: string[];
+  /** Field names inside one line, which is what the adapter maps. */
+  lineFields: { moneyline: string[]; spread: string[]; total: string[] };
+  /** A real line's values, so wrong-looking numbers are visible too. */
+  sampleLine: unknown;
+  error: string | null;
+}
+
+/**
+ * Ask Rundown what it actually returns.
+ *
+ * Three things in this adapter are guesses — the host and auth header, the
+ * numeric sport ids, and the field names inside `lines` — and all three fail the
+ * same way: a successful-looking request carrying nothing the watcher can use.
+ * This resolves all three from one live call, which is the only thing that can.
+ *
+ * Runs server-side so the key never leaves Vercel, and reads only.
+ */
+export async function probeRundown(): Promise<RundownProbe> {
+  const out: RundownProbe = {
+    base: null,
+    tried: [],
+    sports: [],
+    sampled: null,
+    books: [],
+    lineFields: { moneyline: [], spread: [], total: [] },
+    sampleLine: null,
+    error: null,
+  };
+
+  if (!rundownConfigured()) {
+    out.error = "RUNDOWN_API_KEY is not set.";
+    return out;
+  }
+
+  // The same product is sold through RapidAPI and directly, and the key itself
+  // does not say which — so both are tried rather than guessed at.
+  const candidates = [
+    process.env.RUNDOWN_API_BASE?.trim(),
+    "https://therundown-therundown-v1.p.rapidapi.com",
+    "https://api.therundown.io/v1",
+  ].filter((b): b is string => Boolean(b));
+
+  const key = rundownKey() ?? "";
+  const call = async (base: string, path: string) => {
+    try {
+      const res = await fetch(`${base}${path}`, {
+        headers: {
+          "x-rapidapi-key": key,
+          "x-rapidapi-host": new URL(base).host,
+          "X-TheRundown-Key": key,
+          Accept: "application/json",
+        },
+        cache: "no-store",
+        signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+      });
+      const text = await res.text();
+      let json: unknown = null;
+      try {
+        json = JSON.parse(text);
+      } catch {
+        /* keep the text for the error line */
+      }
+      return { status: res.status, json, text };
+    } catch (e) {
+      return { status: 0, json: null, text: e instanceof Error ? e.message : String(e) };
+    }
+  };
+
+  for (const base of new Set(candidates)) {
+    const r = await call(base, "/sports");
+    out.tried.push({ base, status: r.status });
+    if (r.status === 200 && r.json) {
+      out.base = base;
+      const list = (r.json as { sports?: { sport_id?: number; id?: number; sport_name?: string; name?: string }[] })
+        .sports ?? [];
+      out.sports = list
+        .map((sp) => ({ id: Number(sp.sport_id ?? sp.id), name: String(sp.sport_name ?? sp.name ?? "") }))
+        .filter((sp) => Number.isFinite(sp.id));
+      // Stop at the first host that answers. Carrying on would spend requests on
+      // hosts that cannot matter, and this endpoint is billed like any other.
+      break;
+    }
+  }
+
+  if (!out.base) {
+    out.error =
+      "No host answered. Either the key belongs to a host not tried above — set RUNDOWN_API_BASE to it — or it is not valid for this product.";
+    return out;
+  }
+
+  // Sample a sport that plays most days, so the probe is useful whenever it runs.
+  const preferred = ["MLB", "NBA", "NHL", "NFL", "Soccer"];
+  const pick = out.sports.find((sp) => preferred.includes(sp.name)) ?? out.sports[0];
+  if (!pick) {
+    out.error = "The host answered but listed no sports, so the response shape differs from the one mapped.";
+    return out;
+  }
+
+  const date = new Date().toISOString().slice(0, 10);
+  const r = await call(out.base, `/sports/${pick.id}/events/${date}`);
+  if (r.status !== 200) {
+    out.error = `Events request for ${pick.name} (id ${pick.id}) returned ${r.status}: ${r.text.slice(0, 200)}`;
+    return out;
+  }
+
+  const events = ((r.json as RdEventsResponse)?.events ?? []) as RdEvent[];
+  out.sampled = { sportId: pick.id, name: pick.name, date, events: events.length };
+  if (events.length === 0) {
+    out.error = `No ${pick.name} games listed for ${date} — try again on a match day, or the sport id is wrong.`;
+    return out;
+  }
+
+  const sample = events[0];
+  out.books = [...new Set(events.flatMap(booksOn))];
+
+  const first = Object.values(sample.lines ?? {})[0];
+  if (first) {
+    out.lineFields = {
+      moneyline: Object.keys(first.moneyline ?? {}),
+      spread: Object.keys(first.spread ?? {}),
+      total: Object.keys(first.total ?? {}),
+    };
+    out.sampleLine = { moneyline: first.moneyline, spread: first.spread, total: first.total };
+  }
+
+  return out;
+}
