@@ -17,16 +17,21 @@ import { validAmerican } from "@/lib/blitz-odds";
  * It also keeps Blitz Odds off the quota the public board depends on. A runaway
  * watcher can no longer take the site's odds down with it.
  *
- * ⚠ UNVERIFIED. This sandbox cannot reach therundown.io, so every field name and
- * path below comes from their published shapes and has never seen a live
- * response. They are deliberately confined to this file, and
- * scripts/probe-rundown.mjs prints what the API actually returns so the mapping
- * can be corrected against fact rather than argued about. Until that has been
- * run, treat this adapter as a hypothesis — which is why the provider setting
- * still defaults to the Odds API.
+ * WHAT IS VERIFIED, AND WHAT IS NOT. The host and the sport ids below are read
+ * from a live response and are fact. The field names inside `lines` are still
+ * from the published shapes and have never been seen: no game was in progress
+ * on the day the host was found, so the sample came back empty. Run the panel's
+ * "Check the feed" (or the Blitz Odds — check the feed workflow) on a match day
+ * and the sample line it prints settles them.
+ *
+ * The host cost an afternoon, so it is worth writing down what was wrong: the
+ * RapidAPI listing answers "You are not subscribed to this API", and
+ * api.therundown.io — the obvious guess — is their marketing website and
+ * answers 200 with HTML at every path, which reads as a working API returning
+ * nothing. The API is on the main domain, under /api/v2.
  */
 
-const DEFAULT_BASE = "https://therundown-therundown-v1.p.rapidapi.com";
+const DEFAULT_BASE = "https://therundown.io/api/v2";
 
 export function rundownBase(): string {
   return (process.env.RUNDOWN_API_BASE?.trim() || DEFAULT_BASE).replace(/\/+$/, "");
@@ -43,10 +48,11 @@ export function rundownConfigured(): boolean {
 /**
  * Auth headers.
  *
- * Both spellings are sent because the same product is reachable through
- * RapidAPI and directly, with a different header on each, and sending the wrong
- * one alone produces a bare 401 that says nothing about which. Sending both
- * costs nothing and removes a question.
+ * Every spelling is sent. The probe that found the working host sent all four
+ * at once and the host accepted the request, so which one it honoured is not
+ * known — and sending a narrower set here than the probe sent there would risk
+ * a poller that fails while the diagnostic passes, which is the worst possible
+ * arrangement. They cost nothing.
  */
 export function rundownHeaders(): Record<string, string> {
   const key = rundownKey() ?? "";
@@ -54,37 +60,59 @@ export function rundownHeaders(): Record<string, string> {
     "x-rapidapi-key": key,
     "x-rapidapi-host": new URL(rundownBase()).host,
     "X-TheRundown-Key": key,
+    "x-api-key": key,
     Accept: "application/json",
   };
 }
 
 /**
- * PickSport → Rundown's numeric sport id.
+ * PickSport → Rundown's numeric sport ids, read from a live /sports response.
  *
- * Their ids are stable but not guessable, and this map is the single most
- * likely thing here to be wrong. `RUNDOWN_SPORT_IDS` overrides it without a
- * deploy ("NFL:2,MLB:6"), and the probe prints the real list.
+ * Several ids per sport, because one is not enough. Rundown has no single
+ * "soccer": each competition is its own sport id, so a single id there would
+ * have watched MLS and quietly ignored every European league. The same applies
+ * to the seasonal splits — NFL preseason is id 25, not 2, which in August is
+ * the difference between every game and none.
+ *
+ * COST. Each id is one request per fixture refresh, so this list is the main
+ * lever on spend. It covers the competitions worth watching rather than all 36
+ * on offer; `RUNDOWN_SPORT_IDS` overrides any entry without a deploy
+ * ("SOCCER:11|14,NFL:2").
+ *
+ * The full list at the time of reading: 1 NCAA Football, 2 NFL, 3 MLB, 4 NBA,
+ * 5 NCAA Men's Basketball, 6 NHL, 7 UFC/MMA, 8 WNBA, 10 MLS, 11 EPL, 12 FRA1,
+ * 13 GER1, 14 ESP1, 15 ITA1, 16 UEFACHAMP, 17 UEFAEURO, 18 FIFA, 19 JPN1,
+ * 20 IPL, 21 T20, 22 Politics, 23 NBA Preseason, 24 NBA Playoffs,
+ * 25 NFL Preseason, 26 NFL Playoffs, 27 NHL Preseason, 28 NHL Playoffs,
+ * 30 MLB Spring Training, 31 MLB Playoffs, 32 NBA Summer League,
+ * 33 UEFA Europa League, 34 Liga MX, 38 ATP, 39 WTA, 40 PGA, 41 Formula 1.
  */
-const DEFAULT_SPORT_IDS: Partial<Record<PickSport, number>> = {
-  NCAAF: 1,
-  NFL: 2,
-  MLB: 3,
-  NBA: 4,
-  NHL: 6,
-  NCAAB: 5,
-  UFC_MMA: 7,
-  SOCCER: 10,
+const DEFAULT_SPORT_IDS: Partial<Record<PickSport, number[]>> = {
+  NFL: [2, 25],
+  NBA: [4],
+  WNBA: [8],
+  MLB: [3],
+  NHL: [6],
+  NCAAF: [1],
+  NCAAB: [5],
+  SOCCER: [10, 11, 12, 13, 14, 15, 16, 33, 34],
+  UFC_MMA: [7],
 };
 
-export function rundownSportIds(): Partial<Record<PickSport, number>> {
+export function rundownSportIds(): Partial<Record<PickSport, number[]>> {
   const raw = process.env.RUNDOWN_SPORT_IDS?.trim();
   if (!raw) return DEFAULT_SPORT_IDS;
 
-  const out: Partial<Record<PickSport, number>> = { ...DEFAULT_SPORT_IDS };
+  const out: Partial<Record<PickSport, number[]>> = { ...DEFAULT_SPORT_IDS };
   for (const pair of raw.split(",")) {
-    const [sport, id] = pair.split(":").map((s) => s.trim());
-    const n = Number(id);
-    if (sport && Number.isInteger(n)) out[sport as PickSport] = n;
+    const [sport, ids] = pair.split(":").map((s) => s.trim());
+    // "SOCCER:11|14" — several ids for one sport, since that is the shape the
+    // feed actually has. A single id still works and reads the same.
+    const list = (ids ?? "")
+      .split("|")
+      .map((n) => Number(n.trim()))
+      .filter((n) => Number.isInteger(n));
+    if (sport && list.length) out[sport as PickSport] = list;
   }
   return out;
 }
@@ -452,25 +480,39 @@ export async function probeRundown(): Promise<RundownProbe> {
     return out;
   }
 
-  // Sample a sport that plays most days, so the probe is useful whenever it runs.
-  const preferred = ["MLB", "NBA", "NHL", "NFL", "Soccer"];
-  const pick = out.sports.find((sp) => preferred.includes(sp.name)) ?? out.sports[0];
-  if (!pick) {
+  // Sample a sport that has games TODAY. The first attempt at this took the
+  // first match in the sports list rather than in preference order, landed on
+  // NFL in August, and reported zero events — which says nothing about the
+  // field names, the one thing the sample exists to show. So: preference order,
+  // and keep trying down the list until a sport actually has a game on.
+  const preferred = ["MLB", "EPL", "MLS", "NBA", "NHL", "WNBA", "NFL Preseason", "NFL"];
+  const ranked = [
+    ...preferred.map((name) => out.sports.find((sp) => sp.name === name)).filter((sp) => sp !== undefined),
+    ...out.sports,
+  ];
+  if (ranked.length === 0) {
     out.error = "The host answered but listed no sports, so the response shape differs from the one mapped.";
     return out;
   }
 
   const date = new Date().toISOString().slice(0, 10);
-  const r = await call(out.base, `/sports/${pick.id}/events/${date}`);
-  if (r.status !== 200) {
-    out.error = `Events request for ${pick.name} (id ${pick.id}) returned ${r.status}: ${r.text.slice(0, 200)}`;
-    return out;
+  let events: RdEvent[] = [];
+  let pick = ranked[0];
+  // A handful of attempts, not the whole list: each one is a billed request.
+  for (const candidate of ranked.slice(0, 4)) {
+    const r = await call(out.base, `/sports/${candidate.id}/events/${date}`, DISCOVERY_TIMEOUT_MS);
+    pick = candidate;
+    if (r.status !== 200) {
+      out.error = `Events request for ${candidate.name} (id ${candidate.id}) returned ${r.status}: ${snippet(r.text)}`;
+      out.sampled = { sportId: candidate.id, name: candidate.name, date, events: 0 };
+      return out;
+    }
+    events = ((r.json as RdEventsResponse)?.events ?? []) as RdEvent[];
+    out.sampled = { sportId: candidate.id, name: candidate.name, date, events: events.length };
+    if (events.length > 0) break;
   }
-
-  const events = ((r.json as RdEventsResponse)?.events ?? []) as RdEvent[];
-  out.sampled = { sportId: pick.id, name: pick.name, date, events: events.length };
   if (events.length === 0) {
-    out.error = `No ${pick.name} games listed for ${date} — try again on a match day, or the sport id is wrong.`;
+    out.error = `No games listed for ${date} in any of the sports tried (last: ${pick.name}, id ${pick.id}). The host and the sport ids are confirmed working, so this is most likely a genuinely empty day — run it again when something is on and the sample line will appear.`;
     return out;
   }
 

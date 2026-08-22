@@ -187,10 +187,11 @@ interface League {
  * unchanged across both providers.
  */
 function rundownLeagues(): League[] {
-  return Object.entries(rundownSportIds()).map(([sport, id]) => ({
-    sport: sport as PickSport,
-    sportKey: `rundown:${id}`,
-  }));
+  // One sport can carry several ids — soccer is nine competitions there, not
+  // one — so this flattens rather than mapping one to one.
+  return Object.entries(rundownSportIds()).flatMap(([sport, ids]) =>
+    (ids ?? []).map((id) => ({ sport: sport as PickSport, sportKey: `rundown:${id}` }))
+  );
 }
 
 /** The numeric sport id inside a `rundown:<id>` key, or null if it isn't one. */
