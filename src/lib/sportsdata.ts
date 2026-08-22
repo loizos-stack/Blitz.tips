@@ -129,10 +129,14 @@ interface SdOdds {
 interface SdTeam {
   Key?: string;
   TeamID?: number | string;
-  City?: string;
+  // Null for at least one live club (the Athletics, mid-relocation), so this is
+  // never assumed to be present.
+  City?: string | null;
   Name?: string;
   FullName?: string;
+  Active?: boolean;
   WikipediaLogoUrl?: string;
+  WikipediaWordMarkUrl?: string;
   TeamLogoUrl?: string;
   LogoUrl?: string;
 }
@@ -427,14 +431,33 @@ export async function getTeamLogos(sport: PickSport, revalidate = 86_400): Promi
   const teams = await get<SdTeam[]>(`/${path}/scores/json/Teams`, revalidate);
   if (!Array.isArray(teams)) return out;
 
+  // The odds feed identifies clubs by their `Key` ("NYY", "TOR"), so that alias
+  // is the one that actually gets hit. The rest are indexed anyway because the
+  // scores feeds spell teams differently.
+  //
+  // An alias that two clubs share is dropped rather than letting the last one
+  // win. In MLB nothing collides, but college feeds are full of Bulldogs and
+  // Wildcats, and a silently wrong crest is worse than none — you can see a
+  // missing logo, but a plausible wrong one just looks like the board is lying.
+  const ambiguous = new Set<string>();
+
   for (const t of teams) {
+    if (t.Active === false) continue;
     const logo = teamLogo(t);
     if (!logo) continue;
-    // Index every name the odds feed might use for the same club.
-    for (const name of [t.FullName, t.Name, t.Key, [t.City, t.Name].filter(Boolean).join(" ")]) {
-      if (name && name.trim()) out.set(name.trim().toLowerCase(), logo);
+    for (const alias of [t.FullName, t.Name, t.Key, [t.City, t.Name].filter(Boolean).join(" ")]) {
+      const name = alias?.trim().toLowerCase();
+      if (!name) continue;
+      const seen = out.get(name);
+      if (seen && seen !== logo) {
+        ambiguous.add(name);
+      } else {
+        out.set(name, logo);
+      }
     }
   }
+
+  for (const name of ambiguous) out.delete(name);
 
   return out;
 }
