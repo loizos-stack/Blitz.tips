@@ -185,7 +185,21 @@ function teamName(t: RdTeam | undefined): string {
   return t.name ?? t.mascot ?? t.abbreviation ?? "";
 }
 
-/** Book key we store against, lowercased so it matches the configured list. */
+/**
+ * Book key we store against, lowercased so it matches the configured list.
+ *
+ * Verified against a live /affiliates response. Rundown's own spellings are
+ * inconsistent — "Fanduel", "Draftkings", "BetMGM" — so lowercasing and
+ * stripping spaces is what makes `draftkings,fanduel,betmgm` match all three;
+ * copying their capitalisation into the Books setting would match none.
+ *
+ * The 21 books the subscription lists: Pinnacle 3, Bovada 2, Sportsbetting 4,
+ * BetOnline 6, Lowvig 11, Bodog 12, Intertops 14, Matchbook 16, YouWager 18,
+ * Draftkings 19, Unibet 21, BetMGM 22, Fanduel 23, theScore Bet 24, Kalshi 25,
+ * Polymarket 26, Bet365 27, HardRock 28, ProphetX 29, Novig 30,
+ * Polymarket US 31. Note bet365 IS here and betano is not, so the setting's
+ * old default would have half-matched — one book, never the two a drop needs.
+ */
 function bookKey(line: RdLine, fallbackId: string): string {
   const name = line.affiliate?.affiliate_name?.trim();
   if (name) return name.toLowerCase().replace(/\s+/g, "");
