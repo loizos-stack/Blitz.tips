@@ -318,11 +318,17 @@ export async function fetchRundownDay(
     if (!res.ok) {
       const body = await res.text().catch(() => "");
       const hint =
-        res.status === 401 || res.status === 403
-          ? " — check RUNDOWN_API_KEY, and whether the key is for RapidAPI or the direct API"
-          : res.status === 404
-            ? " — usually a wrong sport id; run scripts/probe-rundown.mjs to list the real ones"
-            : "";
+        // Not rate limiting: Rundown charges per response and answers 429 when
+        // the account's balance cannot cover one. A watcher that reported this
+        // as a transient failure would retry it every minute, forever, and
+        // never say the one thing that matters.
+        res.status === 429
+          ? " — the subscription is out of credit, not rate limited. Nothing here will work until the balance is topped up"
+          : res.status === 401 || res.status === 403
+            ? " — check RUNDOWN_API_KEY, and whether the key is for RapidAPI or the direct API"
+            : res.status === 404
+              ? " — usually a wrong sport id; use Check the feed in the panel to list the real ones"
+              : "";
       return {
         events: null,
         error: `Rundown responded ${res.status}${hint}. ${body.slice(0, 200)}`.trim(),
@@ -356,6 +362,14 @@ export interface RundownProbe {
   // whether that was an error page, an empty body, or a shape not mapped here.
   tried: { base: string; status: number; contentType: string; body: string }[];
   sports: { id: number; name: string }[];
+  /**
+   * Every bookmaker the subscription can address, by id and name.
+   *
+   * This comes from a metadata endpoint rather than from a game, so it answers
+   * the Books question even on a day when no odds can be fetched at all — which
+   * is exactly the state the account was in when this was added.
+   */
+  affiliates: { id: number; name: string }[];
   sampled: { sportId: number; name: string; date: string; events: number } | null;
   /** Book names carried on the sampled event — what the Books setting must match. */
   books: string[];
@@ -381,6 +395,7 @@ export async function probeRundown(): Promise<RundownProbe> {
     base: null,
     tried: [],
     sports: [],
+    affiliates: [],
     sampled: null,
     books: [],
     lineFields: { moneyline: [], spread: [], total: [] },
@@ -480,6 +495,17 @@ export async function probeRundown(): Promise<RundownProbe> {
     return out;
   }
 
+  // Which books this subscription can address at all. Asked before any odds
+  // request, because it is the one answer that survives an account with no
+  // credit left — and that turned out to be the state worth designing for.
+  const aff = await call(out.base, "/affiliates", DISCOVERY_TIMEOUT_MS);
+  if (aff.status === 200 && aff.json) {
+    const list = (aff.json as { affiliates?: { affiliate_id?: number; affiliate_name?: string }[] }).affiliates ?? [];
+    out.affiliates = list
+      .map((a) => ({ id: Number(a.affiliate_id), name: String(a.affiliate_name ?? "") }))
+      .filter((a) => Number.isFinite(a.id));
+  }
+
   // Sample a sport that has games TODAY. The first attempt at this took the
   // first match in the sports list rather than in preference order, landed on
   // NFL in August, and reported zero events — which says nothing about the
@@ -503,7 +529,14 @@ export async function probeRundown(): Promise<RundownProbe> {
     const r = await call(out.base, `/sports/${candidate.id}/events/${date}`, DISCOVERY_TIMEOUT_MS);
     pick = candidate;
     if (r.status !== 200) {
-      out.error = `Events request for ${candidate.name} (id ${candidate.id}) returned ${r.status}: ${snippet(r.text)}`;
+      // 429 here is not rate limiting in the usual sense: Rundown charges the
+      // account per response and answers this way when the balance cannot cover
+      // one. Nothing in this codebase can fix that, and saying "the request
+      // failed" would send someone looking for a bug that is not there.
+      out.error =
+        r.status === 429
+          ? `The subscription is out of credit: ${candidate.name} (id ${candidate.id}) returned 429 ${snippet(r.text)}. The host and the sport ids are confirmed working — this is the account's balance, not the integration. Top the balance up, or check whether the trial has expired, and run this again.`
+          : `Events request for ${candidate.name} (id ${candidate.id}) returned ${r.status}: ${snippet(r.text)}`;
       out.sampled = { sportId: candidate.id, name: candidate.name, date, events: 0 };
       return out;
     }

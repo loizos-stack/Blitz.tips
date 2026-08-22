@@ -75,6 +75,7 @@ interface Probe {
   base: string | null;
   tried: { base: string; status: number; contentType: string; body: string }[];
   sports: { id: number; name: string }[];
+  affiliates: { id: number; name: string }[];
   sampled: { sportId: number; name: string; date: string; events: number } | null;
   books: string[];
   lineFields: { moneyline: string[]; spread: string[]; total: string[] };
@@ -450,32 +451,43 @@ export function BlitzOddsManager({
                     </p>
                   )}
 
-                  {probe.books.length > 0 && (
-                    <>
-                      <p>
-                        <span className="font-medium">Books carried:</span> {probe.books.join(", ")}
-                      </p>
-                      {(() => {
-                        // The whole point of the check: a configured book the feed
-                        // never sends means every cycle stores nothing, silently.
-                        const configuredBooks = s.bookmakers
-                          .split(",")
-                          .map((b) => b.trim().toLowerCase())
-                          .filter(Boolean);
-                        const missing = configuredBooks.filter((b) => !probe.books.includes(b));
-                        if (configuredBooks.length === 0) return null;
-                        return missing.length === 0 ? (
-                          <p className="text-accent">Every configured book is on that list.</p>
-                        ) : (
-                          <p className="text-danger">
-                            Not carried under {missing.length === 1 ? "this name" : "these names"}:{" "}
-                            {missing.join(", ")}. Nothing will ever be stored for{" "}
-                            {missing.length === 1 ? "it" : "them"} — copy the names above into Books.
-                          </p>
-                        );
-                      })()}
-                    </>
-                  )}
+                  {(() => {
+                    // Two sources for the same question. `books` comes from a
+                    // real game and is the stronger answer; `affiliates` comes
+                    // from a metadata endpoint and still answers on a day when
+                    // no odds can be fetched at all.
+                    const fromGame = probe.books;
+                    const fromList = probe.affiliates.map((a) => a.name.toLowerCase().replace(/\s+/g, ""));
+                    const offered = fromGame.length > 0 ? fromGame : fromList;
+                    if (offered.length === 0) return null;
+
+                    const configuredBooks = s.bookmakers
+                      .split(",")
+                      .map((b) => b.trim().toLowerCase())
+                      .filter(Boolean);
+                    const missing = configuredBooks.filter((b) => !offered.includes(b));
+
+                    return (
+                      <>
+                        <p>
+                          <span className="font-medium">
+                            {fromGame.length > 0 ? "Books carried on that game:" : "Books this subscription lists:"}
+                          </span>{" "}
+                          {offered.join(", ")}
+                        </p>
+                        {configuredBooks.length > 0 &&
+                          (missing.length === 0 ? (
+                            <p className="text-accent">Every configured book is on that list.</p>
+                          ) : (
+                            <p className="text-danger">
+                              Not carried under {missing.length === 1 ? "this name" : "these names"}:{" "}
+                              {missing.join(", ")}. Nothing will ever be stored for{" "}
+                              {missing.length === 1 ? "it" : "them"} — copy the names above into Books.
+                            </p>
+                          ))}
+                      </>
+                    );
+                  })()}
 
                   {probe.sampleLine != null && (
                     <div>
