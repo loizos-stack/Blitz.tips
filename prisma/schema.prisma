@@ -201,6 +201,31 @@ model EmailVerificationCode {
   createdAt  DateTime @default(now())
 }
 
+// Password-reset links.
+//
+// The token is stored HASHED, unlike VerificationToken above. The difference is
+// what the token is worth: an email-verification token only confirms an address
+// the user already gave us, while a reset token is a bearer credential for the
+// whole account. Anyone reading this table — a dump, a backup, a support query
+// run against a replica — would otherwise hold a working reset link for every
+// pending request. The hash costs nothing and removes that.
+//
+// One row per request rather than one per email: the request endpoint is public,
+// so a single-row-per-email design would let anyone invalidate a real user's
+// in-flight reset simply by asking for another one.
+model PasswordResetToken {
+  id         String   @id @default(cuid())
+  // The account's email, lowercased.
+  identifier String
+  // SHA-256 of the token that went out in the link. Unique so a lookup by hash
+  // is a single indexed read and collisions are impossible to store.
+  tokenHash  String   @unique
+  expires    DateTime
+  createdAt  DateTime @default(now())
+
+  @@index([identifier])
+}
+
 model HandicapperProfile {
   id     String @id @default(cuid())
   userId String @unique

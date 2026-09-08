@@ -96,3 +96,33 @@ export function verificationEmailHtml(url: string): string {
     `,
   });
 }
+
+export function passwordResetEmailText(url: string, ttlMinutes: number): string {
+  return [
+    "Reset your Blitz.tips password",
+    "",
+    "Open this link to choose a new password:",
+    url,
+    "",
+    `This link expires in ${ttlMinutes} minutes and can only be used once.`,
+    "",
+    // The reassurance matters: this mail also lands in the inbox of anyone whose
+    // address was typed in by someone else, and they should know that ignoring
+    // it is genuinely enough.
+    "If you didn't ask to reset your password, you can ignore this email — your password stays as it is.",
+  ].join("\n");
+}
+
+export function passwordResetEmailHtml(url: string, ttlMinutes: number): string {
+  return emailWrapper({
+    preheader: "Choose a new password for your Blitz.tips account.",
+    bodyHtml: `
+      <h1 style="font-size:20px;margin:0 0 12px;color:#13161c;">Reset your password</h1>
+      <p style="color:#4b5563;margin:0 0 24px;">Choose a new password for your Blitz.tips account.</p>
+      <p style="margin:0 0 20px;text-align:center;">${emailLinkPill(url, "Choose a new password")}</p>
+      <p style="color:#6b7280;font-size:13px;margin:0 0 4px;">Or paste this link into your browser:</p>
+      <p style="font-size:13px;word-break:break-all;margin:0 0 20px;"><a href="${url}" style="color:#16a34a;">${url}</a></p>
+      <p style="color:#9ca3af;font-size:12px;margin:0;">This link expires in ${ttlMinutes} minutes and can only be used once. If you didn't ask to reset your password, you can ignore this email — your password stays as it is.</p>
+    `,
+  });
+}

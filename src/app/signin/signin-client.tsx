@@ -86,7 +86,14 @@ function SignInForm({ telegramBot }: { telegramBot: string | null }) {
             />
           </div>
           <div>
-            <label className="text-sm font-medium">Password</label>
+            <div className="flex items-baseline justify-between gap-3">
+              <label className="text-sm font-medium">Password</label>
+              {/* Beside the field rather than at the foot of the form: this is
+                  looked for at the moment the password fails, not before. */}
+              <Link href="/forgot-password" className="text-xs text-muted hover:text-accent hover:underline">
+                Forgot password?
+              </Link>
+            </div>
             <input
               type="password"
               required
