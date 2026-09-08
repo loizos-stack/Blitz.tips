@@ -32,7 +32,6 @@ export type AdminPermission =
   | "ads"
   | "telegram"
   | "x"
-  | "odds"
   | "media"
   | "system"
   | "tickets"
@@ -67,7 +66,6 @@ export const ADMIN_PERMISSIONS: PermissionDef[] = [
   { key: "ads", label: "Ads", href: "/admin/ads", description: "Create and track Meta (Facebook/Instagram) ad campaigns" },
   { key: "telegram", label: "Telegram", href: "/admin/telegram", description: "Broadcast to Telegram channels and log ad spend from networks with no API" },
   { key: "x", label: "X", href: "/admin/x", description: "Post to the connected X (Twitter) account and manage the connection" },
-  { key: "odds", label: "Blitz Odds", href: "/admin/blitz-odds", description: "Private line-movement watcher: alerts when a price shortens at several sportsbooks before kickoff" },
   { key: "media", label: "Media", href: "/admin/media", description: "Moderate profile and cover images" },
   { key: "system", label: "System", href: "/admin/system", description: "Announcements, odds quota, auto-settlement" },
   { key: "tickets", label: "Tickets", href: "/admin/tickets", description: "View and reply to support tickets from the contact form" },

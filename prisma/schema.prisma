@@ -1008,6 +1008,14 @@ model XPost {
 // every price it sees, and raises an alert when a selection shortens at more
 // than one sportsbook before kickoff.
 
+// RETIRED — the five Odds* models below belonged to the Blitz Odds watcher,
+// which has been removed. Nothing reads or writes them any more.
+//
+// They are left declared on purpose: dropping the tables is irreversible, and
+// removing the models without a migration would leave the schema permanently
+// out of step with the database. When the data is confirmed unwanted, delete
+// these five models and generate one migration that drops the tables.
+
 /**
  * One price, from one book, for one selection, at one moment.
  * This is the only table in the app that grows with time rather than with user
