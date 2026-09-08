@@ -80,6 +80,8 @@ interface Probe {
   books: string[];
   lineFields: { moneyline: string[]; spread: string[]; total: string[] };
   sampleLine: unknown;
+  sampleEventKeys: string[];
+  sampleEventRaw: string;
   error: string | null;
 }
 
@@ -488,6 +490,19 @@ export function BlitzOddsManager({
                       </>
                     );
                   })()}
+
+                  {probe.sampleLine == null && probe.sampleEventRaw && (
+                    <div>
+                      {/* Shown only when the mapping failed: the raw event is
+                          the one thing that says where the prices really are. */}
+                      <p className="font-medium">
+                        One event, unmapped ({probe.sampleEventKeys.join(", ")}):
+                      </p>
+                      <pre className="mt-1 max-h-64 overflow-auto rounded-lg border border-border p-3">
+                        {probe.sampleEventRaw}
+                      </pre>
+                    </div>
+                  )}
 
                   {probe.sampleLine != null && (
                     <div>

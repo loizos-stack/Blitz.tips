@@ -391,6 +391,17 @@ export interface RundownProbe {
   lineFields: { moneyline: string[]; spread: string[]; total: string[] };
   /** A real line's values, so wrong-looking numbers are visible too. */
   sampleLine: unknown;
+  /**
+   * The sampled event as it actually arrived, rather than as this file hopes it
+   * looks.
+   *
+   * Added because the probe hit exactly the failure it could not explain: 13
+   * games came back and every mapped field was empty, which says the prices are
+   * somewhere other than `lines` — and reporting only the fields we already
+   * expect can never reveal where. The keys and a truncated body say it outright.
+   */
+  sampleEventKeys: string[];
+  sampleEventRaw: string;
   error: string | null;
 }
 
@@ -414,6 +425,8 @@ export async function probeRundown(): Promise<RundownProbe> {
     books: [],
     lineFields: { moneyline: [], spread: [], total: [] },
     sampleLine: null,
+    sampleEventKeys: [],
+    sampleEventRaw: "",
     error: null,
   };
 
@@ -566,6 +579,11 @@ export async function probeRundown(): Promise<RundownProbe> {
   const sample = events[0];
   out.books = [...new Set(events.flatMap(booksOn))];
 
+  // Recorded before anything is interpreted, so a shape this file does not
+  // understand still says what it is instead of coming back as a row of blanks.
+  out.sampleEventKeys = Object.keys(sample as object);
+  out.sampleEventRaw = JSON.stringify(sample).slice(0, 2500);
+
   const first = Object.values(sample.lines ?? {})[0];
   if (first) {
     out.lineFields = {
@@ -574,6 +592,9 @@ export async function probeRundown(): Promise<RundownProbe> {
       total: Object.keys(first.total ?? {}),
     };
     out.sampleLine = { moneyline: first.moneyline, spread: first.spread, total: first.total };
+  } else {
+    // The common case worth naming: games came back, prices did not.
+    out.error = `${events.length} ${pick.name} game(s) came back, but none carried a "lines" object this adapter recognises. The raw event below says where the prices actually are.`;
   }
 
   return out;
