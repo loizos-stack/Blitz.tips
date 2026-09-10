@@ -40,6 +40,7 @@ interface SignalRow {
   direction: string;
   topProbDelta: number;
   moves: Move[];
+  reactions: { bookmaker: string; at: string; lagMinutes: number }[];
   openedAt: string | null;
   minutesToStart: number;
   detectedAt: string;
@@ -68,6 +69,8 @@ interface Move {
   probDelta: number;
   /** Human market name, resolved on the server. */
   label: string;
+  /** ISO string — when this book was first seen past the threshold. */
+  movedAt?: string | null;
 }
 
 interface Props {
@@ -374,9 +377,41 @@ export function PlayerPropsManager({
                             {sign(Number(m.probDelta.toFixed(2)))} pts from open
                           </span>
                         )}
+                        {m.movedAt && (
+                          <span className="tabular-nums text-muted">
+                            at {formatDateTime(new Date(m.movedAt))}
+                          </span>
+                        )}
                       </li>
                     ))}
                   </ul>
+
+                  {signal.reactions.length > 0 && (
+                    <div className="mt-3 border-t border-border pt-2">
+                      <p className="text-xs font-medium">
+                        Who moved first{" "}
+                        <span className="font-normal text-muted">
+                          — lag is only as precise as the {pollMinutes}-minute poll, so anything at or under
+                          that is &ldquo;about the same time&rdquo;
+                        </span>
+                      </p>
+                      <ul className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-xs">
+                        {signal.reactions.map((r) => (
+                          <li key={r.bookmaker} className="tabular-nums">
+                            <span className="font-medium">{r.bookmaker}</span>{" "}
+                            <span className="text-muted">{formatDateTime(new Date(r.at))}</span>{" "}
+                            {r.lagMinutes === 0 ? (
+                              <span className="font-semibold text-accent">first</span>
+                            ) : (
+                              <span className={cn(r.lagMinutes > pollMinutes ? "text-danger" : "text-muted")}>
+                                +{r.lagMinutes}m
+                              </span>
+                            )}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
 
                   {!signal.acknowledgedAt && (
                     <button

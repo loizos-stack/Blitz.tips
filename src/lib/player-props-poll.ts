@@ -5,6 +5,8 @@ import { oddsApiKey, ODDS_API_BASE, watchableSportKeys } from "@/lib/odds-api";
 import { propMarketKeys, oddsGroup, type OddsGroup } from "@/lib/odds-markets";
 import {
   detectPlayerSignals,
+  detectMoves,
+  probabilityDelta,
   isNewInformation,
   validAmerican,
   type LineState,
@@ -381,6 +383,7 @@ export function lineStatesFrom(
     openPrice: number;
     openPoint: number | null;
     openedAt: Date;
+    firstMovedAt: Date | null;
   }[],
   snapshots: {
     player: string;
@@ -415,6 +418,7 @@ export function lineStatesFrom(
       bookmaker: open.bookmaker,
       open: { price: open.openPrice, point: open.openPoint, at: open.openedAt },
       latest: now,
+      firstMovedAt: open.firstMovedAt,
     });
   }
   return states;
@@ -596,7 +600,14 @@ export async function runPlayerProps(now: Date = new Date()): Promise<PropRunRep
       ]);
       if (snapshots.length === 0) continue;
 
-      const signals = detectPlayerSignals(lineStatesFrom(openings, snapshots), opts);
+      const states = lineStatesFrom(openings, snapshots);
+      // Stamp the moment each line was first seen past the threshold, before
+      // detection reads it back. Written once and never revised: the reaction
+      // time of a book is a fact about that book, and recomputing it later
+      // would quietly become "the oldest sample still on disk".
+      await stampReactions(eventId, states, opts, snapshots);
+
+      const signals = detectPlayerSignals(lineStatesFrom(await prisma.propOpeningLine.findMany({ where: { eventId } }), snapshots), opts);
       for (const signal of signals) {
         const stored = await storeSignal(signal, snapshots[0]!, settings, now);
         if (stored) report.signalsFound += 1;
@@ -619,6 +630,64 @@ export async function runPlayerProps(now: Date = new Date()): Promise<PropRunRep
 
   await recordRun(report);
   return report;
+}
+
+/**
+ * Record when each line first departed its opening price by more than the
+ * threshold — the moment that book reacted.
+ *
+ * The time recorded is the earliest RETAINED snapshot that is already past the
+ * bar, not simply "now": when several polls' worth of history survives, that is
+ * a closer answer than the current cycle, and it is the difference between a
+ * lag figure that means something and one that merely records when we looked.
+ * It can never be earlier than the watcher's first sighting of the line, which
+ * is the honest limit of what this can know.
+ */
+async function stampReactions(
+  eventId: string,
+  states: LineState[],
+  opts: ClusterOpts,
+  snapshots: { player: string; marketKey: string; selection: string; bookmaker: string; price: number; point: number | null; capturedAt: Date }[]
+): Promise<void> {
+  const moved = detectMoves(states, opts);
+  if (moved.length === 0) return;
+
+  const key = (x: { player: string; marketKey: string; selection: string; bookmaker: string }) =>
+    `${x.player}|${x.marketKey}|${x.selection}|${x.bookmaker}`;
+  const openOf = new Map(states.map((st) => [key(st), st]));
+
+  for (const move of moved) {
+    // Already stamped: the first answer is the only one that is true.
+    if (move.movedAt) continue;
+    const state = openOf.get(key(move));
+    if (!state) continue;
+
+    const crossed = snapshots
+      .filter((s) => key(s) === key(move))
+      .sort((a, b) => a.capturedAt.getTime() - b.capturedAt.getTime())
+      .find((s) => {
+        const lineMoved =
+          typeof state.open.point === "number" && typeof s.point === "number" && state.open.point !== s.point;
+        if (lineMoved) return opts.countLineMoves;
+        return Math.abs(probabilityDelta(state.open.price, s.price)) >= opts.minProbDelta;
+      });
+
+    await prisma.propOpeningLine.updateMany({
+      where: {
+        eventId,
+        player: move.player,
+        marketKey: move.marketKey,
+        selection: move.selection,
+        bookmaker: move.bookmaker,
+        // Only ever fills a blank — never revises a recorded reaction.
+        firstMovedAt: null,
+      },
+      data: {
+        firstMovedAt: crossed?.capturedAt ?? state.latest.at,
+        firstMovedPrice: crossed?.price ?? state.latest.price,
+      },
+    });
+  }
 }
 
 /** Write a cluster, unless the same one was already raised inside the window. */

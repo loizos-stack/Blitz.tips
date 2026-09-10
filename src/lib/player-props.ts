@@ -76,6 +76,11 @@ export interface LineState {
   bookmaker: string;
   open: PriceSample;
   latest: PriceSample;
+  /**
+   * When this line was first seen past the threshold, if it has been. Null
+   * before it moves, and null for a line whose move predates the record.
+   */
+  firstMovedAt?: Date | null;
 }
 
 export interface Move {
@@ -92,6 +97,11 @@ export interface Move {
   probDelta: number;
   /** When the opening price was first seen, so "since open" has a length. */
   openedAt: Date;
+  /**
+   * When this book was first seen past the threshold — its reaction time.
+   * Null when the move predates the record of it.
+   */
+  movedAt: Date | null;
   /** Which way this SELECTION went: UP means the market got more confident in it. */
   direction: "UP" | "DOWN";
   /**
@@ -166,6 +176,7 @@ export function detectMoves(lines: LineState[], opts: ClusterOpts): Move[] {
       selection: line.selection,
       bookmaker: line.bookmaker,
       openedAt: open.at,
+      movedAt: line.firstMovedAt ?? null,
       at: latest.at,
     };
 
@@ -293,4 +304,46 @@ export function formatMove(move: Move): string {
   const sign = (n: number) => (n > 0 ? `+${n}` : `${n}`);
   if (move.kind === "line") return `line ${move.from} → ${move.to}`;
   return `${sign(move.from)} → ${sign(move.to)}`;
+}
+
+export interface BookReaction {
+  bookmaker: string;
+  /** When this book was first seen past the threshold. */
+  at: Date;
+  /** Minutes behind the first book to move. Zero for the leader. */
+  lagMinutes: number;
+}
+
+/**
+ * Which book moved first, and how far behind the others were.
+ *
+ * This is the question the timestamps exist to answer: a book that consistently
+ * leads is one worth watching, and one that consistently trails by twenty
+ * minutes is an opportunity for that long. Books whose reaction time is not
+ * recorded — the move predates the record of it — are left out rather than
+ * given a made-up time, because a fabricated zero would make a laggard look
+ * like the leader.
+ *
+ * PRECISION IS THE POLL CADENCE, and nothing better. Every timestamp here is
+ * when the watcher first SAW the line past the threshold, not when the book
+ * actually changed it; on a five-minute schedule a one-minute lag and a
+ * four-minute one are indistinguishable. Lags near or below the cadence should
+ * be read as "about the same time", and only the larger gaps mean anything.
+ */
+export function bookReactions(moves: Move[]): BookReaction[] {
+  const earliest = new Map<string, Date>();
+  for (const move of moves) {
+    if (!move.movedAt) continue;
+    const held = earliest.get(move.bookmaker);
+    if (!held || move.movedAt < held) earliest.set(move.bookmaker, move.movedAt);
+  }
+  if (earliest.size === 0) return [];
+
+  const ordered = [...earliest.entries()].sort((a, b) => a[1].getTime() - b[1].getTime());
+  const leadAt = ordered[0]![1].getTime();
+  return ordered.map(([bookmaker, at]) => ({
+    bookmaker,
+    at,
+    lagMinutes: Math.round((at.getTime() - leadAt) / 60_000),
+  }));
 }

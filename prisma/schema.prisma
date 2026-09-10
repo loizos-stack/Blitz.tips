@@ -1484,6 +1484,21 @@ model PropOpeningLine {
   openPrice Int
   openPoint Float?
 
+  /**
+   * When this line was first SEEN to have departed its opening price by more
+   * than the threshold — i.e. when this book reacted.
+   * Written once, then never again, for the same reason the opening is: the
+   * moment a book moved is a fact about that book, and recomputing it later
+   * from snapshots would silently become "the oldest sample still on disk"
+   * once the pruning has run. Comparing these across books is the whole point —
+   * it says which book led and how long the rest took to follow.
+   * Null until the line has moved. Its precision is the poll cadence and no
+   * better: a five-minute schedule cannot tell a one-minute lag from a
+   * four-minute one, and the panel says so rather than implying otherwise.
+   */
+  firstMovedAt    DateTime?
+  firstMovedPrice Int?
+
   openedAt     DateTime @default(now())
   commenceTime DateTime
 
