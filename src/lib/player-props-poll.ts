@@ -229,7 +229,30 @@ interface FeedEventOdds {
   bookmakers?: FeedBookmaker[];
 }
 
-const REQUEST_TIMEOUT_MS = 20_000;
+/**
+ * How long one request may hang before it is abandoned.
+ *
+ * Twelve seconds, not twenty, because of the arithmetic below: the whole cycle
+ * has sixty. A single stuck upstream request must not be able to eat most of
+ * the budget on its own — that is precisely how the first live evening ended in
+ * a 504.
+ */
+const REQUEST_TIMEOUT_MS = 12_000;
+
+/**
+ * How long the whole cycle may take before it stops starting new work.
+ *
+ * The route is capped at 60 seconds; past that the platform kills the function
+ * mid-flight and returns a 504, which is the worst possible outcome here — the
+ * billed requests already made are lost along with any record that they
+ * happened. So the cycle stops STARTING things at 45, leaving room for the work
+ * in hand to finish and be written down.
+ *
+ * A cycle that stops early is not a failure: openings persist, snapshots
+ * persist, and the next cycle picks up the games this one did not reach. A 504
+ * is a failure, because nothing is written down.
+ */
+const CYCLE_BUDGET_MS = 45_000;
 
 /**
  * Upcoming events for one league. Free — the bare /events endpoint carries no
@@ -457,6 +480,10 @@ export async function runPlayerProps(now: Date = new Date()): Promise<PropRunRep
 
   // Everything written by this cycle carries a capturedAt at or after this.
   const cycleStartedAt = new Date(now.getTime() - 1);
+  // Measured from real time rather than from `now`, which callers may pass in
+  // to place a cycle at a fixed point for testing. A clock the tests can move
+  // is the wrong clock to enforce a timeout with.
+  const deadline = Date.now() + CYCLE_BUDGET_MS;
 
   const settings = await getPropSettings();
   if (!settings.enabled) {
@@ -487,18 +514,23 @@ export async function runPlayerProps(now: Date = new Date()): Promise<PropRunRep
   const horizon = now.getTime() + settings.windowMinutes * 60_000;
   const candidates: { sportKey: string; event: FeedEvent }[] = [];
 
-  for (const sport of watchedSports(settings)) {
-    const keys = await watchableSportKeys(sport);
-    for (const sportKey of keys) {
-      const { events, error } = await fetchEvents(sportKey, apiKey);
-      if (error) {
-        errors.push(error);
-        continue;
-      }
-      for (const event of events) {
-        const starts = new Date(event.commence_time).getTime();
-        if (starts >= now.getTime() && starts <= horizon) candidates.push({ sportKey, event });
-      }
+  // In parallel, and deliberately. These reads are free and independent of one
+  // another, and there can be a dozen of them across seven leagues — run
+  // one after another at up to twelve seconds each, they can spend the entire
+  // cycle budget before a single billed request is made. That is what happened
+  // on the first live evening: HTTP 504, nothing read, nothing recorded.
+  const sportKeys = (await Promise.all(watchedSports(settings).map((sport) => watchableSportKeys(sport)))).flat();
+  const schedules = await Promise.all(
+    sportKeys.map(async (sportKey) => ({ sportKey, ...(await fetchEvents(sportKey, apiKey)) }))
+  );
+  for (const { sportKey, events, error } of schedules) {
+    if (error) {
+      errors.push(error);
+      continue;
+    }
+    for (const event of events) {
+      const starts = new Date(event.commence_time).getTime();
+      if (starts >= now.getTime() && starts <= horizon) candidates.push({ sportKey, event });
     }
   }
 
@@ -520,11 +552,28 @@ export async function runPlayerProps(now: Date = new Date()): Promise<PropRunRep
   const books = new Set<string>();
   const players = new Set<string>();
   const touchedEventIds: string[] = [];
+  // Games the clock cut short: never read, and read but never compared. Both
+  // are reported as one sentence at the end rather than each interrupting the
+  // cycle with its own, which read as two unrelated complaints about the same
+  // slow evening.
+  let unread = 0;
 
-  for (const { sportKey, event } of chosen) {
+  // The run is written down BEFORE any money is spent, and updated as it is
+  // spent. Recording only at the end looks tidier and loses real credits: a
+  // cycle killed mid-flight — which is exactly what a 504 is — would take the
+  // record of everything it had already bought with it, and the daily cap,
+  // which counts what those records say, would let the next cycle spend it
+  // again. Spend that is not written down is spend the cap cannot see.
+  const runId = await openRun();
+
+  for (const [index, { sportKey, event }] of chosen.entries()) {
     const price = playerPropMarkets(sportKey).length || CORE_MARKETS[oddsGroup(sportKey)].length;
     if (price > budget) {
       report.stoppedReason = `Stopped at the daily cap — the next event costs ${price} and ${budget} remained.`;
+      break;
+    }
+    if (Date.now() > deadline) {
+      unread = chosen.length - index;
       break;
     }
 
@@ -539,6 +588,10 @@ export async function runPlayerProps(now: Date = new Date()): Promise<PropRunRep
     report.credits += credits;
     report.requests += 1;
     report.eventsSeen += 1;
+    // Banked immediately, before the rows are stored. One small update per
+    // game is a cheap price for the cap never losing sight of money already
+    // spent, however this cycle ends.
+    await bankSpend(runId, report);
     if (degraded) {
       errors.push(`${sportKey}: the full prop list was refused, so only the core markets were read.`);
     }
@@ -580,6 +633,7 @@ export async function runPlayerProps(now: Date = new Date()): Promise<PropRunRep
   // is the same thing raised a few minutes ago. Reporting both as "nothing"
   // is how a working detector gets mistaken for a broken one.
   let suppressed = 0;
+  let undetected = 0;
   if (touchedEventIds.length > 0) {
     const opts: ClusterOpts = {
       clusterMinutes: settings.clusterMinutes,
@@ -589,6 +643,15 @@ export async function runPlayerProps(now: Date = new Date()): Promise<PropRunRep
       countLineMoves: settings.countLineMoves,
     };
     for (const eventId of touchedEventIds) {
+      // Detection is cheap in credits but not in time, and it comes after the
+      // money has been spent. Running out of the clock here must not cost the
+      // rows already stored: leaving a game undetected delays an alert by one
+      // cycle, whereas being killed mid-write loses the cycle outright. The
+      // opening rows survive, so the next cycle sees the same move.
+      if (Date.now() > deadline) {
+        undetected = touchedEventIds.length - touchedEventIds.indexOf(eventId);
+        break;
+      }
       const [openings, snapshots] = await Promise.all([
         prisma.propOpeningLine.findMany({ where: { eventId } }),
         // Only this cycle's prices are needed: the comparison's other end is
@@ -626,9 +689,17 @@ export async function runPlayerProps(now: Date = new Date()): Promise<PropRunRep
           ? `Watched ${players.size} player(s) across ${report.eventsSeen} game(s); ${suppressed} cluster(s) still moving, already reported.`
           : `Watched ${players.size} player(s) across ${report.eventsSeen} game(s); nothing moved together.`;
   }
+  if (unread > 0 || undetected > 0) {
+    const parts = [
+      unread > 0 ? `${unread} not read` : null,
+      undetected > 0 ? `${undetected} read but not compared` : null,
+    ].filter(Boolean);
+    report.stoppedReason =
+      `${report.stoppedReason ?? ""} Out of time with ${parts.join(" and ")} — nothing is lost, the next cycle picks them up.`.trim();
+  }
   report.error = errors.length ? errors.join(" · ") : null;
 
-  await recordRun(report);
+  await recordRun(report, runId);
   return report;
 }
 
@@ -740,16 +811,37 @@ async function storeSignal(
   return true;
 }
 
-async function recordRun(report: PropRunReport): Promise<void> {
-  await prisma.propPollRun.create({
-    data: {
-      credits: report.credits,
-      requests: report.requests,
-      eventsSeen: report.eventsSeen,
-      playersSeen: report.playersSeen,
-      signalsFound: report.signalsFound,
-      stoppedReason: report.stoppedReason,
-      error: report.error,
-    },
+/** Open the run's record before any money is spent against it. */
+async function openRun(): Promise<string> {
+  const row = await prisma.propPollRun.create({
+    data: { credits: 0, requests: 0, eventsSeen: 0, playersSeen: 0, signalsFound: 0 },
   });
+  return row.id;
+}
+
+/** Bank what has been spent so far, so a cycle that dies still accounts for it. */
+async function bankSpend(runId: string, report: PropRunReport): Promise<void> {
+  await prisma.propPollRun.update({
+    where: { id: runId },
+    data: { credits: report.credits, requests: report.requests, eventsSeen: report.eventsSeen },
+  });
+}
+
+/**
+ * Write the finished run. With a runId it completes the row opened before the
+ * spending started; without one — the cycle never got as far as spending — it
+ * writes the whole record in one go.
+ */
+async function recordRun(report: PropRunReport, runId?: string): Promise<void> {
+  const data = {
+    credits: report.credits,
+    requests: report.requests,
+    eventsSeen: report.eventsSeen,
+    playersSeen: report.playersSeen,
+    signalsFound: report.signalsFound,
+    stoppedReason: report.stoppedReason,
+    error: report.error,
+  };
+  if (runId) await prisma.propPollRun.update({ where: { id: runId }, data });
+  else await prisma.propPollRun.create({ data });
 }
