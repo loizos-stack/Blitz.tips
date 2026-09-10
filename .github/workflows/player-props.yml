@@ -103,8 +103,19 @@ jobs:
             echo "| Players watched | $(jq -r '.playersSeen // 0' response.json) |"
             echo "| Alerts raised | $(jq -r '.signalsFound // 0' response.json) |"
             echo "| Credits spent | $(jq -r '.credits // 0' response.json) |"
+            # `if`, not `[ -n "$x" ] && { ... }`. The step runs under `bash -e`,
+            # and a trailing test that is simply FALSE — no error to report,
+            # which is the good case — returns 1 and fails the whole job. It
+            # did exactly that on the first live run: the cycle worked, read
+            # two games, and the step still went red.
             stopped=$(jq -r '.stoppedReason // empty' response.json)
-            [ -n "$stopped" ] && { echo ""; echo "**Note:** $stopped"; }
+            if [ -n "$stopped" ]; then
+              echo ""
+              echo "**Note:** $stopped"
+            fi
             failed=$(jq -r '.error // empty' response.json)
-            [ -n "$failed" ] && { echo ""; echo "**Errors:** $failed"; }
+            if [ -n "$failed" ]; then
+              echo ""
+              echo "**Errors:** $failed"
+            fi
           } >> "$GITHUB_STEP_SUMMARY"
