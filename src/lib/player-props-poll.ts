@@ -245,14 +245,21 @@ const REQUEST_TIMEOUT_MS = 12_000;
  * The route is capped at 60 seconds; past that the platform kills the function
  * mid-flight and returns a 504, which is the worst possible outcome here — the
  * billed requests already made are lost along with any record that they
- * happened. So the cycle stops STARTING things at 45, leaving room for the work
- * in hand to finish and be written down.
+ * happened.
+ *
+ * Thirty-five, not forty-five, and the difference is the whole point. The
+ * deadline only decides whether to START one more game; that game may then take
+ * a full REQUEST_TIMEOUT_MS to answer, and its rows still have to be written.
+ * A 45-second deadline plus a 12-second request plus the writes lands right on
+ * the 60-second limit — which is to say, back where this started. 35 leaves
+ * real headroom, and costs nothing in practice: a healthy cycle reads six games
+ * in a few seconds, so this bites only when the feed is already pathological.
  *
  * A cycle that stops early is not a failure: openings persist, snapshots
  * persist, and the next cycle picks up the games this one did not reach. A 504
  * is a failure, because nothing is written down.
  */
-const CYCLE_BUDGET_MS = 45_000;
+const CYCLE_BUDGET_MS = 35_000;
 
 /**
  * Upcoming events for one league. Free — the bare /events endpoint carries no
