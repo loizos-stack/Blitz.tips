@@ -36,12 +36,18 @@ import {
 /**
  * How often the cycle actually runs, in minutes.
  *
- * MUST MATCH the schedule in vercel.json. It is stated here rather than derived
- * because nothing in the app can read its own cron, and a spend projection
- * quoting a cadence the scheduler does not keep is worse than no projection —
- * it is a number that looks checked. Change one, change the other.
+ * MUST MATCH the schedule in .github/workflows/player-props.yml. It is stated
+ * here rather than derived because nothing in the app can read its own
+ * scheduler, and a spend projection quoting a cadence nobody keeps is worse
+ * than no projection — it is a number that looks checked.
+ *
+ * The schedule is a GitHub workflow rather than a Vercel cron because this
+ * account is on Hobby, which rejects any cron that runs more than once a day
+ * ("Hobby accounts are limited to daily cron jobs" — the deploy fails outright,
+ * it does not silently degrade). Five minutes is GitHub's floor, and half the
+ * default cluster window, so one late run still leaves two samples inside it.
  */
-export const POLL_MINUTES = 10;
+export const POLL_MINUTES = 5;
 
 /**
  * Player-prop markets only.

@@ -12,13 +12,12 @@ export const maxDuration = 60;
  * Authorized either by CRON_SECRET (which Vercel sends automatically once the
  * env var exists) or by an admin holding the `props` permission.
  *
- * SCHEDULING. vercel.json runs this every POLL_MINUTES. A watcher whose whole
- * purpose is to catch a cluster of moves inside a ten-minute window is worth
- * nothing on a daily cron, so if this account is on a plan that only allows one
- * cron run per day, either move the schedule to an external pinger against this
- * URL with `Authorization: Bearer $CRON_SECRET`, or the tool will only ever
- * report what the manual button finds. The panel's spend projection assumes the
- * configured cadence actually runs.
+ * SCHEDULING. .github/workflows/player-props.yml calls this every POLL_MINUTES.
+ * Not a Vercel cron: this account is on Hobby, which rejects any schedule more
+ * frequent than daily and fails the deploy rather than degrading quietly — and
+ * a watcher for clusters inside a ten-minute window is worth nothing once a
+ * day. Any external pinger works equally well; it needs only
+ * `Authorization: Bearer $CRON_SECRET`.
  *
  * Safe to call more often than scheduled: an extra cycle costs credits but
  * cannot double-report, because a cluster already raised inside the window is

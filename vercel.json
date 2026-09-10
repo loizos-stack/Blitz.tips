@@ -13,10 +13,6 @@
     {
       "path": "/api/cron/subscriber-digest",
       "schedule": "0 13 * * *"
-    },
-    {
-      "path": "/api/cron/player-props",
-      "schedule": "*/10 * * * *"
     }
   ]
 }

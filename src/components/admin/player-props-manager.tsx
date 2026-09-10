@@ -288,8 +288,10 @@ export function PlayerPropsManager({
             Props are billed per game, not per league: {estimate.markets} markets × 1 region ={" "}
             {estimate.perEvent} credits every time a game is read, however recently it was last read. The
             projection assumes {estimate.pollsPerDay} cycles a day, which is the {pollMinutes}-minute
-            schedule in <code>vercel.json</code> — if that schedule is not actually running, the real figure
-            is lower and so is the tool&rsquo;s usefulness. Working out <em>which</em> games to read is free.
+            schedule in <code>.github/workflows/player-props.yml</code> — a GitHub workflow rather than a
+            Vercel cron, because this plan allows only daily ones. If that schedule is not running, the real
+            figure is lower and so is the tool&rsquo;s usefulness. Working out <em>which</em> games to read
+            is free.
           </span>
         </p>
       </div>

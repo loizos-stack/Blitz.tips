@@ -1,0 +1,110 @@
+name: Player Props watcher
+
+# Polls the odds feed for several of one player's props moving together, and
+# raises the alerts that show on the Player Props tab in the admin panel.
+#
+# WHY THIS IS NOT A VERCEL CRON. It was, briefly, and the deploy was rejected:
+# "Hobby accounts are limited to daily cron jobs". A watcher whose whole purpose
+# is to notice a cluster of moves inside a ten-minute window is worth nothing
+# once a day, so the cadence lives here instead — the same arrangement this repo
+# used before, and the reason vercel.json carries only the three daily jobs.
+#
+# CAVEAT worth knowing: GitHub's scheduler is best-effort. A workflow set to
+# every 5 minutes routinely fires 10-15 minutes late when the shared runners are
+# busy, and can skip a slot entirely. That matters here because detection needs
+# TWO samples of the same line inside the cluster window: if the gap between
+# runs stretches past that window, consecutive samples fall outside it and
+# nothing is ever compared. Five minutes against a ten-minute window leaves room
+# for one late run; it is not a guarantee.
+#
+# COST. Player props are billed per game, per read — see the header of
+# src/lib/player-props-poll.ts. The watcher enforces its own daily cap (Admin →
+# Player Props → Daily credit cap) and stops when it is reached, so a stuck or
+# over-frequent schedule cannot drain the quota. The cap is the safety net, not
+# the plan: check the panel's spend meter after the first day.
+#
+# Setup (one time):
+#   Repo → Settings → Secrets and variables → Actions → New repository secret
+#     CRON_SECRET = the same value as the CRON_SECRET env var in Vercel
+#     SITE_URL    = https://blitz.tips        (optional; defaults to that)
+#   Then switch the watcher on in Admin → Player Props. Until then this returns
+#   immediately, spends nothing, and reports that it is off.
+
+on:
+  schedule:
+    # Every 5 minutes — the shortest interval GitHub allows, and half the
+    # default cluster window so a single late run still leaves two samples
+    # inside it. POLL_MINUTES in src/lib/player-props-poll.ts must match this,
+    # or the panel's spend projection quotes a cadence nobody keeps.
+    - cron: "*/5 * * * *"
+
+  # Run a cycle by hand from the Actions tab — useful for smoke-testing a
+  # preview deploy, or seeing which books the feed answers with.
+  workflow_dispatch:
+    inputs:
+      site_url:
+        description: "Override the target site (e.g. a preview URL). Defaults to the SITE_URL secret."
+        required: false
+        default: ""
+
+# A slow cycle must never overlap the next: two runs polling at once would
+# double-spend credits and race on the same snapshot rows.
+concurrency:
+  group: player-props
+  cancel-in-progress: false
+
+jobs:
+  watch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Run a Player Props cycle
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+          SITE_URL: ${{ inputs.site_url || secrets.SITE_URL || 'https://blitz.tips' }}
+        run: |
+          if [ -z "$CRON_SECRET" ]; then
+            echo "::error::CRON_SECRET repository secret is not set — see the header of this file."
+            exit 1
+          fi
+
+          http_status=$(curl -sS -o response.json -w '%{http_code}' \
+            --max-time 120 \
+            -H "Authorization: Bearer $CRON_SECRET" \
+            "$SITE_URL/api/cron/player-props") || http_status=000
+          echo "HTTP $http_status"
+
+          if [ "$http_status" != "200" ]; then
+            echo "::error::pass returned HTTP $http_status"
+            head -c 500 response.json
+            exit 1
+          fi
+          cat response.json
+          echo
+
+          # A 200 is not proof of success: the site answers an unknown path with
+          # its own not-found PAGE — HTML, status 200 — so checking the status
+          # alone would let a missing route through and surface later as an
+          # unreadable jq parse error. Confirm the body is this endpoint's JSON.
+          if ! jq -e 'type == "object" and has("credits")' response.json >/dev/null 2>&1; then
+            echo "::error::Expected JSON from /api/cron/player-props but got something else. \
+          The usual cause is that $SITE_URL does not have this route deployed yet."
+            head -c 2000 response.json
+            exit 1
+          fi
+
+          # Surface spend and findings in the run summary, so the cost of the
+          # tool is visible from the Actions tab without opening the site.
+          {
+            echo "### Player Props"
+            echo ""
+            echo "| | |"
+            echo "|---|---|"
+            echo "| Games read | $(jq -r '.eventsSeen // 0' response.json) |"
+            echo "| Players watched | $(jq -r '.playersSeen // 0' response.json) |"
+            echo "| Alerts raised | $(jq -r '.signalsFound // 0' response.json) |"
+            echo "| Credits spent | $(jq -r '.credits // 0' response.json) |"
+            stopped=$(jq -r '.stoppedReason // empty' response.json)
+            [ -n "$stopped" ] && { echo ""; echo "**Note:** $stopped"; }
+            failed=$(jq -r '.error // empty' response.json)
+            [ -n "$failed" ] && { echo ""; echo "**Errors:** $failed"; }
+          } >> "$GITHUB_STEP_SUMMARY"
