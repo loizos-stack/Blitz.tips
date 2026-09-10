@@ -1454,3 +1454,42 @@ model PropPollRun {
 
   @@index([startedAt])
 }
+
+/**
+ * The first price we ever saw for one player's line at one book.
+ * Kept in its own table rather than read back out of PropSnapshot because the
+ * snapshots are pruned hard — they exist to answer "what changed just now" and
+ * are deleted within the hour — while the opening price has to survive until
+ * the game starts. Measuring a move from a row that has been deleted is how a
+ * comparison silently becomes a comparison against the oldest surviving sample
+ * instead.
+ * "Opening" means the first price THIS WATCHER observed, not the book's true
+ * opener: a tool switched on at noon cannot know where a line opened at nine.
+ * openedAt is stored so the panel can say when the baseline was taken rather
+ * than implying more than it knows.
+ * Written once per line per event — the poll inserts with skipDuplicates, so
+ * the first sighting wins and every later one is a no-op.
+ */
+model PropOpeningLine {
+  id String @id @default(cuid())
+
+  eventId   String
+  sportKey  String
+  matchup   String
+  player    String
+  marketKey String
+  selection String
+  bookmaker String
+
+  openPrice Int
+  openPoint Float?
+
+  openedAt     DateTime @default(now())
+  commenceTime DateTime
+
+  // One opening per line per event, and the constraint that makes the
+  // first-write-wins insert work.
+  @@unique([eventId, player, marketKey, selection, bookmaker])
+  @@index([eventId])
+  @@index([commenceTime])
+}

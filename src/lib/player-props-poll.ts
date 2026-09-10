@@ -7,7 +7,7 @@ import {
   detectPlayerSignals,
   isNewInformation,
   validAmerican,
-  type LineHistory,
+  type LineState,
   type ClusterOpts,
   type PlayerSignal,
 } from "@/lib/player-props";
@@ -365,22 +365,59 @@ export function rowsFromEvent(odds: FeedEventOdds, sportKey: string): SnapshotRo
   return rows;
 }
 
-/** Group stored snapshots into the per-line histories the detector wants. */
-export function historiesFrom(
-  snapshots: { player: string; marketKey: string; selection: string; bookmaker: string; price: number; point: number | null; capturedAt: Date }[]
-): LineHistory[] {
-  const map = new Map<string, LineHistory>();
+/**
+ * Pair each stored opening with the newest price seen for the same line.
+ *
+ * A line with an opening but no recent sample is skipped rather than treated as
+ * unchanged: the book has stopped quoting it (suspended, or the market pulled),
+ * and "no longer offered" is not the same as "hasn't moved".
+ */
+export function lineStatesFrom(
+  openings: {
+    player: string;
+    marketKey: string;
+    selection: string;
+    bookmaker: string;
+    openPrice: number;
+    openPoint: number | null;
+    openedAt: Date;
+  }[],
+  snapshots: {
+    player: string;
+    marketKey: string;
+    selection: string;
+    bookmaker: string;
+    price: number;
+    point: number | null;
+    capturedAt: Date;
+  }[]
+): LineState[] {
+  const key = (x: { player: string; marketKey: string; selection: string; bookmaker: string }) =>
+    `${x.player}|${x.marketKey}|${x.selection}|${x.bookmaker}`;
+
+  const latest = new Map<string, { price: number; point: number | null; at: Date }>();
   for (const s of snapshots) {
-    const key = `${s.player}|${s.marketKey}|${s.selection}|${s.bookmaker}`;
-    let entry = map.get(key);
-    if (!entry) {
-      entry = { player: s.player, marketKey: s.marketKey, selection: s.selection, bookmaker: s.bookmaker, samples: [] };
-      map.set(key, entry);
+    const k = key(s);
+    const held = latest.get(k);
+    if (!held || s.capturedAt > held.at) {
+      latest.set(k, { price: s.price, point: s.point, at: s.capturedAt });
     }
-    entry.samples.push({ price: s.price, point: s.point, at: s.capturedAt });
   }
-  for (const entry of map.values()) entry.samples.sort((a, b) => a.at.getTime() - b.at.getTime());
-  return [...map.values()];
+
+  const states: LineState[] = [];
+  for (const open of openings) {
+    const now = latest.get(key(open));
+    if (!now) continue;
+    states.push({
+      player: open.player,
+      marketKey: open.marketKey,
+      selection: open.selection,
+      bookmaker: open.bookmaker,
+      open: { price: open.openPrice, point: open.openPoint, at: open.openedAt },
+      latest: now,
+    });
+  }
+  return states;
 }
 
 /**
@@ -391,6 +428,13 @@ export function historiesFrom(
 export async function prunePropSnapshots(clusterMinutes: number): Promise<number> {
   const cutoff = new Date(Date.now() - Math.max(60, clusterMinutes * 6) * 60_000);
   const { count } = await prisma.propSnapshot.deleteMany({ where: { capturedAt: { lt: cutoff } } });
+
+  // Openings live longer than snapshots by design — they are the other end of
+  // every comparison — but only until the game they belong to has started.
+  // Without this the one table that is never overwritten grows without limit.
+  await prisma.propOpeningLine.deleteMany({
+    where: { commenceTime: { lt: new Date(Date.now() - 6 * 60 * 60_000) } },
+  });
   return count;
 }
 
@@ -406,6 +450,9 @@ export async function runPlayerProps(now: Date = new Date()): Promise<PropRunRep
     stoppedReason: null,
     error: null,
   };
+
+  // Everything written by this cycle carries a capturedAt at or after this.
+  const cycleStartedAt = new Date(now.getTime() - 1);
 
   const settings = await getPropSettings();
   if (!settings.enabled) {
@@ -500,6 +547,24 @@ export async function runPlayerProps(now: Date = new Date()): Promise<PropRunRep
     }
     touchedEventIds.push(event.id);
     await prisma.propSnapshot.createMany({ data: rows });
+    // The opening baseline. skipDuplicates against the unique line key means
+    // the first sighting of a line is kept and every later poll is a no-op —
+    // which is exactly what "opening" has to mean for the comparison to hold.
+    await prisma.propOpeningLine.createMany({
+      data: rows.map((r) => ({
+        eventId: r.eventId,
+        sportKey: r.sportKey,
+        matchup: r.matchup,
+        player: r.player,
+        marketKey: r.marketKey,
+        selection: r.selection,
+        bookmaker: r.bookmaker,
+        openPrice: r.price,
+        openPoint: r.point,
+        commenceTime: r.commenceTime,
+      })),
+      skipDuplicates: true,
+    });
   }
 
   report.booksSeen = [...books].sort();
@@ -519,16 +584,19 @@ export async function runPlayerProps(now: Date = new Date()): Promise<PropRunRep
       minProbDelta: settings.minProbDelta,
       countLineMoves: settings.countLineMoves,
     };
-    const since = new Date(now.getTime() - settings.clusterMinutes * 60_000);
-
     for (const eventId of touchedEventIds) {
-      const snapshots = await prisma.propSnapshot.findMany({
-        where: { eventId, capturedAt: { gte: since } },
-        orderBy: { capturedAt: "asc" },
-      });
+      const [openings, snapshots] = await Promise.all([
+        prisma.propOpeningLine.findMany({ where: { eventId } }),
+        // Only this cycle's prices are needed: the comparison's other end is
+        // the opening row, not an older snapshot.
+        prisma.propSnapshot.findMany({
+          where: { eventId, capturedAt: { gte: cycleStartedAt } },
+          orderBy: { capturedAt: "asc" },
+        }),
+      ]);
       if (snapshots.length === 0) continue;
 
-      const signals = detectPlayerSignals(historiesFrom(snapshots), opts, now);
+      const signals = detectPlayerSignals(lineStatesFrom(openings, snapshots), opts);
       for (const signal of signals) {
         const stored = await storeSignal(signal, snapshots[0]!, settings, now);
         if (stored) report.signalsFound += 1;
@@ -563,13 +631,20 @@ async function storeSignal(
   const previous = await prisma.propSignal.findFirst({
     where: { eventId: context.eventId, player: signal.player },
     orderBy: { detectedAt: "desc" },
-    select: { markets: true, detectedAt: true },
+    select: { markets: true, topProbDelta: true, detectedAt: true },
   });
 
   const isNew = isNewInformation(
     signal,
-    previous ? { markets: previous.markets.split(",").filter(Boolean), detectedAt: previous.detectedAt } : null,
-    settings.clusterMinutes
+    previous
+      ? {
+          markets: previous.markets.split(",").filter(Boolean),
+          topProbDelta: previous.topProbDelta,
+          detectedAt: previous.detectedAt,
+        }
+      : null,
+    settings.clusterMinutes,
+    settings.minProbDelta
   );
   if (!isNew) return false;
 

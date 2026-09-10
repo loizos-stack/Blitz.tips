@@ -3,12 +3,20 @@
  *
  * WHAT THE SIGNAL IS. One prop moving is noise: a trader's opinion, a stale
  * quote, a book squaring its own position. Several of the SAME PLAYER'S props
- * moving inside a few minutes, at more than one independent book, is
+ * having moved off where they opened, at more than one independent book, is
  * information — and it is nearly always information about that player. Points,
- * rebounds and assists all sliding at once is a minutes restriction. A
+ * rebounds and assists all sliding together is a minutes restriction. A
  * pitcher's strikeouts, outs and earned runs all moving is a scratch or a
  * weather call. Both directions count: a shortening line and a drifting one are
  * the same news seen from opposite sides.
+ *
+ * MEASURED FROM THE OPEN. Every move here is the distance from the first price
+ * this watcher saw for that line to the price now — not the change across some
+ * recent window. A line that has bled steadily all afternoon shows nothing
+ * through a ten-minute lens that happens to land on a quiet stretch, while the
+ * cumulative move is the one that says how far the market has actually
+ * travelled. The cost is that a move, once made, stands: the re-raise rule at
+ * the bottom of this file is what stops that becoming the same alert forever.
  *
  * WHY THE MATH IS IN PROBABILITY. American odds are not a linear scale. The
  * same twenty-point move is 4.14 probability points at -110, 2.38 at +200 and
@@ -47,14 +55,27 @@ export interface PriceSample {
   at: Date;
 }
 
-/** Every sample seen for one player's one line at one book. */
-export interface LineHistory {
+/**
+ * One player's line at one book: where it opened, and where it is now.
+ *
+ * Movement is measured from the OPENING price rather than from the oldest
+ * sample in a recent window. The difference matters: a line that has bled ten
+ * probability points since it was posted looks like nothing at all through a
+ * ten-minute window that happens to catch a quiet stretch of it, and the
+ * cumulative move is the one that says how far the market has travelled.
+ *
+ * `open` is the first price THIS WATCHER saw, which is not necessarily the
+ * book's true opener — a tool switched on at noon cannot know where a line
+ * opened at nine. `open.at` is carried so the panel can say when the baseline
+ * was taken instead of implying more than it knows.
+ */
+export interface LineState {
   player: string;
   marketKey: string;
   selection: string;
   bookmaker: string;
-  /** Oldest first. */
-  samples: PriceSample[];
+  open: PriceSample;
+  latest: PriceSample;
 }
 
 export interface Move {
@@ -67,8 +88,10 @@ export interface Move {
   /** Price for a price move; the line for a line move. */
   from: number;
   to: number;
-  /** Signed, in probability points. Zero for a line move — see below. */
+  /** Signed, in probability points, measured from the open. Zero for a line move. */
   probDelta: number;
+  /** When the opening price was first seen, so "since open" has a length. */
+  openedAt: Date;
   /** Which way this SELECTION went: UP means the market got more confident in it. */
   direction: "UP" | "DOWN";
   /**
@@ -81,7 +104,11 @@ export interface Move {
 }
 
 export interface ClusterOpts {
-  /** Only movement inside this many minutes is considered together. */
+  /**
+   * How long a raised cluster stays quiet before it can be raised again. Not a
+   * comparison window any more — movement is measured from the open — but the
+   * floor that stops the same standing move being reported every cycle.
+   */
   clusterMinutes: number;
   /** Distinct markets of one player that must have moved. */
   minProps: number;
@@ -119,48 +146,43 @@ function normalizeForPlayer(selection: string, direction: "UP" | "DOWN"): "UP" |
 }
 
 /**
- * Turn per-line histories into the moves that happened inside the window.
+ * Turn line states into the moves that have happened since each one opened.
  *
- * Compares the oldest and newest sample within the window rather than
- * consecutive pairs: a line that ticks down four times in eight minutes is one
- * move of the size that matters, not four small ones that each miss the
- * threshold.
+ * No window filter: the comparison is open → now by definition, so a move that
+ * began an hour ago and is still standing is still a move. What stops the same
+ * standing move being reported forever is the re-raise rule below, not a
+ * comparison that quietly forgets.
  */
-export function detectMoves(histories: LineHistory[], opts: ClusterOpts, now: Date = new Date()): Move[] {
-  const cutoff = now.getTime() - opts.clusterMinutes * 60_000;
+export function detectMoves(lines: LineState[], opts: ClusterOpts): Move[] {
   const moves: Move[] = [];
 
-  for (const history of histories) {
-    const inWindow = history.samples
-      .filter((s) => s.at.getTime() >= cutoff && validAmerican(s.price))
-      .sort((a, b) => a.at.getTime() - b.at.getTime());
-    // Nothing to compare against: one sighting is a price, not a change.
-    if (inWindow.length < 2) continue;
+  for (const line of lines) {
+    const { open, latest } = line;
+    if (!validAmerican(open.price) || !validAmerican(latest.price)) continue;
 
-    const first = inWindow[0]!;
-    const last = inWindow[inWindow.length - 1]!;
     const base = {
-      player: history.player,
-      marketKey: history.marketKey,
-      selection: history.selection,
-      bookmaker: history.bookmaker,
-      at: last.at,
+      player: line.player,
+      marketKey: line.marketKey,
+      selection: line.selection,
+      bookmaker: line.bookmaker,
+      openedAt: open.at,
+      at: latest.at,
     };
 
     const lineMoved =
-      typeof first.point === "number" && typeof last.point === "number" && first.point !== last.point;
+      typeof open.point === "number" && typeof latest.point === "number" && open.point !== latest.point;
 
     if (lineMoved) {
       if (!opts.countLineMoves) continue;
       // probDelta stays 0 on purpose. Prices at two different lines are not
       // comparable — -115 on 25.5 and -115 on 24.5 are different bets — so
       // reporting a probability change here would be inventing a number.
-      const direction: "UP" | "DOWN" = last.point! > first.point! ? "UP" : "DOWN";
+      const direction: "UP" | "DOWN" = latest.point! > open.point! ? "UP" : "DOWN";
       moves.push({
         ...base,
         kind: "line",
-        from: first.point!,
-        to: last.point!,
+        from: open.point!,
+        to: latest.point!,
         probDelta: 0,
         direction,
         // A line moving up is the market expecting more of the stat, which is
@@ -170,17 +192,17 @@ export function detectMoves(histories: LineHistory[], opts: ClusterOpts, now: Da
       continue;
     }
 
-    const probDelta = probabilityDelta(first.price, last.price);
+    const probDelta = probabilityDelta(open.price, latest.price);
     if (Math.abs(probDelta) < opts.minProbDelta) continue;
     const direction: "UP" | "DOWN" = probDelta > 0 ? "UP" : "DOWN";
     moves.push({
       ...base,
       kind: "price",
-      from: first.price,
-      to: last.price,
+      from: open.price,
+      to: latest.price,
       probDelta,
       direction,
-      playerDirection: normalizeForPlayer(history.selection, direction),
+      playerDirection: normalizeForPlayer(line.selection, direction),
     });
   }
 
@@ -230,35 +252,43 @@ export function clusterByPlayer(moves: Move[], opts: ClusterOpts): PlayerSignal[
 }
 
 /** The whole detection, in one call. */
-export function detectPlayerSignals(
-  histories: LineHistory[],
-  opts: ClusterOpts,
-  now: Date = new Date()
-): PlayerSignal[] {
-  return clusterByPlayer(detectMoves(histories, opts, now), opts);
+export function detectPlayerSignals(lines: LineState[], opts: ClusterOpts): PlayerSignal[] {
+  return clusterByPlayer(detectMoves(lines, opts), opts);
 }
 
 /**
  * Whether a freshly detected cluster is worth surfacing, given the last one
  * raised for the same player.
  *
- * Without this the same slide is re-reported every cycle for as long as it sits
- * inside the window, and a panel that repeats itself is a panel nobody reads.
- * A cluster that has since spread to more of the player's markets IS new — that
- * is the story developing rather than repeating.
+ * This carries far more weight now that movement is measured from the open. A
+ * player whose props are eight points off their opening price is eight points
+ * off them for the rest of the day, so a detector without this would re-report
+ * the same fact every cycle until kickoff — and a panel that repeats itself is
+ * a panel nobody reads.
+ *
+ * So a standing cluster is news exactly twice: when it appears, and when it
+ * gets meaningfully worse. "Worse" is either wider — a market of that player's
+ * that had not moved before has now joined in — or deeper, by at least another
+ * whole threshold's worth of probability. Anything less is the same story.
+ *
+ * The cooldown is a hard floor beneath all of that: nothing is raised twice
+ * inside it, however the numbers move.
  */
 export function isNewInformation(
   signal: PlayerSignal,
-  previous: { markets: string[]; detectedAt: Date } | null,
-  clusterMinutes: number
+  previous: { markets: string[]; topProbDelta: number; detectedAt: Date } | null,
+  cooldownMinutes: number,
+  minProbDelta: number
 ): boolean {
   if (!previous) return true;
-  const stale = signal.at.getTime() - previous.detectedAt.getTime() >= clusterMinutes * 60_000;
-  if (stale) return true;
-  return signal.markets.some((m) => !previous.markets.includes(m));
+  if (signal.at.getTime() - previous.detectedAt.getTime() < cooldownMinutes * 60_000) return false;
+
+  const wider = signal.markets.some((m) => !previous.markets.includes(m));
+  const deeper = Math.abs(signal.topProbDelta) >= Math.abs(previous.topProbDelta) + minProbDelta;
+  return wider || deeper;
 }
 
-/** "-115 → +105" for display. */
+/** "-115 → +105" for display, always from the opening price. */
 export function formatMove(move: Move): string {
   const sign = (n: number) => (n > 0 ? `+${n}` : `${n}`);
   if (move.kind === "line") return `line ${move.from} → ${move.to}`;

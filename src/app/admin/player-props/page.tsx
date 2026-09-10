@@ -19,6 +19,8 @@ interface StoredMove {
   from: number;
   to: number;
   probDelta: number;
+  /** ISO string — when the opening price was first seen. */
+  openedAt?: string;
 }
 
 export const dynamic = "force-dynamic";
@@ -59,6 +61,13 @@ export default async function PlayerPropsPage() {
           ...m,
           label: marketLabel(m.marketKey, "PROP"),
         })),
+        // The earliest baseline in the cluster: how far back "since open"
+        // actually reaches, which is not the same as when the alert fired.
+        openedAt:
+          (JSON.parse(s.movesJson) as StoredMove[])
+            .map((m) => m.openedAt)
+            .filter((x): x is string => Boolean(x))
+            .sort()[0] ?? null,
         minutesToStart: s.minutesToStart,
         detectedAt: s.detectedAt.toISOString(),
         acknowledgedAt: s.acknowledgedAt?.toISOString() ?? null,

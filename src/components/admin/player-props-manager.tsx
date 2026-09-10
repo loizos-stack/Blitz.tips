@@ -40,6 +40,7 @@ interface SignalRow {
   direction: string;
   topProbDelta: number;
   moves: Move[];
+  openedAt: string | null;
   minutesToStart: number;
   detectedAt: string;
   acknowledgedAt: string | null;
@@ -218,9 +219,10 @@ export function PlayerPropsManager({
           <Activity className="h-5 w-5 text-accent" /> Player Props
         </h1>
         <p className="mt-1 text-sm text-muted">
-          Alerts when several of one player&rsquo;s props move together — in either direction — at more than
-          one sportsbook, inside a few minutes. One prop moving is noise; the same player&rsquo;s lines
-          moving at independent books usually is not.
+          Alerts when several of one player&rsquo;s props have moved off their opening prices — in either
+          direction — at more than one sportsbook. One prop moving is noise; the same player&rsquo;s lines
+          moving at independent books usually is not. &ldquo;Open&rdquo; means the first price this watcher
+          saw for that line, which is not necessarily where the book opened it.
         </p>
       </div>
 
@@ -315,8 +317,8 @@ export function PlayerPropsManager({
 
         {signals.length === 0 ? (
           <p className="mt-3 text-sm text-muted">
-            Nothing yet. An alert needs {s.minProps} of a player&rsquo;s props to move at {s.minBooks} books
-            inside {s.clusterMinutes} minutes.
+            Nothing yet. An alert needs {s.minProps} of a player&rsquo;s props to sit at least{" "}
+            {s.minProbDelta} probability points from where they opened, at {s.minBooks} books.
           </p>
         ) : (
           <div className="mt-4 space-y-3">
@@ -345,6 +347,7 @@ export function PlayerPropsManager({
                       </p>
                       <p className="text-xs text-muted">
                         {signal.matchup} · {signal.minutesToStart} min to kickoff
+                        {signal.openedAt && <> · since open {formatDateTime(new Date(signal.openedAt))}</>}
                       </p>
                     </div>
                     <div className="text-right">
@@ -368,7 +371,7 @@ export function PlayerPropsManager({
                         </span>
                         {m.probDelta !== 0 && (
                           <span className={cn("tabular-nums", m.probDelta > 0 ? "text-accent" : "text-danger")}>
-                            {sign(Number(m.probDelta.toFixed(2)))} pts
+                            {sign(Number(m.probDelta.toFixed(2)))} pts from open
                           </span>
                         )}
                       </li>
@@ -471,10 +474,10 @@ export function PlayerPropsManager({
               hint="One book repricing a player happens all day and means little."
             />
             <Num
-              label="Within (minutes)"
+              label="Re-alert cooldown (minutes)"
               value={s.clusterMinutes}
               onChange={(v) => set("clusterMinutes", v)}
-              hint="Moves further apart than this are not the same event."
+              hint="A move measured from the open stands all day, so the same cluster is never raised twice inside this — only when it widens to another market or deepens by another threshold."
             />
             <Num
               label="Minimum move (prob. points)"
