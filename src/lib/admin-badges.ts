@@ -35,16 +35,20 @@ export async function getAdminBadgeCounts(userId: string): Promise<Partial<Recor
   const seenAt = new Map<string, Date>(markers.map((m) => [m.tab, m.seenAt]));
   const since = (tab: TrackedTab) => seenAt.get(tab) ?? new Date();
 
-  const [tickets, chat, reviews, users, handicappers, subscriptions] = await Promise.all([
+  const [tickets, chat, reviews, props, users, handicappers, subscriptions] = await Promise.all([
     prisma.ticket.count({ where: { status: "OPEN" } }),
     prisma.chat.count({ where: { status: "WAITING" } }),
     prisma.review.count({ where: { status: "PENDING" } }),
+    // A queue tab: an unacknowledged player-prop cluster is the notification
+    // itself, so it stays lit until someone marks it seen rather than clearing
+    // merely because the tab was opened.
+    prisma.propSignal.count({ where: { acknowledgedAt: null } }),
     prisma.user.count({ where: { createdAt: { gt: since("users") } } }),
     prisma.handicapperProfile.count({ where: { createdAt: { gt: since("handicappers") } } }),
     prisma.subscription.count({ where: { status: "ACTIVE", createdAt: { gt: since("subscriptions") } } }),
   ]);
 
-  return { tickets, chat, reviews, users, handicappers, subscriptions };
+  return { tickets, chat, reviews, props, users, handicappers, subscriptions };
 }
 
 /**

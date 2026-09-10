@@ -1264,3 +1264,193 @@ model OddsFixture {
   @@index([commenceTime])
   @@index([sportKey, commenceTime])
 }
+
+// ---------------------------------------------------------------------------
+// Player Props — correlated prop movement for a single player.
+//
+// The signal this exists to catch: a player's lines all moving at once, in
+// either direction, at more than one book, inside a few minutes. One prop
+// moving is noise — a trader's opinion, a stale quote. Several of the same
+// player's props moving together across independent books is information, and
+// it is usually information about that player: a knock in warm-ups, a lineup
+// change, a minutes restriction, a pitcher scratched.
+//
+// Direction is deliberately not filtered. A shortening line and a drifting one
+// are the same event seen from opposite sides of the same news.
+// ---------------------------------------------------------------------------
+
+/**
+ * One price for one player's prop at one book at one moment.
+ * Like the odds snapshots before it, this is a table that grows with time
+ * rather than with user activity, so it is pruned hard: the detector only ever
+ * looks back a few minutes, and nothing here is worth keeping once the game has
+ * started.
+ */
+model PropSnapshot {
+  id String @id @default(cuid())
+
+  eventId  String
+  sportKey String
+  matchup  String
+
+  /**
+   * The player, as the feed names them (outcome.description).
+   */
+  player    String
+  /**
+   * Market key, e.g. "player_points", "batter_hits".
+   */
+  marketKey String
+  /**
+   * The side: "Over", "Under", "Yes", or a scorer's own name.
+   */
+  selection String
+  /**
+   * The line, when the market has one. Null for yes/no markets.
+   */
+  point     Float?
+
+  bookmaker String
+  price     Int
+
+  capturedAt   DateTime @default(now())
+  commenceTime DateTime
+
+  // The detector's only query: everything for these events since a moment.
+  @@index([eventId, capturedAt])
+  @@index([capturedAt])
+  // Movement is measured per player line per book, which is this exact tuple.
+  @@index([eventId, player, marketKey, selection, bookmaker])
+}
+
+/**
+ * A detected cluster: one player, several props, several books, one window.
+ * `movesJson` holds the individual moves that made up the cluster, so the panel
+ * can show what actually happened rather than only that something did.
+ */
+model PropSignal {
+  id String @id @default(cuid())
+
+  eventId  String
+  sportKey String
+  matchup  String
+  player   String
+
+  /**
+   * How many distinct markets of this player's moved.
+   */
+  marketCount Int
+  /**
+   * How many distinct books the movement showed up at.
+   */
+  bookCount   Int
+  /**
+   * Comma-separated book keys, for display without parsing the JSON.
+   */
+  books       String
+  /**
+   * Comma-separated market keys, same reason.
+   */
+  markets     String
+
+  /**
+   * "UP", "DOWN", or "MIXED" — the direction most of the moves agreed on.
+   */
+  direction    String
+  /**
+   * Largest single move in the cluster, in implied-probability points.
+   */
+  topProbDelta Float
+  /**
+   * The moves themselves: [{marketKey, selection, bookmaker, from, to, ...}].
+   */
+  movesJson    String
+
+  /**
+   * Minutes from detection to kickoff — how actionable it was.
+   */
+  minutesToStart Int
+  commenceTime   DateTime
+
+  detectedAt     DateTime  @default(now())
+  /**
+   * Set when an admin has looked at it; drives the nav badge.
+   */
+  acknowledgedAt DateTime?
+
+  @@index([detectedAt])
+  @@index([acknowledgedAt])
+  @@index([eventId, player, detectedAt])
+}
+
+/**
+ * Singleton settings row for the watcher.
+ */
+model PropWatchSettings {
+  id String @id @default("default")
+
+  enabled Boolean @default(false)
+
+  /**
+   * Comma-separated PickSport names to watch. Empty = every supported sport.
+   */
+  sports String @default("")
+
+  /**
+   * Only events kicking off within this many minutes are polled.
+   */
+  windowMinutes  Int @default(240)
+  /**
+   * Moves are clustered within this many minutes of each other.
+   */
+  clusterMinutes Int @default(10)
+
+  /**
+   * How many distinct props of one player must move.
+   */
+  minProps       Int     @default(2)
+  /**
+   * How many distinct books must show the movement.
+   */
+  minBooks       Int     @default(2)
+  /**
+   * Minimum move, in implied-probability points, for a price to count.
+   */
+  minProbDelta   Float   @default(2)
+  /**
+   * Whether a change in the line alone counts as a move.
+   */
+  countLineMoves Boolean @default(true)
+
+  /**
+   * Hard ceiling on credits per day; the cycle stops when it is reached.
+   */
+  dailyCreditCap  Int @default(500)
+  /**
+   * Most events one cycle will look at, newest kickoff first.
+   */
+  maxEventsPerRun Int @default(6)
+
+  updatedAt DateTime @updatedAt
+}
+
+/**
+ * One cycle, for the spend meter and for telling silence from failure.
+ */
+model PropPollRun {
+  id String @id @default(cuid())
+
+  startedAt DateTime @default(now())
+
+  credits  Int @default(0)
+  requests Int @default(0)
+
+  eventsSeen   Int @default(0)
+  playersSeen  Int @default(0)
+  signalsFound Int @default(0)
+
+  stoppedReason String?
+  error         String?
+
+  @@index([startedAt])
+}

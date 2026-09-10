@@ -460,7 +460,7 @@ async function resolveSportKeys(sport: PickSport, apiKey: string): Promise<strin
 /**
  * Every league key a sport currently fans out to, resolved live.
  *
- * Exported for the Blitz Odds watcher, which needs the same league set the
+ * Exported for the Player Props watcher, which needs the same league set the
  * board carries — soccer's in-season competitions and tennis's active tours
  * included — and must not re-derive it. Duplicating this is how the two would
  * drift into watching different leagues than the site displays.
