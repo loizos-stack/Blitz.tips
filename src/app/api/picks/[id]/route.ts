@@ -4,6 +4,8 @@ import { prisma } from "@/lib/prisma";
 import { settlePickSchema } from "@/lib/validations";
 import { logActivity } from "@/lib/audit";
 import { notifyPickSettled } from "@/lib/notifications";
+import { isGradableByHandicapper } from "@/lib/pick-visibility";
+import { formatDateTime } from "@/lib/date-format";
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const session = await auth();
@@ -23,6 +25,21 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   if (pick.result !== "PENDING") {
     return NextResponse.json(
       { error: "This tip has already been graded and can't be changed. Contact support if it needs correcting." },
+      { status: 409 }
+    );
+  }
+
+  // A game that has not kicked off has no result to report. Checked here, on
+  // the server, because the dashboard's buttons are only a courtesy — this
+  // endpoint is reachable directly, and a grade written from it is permanent
+  // and counts towards a public record.
+  if (!isGradableByHandicapper(pick)) {
+    return NextResponse.json(
+      {
+        error: `This game hasn't started yet, so it can't be graded. It kicks off at ${formatDateTime(
+          pick.eventStartsAt
+        )} — you can grade it after that, or leave it for automatic settlement.`,
+      },
       { status: 409 }
     );
   }

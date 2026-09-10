@@ -3,12 +3,12 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { formatDateTime } from "@/lib/date-format";
-import { Lock } from "lucide-react";
+import { Lock, Clock } from "lucide-react";
 import type { Pick as PickModel, PickResult } from "@prisma/client";
 import { ResultPill } from "@/components/result-pill";
 import { TeamLogo } from "@/components/team-logo";
 import { PickShareButton } from "@/components/pick-share-button";
-import { isPickLocked } from "@/lib/pick-visibility";
+import { isPickLocked, isGradableByHandicapper } from "@/lib/pick-visibility";
 import { pickShareInfo } from "@/lib/pick-share";
 import { Odds } from "@/components/odds-format";
 import { SPORT_LABELS, BET_TYPE_LABELS, usesVsSeparator } from "@/lib/utils";
@@ -28,17 +28,31 @@ export function HandicapperPickRow({
 }) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   async function settle(result: PickResult) {
     setLoading(true);
-    await fetch(`/api/picks/${pick.id}`, {
+    setError(null);
+    const res = await fetch(`/api/picks/${pick.id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ result }),
     });
     setLoading(false);
+    // A refusal used to be discarded, so a rejected grade looked exactly like
+    // an accepted one until the page came back unchanged.
+    if (!res.ok) {
+      const body = await res.json().catch(() => null);
+      setError(body?.error ?? "Couldn't grade this tip. Please try again.");
+      return;
+    }
     router.refresh();
   }
+
+  // Mirrors the server's rule. Evaluated at render, so a row left open across
+  // kickoff keeps hiding the buttons until the page refreshes — the endpoint is
+  // what actually decides, and it re-checks on every attempt.
+  const gradable = isGradableByHandicapper(pick);
 
   // Order crests to match the matchup text: "Home vs Away" sports show the home
   // crest first; "Away @ Home" sports show the away crest first.
@@ -85,7 +99,13 @@ export function HandicapperPickRow({
 
       <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-border pt-4">
         <ResultPill result={pick.result} />
-        {pick.result === "PENDING" ? (
+        {pick.result === "PENDING" && !gradable ? (
+          // Nothing to grade yet. Saying so beats offering buttons that the
+          // server will refuse.
+          <span className="inline-flex items-center gap-1.5 text-xs font-medium text-muted">
+            <Clock className="h-3.5 w-3.5" /> Gradable after kickoff
+          </span>
+        ) : pick.result === "PENDING" ? (
           <div className="flex flex-wrap gap-2">
             {SETTLE_OPTIONS.map((option) => (
               <button
@@ -106,6 +126,8 @@ export function HandicapperPickRow({
           </span>
         )}
       </div>
+
+      {error && <p className="mt-3 text-xs text-danger">{error}</p>}
 
       {shareInfo && (
         <div className="mt-3 flex items-center justify-between border-t border-border pt-3">
