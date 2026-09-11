@@ -38,6 +38,26 @@ export function formatDayMonth(value: DateLike): string {
   return format(toDate(value), DAY_MONTH_PATTERN);
 }
 
+/**
+ * e.g. `11 October 2026` — for EMAIL, and the one place the dd/MM/yyyy rule
+ * above is deliberately set aside.
+ *
+ * That rule exists because `08/10/2026` is genuinely ambiguous between the
+ * day-first and month-first conventions. A spelled-out month has no such
+ * ambiguity, and mail is read outside the site by people who never learn its
+ * conventions — a date that decides when someone's plan ends is the last place
+ * to make a reader guess. The formatting still lives here so there is one
+ * module that owns what a date looks like.
+ */
+export function formatDateLong(value: DateLike): string {
+  return format(toDate(value), "d MMMM yyyy");
+}
+
+/** e.g. `Saturday 11 October` — a near date in email, where the day helps. */
+export function formatDateWithWeekday(value: DateLike): string {
+  return format(toDate(value), "EEEE d MMMM");
+}
+
 /** e.g. `10/08/2026 19:45:07` — admin logs, where the second matters. */
 export function formatDateTimeSeconds(value: DateLike): string {
   return format(toDate(value), "dd/MM/yyyy HH:mm:ss");

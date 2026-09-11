@@ -295,6 +295,22 @@ model HandicapperProfile {
   // canceling and re-subscribing doesn't grant another free month.
   planTrialUsed            Boolean            @default(false)
 
+  // A COMPED plan: Silver or Gold given from the admin panel for a fixed
+  // period, with no Stripe subscription behind it and nothing to charge. It
+  // runs until planCompedUntil and then falls back to FREE.
+  //
+  // Deliberately separate from the plan* fields above rather than reusing
+  // planCurrentPeriodEnd, which belongs to Stripe: the sweep that ends comps
+  // must never be able to touch a real subscription, and `planCompedUntil is
+  // not null` is what makes a comp identifiable as one.
+  planCompedUntil          DateTime?
+  planCompedAt             DateTime?
+  // The admin who granted it, so a comp on a profile can be traced to a person.
+  planCompedById           String?
+  // When the three-days-out warning was sent, so it goes exactly once per
+  // grant. Cleared whenever a new comp is granted or an existing one extended.
+  planCompWarnedAt         DateTime?
+
   picks         Pick[]
   subscriptions Subscription[] @relation("HandicapperSubscriptions")
   followers     Follow[]       @relation("HandicapperFollowers")
@@ -304,6 +320,9 @@ model HandicapperProfile {
   updatedAt DateTime @updatedAt
 
   @@index([handle])
+  // The daily sweep asks only "which comps are ending" — without this it reads
+  // every handicapper on the site to find the handful that matter.
+  @@index([planCompedUntil])
 }
 
 model Pick {
