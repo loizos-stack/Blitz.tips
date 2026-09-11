@@ -9,17 +9,72 @@ import { Menu, X, UserCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { NotificationBell } from "@/components/notification-bell";
 import { SupercapperLogo } from "@/components/contest/supercapper-logo";
+import { useOddsFormat, useSetOddsFormat } from "@/components/odds-format";
+import { ODDS_FORMATS, ODDS_FORMAT_HINTS, ODDS_FORMAT_LABELS } from "@/lib/odds-format";
 
-const links = [
-  { href: "/about", label: "About Blitz" },
-  { href: "/supercapper", label: "$10K Contest" },
-  { href: "/leaderboard", label: "Leaderboard" },
+// The menu is two products, not one flat list: the marketplace and the
+// contest. Each group is headed by its own mark, which links to that section's
+// home — so "Blitz.tips" and the Supercapper mark are themselves navigation.
+const siteLinks = [
+  { href: "/about", label: "About Blitz.tips" },
   { href: "/handicappers", label: "Handicappers" },
-  { href: "/buy-picks", label: "Buy Tips" },
+  { href: "/leaderboard", label: "Leaderboard" },
   { href: "/pricing", label: "Sell Tips" },
+  { href: "/buy-picks", label: "Buy Tips" },
   { href: "/faq", label: "FAQ" },
-  { href: "/contact", label: "Contact" },
+  { href: "/contact", label: "Contact Us" },
 ];
+
+// Contest questions go to the contact form with the category pre-selected, so
+// nobody has to classify their own ticket.
+const contestLinks = [
+  { href: "/supercapper", label: "About Supercapper" },
+  { href: "/supercapper/standings", label: "Standings" },
+  { href: "/supercapper/consensus", label: "Consensus" },
+  { href: "/supercapper/rules", label: "Rules" },
+  { href: "/supercapper/faq", label: "FAQ" },
+  { href: "/contact?category=Contests", label: "Contact Us" },
+];
+
+/**
+ * Odds format picker. Lives in the drawer rather than the header bar: it is set
+ * once and then forgotten, so it belongs with the other preferences instead of
+ * spending permanent room next to the navigation.
+ *
+ * The drawer deliberately stays open on selection — the prices behind it
+ * re-render immediately, so you can see what each option does before committing
+ * to one.
+ */
+function OddsFormatPicker() {
+  const format = useOddsFormat();
+  const setFormat = useSetOddsFormat();
+
+  return (
+    <div className="mt-2 border-t border-white/10 pt-3">
+      <p className="px-2 pb-2 text-xs font-semibold uppercase tracking-wide text-white/50">Odds format</p>
+      <div className="flex gap-1" role="group" aria-label="Odds format">
+        {ODDS_FORMATS.map((f) => (
+          <button
+            key={f}
+            type="button"
+            onClick={() => setFormat(f)}
+            aria-pressed={format === f}
+            title={ODDS_FORMAT_LABELS[f]}
+            className={cn(
+              "flex-1 rounded-lg border px-2 py-1.5 text-xs font-semibold",
+              format === f
+                ? "border-accent bg-accent/15 text-white"
+                : "border-white/15 text-white/70 hover:border-white/35 hover:text-white"
+            )}
+          >
+            {ODDS_FORMAT_HINTS[f]}
+            <span className="mt-0.5 block text-[10px] font-medium opacity-70">{ODDS_FORMAT_LABELS[f]}</span>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
 
 export function NavBar() {
   const { data: session, status } = useSession();
@@ -29,6 +84,15 @@ export function NavBar() {
   // Every contest route — the public page, standings, entrant pages and the
   // entrant dashboard — carries the Supercapper mark instead of the site one.
   const onSupercapper = pathname === "/supercapper" || pathname.startsWith("/supercapper/");
+
+  // Highlight the current page. Query strings are part of the href for the
+  // contest's contact link, so compare on the path only — otherwise
+  // "/contact?category=Contests" never matches and "/contact" matches both.
+  function isActive(href: string): boolean {
+    const path = href.split("?")[0]!;
+    if (path === "/supercapper") return pathname === "/supercapper";
+    return pathname === path || pathname.startsWith(`${path}/`);
+  }
 
   // While the side drawer is open, lock body scroll and close on Escape.
   useEffect(() => {
@@ -146,40 +210,68 @@ export function NavBar() {
           open ? "translate-x-0" : "translate-x-full"
         )}
       >
-        <div className="flex h-16 shrink-0 items-center justify-between border-b border-white/10 px-4">
-          <Link
-            href="/"
-            onClick={() => setOpen(false)}
-            className="flex items-center gap-2 font-display text-lg font-bold tracking-tight text-white"
-          >
-            {onSupercapper ? (
-              <SupercapperLogo withByline onDark bylineLink={false} className="text-[22px]" />
-            ) : (
-              <>
-                <Image src="/logo-mark.svg" alt="" width={26} height={26} className="h-6 w-6" />
-                <span>Blitz<span className="text-green-400">.tips</span></span>
-              </>
-            )}
-          </Link>
+        {/* Just the close control: both marks are group headings below now,
+            and repeating one here reads as a duplicate link. */}
+        <div className="flex h-16 shrink-0 items-center justify-end border-b border-white/10 px-4">
           <button onClick={() => setOpen(false)} aria-label="Close menu" className="text-white/80 hover:text-white">
             <X className="h-6 w-6" />
           </button>
         </div>
 
         <nav className="flex flex-1 flex-col gap-1 overflow-y-auto p-3">
-          {links.map((link) => (
-            <Link
-              key={link.href}
-              href={link.href}
-              className={cn(
-                "rounded-lg px-2 py-2.5 text-sm font-bold hover:bg-white/5 hover:text-white",
-                pathname?.startsWith(link.href) ? "bg-white/5 text-white" : "text-white/90"
-              )}
-              onClick={() => setOpen(false)}
-            >
-              {link.label}
-            </Link>
-          ))}
+          {/* Blitz.tips */}
+          <Link
+            href="/"
+            onClick={() => setOpen(false)}
+            className="flex items-center gap-2 rounded-lg px-2 py-2 font-display text-lg font-bold tracking-tight text-white hover:bg-white/5"
+          >
+            <Image src="/logo-mark.svg" alt="" width={24} height={24} className="h-6 w-6" />
+            {/* One flex child, or the gap lands between the word and the TLD. */}
+            <span>
+              Blitz<span className="text-green-400">.tips</span>
+            </span>
+          </Link>
+          <div className="mb-2 flex flex-col gap-0.5 border-l border-white/10 pl-3">
+            {siteLinks.map((link) => (
+              <Link
+                key={link.href}
+                href={link.href}
+                className={cn(
+                  "rounded-lg px-2 py-2 text-sm font-semibold hover:bg-white/5 hover:text-white",
+                  isActive(link.href) ? "bg-white/5 text-white" : "text-white/80"
+                )}
+                onClick={() => setOpen(false)}
+              >
+                {link.label}
+              </Link>
+            ))}
+          </div>
+
+          {/* Supercapper contest */}
+          <Link
+            href="/supercapper"
+            onClick={() => setOpen(false)}
+            className="flex rounded-lg px-2 py-2 text-white hover:bg-white/5"
+          >
+            <SupercapperLogo withContest onDark className="text-lg" />
+          </Link>
+          <div className="flex flex-col gap-0.5 border-l border-white/10 pl-3">
+            {contestLinks.map((link) => (
+              <Link
+                key={link.href}
+                href={link.href}
+                className={cn(
+                  "rounded-lg px-2 py-2 text-sm font-semibold hover:bg-white/5 hover:text-white",
+                  isActive(link.href) ? "bg-white/5 text-white" : "text-white/80"
+                )}
+                onClick={() => setOpen(false)}
+              >
+                {link.label}
+              </Link>
+            ))}
+          </div>
+          <OddsFormatPicker />
+
           <div className="mt-2 flex flex-col gap-2 border-t border-white/10 pt-3 md:hidden">
             {status === "authenticated" ? (
               <>

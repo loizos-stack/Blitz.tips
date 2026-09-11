@@ -110,11 +110,21 @@ model User {
   accounts Account[]
   sessions Session[]
 
-  handicapper       HandicapperProfile?
-  subscriptions     Subscription[]      @relation("SubscriberSubscriptions")
-  reviews           Review[]            @relation("UserReviews")
-  adminTabViews     AdminTabView[]      @relation("AdminTabViews")
-  follows           Follow[]            @relation("UserFollows")
+  handicapper   HandicapperProfile?
+  subscriptions Subscription[]      @relation("SubscriberSubscriptions")
+  reviews       Review[]            @relation("UserReviews")
+  adminTabViews AdminTabView[]      @relation("AdminTabViews")
+  follows       Follow[]            @relation("UserFollows")
+  pickTails     PickTail[]          @relation("UserPickTails")
+
+  // Referrals. `referralCode` is this user's own code to hand out;
+  // `referredById` is who brought them in, set once at signup and never after —
+  // attribution that can be edited later isn't attribution.
+  referralCode      String?            @unique
+  referredById      String?
+  referredBy        User?              @relation("UserReferrals", fields: [referredById], references: [id], onDelete: SetNull)
+  referrals         User[]             @relation("UserReferrals")
+  referredAt        DateTime?
   notifications     Notification[]
   pushSubscriptions PushSubscription[]
 
@@ -191,6 +201,31 @@ model EmailVerificationCode {
   createdAt  DateTime @default(now())
 }
 
+// Password-reset links.
+//
+// The token is stored HASHED, unlike VerificationToken above. The difference is
+// what the token is worth: an email-verification token only confirms an address
+// the user already gave us, while a reset token is a bearer credential for the
+// whole account. Anyone reading this table — a dump, a backup, a support query
+// run against a replica — would otherwise hold a working reset link for every
+// pending request. The hash costs nothing and removes that.
+//
+// One row per request rather than one per email: the request endpoint is public,
+// so a single-row-per-email design would let anyone invalidate a real user's
+// in-flight reset simply by asking for another one.
+model PasswordResetToken {
+  id         String   @id @default(cuid())
+  // The account's email, lowercased.
+  identifier String
+  // SHA-256 of the token that went out in the link. Unique so a lookup by hash
+  // is a single indexed read and collisions are impossible to store.
+  tokenHash  String   @unique
+  expires    DateTime
+  createdAt  DateTime @default(now())
+
+  @@index([identifier])
+}
+
 model HandicapperProfile {
   id     String @id @default(cuid())
   userId String @unique
@@ -260,6 +295,22 @@ model HandicapperProfile {
   // canceling and re-subscribing doesn't grant another free month.
   planTrialUsed            Boolean            @default(false)
 
+  // A COMPED plan: Silver or Gold given from the admin panel for a fixed
+  // period, with no Stripe subscription behind it and nothing to charge. It
+  // runs until planCompedUntil and then falls back to FREE.
+  //
+  // Deliberately separate from the plan* fields above rather than reusing
+  // planCurrentPeriodEnd, which belongs to Stripe: the sweep that ends comps
+  // must never be able to touch a real subscription, and `planCompedUntil is
+  // not null` is what makes a comp identifiable as one.
+  planCompedUntil          DateTime?
+  planCompedAt             DateTime?
+  // The admin who granted it, so a comp on a profile can be traced to a person.
+  planCompedById           String?
+  // When the three-days-out warning was sent, so it goes exactly once per
+  // grant. Cleared whenever a new comp is granted or an existing one extended.
+  planCompWarnedAt         DateTime?
+
   picks         Pick[]
   subscriptions Subscription[] @relation("HandicapperSubscriptions")
   followers     Follow[]       @relation("HandicapperFollowers")
@@ -269,6 +320,9 @@ model HandicapperProfile {
   updatedAt DateTime @updatedAt
 
   @@index([handle])
+  // The daily sweep asks only "which comps are ending" — without this it reads
+  // every handicapper on the site to find the handful that matter.
+  @@index([planCompedUntil])
 }
 
 model Pick {
@@ -297,6 +351,14 @@ model Pick {
   // this pick to a final score.
   oddsApiEventId  String?
   oddsApiSportKey String?
+  // The last price this selection was available at before kickoff, and when it
+  // was captured. Comparing it to `odds` gives closing line value: whether the
+  // market moved toward the pick or away from it. CLV is the one metric that
+  // can't be produced by cherry-picking results — you either beat the close or
+  // you didn't — which makes it the strongest claim a verified-records site can
+  // make. Null when the pick wasn't board-sourced, or the capture didn't run.
+  closingOdds     Int?
+  closingOddsAt   DateTime?
   // Structured form of the selection, captured from the board when the pick was
   // made off the schedule. Lets the settler grade period markets and player
   // props without parsing the display string. Null for manually-entered picks,
@@ -310,11 +372,42 @@ model Pick {
   // combined (multiplied) American odds; each leg keeps its own line.
   parlayLegs ParlayLeg[]
 
+  // Who backed or faded this pick. Social proof at the point of decision, and
+  // the raw material for a consensus view of the whole board.
+  tails PickTail[]
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@index([handicapperId, createdAt])
   @@index([result])
+}
+
+// A reader saying they're on a pick, or against it.
+//
+// One row per user per pick, with the side stored rather than implied, so
+// switching from tail to fade is an update rather than a delete plus an insert
+// — the count stays right and the history isn't a hole. Only picks the user can
+// actually see are tailable; the API enforces that, since a premium pick's
+// selection is exactly what a subscription buys.
+model PickTail {
+  id     String @id @default(cuid())
+  pickId String
+  pick   Pick   @relation(fields: [pickId], references: [id], onDelete: Cascade)
+  userId String
+  user   User   @relation("UserPickTails", fields: [userId], references: [id], onDelete: Cascade)
+
+  /**
+   * True = tailed (backing it), false = faded (against it).
+   */
+  tailed Boolean
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([pickId, userId])
+  @@index([pickId])
+  @@index([userId])
 }
 
 // One selection within a parlay Pick. Legs are display-only detail; the parlay
@@ -698,30 +791,30 @@ enum ContestStatus {
 }
 
 model Contest {
-  id              String        @id @default(cuid())
-  slug            String        @unique
-  name            String
-  tagline         String?
+  id                   String        @id @default(cuid())
+  slug                 String        @unique
+  name                 String
+  tagline              String?
   // Guaranteed pool (equals the sum of prizeSplitCents), stored in cents.
-  prizePoolCents  Int
-  currency        String        @default("USD")
+  prizePoolCents       Int
+  currency             String        @default("USD")
   // Cents awarded to each place; index 0 = 1st. Length = number of winners.
-  prizeSplitCents Int[]         @default([])
+  prizeSplitCents      Int[]         @default([])
   // Minimum settled picks an entry needs before it's ranked.
-  minPicks        Int           @default(20)
-  startsAt        DateTime
-  endsAt          DateTime
+  minPicks             Int           @default(20)
+  startsAt             DateTime
+  endsAt               DateTime
   // Entries close on this date (defaults to endsAt when null). After it, the
   // field — and therefore the number of paid places — is locked.
   registrationClosesAt DateTime?
   // When true, paid places scale with the number of entrants (one extra place
   // per 10 joiners, min 3) and the ladder is derived from prizePoolCents rather
   // than the stored prizeSplitCents.
-  dynamicPayouts  Boolean       @default(false)
-  status          ContestStatus @default(DRAFT)
-  settledAt       DateTime?
-  createdAt       DateTime      @default(now())
-  updatedAt       DateTime      @updatedAt
+  dynamicPayouts       Boolean       @default(false)
+  status               ContestStatus @default(DRAFT)
+  settledAt            DateTime?
+  createdAt            DateTime      @default(now())
+  updatedAt            DateTime      @updatedAt
 
   entries ContestEntry[]
   ipLogs  ContestIpLog[]
@@ -809,4 +902,628 @@ model ContestPick {
   @@index([entryId])
   @@index([result])
   @@index([result, eventStartsAt])
+}
+
+/**
+ * A post sent to a Telegram channel through the bot.
+ * This is the *owned-channel* half of Telegram promotion. Telegram's paid ad
+ * platform (ads.telegram.org) has no public API — no endpoint creates a
+ * campaign or returns its stats — so paid spend is recorded by hand in
+ * AdSpendEntry instead. Broadcasting to a channel we control is the part that
+ * can actually be automated, and it reaches the same audience.
+ */
+model TelegramBroadcast {
+  id          String   @id @default(cuid())
+  /// Target as entered: @channelhandle or a numeric chat id.
+  chatId      String
+  /// Channel title at send time, so history stays readable after a rename.
+  chatTitle   String?
+  text        String
+  /// Attached file under public/marketing. Null for a text-only post.
+  asset       String?
+  /// Telegram's message id — what you need to find or delete the post later.
+  messageId   String?
+  /// Failures are kept, not discarded: a broadcast that didn't land is the
+  /// thing you most need to see in the history.
+  ok          Boolean  @default(false)
+  error       String?
+  /// Null for a manual post from the admin panel; otherwise what triggered it
+  /// (e.g. "free-pick"). Kept as its own column rather than encoded into
+  /// sentByEmail, so the history can tell an automatic post from a person's.
+  source      String?
+  sentById    String
+  sentByEmail String
+  createdAt   DateTime @default(now())
+
+  @@index([createdAt])
+}
+
+/**
+ * Manually recorded ad spend, for platforms with no API to pull it from.
+ * Telegram Ads is the reason this exists, but `platform` is free text rather
+ * than an enum so Reddit, TikTok or a podcast sponsorship can be logged here
+ * too without a migration per network. Meta is deliberately NOT recorded here —
+ * its numbers come live from the Marketing API, and a hand-typed second copy of
+ * a figure the API already owns would only ever drift.
+ */
+model AdSpendEntry {
+  id          String   @id @default(cuid())
+  platform    String
+  campaign    String
+  /// The day the spend applies to, not when it was typed in.
+  spentOn     DateTime
+  spendCents  Int
+  currency    String   @default("USD")
+  impressions Int?
+  clicks      Int?
+  notes       String?
+  createdById String
+  createdAt   DateTime @default(now())
+
+  @@index([platform, spentOn])
+}
+
+/**
+ * The X (Twitter) account the admin panel posts as.
+ * A row, not a SiteSetting pair, because posting to X needs a live credential
+ * rather than a static token. Unlike Telegram — where one bot token in the
+ * environment is the whole story — X will only accept a post in *user context*,
+ * so the panel holds an OAuth grant that expires and has to be refreshed.
+ * Single-row by construction: `id` is a fixed key, so connecting a different
+ * account replaces the grant instead of quietly accumulating several and
+ * leaving "which one did that post go to?" unanswerable.
+ */
+model XAccount {
+  /// Always "default". One connected account, enforced by the primary key.
+  id           String   @id @default("default")
+  /// X's numeric user id — stable across handle changes, unlike `username`.
+  xUserId      String
+  /// Handle at connect time, for display. Re-read on refresh.
+  username     String
+  name         String?
+  /// Encrypted at rest: these are live credentials, not identifiers. A leaked
+  /// refresh token is an account takeover, so unlike the Discord user id next
+  /// door these never sit in the database in the clear.
+  accessToken  String   @db.Text
+  refreshToken String?  @db.Text
+  /// When the access token dies. Refreshed ahead of this, not after it.
+  expiresAt    DateTime
+  /// Granted scopes, so the UI can say why a post was rejected rather than
+  /// showing a bare 403.
+  scopes       String
+  connectedAt  DateTime @default(now())
+  connectedBy  String
+  updatedAt    DateTime @updatedAt
+}
+
+/**
+ * Every post the panel has attempted, successful or not.
+ * Deliberately shaped like TelegramBroadcast: a failed send is the row you most
+ * want to see, so failures are kept rather than discarded.
+ */
+model XPost {
+  id          String   @id @default(cuid())
+  /// Handle posted as, captured at send time so history survives a rename.
+  username    String
+  text        String
+  /// Attached file under public/marketing. Null for a text-only post.
+  asset       String?
+  /// X's tweet id — what you need to find or delete the post later.
+  tweetId     String?
+  ok          Boolean  @default(false)
+  error       String?
+  /// Null for a manual post; otherwise what triggered it, matching the same
+  /// column on TelegramBroadcast.
+  source      String?
+  sentById    String
+  sentByEmail String
+  createdAt   DateTime @default(now())
+
+  @@index([createdAt])
+}
+
+// --- Blitz Odds -------------------------------------------------------------
+// Private line-movement watcher. Polls the odds feed, keeps a short history of
+// every price it sees, and raises an alert when a selection shortens at more
+// than one sportsbook before kickoff.
+
+// RETIRED — the five Odds* models below belonged to the Blitz Odds watcher,
+// which has been removed. Nothing reads or writes them any more.
+//
+// They are left declared on purpose: dropping the tables is irreversible, and
+// removing the models without a migration would leave the schema permanently
+// out of step with the database. When the data is confirmed unwanted, delete
+// these five models and generate one migration that drops the tables.
+
+/**
+ * One price, from one book, for one selection, at one moment.
+ * This is the only table in the app that grows with time rather than with user
+ * activity, so it is pruned aggressively (see pruneSnapshots): a drop is
+ * detected against a lookback of minutes, and nothing here has any value once
+ * the game has started.
+ */
+model OddsSnapshot {
+  id String @id @default(cuid())
+
+  /// The Odds API event id, and the league key it came from.
+  eventId  String
+  sportKey String
+
+  /// Market + selection identify what was priced. `point` separates the rungs
+  /// of a handicap or total — "Over 8.5" and "Over 9.5" are different bets and
+  /// must never be compared to each other.
+  marketKey String
+  selection String
+  point     Float?
+
+  bookmaker String
+  /// American, as the feed returns it and as picks are stored.
+  price     Int
+
+  commenceTime   DateTime
+  /// Minutes remaining before kickoff at the moment this price was captured.
+  ///
+  /// Stored rather than derived at read time because every rule in this tool is
+  /// expressed relative to kickoff, and a poll that arrives late must be judged
+  /// on when it actually landed — not on when it was scheduled to.
+  minutesToStart Int
+  capturedAt     DateTime @default(now())
+
+  // The detector reads one (event, market, selection, point) line across books
+  // over a short window; this index is that query.
+  @@index([eventId, marketKey, selection, point, capturedAt])
+  @@index([capturedAt])
+}
+
+/**
+ * A detected shortening, confirmed across at least `bookCount` books.
+ * Kept after notification so the panel has a feed and so a repeat move on the
+ * same selection can be measured against what was already reported rather than
+ * re-alerting on the same drift.
+ */
+model OddsDrop {
+  id String @id @default(cuid())
+
+  eventId      String
+  sportKey     String
+  sport        PickSport
+  matchup      String
+  commenceTime DateTime
+
+  marketKey   String
+  /// Human label for the market, resolved at detection time so the feed reads
+  /// the same as the pick forms.
+  marketLabel String
+  selection   String
+  point       Float?
+
+  /// Books that moved, and the size of the move in implied-probability points
+  /// (not raw American, which is non-linear — see lib/blitz-odds).
+  bookCount    Int
+  books        String
+  openPrice    Int
+  currentPrice Int
+  probDelta    Float
+
+  /// Minutes to kickoff at each side of the comparison, frozen at detection
+  /// time. Stored rather than recomputed because a delayed poll must not be
+  /// reported as though it had sampled the windows precisely.
+  baselineMinutes Int
+  minutesToStart  Int
+
+  notifiedAt DateTime?
+  detectedAt DateTime  @default(now())
+
+  @@index([detectedAt])
+  @@index([eventId, marketKey, selection, point])
+}
+
+/**
+ * What the watcher is allowed to do. A single row (id = "default").
+ * Every field here exists to bound spend. The feed bills per request as
+ * (markets x regions), so an unbounded watcher is an unbounded bill — the whole
+ * rest of the site runs on roughly 1,600 credits a month, and a naive poller
+ * would exceed that before lunch.
+ */
+model OddsWatchSettings {
+  id String @id @default("default")
+
+  enabled Boolean @default(false)
+
+  /// Which feed the watcher reads. "oddsapi" is the same provider the public
+  /// board uses; "rundown" is a separate subscription reached only by this tool.
+  ///
+  /// Worth keeping separate rather than switching the whole site: the two bill
+  /// on completely different axes — the Odds API per (markets x regions), so
+  /// asking for more costs more, and Rundown per request, so it doesn't. A
+  /// runaway watcher on its own provider also cannot take the public board's
+  /// odds down with it.
+  ///
+  /// Defaults to oddsapi because the Rundown adapter's field mapping has never
+  /// met a live response; see lib/blitz-odds-rundown.
+  provider String @default("oddsapi")
+
+  /// Effective poll cadence in minutes — how often a cycle actually runs, NOT
+  /// how often the workflow is scheduled. The workflow fires every 5 minutes and
+  /// polls 5 times within each run, so the real figure is 1. Used to project
+  /// spend and to warn when the cadence is too slow for the alert band.
+  pollMinutes Int @default(1)
+
+  /// The two windows the whole tool turns on, in minutes before kickoff.
+  ///
+  /// Baseline is drawn from [baselineTo, baselineFrom] — 16-30 minutes out by
+  /// default — and compared against a price inside the alert band
+  /// [alertTo, alertFrom], 10-15 minutes out.
+  ///
+  /// The alert band has a FLOOR as well as a ceiling on purpose. An alert that
+  /// arrives two minutes before kickoff is not actionable, and the point of the
+  /// floor is to guarantee there is still time to place the bet when the message
+  /// lands.
+  ///
+  /// Nothing outside these bands is ever fetched, which is what keeps the tool
+  /// affordable: the 0-9 minute run-in and everything beyond 30 minutes cost
+  /// nothing at all.
+  baselineFromMinutes Int @default(30)
+  baselineToMinutes   Int @default(16)
+  alertFromMinutes    Int @default(15)
+  alertToMinutes      Int @default(10)
+
+  /// Books to price against, as comma-separated feed keys. Up to ten bill as a
+  /// single region, so a short list costs no less than a long one — but one
+  /// invalid key rejects the entire request, so this is not a field to
+  /// experiment in blind. `booksSeen` on the run log reports which answered.
+  bookmakers String @default("bet365,betano")
+
+  /// A move must be at least this many implied-probability points, and appear
+  /// at this many distinct books, to raise an alert.
+  minProbDelta Float @default(2.0)
+  minBooks     Int   @default(2)
+
+  /// Market depth. Game lines come from one bulk request per league and are
+  /// cheap; the rest are per-event and are where the bill is made.
+  watchGameLines    Boolean @default(true)
+  watchAlternates   Boolean @default(false)
+  watchProps        Boolean @default(false)
+  watchSoccerExtras Boolean @default(false)
+
+  /// Hard ceiling. The poller stops when the day's spend reaches this, and says
+  /// so, rather than quietly draining the quota.
+  dailyCreditCap Int @default(2000)
+  /// Most events to deepen in one run, so an unusually busy slate cannot make
+  /// a single run cost multiples of a normal one.
+  maxDeepEvents  Int @default(20)
+
+  /// Leagues to watch. Empty = every league the board already carries.
+  sportKeys String @default("")
+
+  /// Cached league resolution, and when it was taken.
+  ///
+  /// Resolving soccer probes nine dormant competition keys, and each probe is a
+  /// billed request. At a ten-minute cadence that is over a thousand credits a
+  /// day spent deciding *what* to watch, before watching anything — so the
+  /// answer is cached here on its own slow schedule rather than left to the
+  /// framework's fetch cache, which is invisible, not guaranteed to survive
+  /// between serverless invocations, and the wrong thing to trust with money.
+  leaguesJson String    @default("")
+  leaguesAt   DateTime?
+
+  /// Where alerts go.
+  notifyOnSite   Boolean @default(true)
+  notifyPush     Boolean @default(true)
+  notifyTelegram Boolean @default(true)
+
+  /// Private Telegram destination — a direct chat with the bot, NOT the public
+  /// broadcast channel. Held separately from the broadcast target on purpose:
+  /// this tool is private, and a shared setting is one mistake away from
+  /// pushing line movement to every subscriber. Falls back to
+  /// TELEGRAM_ALERT_CHAT_ID when blank; alerts are skipped if neither is set.
+  telegramChatId String @default("")
+
+  updatedAt DateTime @updatedAt
+}
+
+/**
+ * One run of the watcher, with what it cost.
+ * The credit column is the point: spend is invisible until it is on a page, and
+ * this is what the panel's usage meter and the daily cap are both computed from.
+ */
+model OddsPollRun {
+  id String @id @default(cuid())
+
+  startedAt  DateTime  @default(now())
+  finishedAt DateTime?
+
+  /// Billed units consumed, counted as (markets x regions) per request the same
+  /// way the upstream bills them.
+  credits  Int @default(0)
+  requests Int @default(0)
+
+  eventsSeen Int @default(0)
+  dropsFound Int @default(0)
+
+  /// Books that actually returned a price this run, comma separated.
+  ///
+  /// The one reliable way to tell a wrong book key from a book that simply is
+  /// not pricing a game. The feed rejects an unknown key by failing the whole
+  /// request, so a configured book that never appears here is the first thing
+  /// to check when nothing ever alerts.
+  booksSeen String @default("")
+
+  /// Set when the run stopped early — budget cap hit, feed unavailable.
+  stoppedReason String?
+  error         String?
+
+  @@index([startedAt])
+}
+
+/**
+ * Upcoming kickoffs, refreshed on a slow schedule.
+ * This exists purely to avoid paying to find out that nothing is starting soon.
+ * The watcher only cares about games inside the last half hour before kickoff,
+ * and most leagues, most of the time, have none — but discovering that by
+ * requesting odds costs the same as requesting odds for a full slate.
+ * The upstream's events endpoint is far cheaper than an odds request, so the
+ * schedule is fetched from there occasionally and every poll in between reads
+ * this table for free. On a quiet hour the watcher makes no odds requests at
+ * all.
+ */
+model OddsFixture {
+  id String @id @default(cuid())
+
+  eventId  String    @unique
+  sportKey String
+  sport    PickSport
+
+  matchup      String
+  commenceTime DateTime
+
+  refreshedAt DateTime @default(now())
+
+  // The poll's only question: which leagues have a game starting soon.
+  @@index([commenceTime])
+  @@index([sportKey, commenceTime])
+}
+
+// ---------------------------------------------------------------------------
+// Player Props — correlated prop movement for a single player.
+//
+// The signal this exists to catch: a player's lines all moving at once, in
+// either direction, at more than one book, inside a few minutes. One prop
+// moving is noise — a trader's opinion, a stale quote. Several of the same
+// player's props moving together across independent books is information, and
+// it is usually information about that player: a knock in warm-ups, a lineup
+// change, a minutes restriction, a pitcher scratched.
+//
+// Direction is deliberately not filtered. A shortening line and a drifting one
+// are the same event seen from opposite sides of the same news.
+// ---------------------------------------------------------------------------
+
+/**
+ * One price for one player's prop at one book at one moment.
+ * Like the odds snapshots before it, this is a table that grows with time
+ * rather than with user activity, so it is pruned hard: the detector only ever
+ * looks back a few minutes, and nothing here is worth keeping once the game has
+ * started.
+ */
+model PropSnapshot {
+  id String @id @default(cuid())
+
+  eventId  String
+  sportKey String
+  matchup  String
+
+  /**
+   * The player, as the feed names them (outcome.description).
+   */
+  player    String
+  /**
+   * Market key, e.g. "player_points", "batter_hits".
+   */
+  marketKey String
+  /**
+   * The side: "Over", "Under", "Yes", or a scorer's own name.
+   */
+  selection String
+  /**
+   * The line, when the market has one. Null for yes/no markets.
+   */
+  point     Float?
+
+  bookmaker String
+  price     Int
+
+  capturedAt   DateTime @default(now())
+  commenceTime DateTime
+
+  // The detector's only query: everything for these events since a moment.
+  @@index([eventId, capturedAt])
+  @@index([capturedAt])
+  // Movement is measured per player line per book, which is this exact tuple.
+  @@index([eventId, player, marketKey, selection, bookmaker])
+}
+
+/**
+ * A detected cluster: one player, several props, several books, one window.
+ * `movesJson` holds the individual moves that made up the cluster, so the panel
+ * can show what actually happened rather than only that something did.
+ */
+model PropSignal {
+  id String @id @default(cuid())
+
+  eventId  String
+  sportKey String
+  matchup  String
+  player   String
+
+  /**
+   * How many distinct markets of this player's moved.
+   */
+  marketCount Int
+  /**
+   * How many distinct books the movement showed up at.
+   */
+  bookCount   Int
+  /**
+   * Comma-separated book keys, for display without parsing the JSON.
+   */
+  books       String
+  /**
+   * Comma-separated market keys, same reason.
+   */
+  markets     String
+
+  /**
+   * "UP", "DOWN", or "MIXED" — the direction most of the moves agreed on.
+   */
+  direction    String
+  /**
+   * Largest single move in the cluster, in implied-probability points.
+   */
+  topProbDelta Float
+  /**
+   * The moves themselves: [{marketKey, selection, bookmaker, from, to, ...}].
+   */
+  movesJson    String
+
+  /**
+   * Minutes from detection to kickoff — how actionable it was.
+   */
+  minutesToStart Int
+  commenceTime   DateTime
+
+  detectedAt     DateTime  @default(now())
+  /**
+   * Set when an admin has looked at it; drives the nav badge.
+   */
+  acknowledgedAt DateTime?
+
+  @@index([detectedAt])
+  @@index([acknowledgedAt])
+  @@index([eventId, player, detectedAt])
+}
+
+/**
+ * Singleton settings row for the watcher.
+ */
+model PropWatchSettings {
+  id String @id @default("default")
+
+  enabled Boolean @default(false)
+
+  /**
+   * Comma-separated PickSport names to watch. Empty = every supported sport.
+   */
+  sports String @default("")
+
+  /**
+   * Only events kicking off within this many minutes are polled.
+   */
+  windowMinutes  Int @default(240)
+  /**
+   * Moves are clustered within this many minutes of each other.
+   */
+  clusterMinutes Int @default(10)
+
+  /**
+   * How many distinct props of one player must move.
+   */
+  minProps       Int     @default(2)
+  /**
+   * How many distinct books must show the movement.
+   */
+  minBooks       Int     @default(2)
+  /**
+   * Minimum move, in implied-probability points, for a price to count.
+   */
+  minProbDelta   Float   @default(2)
+  /**
+   * Whether a change in the line alone counts as a move.
+   */
+  countLineMoves Boolean @default(true)
+
+  /**
+   * Hard ceiling on credits per day; the cycle stops when it is reached.
+   */
+  dailyCreditCap  Int @default(500)
+  /**
+   * Most events one cycle will look at, newest kickoff first.
+   */
+  maxEventsPerRun Int @default(6)
+
+  updatedAt DateTime @updatedAt
+}
+
+/**
+ * One cycle, for the spend meter and for telling silence from failure.
+ */
+model PropPollRun {
+  id String @id @default(cuid())
+
+  startedAt DateTime @default(now())
+
+  credits  Int @default(0)
+  requests Int @default(0)
+
+  eventsSeen   Int @default(0)
+  playersSeen  Int @default(0)
+  signalsFound Int @default(0)
+
+  stoppedReason String?
+  error         String?
+
+  @@index([startedAt])
+}
+
+/**
+ * The first price we ever saw for one player's line at one book.
+ * Kept in its own table rather than read back out of PropSnapshot because the
+ * snapshots are pruned hard — they exist to answer "what changed just now" and
+ * are deleted within the hour — while the opening price has to survive until
+ * the game starts. Measuring a move from a row that has been deleted is how a
+ * comparison silently becomes a comparison against the oldest surviving sample
+ * instead.
+ * "Opening" means the first price THIS WATCHER observed, not the book's true
+ * opener: a tool switched on at noon cannot know where a line opened at nine.
+ * openedAt is stored so the panel can say when the baseline was taken rather
+ * than implying more than it knows.
+ * Written once per line per event — the poll inserts with skipDuplicates, so
+ * the first sighting wins and every later one is a no-op.
+ */
+model PropOpeningLine {
+  id String @id @default(cuid())
+
+  eventId   String
+  sportKey  String
+  matchup   String
+  player    String
+  marketKey String
+  selection String
+  bookmaker String
+
+  openPrice Int
+  openPoint Float?
+
+  /**
+   * When this line was first SEEN to have departed its opening price by more
+   * than the threshold — i.e. when this book reacted.
+   * Written once, then never again, for the same reason the opening is: the
+   * moment a book moved is a fact about that book, and recomputing it later
+   * from snapshots would silently become "the oldest sample still on disk"
+   * once the pruning has run. Comparing these across books is the whole point —
+   * it says which book led and how long the rest took to follow.
+   * Null until the line has moved. Its precision is the poll cadence and no
+   * better: a five-minute schedule cannot tell a one-minute lag from a
+   * four-minute one, and the panel says so rather than implying otherwise.
+   */
+  firstMovedAt    DateTime?
+  firstMovedPrice Int?
+
+  openedAt     DateTime @default(now())
+  commenceTime DateTime
+
+  // One opening per line per event, and the constraint that makes the
+  // first-write-wins insert work.
+  @@unique([eventId, player, marketKey, selection, bookmaker])
+  @@index([eventId])
+  @@index([commenceTime])
 }

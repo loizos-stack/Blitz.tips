@@ -2,10 +2,10 @@
 
 import { useCallback, useState } from "react";
 import { useRouter } from "next/navigation";
-import { format } from "date-fns";
+import { formatDateTime } from "@/lib/date-format";
 import { CalendarSearch, PencilLine, Plus, X } from "lucide-react";
 import { SPORT_LABELS, BET_TYPE_LABELS, cn, formatMatchup, usesVsSeparator } from "@/lib/utils";
-import { formatOdds } from "@/lib/odds";
+import { Odds } from "@/components/odds-format";
 import { getTeamNames } from "@/lib/team-logos";
 import { TeamLogo } from "@/components/team-logo";
 import { TeamCrest } from "@/components/team-crest";
@@ -239,7 +239,7 @@ export function CreatePickForm({
             <span className="truncate font-display font-medium">{event.matchup}</span>
           </span>
           <span className="ml-2 shrink-0 text-xs text-muted">
-            {format(new Date(event.commenceTime), "MMM d, h:mm a")}
+            {formatDateTime(new Date(event.commenceTime))}
           </span>
         </button>
 
@@ -350,7 +350,7 @@ export function CreatePickForm({
               </div>
               <p className="mt-0.5 text-muted">
                 {BET_TYPE_LABELS[selectedMarket.betType]} · {selectedMarket.selection} ·{" "}
-                <span className="tabular-nums">{formatOdds(selectedMarket.odds)}</span>
+                <span className="tabular-nums"><Odds value={selectedMarket.odds} /></span>
               </p>
             </div>
           )}

@@ -6,6 +6,7 @@ export const metadata: Metadata = {
   title: "Buy Tips",
   description:
     "Buy sports tips from verified handicappers on Blitz.tips — pay by card or crypto. Every pick is timestamped and graded, so you can subscribe to cappers with a real, provable track record.",
+  alternates: { canonical: "/buy-picks" },
 };
 
 const BENEFITS = [

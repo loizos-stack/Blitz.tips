@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { verifyIpnSignature, PASS_DAYS } from "@/lib/nowpayments";
 import { logActivity } from "@/lib/audit";
+import { formatDate } from "@/lib/date-format";
 
 // NOWPayments IPN callback: activates the access pass when a payment finishes.
 export async function POST(request: Request) {
@@ -70,7 +71,7 @@ export async function POST(request: Request) {
                 userId: hc.userId,
                 type: "plan.crypto",
                 title: `${label} plan active`,
-                body: `Your crypto payment cleared — your ${label} plan is active until ${periodEnd.toLocaleDateString()}.`,
+                body: `Your crypto payment cleared — your ${label} plan is active until ${formatDate(periodEnd)}.`,
                 url: "/dashboard/handicapper/plan",
               },
             })
@@ -146,7 +147,7 @@ export async function POST(request: Request) {
             userId: payment.subscriberId,
             type: "crypto.pass",
             title: "Crypto payment confirmed",
-            body: `Your pass to ${handicapper?.displayName ?? "the handicapper"} is active until ${periodEnd.toLocaleDateString()}.`,
+            body: `Your pass to ${handicapper?.displayName ?? "the handicapper"} is active until ${formatDate(periodEnd)}.`,
             url: handicapper ? `/handicappers/${handicapper.handle}` : null,
             handicapperId: payment.handicapperId,
           },

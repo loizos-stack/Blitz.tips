@@ -26,6 +26,20 @@ export const passwordChangeSchema = z.object({
   newPassword: z.string().min(8, "Password must be at least 8 characters"),
 });
 
+// Ask for a reset link. Nothing but the address — no current password, since
+// the whole point is that it is unavailable.
+export const passwordResetRequestSchema = z.object({
+  email: z.email("Enter a valid email"),
+});
+
+// Set a new password from an emailed link. The token identifies the account, so
+// no email is submitted alongside it: accepting one would invite a request that
+// names a different account than the token belongs to.
+export const passwordResetSchema = z.object({
+  token: z.string().min(1, "This reset link is missing its token"),
+  newPassword: z.string().min(8, "Password must be at least 8 characters"),
+});
+
 export const registerSchema = z.object({
   name: z.string().min(2, "Name is too short").max(60),
   username: usernameSchema,

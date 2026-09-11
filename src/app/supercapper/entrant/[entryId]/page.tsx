@@ -3,7 +3,7 @@ import { EntrantAvatar } from "@/components/contest/entrant-avatar";
 import { entrantAvatar } from "@/lib/contest-avatar";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { format } from "date-fns";
+import { formatDate } from "@/lib/date-format";
 import { ArrowLeft, Trophy } from "lucide-react";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
@@ -104,7 +104,7 @@ export default async function EntrantPage({ params }: { params: Promise<{ entryI
   return (
     <div className="container-page py-10">
       <Link
-        href="/supercapper"
+        href="/supercapper/standings"
         className="inline-flex items-center gap-1.5 text-sm font-medium text-muted hover:text-foreground"
       >
         <ArrowLeft className="h-4 w-4" /> Standings
@@ -128,7 +128,7 @@ export default async function EntrantPage({ params }: { params: Promise<{ entryI
             )}
           </h1>
           <p className="mt-1 text-sm text-muted">
-            {contest.name} · {format(contest.startsAt, "MMM d")}–{format(contest.endsAt, "MMM d, yyyy")}
+            {contest.name} · {formatDate(contest.startsAt)}–{formatDate(contest.endsAt)}
           </p>
         </div>
         </div>

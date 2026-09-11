@@ -1,6 +1,7 @@
 import { getSetting } from "@/lib/settings";
 import { OddsQuotaCard, AnnouncementCard, AutoSettleCard } from "@/components/admin/system-tools";
 import { IntegrationsCard } from "@/components/admin/integrations-card";
+import { SoccerFeedCard } from "@/components/admin/soccer-feed-card";
 import { guardAdminPage } from "@/lib/permissions";
 
 export const dynamic = "force-dynamic";
@@ -18,6 +19,9 @@ export default async function AdminSystemPage() {
       </div>
       <div className="lg:col-span-2">
         <IntegrationsCard />
+      </div>
+      <div className="lg:col-span-2">
+        <SoccerFeedCard />
       </div>
     </div>
   );

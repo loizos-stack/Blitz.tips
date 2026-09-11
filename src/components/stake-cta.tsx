@@ -65,7 +65,7 @@ export function StakeCta({
           className
         )}
       >
-        Bet on <StakeWordmark height={22} onDark={onDark} /> <ArrowUpRight className="h-3.5 w-3.5" />
+        Bet on <StakeWordmark height={24} onDark={onDark} /> <ArrowUpRight className="h-3.5 w-3.5" />
       </a>
     );
   }
@@ -76,11 +76,11 @@ export function StakeCta({
       target="_blank"
       rel="sponsored noopener noreferrer"
       className={cn(
-        "inline-flex items-center gap-1 text-[11px] font-medium text-muted hover:text-accent",
+        "inline-flex items-center gap-1.5 text-xs font-medium text-muted hover:text-accent",
         className
       )}
     >
-      Bet on <StakeWordmark height={18} onDark={onDark} /> <ArrowUpRight className="h-3 w-3" />
+      Bet on <StakeWordmark height={20} onDark={onDark} /> <ArrowUpRight className="h-3.5 w-3.5" />
     </a>
   );
 }

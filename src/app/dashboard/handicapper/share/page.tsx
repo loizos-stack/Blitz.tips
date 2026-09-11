@@ -5,6 +5,7 @@ import { isPickLocked } from "@/lib/pick-visibility";
 import { SPORT_LABELS } from "@/lib/utils";
 import { siteUrl } from "@/lib/site";
 import { ShareStudio, type SharePick } from "@/components/dashboard/share-studio";
+import { BadgeEmbed } from "@/components/dashboard/badge-embed";
 
 export const dynamic = "force-dynamic";
 
@@ -30,15 +31,18 @@ export default async function HandicapperSharePage() {
   const pending = handicapper.picks.filter((p) => p.result === "PENDING").slice(0, 12).map(toSharePick);
 
   return (
-    <ShareStudio
-      baseUrl={base}
-      handle={handicapper.handle}
-      displayName={handicapper.displayName}
-      record={stats.record}
-      unitsNet={stats.unitsNet}
-      roi={stats.roi}
-      picks={settled}
-      pendingPicks={pending}
-    />
+    <div className="flex flex-col gap-6">
+      <ShareStudio
+        baseUrl={base}
+        handle={handicapper.handle}
+        displayName={handicapper.displayName}
+        record={stats.record}
+        unitsNet={stats.unitsNet}
+        roi={stats.roi}
+        picks={settled}
+        pendingPicks={pending}
+      />
+      <BadgeEmbed baseUrl={base} handle={handicapper.handle} />
+    </div>
   );
 }

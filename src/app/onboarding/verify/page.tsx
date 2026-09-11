@@ -21,18 +21,25 @@ export default async function VerifyStep({
 
   const user = await prisma.user.findUnique({
     where: { id: session.user.id },
-    select: { email: true, emailVerified: true },
+    select: { email: true, emailVerified: true, username: true, country: true },
   });
   if (!user?.email) redirect("/signin");
 
-  // Handicappers head to their dashboard after verifying; subscribers continue
-  // through discover + notifications.
-  const nextHref = isHandicapper ? "/onboarding/handicapper/profile" : "/onboarding/discover";
+  // Always continue via the details step rather than jumping to discover. It
+  // sends itself onward the moment nothing is missing, so an email/password
+  // signup — which collected both at the form — passes straight through, while
+  // a Telegram signup stops there to fill them in. That is what lets one chain
+  // serve every entry point instead of each provider hard-coding its own.
+  const nextHref = `/onboarding/country?as=${isHandicapper ? "handicapper" : "subscriber"}`;
   if (user.emailVerified) redirect(nextHref);
 
-  const steps = isHandicapper
-    ? ["Verify email"]
-    : ["Verify email", "Discover", "Notifications"];
+  // Only advertise the details step to people who will actually see it.
+  const needsDetails = !user.username || !user.country;
+  const steps = [
+    "Verify email",
+    ...(needsDetails ? ["Your details"] : []),
+    ...(isHandicapper ? [] : ["Discover", "Notifications"]),
+  ];
 
   return (
     <div className="container-page flex min-h-[calc(100vh-4rem)] items-center justify-center py-16">

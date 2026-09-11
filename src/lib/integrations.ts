@@ -1,4 +1,5 @@
 import "server-only";
+import { blobConfigured } from "@/lib/blob";
 
 /**
  * Which optional integrations are actually wired up in the environment this
@@ -128,20 +129,65 @@ export function integrationStatus(): Integration[] {
       req("NOWPAYMENTS_IPN_SECRET", process.env.NOWPAYMENTS_IPN_SECRET),
     ]),
 
+    // Reported via blobToken() rather than by reading BLOB_READ_WRITE_TOKEN
+    // directly: connecting a store with a custom env-prefix yields
+    // MYSTORE_READ_WRITE_TOKEN, which uploads accept and a name-based check
+    // would call missing.
     build("blob", "Vercel Blob", "Profile and cover image uploads fail.", false, [
-      req("BLOB_READ_WRITE_TOKEN", process.env.BLOB_READ_WRITE_TOKEN),
+      { name: "BLOB_READ_WRITE_TOKEN (or any *_READ_WRITE_TOKEN)", set: blobConfigured(), required: true },
     ]),
 
-    build("ai", "Anthropic (chat assistant)", "Live chat answers from the canned FAQ only.", false, [
-      req("ANTHROPIC_API_KEY", process.env.ANTHROPIC_API_KEY),
-    ]),
+    build(
+      "ai",
+      "Anthropic (chat assistant, parlay OCR)",
+      "Live chat answers from the canned FAQ only, and parlay screenshots are read by Tesseract instead of Claude vision.",
+      false,
+      [req("ANTHROPIC_API_KEY", process.env.ANTHROPIC_API_KEY)]
+    ),
 
+    // NEXT_PUBLIC_VAPID_PUBLIC_KEY is optional, not required. Nothing reads it
+    // in the browser bundle — push-client fetches the key from
+    // GET /api/push/subscribe, which serves VAPID_PUBLIC_KEY. It survives only
+    // as a server-side fallback in lib/push, so listing it as required
+    // reported push as broken while it was working.
     build("push", "Web push", "Browser push notifications are unavailable; email still sends.", false, [
       req("VAPID_PUBLIC_KEY", process.env.VAPID_PUBLIC_KEY),
       req("VAPID_PRIVATE_KEY", process.env.VAPID_PRIVATE_KEY),
-      req("NEXT_PUBLIC_VAPID_PUBLIC_KEY", process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY),
+      opt("NEXT_PUBLIC_VAPID_PUBLIC_KEY", process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY),
       opt("VAPID_SUBJECT", process.env.VAPID_SUBJECT),
     ]),
+
+    // META_PAGE_ID is optional-but-load-bearing: reporting works without it,
+    // creating an ad does not (a creative has to run from a Page). Reported as
+    // optional so a read-only setup isn't flagged broken.
+    build(
+      "meta-ads",
+      "Meta Ads",
+      "The Ads tab can't reach Meta; campaign reporting and ad creation are unavailable.",
+      false,
+      [
+        req("META_ADS_ACCESS_TOKEN", process.env.META_ADS_ACCESS_TOKEN),
+        req("META_AD_ACCOUNT_ID", process.env.META_AD_ACCOUNT_ID),
+        opt("META_PAGE_ID", process.env.META_PAGE_ID),
+        opt("META_MAX_DAILY_BUDGET", process.env.META_MAX_DAILY_BUDGET),
+      ]
+    ),
+
+    // Not previously reported, which is how a broken inbound path stayed
+    // invisible: without the secret the route 401s every caller, the sending
+    // side eventually disables the endpoint, and customer replies are dropped
+    // in silence. INBOUND_EMAIL_DOMAIN only shapes the reply-to address, so
+    // it's optional.
+    build(
+      "inbound",
+      "Inbound email → tickets",
+      "Customer replies to ticket emails are rejected with 401 and never reach the Tickets tab.",
+      false,
+      [
+        req("INBOUND_WEBHOOK_SECRET", process.env.INBOUND_WEBHOOK_SECRET),
+        opt("INBOUND_EMAIL_DOMAIN", process.env.INBOUND_EMAIL_DOMAIN),
+      ]
+    ),
 
     build(
       "cron",

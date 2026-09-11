@@ -29,6 +29,10 @@ export type AdminPermission =
   | "financials"
   | "emails"
   | "promos"
+  | "ads"
+  | "telegram"
+  | "x"
+  | "props"
   | "media"
   | "system"
   | "tickets"
@@ -60,6 +64,10 @@ export const ADMIN_PERMISSIONS: PermissionDef[] = [
   { key: "financials", label: "Financials", href: "/admin/financials", description: "Revenue, MRR and payout figures" },
   { key: "emails", label: "Emails", href: "/admin/emails", description: "Send mass email to users and handicappers" },
   { key: "promos", label: "Promos", href: "/admin/promos", description: "Create and manage promo codes" },
+  { key: "ads", label: "Ads", href: "/admin/ads", description: "Create and track Meta (Facebook/Instagram) ad campaigns" },
+  { key: "telegram", label: "Telegram", href: "/admin/telegram", description: "Broadcast to Telegram channels and log ad spend from networks with no API" },
+  { key: "x", label: "X", href: "/admin/x", description: "Post to the connected X (Twitter) account and manage the connection" },
+  { key: "props", label: "Player Props", href: "/admin/player-props", description: "Alerts when several of one player's props move together at more than one sportsbook" },
   { key: "media", label: "Media", href: "/admin/media", description: "Moderate profile and cover images" },
   { key: "system", label: "System", href: "/admin/system", description: "Announcements, odds quota, auto-settlement" },
   { key: "tickets", label: "Tickets", href: "/admin/tickets", description: "View and reply to support tickets from the contact form" },
