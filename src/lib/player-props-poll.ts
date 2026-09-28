@@ -237,7 +237,7 @@ interface FeedEventOdds {
  * the budget on its own — that is precisely how the first live evening ended in
  * a 504.
  */
-const REQUEST_TIMEOUT_MS = 12_000;
+const REQUEST_TIMEOUT_MS = 8_000;
 
 /**
  * How long the whole cycle may take before it stops starting new work.
@@ -259,7 +259,42 @@ const REQUEST_TIMEOUT_MS = 12_000;
  * persist, and the next cycle picks up the games this one did not reach. A 504
  * is a failure, because nothing is written down.
  */
-const CYCLE_BUDGET_MS = 35_000;
+const CYCLE_BUDGET_MS = 25_000;
+
+/**
+ * The point past which the ROUTE gives up waiting and answers with whatever
+ * the cycle has banked so far. See the route for why a second, outer limit
+ * exists at all: the budget above is a plan, and this is the guarantee.
+ */
+export const HARD_RESPONSE_MS = 45_000;
+
+/**
+ * Resolve with `work`, or with `fallback()` once `ms` has passed — whichever
+ * comes first.
+ *
+ * This exists because every limit inside the cycle is a prediction about how
+ * long the remaining work will take, and those predictions were wrong twice.
+ * Network calls are bounded by their own timeouts; database work is not
+ * bounded by anything, and a busy evening's writes are what actually ran the
+ * function past its limit. A timer cannot be wrong about elapsed time.
+ *
+ * The abandoned work keeps running until the platform reclaims the function.
+ * That is safe here only because spending is banked to the database as it
+ * happens, so nothing that was bought goes unrecorded.
+ */
+export async function withDeadline<T>(work: Promise<T>, ms: number, fallback: () => T): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      work,
+      new Promise<T>((resolve) => {
+        timer = setTimeout(() => resolve(fallback()), ms);
+      }),
+    ]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
 
 /**
  * Upcoming events for one league. Free — the bare /events endpoint carries no
@@ -287,6 +322,12 @@ interface OddsFetch {
   credits: number;
   degraded: boolean;
   error: string | null;
+  /**
+   * Set when the read was declined for want of time rather than failing.
+   * Reported apart from `error` because they mean opposite things to whoever
+   * reads the panel: an error is something wrong, this is the budget working.
+   */
+  outOfTime?: boolean;
 }
 
 /**
@@ -298,10 +339,17 @@ interface OddsFetch {
  * A failed request is not counted as spend — the-odds-api bills successful
  * responses — and the tier that succeeded is what gets charged.
  */
+/**
+ * @param deadline wall-clock ms after which no further attempt may START. The
+ *   422 retry below means one event can otherwise cost TWO full request
+ *   timeouts, which is what made a cycle that checked its budget before each
+ *   event still overrun the function's limit by a wide margin.
+ */
 async function fetchEventProps(
   sportKey: string,
   eventId: string,
-  apiKey: string
+  apiKey: string,
+  deadline: number = Number.POSITIVE_INFINITY
 ): Promise<OddsFetch> {
   const wide = playerPropMarkets(sportKey);
   const core = CORE_MARKETS[oddsGroup(sportKey)];
@@ -312,6 +360,16 @@ async function fetchEventProps(
 
   let lastError: string | null = null;
   for (const [index, markets] of tiers.entries()) {
+    // Only start an attempt that has room to finish in FULL. The obvious
+    // alternative — start it anyway and shrink the timeout to whatever is
+    // left — quietly costs money: the feed bills a request when it serves it,
+    // so abandoning one mid-flight can pay for a response that is then thrown
+    // away. Skipping it entirely spends nothing, and the next cycle reads the
+    // game a few minutes later. The narrower 422 retry is skipped on the same
+    // rule rather than squeezed in.
+    if (deadline - Date.now() <= REQUEST_TIMEOUT_MS) {
+      return { odds: null, credits: 0, degraded: false, error: null, outOfTime: true };
+    }
     const url =
       `${ODDS_API_BASE}/sports/${sportKey}/events/${eventId}/odds` +
       `?apiKey=${apiKey}&regions=us&oddsFormat=american&markets=${markets.join(",")}`;
@@ -472,8 +530,9 @@ export async function prunePropSnapshots(clusterMinutes: number): Promise<number
   return count;
 }
 
-export async function runPlayerProps(now: Date = new Date()): Promise<PropRunReport> {
-  const report: PropRunReport = {
+/** A zeroed report. Exported so a caller can hold one and watch it fill in. */
+export function emptyPropRunReport(): PropRunReport {
+  return {
     ran: false,
     credits: 0,
     requests: 0,
@@ -484,6 +543,20 @@ export async function runPlayerProps(now: Date = new Date()): Promise<PropRunRep
     stoppedReason: null,
     error: null,
   };
+}
+
+/**
+ * @param sink a report object the caller already holds. The cycle fills THIS
+ *   object in as it goes, so a caller that stops waiting still has an accurate
+ *   account of what was spent rather than a zeroed one. Without it, abandoning
+ *   a slow cycle means reporting 0 credits for a cycle that really did buy
+ *   several games.
+ */
+export async function runPlayerProps(
+  now: Date = new Date(),
+  sink?: PropRunReport
+): Promise<PropRunReport> {
+  const report: PropRunReport = sink ?? emptyPropRunReport();
 
   // Everything written by this cycle carries a capturedAt at or after this.
   const cycleStartedAt = new Date(now.getTime() - 1);
@@ -584,7 +657,16 @@ export async function runPlayerProps(now: Date = new Date()): Promise<PropRunRep
       break;
     }
 
-    const { odds, credits, degraded, error } = await fetchEventProps(sportKey, event.id, apiKey);
+    const { odds, credits, degraded, error, outOfTime } = await fetchEventProps(
+      sportKey,
+      event.id,
+      apiKey,
+      deadline
+    );
+    if (outOfTime) {
+      unread = chosen.length - index;
+      break;
+    }
     if (error) {
       errors.push(error);
       continue;
@@ -733,6 +815,7 @@ async function stampReactions(
   const key = (x: { player: string; marketKey: string; selection: string; bookmaker: string }) =>
     `${x.player}|${x.marketKey}|${x.selection}|${x.bookmaker}`;
   const openOf = new Map(states.map((st) => [key(st), st]));
+  const writes: ReturnType<typeof prisma.propOpeningLine.updateMany>[] = [];
 
   for (const move of moved) {
     // Already stamped: the first answer is the only one that is true.
@@ -750,22 +833,30 @@ async function stampReactions(
         return Math.abs(probabilityDelta(state.open.price, s.price)) >= opts.minProbDelta;
       });
 
-    await prisma.propOpeningLine.updateMany({
-      where: {
-        eventId,
-        player: move.player,
-        marketKey: move.marketKey,
-        selection: move.selection,
-        bookmaker: move.bookmaker,
-        // Only ever fills a blank — never revises a recorded reaction.
-        firstMovedAt: null,
-      },
-      data: {
-        firstMovedAt: crossed?.capturedAt ?? state.latest.at,
-        firstMovedPrice: crossed?.price ?? state.latest.price,
-      },
-    });
+    writes.push(
+      prisma.propOpeningLine.updateMany({
+        where: {
+          eventId,
+          player: move.player,
+          marketKey: move.marketKey,
+          selection: move.selection,
+          bookmaker: move.bookmaker,
+          // Only ever fills a blank — never revises a recorded reaction.
+          firstMovedAt: null,
+        },
+        data: {
+          firstMovedAt: crossed?.capturedAt ?? state.latest.at,
+          firstMovedPrice: crossed?.price ?? state.latest.price,
+        },
+      })
+    );
   }
+
+  // Sent as ONE batch rather than awaited one at a time. A busy evening can
+  // produce hundreds of moves, and a round trip each to a remote database is
+  // tens of seconds of pure latency inside a function that has sixty — which
+  // is a large part of how this route started returning 504s.
+  if (writes.length > 0) await prisma.$transaction(writes);
 }
 
 /** Write a cluster, unless the same one was already raised inside the window. */
