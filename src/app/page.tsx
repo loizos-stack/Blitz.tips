@@ -1,13 +1,19 @@
 import Link from "next/link";
+import { Suspense } from "react";
+import { ContestPromoStrip } from "@/components/cross-promo-strip";
 import { ShieldCheck, LineChart, Users, ArrowRight } from "lucide-react";
 import { listHandicapperDirectory, applyHandicapperFinder } from "@/lib/handicappers";
 import { HandicapperCard } from "@/components/handicapper-card";
 import { HandicapperFinder } from "@/components/handicapper-finder";
-import { UpcomingGames } from "@/components/upcoming-games";
-import { getUpcomingEvents, getAllUpcomingEvents, getAvailableHomepageSports } from "@/lib/odds-api";
-import { showStakeLinks } from "@/lib/stake-server";
-import { SPORT_LABELS } from "@/lib/utils";
+import { HomeBoard, HomeBoardSkeleton } from "@/components/home-board";
+import type { Metadata } from "next";
 import type { PickSport } from "@prisma/client";
+
+// Every ?sport= / ?find= / ?q= permutation of the board and the handicapper
+// finder is the same page with a filter applied, so they all point back here.
+export const metadata: Metadata = {
+  alternates: { canonical: "/" },
+};
 
 export const dynamic = "force-dynamic";
 
@@ -17,28 +23,9 @@ export default async function Home({
   searchParams: Promise<{ sport?: string; find?: string; q?: string }>;
 }) {
   const params = await searchParams;
-  const [handicappers, unsortedSports] = await Promise.all([
-    listHandicapperDirectory(),
-    getAvailableHomepageSports(),
-  ]);
-
-  // Active sports, alphabetized by their display label so the tab order is
-  // predictable.
-  const availableSports = [...unsortedSports].sort((a, b) =>
-    (SPORT_LABELS[a] ?? a).localeCompare(SPORT_LABELS[b] ?? b)
-  );
-
-  // Default view merges every sport's games sorted by start time; picking a
-  // sport pill (?sport=...) narrows to just that sport. Each sport's feed is
-  // cached for an hour and the "all" view reuses those caches, so no extra
-  // billed calls.
-  const sport: PickSport | null = availableSports.includes(params.sport as PickSport)
-    ? (params.sport as PickSport)
-    : null;
-
-  const oddsFeed = sport
-    ? await getUpcomingEvents(sport)
-    : await getAllUpcomingEvents(availableSports);
+  // Only the directory is awaited here. The odds board — the one slow,
+  // third-party-dependent thing on this page — streams in separately below.
+  const handicappers = await listHandicapperDirectory();
 
   // The "Find a Handicapper" finder: sport chips are the major sports offered by
   // at least one handicapper; the list is filtered/sorted by the active chip.
@@ -93,7 +80,10 @@ export default async function Home({
           </div>
 
           <div className="mt-14 grid grid-cols-2 gap-4 sm:grid-cols-4">
-            <Stat label="Handicappers" value={handicappers.length.toString()} />
+            <Stat
+              label={handicappers.length === 1 ? "Handicapper" : "Handicappers"}
+              value={handicappers.length.toString()}
+            />
             <Stat label="Picks tracked" value={totalPicks.toString()} />
             <Stat label="Verified records" value="100%" />
             <Stat label="Platform fee" value="Transparent" />
@@ -101,13 +91,12 @@ export default async function Home({
         </div>
       </section>
 
+      <ContestPromoStrip />
+
       <div id="lines" />
-      <UpcomingGames
-        sport={sport}
-        feed={oddsFeed}
-        availableSports={availableSports}
-        showStake={await showStakeLinks()}
-      />
+      <Suspense fallback={<HomeBoardSkeleton />}>
+        <HomeBoard sportParam={params.sport} />
+      </Suspense>
 
       <section id="find" className="relative scroll-mt-20 overflow-hidden border-y border-border py-16">
         <div
@@ -149,8 +138,16 @@ export default async function Home({
         </div>
       </section>
 
-      <section className="border-t border-border bg-surface/40 py-16">
-        <div className="container-page">
+      <section className="relative overflow-hidden border-t border-border bg-surface/40 py-16">
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-0 bg-[url('/lines-bg.svg')] bg-cover bg-center opacity-[0.07]"
+        />
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-0 bg-gradient-to-br from-accent/[0.07] via-transparent to-gold/[0.07]"
+        />
+        <div className="container-page relative">
           <h2 className="text-2xl font-bold">How Blitz.tips works</h2>
           <div className="mt-8 grid gap-6 md:grid-cols-3">
             <HowItWorksCard
@@ -194,10 +191,19 @@ function HowItWorksCard({
   description: string;
 }) {
   return (
-    <div className="card p-6">
-      <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-accent/15 text-accent">{icon}</div>
-      <h3 className="mt-4 font-semibold">{title}</h3>
-      <p className="mt-2 text-sm text-muted">{description}</p>
+    // Icon and heading share a row rather than stacking: it saves a whole line
+    // of height per card and reads as one label instead of two.
+    <div className="card p-5">
+      {/* items-start keeps every icon in a row at the same height even when one
+          card's heading wraps to two lines; min-h-9 on the heading keeps a
+          single-line one optically centred against the icon. */}
+      <div className="flex items-start gap-3">
+        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-accent/15 text-accent">
+          {icon}
+        </span>
+        <h3 className="flex min-h-9 min-w-0 items-center text-sm font-semibold">{title}</h3>
+      </div>
+      <p className="mt-3 text-sm text-muted">{description}</p>
     </div>
   );
 }

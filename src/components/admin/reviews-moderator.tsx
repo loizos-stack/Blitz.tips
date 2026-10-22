@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Star, Check, X, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { formatDateTime } from "@/lib/date-format";
 
 type Status = "PENDING" | "APPROVED" | "REJECTED";
 
@@ -133,7 +134,7 @@ export function ReviewsModerator({ initialReviews }: { initialReviews: Review[] 
                       {r.handicapperName}
                     </Link>
                   </p>
-                  <p className="text-xs text-muted">{new Date(r.createdAt).toLocaleString()}</p>
+                  <p className="text-xs text-muted">{formatDateTime(r.createdAt)}</p>
                 </div>
                 <div className="flex shrink-0 items-center gap-2">
                   {r.status !== "APPROVED" && (

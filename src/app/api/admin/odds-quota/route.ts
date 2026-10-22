@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { upstreamFailed } from "@/lib/api-status";
 import { requirePermission } from "@/lib/permissions";
 import { oddsApiKey } from "@/lib/odds-api";
 
@@ -16,7 +17,7 @@ export async function GET() {
   try {
     const res = await fetch(`${API_BASE}/sports?apiKey=${apiKey}`, { cache: "no-store" });
     if (!res.ok) {
-      return NextResponse.json({ error: `Odds API responded ${res.status}` }, { status: 502 });
+      return upstreamFailed(`Odds API responded ${res.status}`);
     }
     return NextResponse.json({
       remaining: res.headers.get("x-requests-remaining"),

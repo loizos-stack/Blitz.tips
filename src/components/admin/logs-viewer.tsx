@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Search, X } from "lucide-react";
+import { formatDateTimeSeconds } from "@/lib/date-format";
 
 interface LogRow {
   id: string;
@@ -133,7 +134,7 @@ export function LogsViewer({ actions, targetTypes }: { actions: string[]; target
               rows.map((e) => (
                 <tr key={e.id} className="border-b border-border last:border-b-0">
                   <td className="whitespace-nowrap px-4 py-2.5 text-muted">
-                    {new Date(e.createdAt).toLocaleString()}
+                    {formatDateTimeSeconds(e.createdAt)}
                   </td>
                   <td className="px-4 py-2.5">{e.actorEmail}</td>
                   <td className="px-4 py-2.5 font-mono text-xs">{e.action}</td>

@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { PlanPicker } from "@/components/plan-picker";
 import { PLAN_DEFINITIONS } from "@/lib/plans";
+import { formatDate } from "@/lib/date-format";
 import type { BillingInterval, HandicapperPlan, SubscriptionStatus } from "@prisma/client";
 
 export function ManagePlanCard({
@@ -90,7 +91,7 @@ export function ManagePlanCard({
             {planInterval && ` · billed ${planInterval === "ANNUAL" ? "annually" : "monthly"}`}
             {planStatus === "PAST_DUE" && <span className="text-danger"> · payment past due</span>}
             {planCurrentPeriodEnd &&
-              ` · renews ${planCurrentPeriodEnd.toLocaleDateString()}`}
+              ` · renews ${formatDate(planCurrentPeriodEnd)}`}
           </p>
         </div>
         <button

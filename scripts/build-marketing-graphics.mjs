@@ -10,7 +10,8 @@
  * contest numbers change — a stale "$25,000" graphic outliving a pool change is
  * exactly the kind of thing that gets screenshotted back at you.
  */
-import { readFileSync, writeFileSync, mkdirSync, readdirSync, statSync } from "fs";
+import { readFileSync, writeFileSync, mkdirSync, readdirSync, statSync, renameSync } from "fs";
+import { execFileSync } from "child_process";
 import { createRequire } from "module";
 import { tmpdir } from "os";
 import { join } from "path";
@@ -134,12 +135,40 @@ body{font-family:'Space Grotesk',sans-serif;background:#222}
 // edit these in the contests panel without a migration — the prize pool already
 // changed that way — so re-check the live row before publishing anything that
 // puts a date in front of people.
-const STARTS = "August 3, 2026";
+const STARTS = "September 7, 2026";
 const ENDS = "January 10, 2027";
-const STARTS_SHORT = "Aug 3";
+const STARTS_SHORT = "Sep 7";
 const ENDS_SHORT = "Jan 10";
 
 const cards = [
+  {
+    // Small-canvas promo: link previews, ad slots, embeds — places that want a
+    // 640x360 file rather than a 2x asset to be scaled down by someone else.
+    //
+    // `exact` makes the output its named size instead of the @2x every other
+    // card ships. It is still rendered at 2x and downscaled, so the type is
+    // supersampled rather than rasterised at final size; at this scale that is
+    // the difference between crisp numerals and mush.
+    //
+    // Both claims are load-bearing and both are checked: prizePoolCents is
+    // 1,000,000 (see migration 20260726190000_contest_pool_10k) and the contest
+    // has no entry fee at all, which is why its own tagline in that same
+    // migration reads "Free to enter. $10,000 guaranteed."
+    name: "supercapper-promo-640x360",
+    w: 640, h: 360, exact: true,
+    html: `<div class="inner" style="gap:11px;padding:26px">
+      ${wordmark(34)}
+      <div class="rule" style="width:88px"></div>
+      <div class="kicker" style="font-size:10px">Guaranteed prize pool</div>
+      <div class="pool" style="font-size:86px">$10,000</div>
+      <div class="pill" style="font-size:15px;padding:7px 18px;border-color:rgba(34,197,94,.45)">
+        <span class="green" style="font-weight:800">Free to join</span>
+        <span style="opacity:.5">·</span>
+        <span>Best ROI wins</span>
+      </div>
+      <div class="url" style="font-size:16px;margin-top:2px">blitz.tips/supercapper</div>
+    </div>`,
+  },
   {
     name: "supercapper-hero-1600x900",
     w: 1600, h: 900,
@@ -237,7 +266,7 @@ const cards = [
         <span class="gold" style="font-weight:800">$10,000 guaranteed</span> · Free to enter
       </div>
       <div class="pill" style="font-size:21px;margin-top:6px">
-        ${STARTS_SHORT} 2026 → ${ENDS_SHORT} 2027 · five months of graded picks
+        ${STARTS_SHORT} 2026 → ${ENDS_SHORT} 2027 · four months of graded picks
       </div>
       <div class="url" style="font-size:28px;margin-top:16px">blitz.tips/supercapper</div>
     </div>`,
@@ -408,7 +437,19 @@ await page.evaluate(() => document.fonts.ready);
 await page.waitForTimeout(600);
 
 for (const c of cards) {
-  await page.locator(`#${c.name}`).screenshot({ path: `${OUT}/${c.name}.png` });
-  console.log(`public/marketing/${c.name}.png  ${c.w}x${c.h} @2x`);
+  const path = `${OUT}/${c.name}.png`;
+  await page.locator(`#${c.name}`).screenshot({ path });
+  if (c.exact) {
+    // Downscale the 2x capture to the named size. Lanczos rather than the
+    // default, which softens small type noticeably at a 2:1 reduction.
+    // Via a temp file: ffmpeg refuses to read and write the same path.
+    const staged = join(tmpdir(), `${c.name}-2x.png`);
+    renameSync(path, staged);
+    execFileSync("ffmpeg", [
+      "-y", "-loglevel", "error", "-i", staged,
+      "-vf", `scale=${c.w}:${c.h}:flags=lanczos`, "-frames:v", "1", "-update", "1", path,
+    ]);
+  }
+  console.log(`public/marketing/${c.name}.png  ${c.w}x${c.h}${c.exact ? " (exact)" : " @2x"}`);
 }
 await browser.close();

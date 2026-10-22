@@ -69,6 +69,11 @@ export function SupercapperLogo({
               strokeLinejoin="round"
             />
           </svg>
+          {/* The bolt IS the S, but only visually — in the text layer the
+              wordmark read "upercapper", which is what a crawler, a copy-paste
+              and a plain-text extractor all see. This puts the letter back in
+              the DOM without drawing it twice. */}
+          <span className="sr-only">S</span>
           <span>uper</span>
           <span className={accent}>capper</span>
         </span>

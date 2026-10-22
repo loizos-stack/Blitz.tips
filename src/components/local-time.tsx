@@ -1,24 +1,19 @@
 "use client";
 
 import { useSyncExternalStore } from "react";
-
-function formatIn(iso: string, locale: string | undefined, timeZone: string | undefined): string {
-  const d = new Date(iso);
-  const date = d.toLocaleDateString(locale, { weekday: "short", month: "short", day: "numeric", timeZone });
-  const time = d.toLocaleTimeString(locale, { hour: "numeric", minute: "2-digit", timeZone });
-  return `${date} · ${time}`;
-}
+import { formatDateTimeInZone } from "@/lib/date-format";
 
 const emptySubscribe = () => () => {};
 
-// Renders an event's kickoff time in the visitor's own timezone. The server
-// snapshot is a deterministic en-US/UTC string so hydration matches; on the
-// client, useSyncExternalStore swaps in the browser's locale and timezone.
+// Renders an event's kickoff time in the visitor's own timezone. The shape is
+// always dd/MM/yyyy HH:mm (see lib/date-format) — only the timezone varies, so
+// the server snapshot and the client render differ in the instant they show,
+// never in the format. The server snapshot pins UTC so hydration matches.
 export function LocalTime({ iso }: { iso: string }) {
   const text = useSyncExternalStore(
     emptySubscribe,
-    () => formatIn(iso, undefined, undefined),
-    () => formatIn(iso, "en-US", "UTC")
+    () => formatDateTimeInZone(iso),
+    () => formatDateTimeInZone(iso, "UTC")
   );
 
   return <span suppressHydrationWarning>{text}</span>;

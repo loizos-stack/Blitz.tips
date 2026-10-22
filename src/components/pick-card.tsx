@@ -1,12 +1,14 @@
 import { Lock, Layers } from "lucide-react";
-import { format } from "date-fns";
+import { TailButtons } from "@/components/tail-buttons";
+import { formatDateTime } from "@/lib/date-format";
 import type { Pick as PickModel, ParlayLeg } from "@prisma/client";
 import { ResultPill } from "@/components/result-pill";
-import { StakeCta } from "@/components/stake-cta";
+import { SportsbookCta } from "@/components/sportsbook-cta";
+import type { Sportsbook } from "@/lib/sportsbooks";
 import { SportIcon } from "@/components/sport-icon";
 import { TeamLogo } from "@/components/team-logo";
 import { getTeamLogoUrl } from "@/lib/team-logos";
-import { formatOdds } from "@/lib/odds";
+import { Odds } from "@/components/odds-format";
 import { SPORT_LABELS, BET_TYPE_LABELS, usesVsSeparator } from "@/lib/utils";
 import type { PickSport } from "@prisma/client";
 
@@ -65,12 +67,18 @@ function UnitsBadge({ units }: { units: number }) {
 export function PickCard({
   pick,
   locked = false,
-  showStake = false,
+  book = null,
+  tail,
 }: {
   pick: PickWithLegs;
   locked?: boolean;
   /** Renders the Stake partner link. Caller must have geo-gated to non-US. */
-  showStake?: boolean;
+  book?: Sportsbook | null;
+  /**
+   * Tail/fade counts and the reader's own position. Omitted where the control
+   * doesn't belong — a signed-out visitor, or the capper's own dashboard.
+   */
+  tail?: { tails: number; fades: number; mine: boolean | null; canTail: boolean; reason?: string };
 }) {
   const isParlay = pick.betType === "PARLAY";
   const legs = pick.parlayLegs ?? [];
@@ -85,6 +93,27 @@ export function PickCard({
     ? [homeLogo, awayLogo]
     : [awayLogo, homeLogo];
 
+  /**
+   * The affiliate link sits beside the stake, in the same row as the price and
+   * the units — that row is the bet, and the link belongs with it rather than
+   * floating underneath.
+   *
+   * Shown until the pick is graded, not until kickoff. A pick can be live and
+   * still worth backing in-play, and a card that silently drops its link the
+   * moment a game starts looks broken rather than deliberate. Once there's a
+   * result there is nothing left to place, so PENDING is the whole condition.
+   */
+  const betCta =
+    book && pick.result === "PENDING" ? (
+      <SportsbookCta
+        book={book}
+        variant="button"
+        sport={pick.sport}
+        league={pick.oddsApiSportKey}
+        event={pick.oddsApiEventId}
+      />
+    ) : null;
+
   if (locked) {
     return (
       <div className="card relative overflow-hidden p-5">
@@ -93,14 +122,14 @@ export function PickCard({
             {isParlay ? <Layers className="h-4 w-4" /> : <SportIcon sport={pick.sport} className="h-4 w-4" />}
             {isParlay ? `${legs.length}-leg parlay` : SPORT_LABELS[pick.sport]}
           </span>
-          <span>{format(pick.eventStartsAt, "MMM d, h:mm a")}</span>
+          <span>{formatDateTime(pick.eventStartsAt)}</span>
         </div>
         <div className="mt-3 flex items-center gap-2 blur-sm select-none">
           <p className="font-display font-semibold">{pick.matchup}</p>
         </div>
         <div className="mt-3 flex items-center gap-2 blur-sm select-none">
           <span className="text-sm">{BET_TYPE_LABELS[pick.betType]}</span>
-          <span className="text-sm font-semibold">{formatOdds(pick.odds)}</span>
+          <span className="text-sm font-semibold"><Odds value={pick.odds} /></span>
         </div>
         <div className="absolute inset-0 flex items-center justify-center bg-surface/70 backdrop-blur-[2px]">
           <div className="flex items-center gap-2 rounded-full border border-border bg-surface px-4 py-2 text-sm font-medium">
@@ -119,7 +148,7 @@ export function PickCard({
           {isParlay ? "Parlay" : SPORT_LABELS[pick.sport]}
           {!isParlay && pick.league ? ` · ${pick.league}` : ""}
         </span>
-        <span>{format(pick.eventStartsAt, "MMM d, h:mm a")}</span>
+        <span>{formatDateTime(pick.eventStartsAt)}</span>
       </div>
 
       {isParlay ? (
@@ -127,7 +156,7 @@ export function PickCard({
           <div className="mt-3 flex items-center justify-between">
             <p className="font-semibold">{legs.length}-leg parlay</p>
             <span className="rounded-full bg-accent/10 px-2.5 py-1 text-sm font-semibold tabular-nums text-accent">
-              {formatOdds(pick.odds)}
+              <Odds value={pick.odds} />
             </span>
           </div>
           <ul className="mt-3 divide-y divide-border rounded-lg border border-border">
@@ -147,13 +176,14 @@ export function PickCard({
                       <span className="block truncate font-display text-xs text-muted">{leg.matchup}</span>
                     </span>
                   </span>
-                  <span className="shrink-0 tabular-nums text-muted">{formatOdds(leg.odds)}</span>
+                  <span className="shrink-0 tabular-nums text-muted"><Odds value={leg.odds} /></span>
                 </li>
               );
             })}
           </ul>
-          <div className="mt-3">
+          <div className="mt-3 flex flex-wrap items-center gap-3">
             <UnitsBadge units={pick.units} />
+            {betCta}
           </div>
         </>
       ) : (
@@ -170,19 +200,27 @@ export function PickCard({
           <div className="mt-2 flex flex-wrap items-center gap-3 text-sm">
             <span className="rounded-full bg-surface-raised px-2.5 py-1">{BET_TYPE_LABELS[pick.betType]}</span>
             <span className="font-display font-semibold">{pick.selection}</span>
-            <span className="font-semibold tabular-nums">{formatOdds(pick.odds)}</span>
+            <span className="font-semibold tabular-nums"><Odds value={pick.odds} /></span>
             <UnitsBadge units={pick.units} />
+            {betCta}
           </div>
         </>
       )}
 
       {pick.analysis && <p className="mt-3 text-sm text-muted">{pick.analysis}</p>}
 
-      {/* Only worth offering on a game that hasn't started — you can't go and
-          place a bet that's already graded or in play. */}
-      {showStake && pick.result === "PENDING" && pick.eventStartsAt > new Date() && (
-        <div className="mt-3">
-          <StakeCta variant="button" sport={pick.sport} event={pick.oddsApiEventId} />
+      {/* Under the analysis, above the result: it belongs with the decision,
+          not with the outcome. */}
+      {tail && (
+        <div className="mt-3 border-t border-border pt-3">
+          <TailButtons
+            pickId={pick.id}
+            tails={tail.tails}
+            fades={tail.fades}
+            mine={tail.mine}
+            disabled={!tail.canTail}
+            disabledReason={tail.reason}
+          />
         </div>
       )}
 

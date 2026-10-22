@@ -2,15 +2,15 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { format } from "date-fns";
-import { Lock } from "lucide-react";
+import { formatDateTime } from "@/lib/date-format";
+import { Lock, Clock } from "lucide-react";
 import type { Pick as PickModel, PickResult } from "@prisma/client";
 import { ResultPill } from "@/components/result-pill";
 import { TeamLogo } from "@/components/team-logo";
 import { PickShareButton } from "@/components/pick-share-button";
-import { isPickLocked } from "@/lib/pick-visibility";
+import { isPickLocked, isGradableByHandicapper } from "@/lib/pick-visibility";
 import { pickShareInfo } from "@/lib/pick-share";
-import { formatOdds } from "@/lib/odds";
+import { Odds } from "@/components/odds-format";
 import { SPORT_LABELS, BET_TYPE_LABELS, usesVsSeparator } from "@/lib/utils";
 
 const SETTLE_OPTIONS: PickResult[] = ["WIN", "LOSS", "PUSH", "VOID"];
@@ -28,17 +28,31 @@ export function HandicapperPickRow({
 }) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   async function settle(result: PickResult) {
     setLoading(true);
-    await fetch(`/api/picks/${pick.id}`, {
+    setError(null);
+    const res = await fetch(`/api/picks/${pick.id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ result }),
     });
     setLoading(false);
+    // A refusal used to be discarded, so a rejected grade looked exactly like
+    // an accepted one until the page came back unchanged.
+    if (!res.ok) {
+      const body = await res.json().catch(() => null);
+      setError(body?.error ?? "Couldn't grade this tip. Please try again.");
+      return;
+    }
     router.refresh();
   }
+
+  // Mirrors the server's rule. Evaluated at render, so a row left open across
+  // kickoff keeps hiding the buttons until the page refreshes — the endpoint is
+  // what actually decides, and it re-checks on every attempt.
+  const gradable = isGradableByHandicapper(pick);
 
   // Order crests to match the matchup text: "Home vs Away" sports show the home
   // crest first; "Away @ Home" sports show the away crest first.
@@ -59,7 +73,7 @@ export function HandicapperPickRow({
           {SPORT_LABELS[pick.sport]}
           {pick.league ? ` · ${pick.league}` : ""}
         </span>
-        <span>{format(pick.eventStartsAt, "MMM d, h:mm a")}</span>
+        <span>{formatDateTime(pick.eventStartsAt)}</span>
       </div>
 
       <div className="mt-3 flex items-center gap-2">
@@ -75,7 +89,7 @@ export function HandicapperPickRow({
       <div className="mt-2 flex flex-wrap items-center gap-3 text-sm">
         <span className="rounded-full bg-surface-raised px-2.5 py-1">{BET_TYPE_LABELS[pick.betType]}</span>
         {pick.betType !== "PARLAY" && <span className="font-display font-semibold">{pick.selection}</span>}
-        <span className="font-semibold tabular-nums">{formatOdds(pick.odds)}</span>
+        <span className="font-semibold tabular-nums"><Odds value={pick.odds} /></span>
         <span className="inline-flex items-baseline gap-1 rounded-lg border border-accent/30 bg-accent/10 px-2 py-0.5">
           <span className="font-bold tabular-nums text-accent">{pick.units}u</span>
           <span className="text-[10px] font-semibold uppercase tracking-wide text-accent/80">risk</span>
@@ -85,7 +99,13 @@ export function HandicapperPickRow({
 
       <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-border pt-4">
         <ResultPill result={pick.result} />
-        {pick.result === "PENDING" ? (
+        {pick.result === "PENDING" && !gradable ? (
+          // Nothing to grade yet. Saying so beats offering buttons that the
+          // server will refuse.
+          <span className="inline-flex items-center gap-1.5 text-xs font-medium text-muted">
+            <Clock className="h-3.5 w-3.5" /> Gradable after kickoff
+          </span>
+        ) : pick.result === "PENDING" ? (
           <div className="flex flex-wrap gap-2">
             {SETTLE_OPTIONS.map((option) => (
               <button
@@ -106,6 +126,8 @@ export function HandicapperPickRow({
           </span>
         )}
       </div>
+
+      {error && <p className="mt-3 text-xs text-danger">{error}</p>}
 
       {shareInfo && (
         <div className="mt-3 flex items-center justify-between border-t border-border pt-3">

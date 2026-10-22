@@ -8,7 +8,7 @@ import {
   type ConsensusGame,
   type ConsensusMarket,
 } from "@/lib/contest-consensus";
-import { formatOdds } from "@/lib/odds";
+import { Odds } from "@/components/odds-format";
 import { SportIcon } from "@/components/sport-icon";
 import { LocalTime } from "@/components/local-time";
 import { MatchupTeams } from "@/components/matchup-teams";
@@ -148,7 +148,7 @@ function MarketCard({ market }: { market: ConsensusMarket }) {
           <div key={side.selection}>
             <div className="flex items-baseline justify-between gap-2 text-xs">
               <span className="min-w-0 truncate">
-                {side.selection} <span className="text-muted">{formatOdds(side.odds)}</span>
+                {side.selection} <span className="text-muted"><Odds value={side.odds} /></span>
               </span>
               <span className="shrink-0 font-semibold tabular-nums">{side.pickShare}%</span>
             </div>

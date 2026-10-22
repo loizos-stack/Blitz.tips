@@ -1,5 +1,6 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
+import { notifyPickSettled } from "@/lib/notifications";
 import { oddsApiKey } from "@/lib/odds-api";
 import {
   getFinalPeriodScores,
@@ -16,6 +17,35 @@ const API_BASE = process.env.ODDS_API_BASE ?? "https://api.the-odds-api.com/v4";
 // The Odds API's /scores endpoint covers at most the last 3 days; older
 // unsettled picks stay for manual grading.
 const DAYS_FROM = 3;
+
+/** How many league score requests are in flight at once. See the fetch loop. */
+const SCORES_CONCURRENCY = 6;
+
+/**
+ * Runs `fn` over `items` with at most `limit` in flight, returning results in
+ * the input's order.
+ *
+ * Promise.all would launch every request at once; a pool keeps a long list from
+ * turning into a burst against a single upstream. Results stay index-aligned so
+ * callers can rely on ordering even though completion order won't match.
+ */
+async function mapWithConcurrency<T, R>(
+  items: T[],
+  limit: number,
+  fn: (item: T) => Promise<R>
+): Promise<R[]> {
+  const results: R[] = new Array(items.length);
+  let cursor = 0;
+  const workers = Array.from({ length: Math.min(limit, items.length) }, async () => {
+    // Each worker claims the next index until the list runs out. `cursor++` is
+    // atomic here because JS won't interleave it with another worker's read.
+    for (let i = cursor++; i < items.length; i = cursor++) {
+      results[i] = await fn(items[i]!);
+    }
+  });
+  await Promise.all(workers);
+  return results;
+}
 
 interface ScoreEntry {
   id: string;
@@ -292,6 +322,11 @@ export async function runAutoSettle(): Promise<AutoSettleReport> {
         oddsApiSportKey: { not: null },
         eventStartsAt: started,
       },
+      // The handicapper comes along so a graded pick can be announced without a
+      // second query per pick.
+      include: {
+        handicapper: { select: { id: true, userId: true, handle: true, displayName: true } },
+      },
     }),
     // Contest picks are always board-sourced, so every pending one is gradable.
     prisma.contestPick.findMany({
@@ -318,17 +353,33 @@ export async function runAutoSettle(): Promise<AutoSettleReport> {
   ];
   const finals = new Map<string, FinalScore>();
 
-  for (const sportKey of sportKeys) {
+  // Fetched with a small amount of concurrency rather than one at a time.
+  //
+  // Sequentially, this loop's wall time was the league count times upstream
+  // latency, and the league count is not a constant — it is however many
+  // distinct competitions have a pending pick, which grew when the board went
+  // from 30 soccer leagues to 45. It crossed the route's 60s maxDuration on the
+  // evening slate of 2026-08-11 and the run 504'd, after 29 consecutive
+  // successes. The work was always parallelisable: one independent request per
+  // league, all of them read-only.
+  //
+  // Bounded rather than a bare Promise.all over every key: these are billed API
+  // calls to one upstream, and firing forty at once is how you find out what
+  // their rate limit is. Six keeps the wall time flat in the range that matters
+  // while staying polite.
+  //
+  // Errors are collected per key and appended in the original order afterwards,
+  // so a parallel run still produces the same report a sequential one did.
+  const errorsByKey = await mapWithConcurrency(sportKeys, SCORES_CONCURRENCY, async (sportKey) => {
     try {
       const res = await fetch(
         `${API_BASE}/sports/${sportKey}/scores/?apiKey=${apiKey}&daysFrom=${DAYS_FROM}`,
         { cache: "no-store" }
       );
-      if (!res.ok) {
-        report.errors.push(`scores fetch failed for ${sportKey}: ${res.status}`);
-        continue;
-      }
+      if (!res.ok) return `scores fetch failed for ${sportKey}: ${res.status}`;
       const data = (await res.json()) as ScoreEntry[];
+      // Safe to write into the shared map from several tasks: each league
+      // returns its own events, and nothing here yields mid-write.
       for (const entry of data) {
         if (!entry.completed || !entry.scores) continue;
         const home = entry.scores.find((s) => s.name === entry.home_team);
@@ -341,9 +392,13 @@ export async function runAutoSettle(): Promise<AutoSettleReport> {
           awayScore: Number(away.score),
         });
       }
+      return null;
     } catch (error) {
-      report.errors.push(`scores fetch failed for ${sportKey}: ${String(error)}`);
+      return `scores fetch failed for ${sportKey}: ${String(error)}`;
     }
+  });
+  for (const message of errorsByKey) {
+    if (message !== null) report.errors.push(message);
   }
 
   // Period/half picks need ESPN's per-period linescores (the odds feed only
@@ -416,6 +471,17 @@ export async function runAutoSettle(): Promise<AutoSettleReport> {
     await prisma.pick.update({
       where: { id: pick.id },
       data: { result, settledAt: new Date(), settledBy: "auto" },
+    });
+    // Tell the followers. Awaited so a serverless invocation can't be frozen
+    // mid-send, but best-effort inside, so a failed channel never stops grading.
+    await notifyPickSettled({
+      id: pick.id,
+      matchup: pick.matchup,
+      selection: pick.selection,
+      odds: pick.odds,
+      units: pick.units,
+      result,
+      handicapper: pick.handicapper,
     });
     report.settled += 1;
   }

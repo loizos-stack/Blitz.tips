@@ -6,6 +6,33 @@ import path from "node:path";
 export type ProfileImageKind = "avatar" | "cover";
 export type ImageScope = "handicappers" | "contest-entries";
 
+/**
+ * The Blob store's read/write token.
+ *
+ * Vercel injects it as BLOB_READ_WRITE_TOKEN by default, but a custom
+ * env-prefix chosen when connecting the store yields e.g.
+ * MYSTORE_READ_WRITE_TOKEN — accept any of them.
+ *
+ * `||` rather than `??` on the first branch: an env var explicitly set to an
+ * empty string is a missing one, and `??` would return "" and skip the
+ * prefix search.
+ */
+export function blobToken(): string | undefined {
+  return (
+    process.env.BLOB_READ_WRITE_TOKEN?.trim() ||
+    Object.entries(process.env).find(([k, v]) => k.endsWith("_READ_WRITE_TOKEN") && v?.trim())?.[1]
+  );
+}
+
+/**
+ * Whether an upload would find somewhere to write. Used by the admin
+ * integrations panel so it reports what `saveProfileImage` will actually do,
+ * rather than guessing from one variable name.
+ */
+export function blobConfigured(): boolean {
+  return Boolean(blobToken()) || Boolean(process.env.BLOB_LOCAL_DIR?.trim());
+}
+
 function extFor(contentType: string): string {
   if (contentType === "image/png") return "png";
   if (contentType === "image/webp") return "webp";
@@ -39,14 +66,7 @@ export async function saveProfileImage(
     return "/" + path.posix.join(publicPrefix, key);
   }
 
-  // Vercel injects the store token as BLOB_READ_WRITE_TOKEN by default, but a
-  // custom env-prefix chosen when connecting the store yields e.g.
-  // MYSTORE_READ_WRITE_TOKEN — accept any of them.
-  const token =
-    process.env.BLOB_READ_WRITE_TOKEN ??
-    Object.entries(process.env).find(
-      ([k, v]) => k.endsWith("_READ_WRITE_TOKEN") && v
-    )?.[1];
+  const token = blobToken();
 
   if (!token) {
     const candidates = Object.keys(process.env)

@@ -1,12 +1,14 @@
 import { Fragment } from "react";
 import Link from "next/link";
 import { CalendarClock, Radio } from "lucide-react";
-import { StakeCta } from "@/components/stake-cta";
-import { formatOdds } from "@/lib/odds";
+import { SportsbookCta } from "@/components/sportsbook-cta";
+import type { Sportsbook } from "@/lib/sportsbooks";
+import { Odds } from "@/components/odds-format";
 import { SPORT_LABELS, cn } from "@/lib/utils";
 import { isMoneylineOnly } from "@/lib/odds-api";
 import type { OddsFeedResult, UpcomingEvent, MarketOption } from "@/lib/odds-api";
 import { soccerLeagueMeta } from "@/lib/soccer-leagues";
+import { FlagIcon } from "@/components/flag-icon";
 import { SportIcon } from "@/components/sport-icon";
 import { TeamLogo } from "@/components/team-logo";
 import { LocalTime } from "@/components/local-time";
@@ -45,7 +47,7 @@ function cell(market: MarketOption | null) {
   return (
     <span className="tabular-nums">
       {point && <span className="font-semibold">{point} </span>}
-      <span className={point ? "text-muted" : "font-semibold"}>{formatOdds(market.odds)}</span>
+      <span className={point ? "text-muted" : "font-semibold"}><Odds value={market.odds} /></span>
     </span>
   );
 }
@@ -54,10 +56,10 @@ export function UpcomingGames({
   sport,
   feed,
   availableSports,
-  showStake = false,
+  book = null,
 }: {
   /** Renders the Stake partner CTA. Caller must have geo-gated to non-US. */
-  showStake?: boolean;
+  book?: Sportsbook | null;
   // Null on the default "all sports" view — the board merges every sport's
   // games sorted by start time. A non-null value means the visitor narrowed to
   // a single sport via a pill.
@@ -75,7 +77,12 @@ export function UpcomingGames({
   // Narrowing to a sport must never show less of that sport than the mixed
   // board did, so the single-sport cap stays above the merged one. These are
   // horizontal carousels, so extra cards cost a scroll rather than page height.
-  const eventCap = sport ? 20 : 16;
+  // Soccer isn't one league, it's up to MAX_SOCCER_LEAGUES of them on one
+  // board, and they kick off in country order through the day — so a 20-card
+  // cap quietly cut the European evening games, which are the ones people came
+  // for. These are horizontal carousels, so extra cards cost a scroll rather
+  // than page height.
+  const eventCap = sport === "SOCCER" ? 48 : sport ? 20 : 16;
 
   return (
     <section className="relative overflow-hidden border-b border-border bg-surface/60 py-14">
@@ -193,7 +200,7 @@ export function UpcomingGames({
                         the soccer tab is itself a mix of leagues. */}
                     {league ? (
                       <span className="flex min-w-0 items-center gap-1 font-medium text-muted">
-                        {league.flag && <span aria-hidden>{league.flag}</span>}
+                        <FlagIcon code={league.code} />
                         <span className="truncate">{league.league}</span>
                       </span>
                     ) : (
@@ -251,9 +258,14 @@ export function UpcomingGames({
                     </>
                   )}
 
-                  {showStake && (
-                    <div className="mt-2">
-                      <StakeCta sport={event.sport} event={event.id} />
+                  {/* Directly beneath the price grid — the link is about the
+                      numbers immediately above it, so the gap stays tight.
+                      Right-aligned to sit under the odds columns: full width, it
+                      landed under the Away/Home labels on the opposite side of
+                      the card from the prices it refers to. */}
+                  {book && (
+                    <div className="mt-2 flex justify-end">
+                      <SportsbookCta book={book} variant="button" sport={event.sport} league={event.sportKey} event={event.id} />
                     </div>
                   )}
                 </div>
