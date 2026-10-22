@@ -1098,9 +1098,26 @@ function normalizeEvent(event: OddsApiEvent, sport: PickSport, sportKey: string)
 // The full market set for a single event — game lines plus player props (US
 // sports) or non-player extras (soccer), grouped into categories. Fetched
 // on-demand when a handicapper opens a game (the bulk board only carries game
-// lines), so props are billed only for games someone actually looks at. Cached
-// briefly so re-opening / re-rendering the same game doesn't re-bill.
-const EVENT_MARKETS_REVALIDATE_SECONDS = 5 * 60;
+// lines), so props are billed only for games someone actually looks at.
+//
+// THIS IS THE MOST EXPENSIVE CALL IN THE FILE, by a wide margin, and the cache
+// window is the only thing standing between it and the quota. It asks for
+// every market at once, and the feed bills (markets × regions): 22 credits for
+// an NBA game, 24 for NFL, 19-20 for NHL/MLB. Compare the whole BOARD, which
+// is 3 credits per sport per DAY.
+//
+// So the window is the bill. At five minutes, one game left open for a day was
+// 288 refreshes × 22 ≈ 6,300 credits — more than the rest of the site spends
+// in a month, from a single game. At thirty it is ~1,050, and a handful of
+// games being browsed costs hundreds rather than thousands.
+//
+// What the extra staleness costs is small, because of what this feeds: the
+// market picker on the pick form. A handicapper opens a game to choose which
+// market and line they are tipping, and types the odds they actually got. It
+// is not a live price they are betting into, so a price up to half an hour old
+// changes nothing about the choice. Shorten this again only with a reason that
+// outweighs the arithmetic above.
+const EVENT_MARKETS_REVALIDATE_SECONDS = 30 * 60;
 
 export interface EventMarketsResult {
   configured: boolean;
@@ -1112,14 +1129,33 @@ interface EventOddsResponse {
   bookmakers?: { key: string; title: string; markets: RawMarket[] }[];
 }
 
-async function fetchEventOddsJson(url: string): Promise<EventOddsResponse | null> {
+async function fetchEventOddsJson(
+  url: string
+): Promise<{ data: EventOddsResponse | null; unsupportedMarket: boolean }> {
   const res = await fetch(url, { next: { revalidate: EVENT_MARKETS_REVALIDATE_SECONDS } });
   if (!res.ok) {
     console.error(`Odds API event markets request failed: ${res.status}`);
-    return null;
+    // Only a 422 means "one of these market keys isn't carried here", which is
+    // the single case worth retrying with a narrower list. Anything else — a
+    // blip, a rate limit, a bad key — would fail the same way on every tier,
+    // and treating it as unsupported silently hands back a thinner market list
+    // than the sport really has while billing for each attempt on the way down.
+    return { data: null, unsupportedMarket: res.status === 422 };
   }
-  return (await res.json()) as EventOddsResponse;
+  return { data: (await res.json()) as EventOddsResponse, unsupportedMarket: false };
 }
+
+/**
+ * Which market tier last worked for a sport, so the tiers it has already been
+ * billed for are not re-paid on every event view.
+ *
+ * A sport that does not carry the alternates/periods markets 422s the widest
+ * tier EVERY time, and each of those rejections is a billed request. Paying
+ * that toll once per process instead of once per game is most of the saving
+ * here. Per-instance and best-effort by design: a cold start simply re-learns
+ * it, and being wrong costs one extra request rather than a wrong answer.
+ */
+const workingMarketTier = new Map<string, number>();
 
 export async function getEventMarkets(
   sport: PickSport,
@@ -1150,9 +1186,19 @@ export async function getEventMarkets(
   ].filter((t, i, all) => t.length > 0 && all.findIndex((x) => x.join() === t.join()) === i);
 
   let data: EventOddsResponse | null = null;
-  for (const markets of tiers) {
-    data = await fetchEventOddsJson(`${base}&markets=${markets.join(",")}`);
-    if (data) break;
+  // Start at the narrowest tier already known to work for this sport. The
+  // wider ones above it have been tried and billed for before.
+  const startAt = Math.min(workingMarketTier.get(sportKey) ?? 0, tiers.length - 1);
+  for (let i = startAt; i < tiers.length; i += 1) {
+    const attempt = await fetchEventOddsJson(`${base}&markets=${tiers[i]!.join(",")}`);
+    if (attempt.data) {
+      data = attempt.data;
+      workingMarketTier.set(sportKey, i);
+      break;
+    }
+    // Not a market-support problem: narrowing the list will not help, and each
+    // further tier is another billed request for the same failure.
+    if (!attempt.unsupportedMarket) break;
   }
   if (!data) return { configured: true, groups: [], bookmaker: null };
 
