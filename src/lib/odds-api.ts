@@ -73,6 +73,42 @@ const GAME_IN_PROGRESS_WINDOW_MS = 4 * 60 * 60 * 1000;
 // Overridable so tests can point at a local mock of the upstream API.
 const API_BASE = process.env.ODDS_API_BASE ?? "https://api.the-odds-api.com/v4";
 
+/**
+ * How long one Odds API request may take before it is abandoned.
+ *
+ * `fetch` has NO default timeout. Without this, a slow or hanging upstream
+ * doesn't degrade the board — it holds the render open until the platform
+ * kills the function, so a third party having a bad minute becomes our page
+ * not loading. That is the wrong trade for this data: the odds are a shop
+ * window, and a board with no prices on it beats a page that never arrives.
+ *
+ * Six seconds is far longer than a healthy response (a few hundred
+ * milliseconds) and far shorter than a visitor's patience. Every caller
+ * already handles a failed request by showing no odds, so a timeout lands in
+ * the path that was always there.
+ */
+const ODDS_REQUEST_TIMEOUT_MS = 6_000;
+
+/**
+ * `fetch` with a deadline, returning null instead of throwing.
+ *
+ * Returns null for a timeout or a transport error, which every caller treats
+ * the same way it treats a non-OK response. Note what is NOT logged: the URL
+ * carries `apiKey=` in its query string, so only the sport and the reason go
+ * to the log.
+ */
+async function oddsFetch(url: string, init: RequestInit, label: string): Promise<Response | null> {
+  try {
+    return await fetch(url, { ...init, signal: AbortSignal.timeout(ODDS_REQUEST_TIMEOUT_MS) });
+  } catch (err) {
+    const timedOut = err instanceof Error && (err.name === "TimeoutError" || err.name === "AbortError");
+    console.error(
+      `Odds API request ${timedOut ? `timed out after ${ODDS_REQUEST_TIMEOUT_MS}ms` : "failed"}: ${label}`
+    );
+    return null;
+  }
+}
+
 // Read the Odds API key robustly: trims stray whitespace/newlines from a pasted
 // value and accepts a couple of common alternate variable names, so a small
 // naming/formatting slip in the host env doesn't silently blank the whole feed.
@@ -334,11 +370,13 @@ async function probeDormantSoccerKeys(apiKey: string, active: Set<string>): Prom
   const found = await Promise.all(
     candidates.map(async (key) => {
       try {
-        const res = await fetch(`${API_BASE}/sports/${key}/events?apiKey=${apiKey}`, {
-          next: { revalidate: REVALIDATE_SECONDS },
-        });
+        const res = await oddsFetch(
+          `${API_BASE}/sports/${key}/events?apiKey=${apiKey}`,
+          { next: { revalidate: REVALIDATE_SECONDS } },
+          `events ${key}`
+        );
         // 404 = no such competition on this plan; anything else non-OK, skip too.
-        if (!res.ok) return null;
+        if (!res || !res.ok) return null;
         const events = (await res.json()) as { commence_time: string }[];
         const upcoming = events.some((e) => new Date(e.commence_time).getTime() > now);
         return upcoming ? key : null;
@@ -352,10 +390,12 @@ async function probeDormantSoccerKeys(apiKey: string, active: Set<string>): Prom
 
 /** Every soccer competition the plan currently lists as in season. */
 async function getActiveSoccerKeys(apiKey: string): Promise<string[] | null> {
-  const res = await fetch(`${API_BASE}/sports?apiKey=${apiKey}`, {
-    next: { revalidate: REVALIDATE_SECONDS },
-  });
-  if (!res.ok) return null;
+  const res = await oddsFetch(
+    `${API_BASE}/sports?apiKey=${apiKey}`,
+    { next: { revalidate: REVALIDATE_SECONDS } },
+    "sports list (soccer)"
+  );
+  if (!res || !res.ok) return null;
   const sports = (await res.json()) as OddsApiSportEntry[];
   return sports.filter((s) => s.group === "Soccer" && s.active).map((s) => s.key);
 }
@@ -430,10 +470,12 @@ const MAX_TENNIS_TOURS = 3;
  * active in the "Tennis" group, Grand Slams first.
  */
 async function getTennisTourKeys(apiKey: string): Promise<string[]> {
-  const res = await fetch(`${API_BASE}/sports?apiKey=${apiKey}`, {
-    next: { revalidate: REVALIDATE_SECONDS },
-  });
-  if (!res.ok) return [];
+  const res = await oddsFetch(
+    `${API_BASE}/sports?apiKey=${apiKey}`,
+    { next: { revalidate: REVALIDATE_SECONDS } },
+    "sports list (tennis)"
+  );
+  if (!res || !res.ok) return [];
 
   const sports = (await res.json()) as OddsApiSportEntry[];
   const active = sports
@@ -537,8 +579,8 @@ export async function getAvailableHomepageSports(): Promise<PickSport[]> {
       const perKey = await Promise.all(
         sportKeys.map(async (sportKey) => {
           const url = `${API_BASE}/sports/${sportKey}/events?apiKey=${apiKey}`;
-          const res = await fetch(url, { next: { revalidate: REVALIDATE_SECONDS } });
-          if (!res.ok) return { hasSoon: false, hasUpcoming: false };
+          const res = await oddsFetch(url, { next: { revalidate: REVALIDATE_SECONDS } }, `events ${sportKey}`);
+          if (!res || !res.ok) return { hasSoon: false, hasUpcoming: false };
 
           const events = (await res.json()) as { commence_time: string }[];
           return {
@@ -705,19 +747,24 @@ async function fetchLeagueEvents(
   let usedFallback = false;
   const primary =
     sport === "SOCCER" ? `${base}&regions=${SOCCER_REGIONS}` : `${base}&bookmakers=${BOOKMAKERS_PARAM}`;
-  let res = await fetch(primary, {
-    next: { revalidate },
-  });
-  if (!res.ok) {
+  let res = await oddsFetch(primary, { next: { revalidate } }, `odds ${sportKey}`);
+  // Retry only when the API ANSWERED and disliked the request — the fallback
+  // exists because a bookmaker list can be rejected where a plain region is
+  // accepted. If nothing answered at all, the second call waits out the same
+  // timeout for the same silence, and a six-second worst case quietly becomes
+  // twelve on the request a visitor is waiting for.
+  if (res && !res.ok) {
     console.error(
       `Odds API bookmakers request failed for ${sportKey}: ${res.status}; retrying with regions=us`
     );
     usedFallback = true;
-    res = await fetch(`${base}&regions=us`, { next: { revalidate } });
+    res = await oddsFetch(`${base}&regions=us`, { next: { revalidate } }, `odds ${sportKey} (us)`);
   }
-  if (!res.ok) {
-    console.error(`Odds API request failed for ${sportKey}: ${res.status}`);
-    recordLeagueFetch(sportKey, { status: res.status, usedFallback, books: [], markets: [], rawEvents: 0 });
+  if (!res || !res.ok) {
+    console.error(`Odds API request failed for ${sportKey}: ${res?.status ?? "no response"}`);
+    // 0 stands for "never answered", which is a different failure from a
+    // status the API chose to send and is worth telling apart in the panel.
+    recordLeagueFetch(sportKey, { status: res?.status ?? 0, usedFallback, books: [], markets: [], rawEvents: 0 });
     return [];
   }
 
@@ -1003,9 +1050,9 @@ async function getScores(
   // request only made when a game in view has actually started (see
   // hasStarted above) — most page loads never trigger it, so a short window
   // here doesn't meaningfully add to the monthly quota.
-  const res = await fetch(url, { next: { revalidate } });
-  if (!res.ok) {
-    console.error(`Odds API scores request failed for ${sportKey}: ${res.status}`);
+  const res = await oddsFetch(url, { next: { revalidate } }, `scores ${sportKey}`);
+  if (!res || !res.ok) {
+    console.error(`Odds API scores request failed for ${sportKey}: ${res?.status ?? "no response"}`);
     return new Map();
   }
 
@@ -1132,7 +1179,8 @@ interface EventOddsResponse {
 async function fetchEventOddsJson(
   url: string
 ): Promise<{ data: EventOddsResponse | null; unsupportedMarket: boolean }> {
-  const res = await fetch(url, { next: { revalidate: EVENT_MARKETS_REVALIDATE_SECONDS } });
+  const res = await oddsFetch(url, { next: { revalidate: EVENT_MARKETS_REVALIDATE_SECONDS } }, "event markets");
+  if (!res) return { data: null, unsupportedMarket: false };
   if (!res.ok) {
     console.error(`Odds API event markets request failed: ${res.status}`);
     // Only a 422 means "one of these market keys isn't carried here", which is
