@@ -155,6 +155,7 @@ export default async function LeaderboardPage({
                 <Avatar
                   src={h.avatarUrl}
                   name={h.displayName}
+                  fallback="logo"
                   className="h-10 w-10 shrink-0 rounded-full text-sm"
                 />
                 <div className="min-w-0">

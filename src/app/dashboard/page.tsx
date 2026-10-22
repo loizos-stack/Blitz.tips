@@ -192,6 +192,7 @@ export default async function DashboardPage() {
                   <Avatar
                     src={sub.handicapper.avatarUrl}
                     name={sub.handicapper.displayName}
+                    fallback="logo"
                     className="h-9 w-9 shrink-0 rounded-full text-xs"
                   />
                   <span className="min-w-0">
@@ -346,6 +347,7 @@ export default async function DashboardPage() {
                       <Avatar
                         src={sub.handicapper.avatarUrl}
                         name={sub.handicapper.displayName}
+                        fallback="logo"
                         className="h-6 w-6 shrink-0 rounded-full text-[10px]"
                       />
                       <span className="truncate">@{sub.handicapper.handle}</span>
