@@ -3,10 +3,22 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useSearchParams } from "next/navigation";
-import { Send, Info, Check, AlertCircle, Link2, Unlink, ExternalLink } from "lucide-react";
+import {
+  Send,
+  Info,
+  Check,
+  AlertCircle,
+  Link2,
+  Unlink,
+  ExternalLink,
+  Trash2,
+  RefreshCw,
+  Clock,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatDateTime } from "@/lib/date-format";
 import { fetchJson } from "@/lib/fetch-json";
+import { X_SLOTS, slotLabel } from "@/lib/x-slots";
 
 /** X counts codepoints. Mirrors xLength() on the server so the two agree. */
 const MAX_CHARS = 280;
@@ -33,14 +45,25 @@ interface Account {
   expiresAt: string;
 }
 
+interface QueuedRow {
+  id: string;
+  slot: string;
+  text: string;
+  imageUrl: string | null;
+  subject: string | null;
+  createdAt: string;
+}
+
 interface Props {
   configured: boolean;
   assets: string[];
   account: Account | null | undefined;
   posts: XPostRow[];
+  queued: QueuedRow[];
+  autoSend: boolean;
 }
 
-export function XManager({ configured, assets, account, posts }: Props) {
+export function XManager({ configured, assets, account, posts, queued, autoSend }: Props) {
   const router = useRouter();
   const params = useSearchParams();
   const [text, setText] = useState("");
@@ -48,6 +71,29 @@ export function XManager({ configured, assets, account, posts }: Props) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(params.get("error"));
   const [posted, setPosted] = useState<string | null>(null);
+  // Which queue row is mid-request, so only its own buttons go quiet rather
+  // than every button on the page.
+  const [queueBusy, setQueueBusy] = useState<string | null>(null);
+  const [queueError, setQueueError] = useState<string | null>(null);
+  const [queueNote, setQueueNote] = useState<string | null>(null);
+
+  async function queueAction(body: Record<string, unknown>, key: string) {
+    setQueueBusy(key);
+    setQueueError(null);
+    setQueueNote(null);
+    const res = await fetchJson<{ outcome?: string; detail?: string; autoSend?: boolean }>(
+      "/api/admin/x/queue",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      }
+    );
+    setQueueBusy(null);
+    if (!res.ok) setQueueError(res.error ?? "That didn't work.");
+    else if (res.data?.detail) setQueueNote(res.data.detail);
+    router.refresh();
+  }
 
   const chars = count(text);
   const over = chars > MAX_CHARS;
@@ -152,6 +198,134 @@ export function XManager({ configured, assets, account, posts }: Props) {
         </p>
       </div>
 
+      {/* Rotation */}
+      <div className="card p-5">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h2 className="font-semibold">Automatic rotation</h2>
+            <p className="mt-1 text-sm text-muted">
+              Five posts a day, composed from live data by a Cloudflare Worker on a schedule. Every figure in
+              them comes out of the database when the post is built — a slot with nothing to say is skipped
+              rather than padded.
+            </p>
+          </div>
+          <button
+            onClick={() => queueAction({ action: "autoSend", value: !autoSend }, "autoSend")}
+            disabled={queueBusy !== null}
+            className={cn(
+              "inline-flex shrink-0 items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold disabled:opacity-60",
+              autoSend
+                ? "bg-accent text-accent-foreground hover:opacity-90"
+                : "border border-border hover:border-accent hover:text-accent"
+            )}
+          >
+            {autoSend ? <Check className="h-4 w-4" /> : <Clock className="h-4 w-4" />}
+            {autoSend ? "Posting automatically" : "Waiting for approval"}
+          </button>
+        </div>
+        <p className="mt-3 text-xs text-muted">
+          {autoSend
+            ? "Composed posts go straight out. They still appear in the log below."
+            : "Composed posts wait here until you send them. Nothing reaches X on its own."}
+        </p>
+
+        <div className="mt-4 border-t border-border pt-4">
+          <p className="text-sm font-medium">Compose one now</p>
+          <p className="mt-1 text-xs text-muted">
+            Runs a slot ahead of its schedule, so you can read what it would say. A slot that has already run
+            today won&apos;t run again — that guard is what stops a retried firing posting twice.
+          </p>
+          <div className="mt-3 flex flex-wrap gap-2">
+            {X_SLOTS.map((slot) => (
+              <button
+                key={slot}
+                onClick={() => queueAction({ action: "preview", slot }, `preview:${slot}`)}
+                disabled={queueBusy !== null}
+                className="inline-flex items-center gap-2 rounded-lg border border-border px-3 py-1.5 text-xs font-medium hover:border-accent hover:text-accent disabled:opacity-60"
+              >
+                <RefreshCw className={cn("h-3.5 w-3.5", queueBusy === `preview:${slot}` && "animate-spin")} />
+                {slotLabel(slot)}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {queueError && (
+          <p className="mt-3 flex items-start gap-2 text-sm text-danger">
+            <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" /> {queueError}
+          </p>
+        )}
+        {queueNote && (
+          <p className="mt-3 flex items-start gap-2 text-sm text-muted">
+            <Info className="mt-0.5 h-4 w-4 shrink-0" /> {queueNote}
+          </p>
+        )}
+      </div>
+
+      {/* Queue */}
+      <div className="card p-5">
+        <h2 className="font-semibold">
+          Waiting to go out{queued.length > 0 && <span className="ml-2 text-muted">{queued.length}</span>}
+        </h2>
+        {queued.length === 0 ? (
+          <p className="mt-3 text-sm text-muted">
+            Nothing queued. {autoSend ? "Posts are going out as they're composed." : "Compose a slot above to see one."}
+          </p>
+        ) : (
+          <ul className="mt-3 space-y-4">
+            {queued.map((q) => (
+              <li key={q.id} className="rounded-lg border border-border p-4">
+                <div className="flex flex-wrap items-center gap-2 text-xs text-muted">
+                  <span className="rounded-full bg-accent/10 px-2 py-0.5 font-semibold text-accent">
+                    {slotLabel(q.slot)}
+                  </span>
+                  <span>composed {formatDateTime(q.createdAt)}</span>
+                  {q.subject && <span>· about @{q.subject}</span>}
+                  <span>· {count(q.text)} chars</span>
+                </div>
+                <p className="mt-3 whitespace-pre-wrap text-sm">{q.text}</p>
+                {q.imageUrl && (
+                  <p className="mt-2 text-xs text-muted">
+                    Card:{" "}
+                    <a
+                      href={q.imageUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1 underline"
+                    >
+                      preview <ExternalLink className="h-3 w-3" />
+                    </a>{" "}
+                    — fetched when the post is sent, so it will be current then, not as of now.
+                  </p>
+                )}
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <button
+                    onClick={() => queueAction({ action: "send", id: q.id }, `send:${q.id}`)}
+                    disabled={queueBusy !== null || !account}
+                    className="inline-flex items-center gap-2 rounded-lg bg-accent px-3 py-2 text-sm font-semibold text-accent-foreground hover:opacity-90 disabled:opacity-60"
+                  >
+                    <Send className="h-4 w-4" />
+                    {queueBusy === `send:${q.id}` ? "Posting…" : "Send"}
+                  </button>
+                  <button
+                    onClick={() => queueAction({ action: "discard", id: q.id }, `discard:${q.id}`)}
+                    disabled={queueBusy !== null}
+                    className="inline-flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm font-medium hover:border-danger hover:text-danger disabled:opacity-60"
+                  >
+                    <Trash2 className="h-4 w-4" /> Discard
+                  </button>
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
+        <p className="mt-4 flex items-start gap-2 text-xs text-muted">
+          <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+          A queued post quotes figures from the moment it was composed, so one left for more than twelve hours
+          is discarded instead of sent.
+        </p>
+      </div>
+
       {/* Composer */}
       <div className="card p-5">
         <h2 className="font-semibold">New post</h2>
@@ -166,7 +340,10 @@ export function XManager({ configured, assets, account, posts }: Props) {
           <select
             value={asset}
             onChange={(e) => setAsset(e.target.value)}
-            className="rounded-lg border border-border bg-surface px-3 py-2 text-sm"
+            /* max-w-full: a select is as wide as its longest option, and the
+               marketing filenames are long enough to push the page sideways on
+               a phone. */
+            className="max-w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm"
           >
             <option value="">No attachment</option>
             {assets.map((a) => (

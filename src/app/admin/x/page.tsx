@@ -3,6 +3,7 @@ import { join } from "path";
 import { prisma } from "@/lib/prisma";
 import { guardAdminPage } from "@/lib/permissions";
 import { getConnectedAccount, xConfigured } from "@/lib/x-api";
+import { autoSendEnabled } from "@/lib/x-rotation";
 import { XManager } from "@/components/admin/x-manager";
 
 export const dynamic = "force-dynamic";
@@ -16,15 +17,32 @@ export default async function AdminXPage() {
     .then((files) => files.filter((f) => /\.(png|jpe?g|mp4)$/i.test(f)).sort())
     .catch(() => [] as string[]);
 
-  const [account, posts] = await Promise.all([
+  const [account, posts, queued, autoSend] = await Promise.all([
     getConnectedAccount(),
     prisma.xPost.findMany({ orderBy: { createdAt: "desc" }, take: 25 }),
+    // Pending only. Decided rows are visible as their outcome in the send log
+    // below, and a queue that keeps its own history stops reading as a to-do
+    // list.
+    prisma.xQueuedPost.findMany({
+      where: { status: "PENDING" },
+      orderBy: { createdAt: "desc" },
+    }),
+    autoSendEnabled(),
   ]);
 
   return (
     <XManager
       configured={xConfigured()}
       assets={assets}
+      autoSend={autoSend}
+      queued={queued.map((q) => ({
+        id: q.id,
+        slot: q.slot,
+        text: q.text,
+        imageUrl: q.imageUrl,
+        subject: q.subject,
+        createdAt: q.createdAt.toISOString(),
+      }))}
       account={
         account && {
           username: account.username,

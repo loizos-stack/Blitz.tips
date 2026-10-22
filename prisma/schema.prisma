@@ -1022,6 +1022,54 @@ model XPost {
   @@index([createdAt])
 }
 
+/// Where a queued post is in its life. PENDING is the only state the sender
+/// acts on; everything else is history.
+enum XQueueStatus {
+  PENDING
+  SENT
+  FAILED
+  /// Approved copy that someone decided against before it went out.
+  DISCARDED
+}
+
+/// One composed post waiting to go out.
+///
+/// The rotation builds these from live data when a slot comes due, and either
+/// sends immediately or leaves them here for someone to approve. That choice
+/// is the `x.autoSend` site setting rather than a property of the row, so
+/// flipping it changes what happens next without touching what is already
+/// queued.
+///
+/// The composed TEXT is stored rather than rebuilt at send time. A post
+/// approved on the strength of a capper's record should go out saying what it
+/// said when it was approved, even if a pick settles in between.
+model XQueuedPost {
+  id       String       @id @default(cuid())
+  /// Which rotation slot produced this: board, gold, leaderboard, winner,
+  /// recruit. Used to keep a slot from running twice in a day and to group the
+  /// queue by kind.
+  slot     String
+  text     String       @db.Text
+  /// Absolute URL of the card to attach, fetched at send time so a queued post
+  /// carries a current image rather than one cached when it was composed.
+  imageUrl String?
+  /// Who the post is about, so the rotation can avoid featuring the same
+  /// handicapper twice running. Null for slots about nobody.
+  subject  String?
+  status   XQueueStatus @default(PENDING)
+  /// Set when sent, pointing at the XPost send-log row.
+  xPostId  String?
+  error    String?
+
+  createdAt   DateTime  @default(now())
+  decidedAt   DateTime?
+  decidedById String?
+
+  @@index([status, createdAt])
+  @@index([slot, createdAt])
+}
+
+
 // --- Blitz Odds -------------------------------------------------------------
 // Private line-movement watcher. Polls the odds feed, keeps a short history of
 // every price it sees, and raises an alert when a selection shortens at more
