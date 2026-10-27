@@ -338,6 +338,11 @@ model Pick {
   odds      Int
   units     Float      @default(1)
   analysis  String?    @db.Text
+  /// The language the analysis is written in, as an ISO 639-1 code, learned
+  /// the first time someone translates it. Lets the translate button stop
+  /// being offered to readers who already speak it — so one reader's click
+  /// settles it for everyone after.
+  analysisLang String?
   result    PickResult @default(PENDING)
   isPremium Boolean    @default(true)
 
@@ -372,6 +377,8 @@ model Pick {
   // combined (multiplied) American odds; each leg keeps its own line.
   parlayLegs ParlayLeg[]
 
+  translations PickTranslation[]
+
   // Who backed or faded this pick. Social proof at the point of decision, and
   // the raw material for a consensus view of the whole board.
   tails PickTail[]
@@ -381,6 +388,28 @@ model Pick {
 
   @@index([handicapperId, createdAt])
   @@index([result])
+}
+
+/// One cached translation of a pick's analysis.
+///
+/// Keyed by pick and target language so a write-up is paid for once however
+/// many people read it. Cascades with the pick: a deleted pick's translations
+/// are of nothing.
+model PickTranslation {
+  id     String @id @default(cuid())
+  pickId String
+  pick   Pick   @relation(fields: [pickId], references: [id], onDelete: Cascade)
+
+  /// ISO 639-1 code of the language this row is IN.
+  language String
+  analysis String @db.Text
+  /// What the model said the original was written in. Null when it could not
+  /// say, which only costs an extra offer of the button.
+  sourceLanguage String?
+
+  createdAt DateTime @default(now())
+
+  @@unique([pickId, language])
 }
 
 // A reader saying they're on a pick, or against it.

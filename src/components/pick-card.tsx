@@ -9,6 +9,7 @@ import { SportIcon } from "@/components/sport-icon";
 import { TeamLogo } from "@/components/team-logo";
 import { getTeamLogoUrl } from "@/lib/team-logos";
 import { Odds } from "@/components/odds-format";
+import { TranslateAnalysis } from "@/components/translate-analysis";
 import { SPORT_LABELS, BET_TYPE_LABELS, usesVsSeparator } from "@/lib/utils";
 import type { PickSport } from "@prisma/client";
 
@@ -207,7 +208,13 @@ export function PickCard({
         </>
       )}
 
-      {pick.analysis && <p className="mt-3 text-sm text-muted">{pick.analysis}</p>}
+      {pick.analysis && (
+        <TranslateAnalysis
+          pickId={pick.id}
+          analysis={pick.analysis}
+          analysisLang={pick.analysisLang}
+        />
+      )}
 
       {/* Under the analysis, above the result: it belongs with the decision,
           not with the outcome. */}
