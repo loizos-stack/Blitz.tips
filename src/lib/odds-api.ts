@@ -15,18 +15,25 @@ import { getLiveGameStates, livePairKey, getUfcFighterSet, fighterKey } from "@/
 // pick form — Next dedupes/caches by fetch URL, so both consumers share one
 // cached entry per sport. Only the homepage's currently-selected tab fetches
 // eagerly (one sport per page load); the rest are opt-in via tabs, so real
-// usage tracks whichever sports actually get clicked, not a flat "all sports"
-// cost — and the homepage no longer fetches odds until a visitor explicitly
-// picks a sport tab (see src/app/page.tsx), so idle homepage traffic costs
-// nothing. Worst case still matters: with every sport tab getting clicked
-// daily, spend is sports x (30 days / (REVALIDATE_SECONDS/24h)) x 3 credits.
-// Soccer counts as up to MAX_SOCCER_LEAGUES "sports" here since it fans out
-// to that many billed odds calls, on its own longer window. At the current caps
-// that worst case is roughly (8 x 30 + 20 x 15) x 3 ≈ 1,620 credits/month if
-// literally every tab is viewed every single day; real traffic concentrating on
-// a few sports lands well under that. Note this is only the odds spend — live scores
-// (SCORES_REVALIDATE_SECONDS) cost more per league on game days, so look there
-// first when the quota gets tight, then at MAX_SOCCER_LEAGUES.
+// usage tracks whichever sports actually get clicked.
+//
+// CORRECTION, because this comment used to say the opposite and it is the
+// sentence that hides the bill: the homepage default view is NOT one sport. No
+// ?sport= means getAllUpcomingEvents over every available sport (see
+// home-board.tsx), so the first visitor after a cache window pays for the whole
+// board, not for one tab.
+//
+// What that costs, cold, at the current caps:
+//   soccer   MAX_SOCCER_LEAGUES x 6 credits (3 markets x the eu,us regions)
+//   others   1 x 3 credits each, ~6 team sports
+//   UFC      1
+// which is ~79 credits for a cold board at 10 soccer leagues, of which soccer
+// is 60. At the old cap of 45 soccer alone was 270, and the board ~289. Warm it
+// is free: the windows below are 24h for most sports, 48h for soccer.
+//
+// Note this is only the odds spend — live scores (SCORES_REVALIDATE_SECONDS)
+// cost more per league on game days, so look there first when the quota gets
+// tight, then at MAX_SOCCER_LEAGUES.
 // Missing THE_ODDS_API_KEY degrades to { configured: false } everywhere.
 const REVALIDATE_SECONDS = 24 * 60 * 60;
 
@@ -300,26 +307,31 @@ const UNLISTED_EUROPEAN_RANK =
 // so roughly 450/league/month at the ceiling, and far less in practice since
 // both only bill on a cache miss caused by a real visitor.
 //
-// 30 was still cutting 14 active competitions — Turkey, Scotland, Serie B,
-// Greece, Switzerland, Norway, Sweden (both divisions), Poland, Japan, Korea,
-// Ireland, Russia and 3. Liga. 45 carries the whole active set with headroom,
-// and the 41 named in SOCCER_LEAGUE_PRIORITY are protected by rank rather than
-// by cap headroom, so a busy week pushes an unnamed league off the end instead
-// of a league someone asked for.
+// WAS 45, now 10, by decision: the board carries the ten biggest competitions
+// playing rather than everything the feed has. 45 leagues is 270 credits for a
+// single cold board (45 × 6); ten is 60.
 //
-// This is the expensive direction. At the ~450/league/month ceiling above, the
-// 15 extra slots are worth roughly 6,750 credits/month *worst case* — every
-// league in season, board viewed daily, every window a cache miss. Real burn is
-// far lower, because a league only bills when a visitor misses the 48h cache,
-// and the leagues at the bottom of the list are the least-viewed. If the quota
-// does tighten, the cheaper dials in order: raise SOCCER_REVALIDATE_SECONDS,
-// then set ODDS_SOCCER_REGIONS="eu" (halves the odds cost), then lower this.
-// Cutting the cap first is what produced this problem.
+// The history is worth keeping, because it cuts the other way and the next
+// person to touch this number should see both halves. 30 was once cutting 14
+// active competitions — Turkey, Scotland, Serie B, Greece, Switzerland, Norway,
+// Sweden (both divisions), Poland, Japan, Korea, Ireland, Russia, 3. Liga — and
+// 45 was chosen to carry the whole active set. The cost of coming back down is
+// that a Tuesday night in a quiet month has a thinner board, and anyone who
+// came for the Eredivisie will not find it.
+//
+// What makes 10 safe rather than arbitrary is that the list is ranked and
+// filtered to competitions that are actually ACTIVE (see getSoccerLeagueKeys),
+// so the ten slots always go to live football. An out-of-season competition
+// cannot occupy one, which is what would otherwise make a small cap bite hardest
+// in the summer — exactly when the majors are dark.
+//
+// The other dials, cheaper first: raise SOCCER_REVALIDATE_SECONDS, then set
+// ODDS_SOCCER_REGIONS="eu" (halves the odds cost, drops US prices).
 //
 // Env-overridable so the cap can be tuned against live usage without a deploy.
 // Out-of-range or unparseable values fall back to the default rather than
 // blanking soccer or running the quota away.
-const DEFAULT_MAX_SOCCER_LEAGUES = 45;
+const DEFAULT_MAX_SOCCER_LEAGUES = 10;
 const MAX_SOCCER_LEAGUES = (() => {
   const raw = Number(process.env.MAX_SOCCER_LEAGUES?.trim());
   if (!Number.isInteger(raw) || raw < 1 || raw > 60) return DEFAULT_MAX_SOCCER_LEAGUES;
