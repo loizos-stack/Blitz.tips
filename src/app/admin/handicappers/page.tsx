@@ -5,7 +5,7 @@ import { AdminButton } from "@/components/admin/admin-actions";
 import { CompPlanControl } from "@/components/admin/comp-plan-control";
 import { guardAdminPage } from "@/lib/permissions";
 import { markAdminTabSeen } from "@/lib/admin-badges";
-import { whyNotComped } from "@/lib/comped-plans";
+import { whyNotComped, hasActiveComp } from "@/lib/comped-plans";
 
 export const dynamic = "force-dynamic";
 
@@ -58,7 +58,17 @@ export default async function AdminHandicappersPage() {
                   handicapperId={h.id}
                   handle={h.handle}
                   plan={h.plan}
-                  compedUntil={h.planCompedUntil ? h.planCompedUntil.toISOString() : null}
+                  // A RUNNING comp, not merely a set column. The sweep that
+                  // clears these runs once a day, so between a comp expiring
+                  // and the next sweep the row still carries an end date — and
+                  // reading the column directly left the control stuck offering
+                  // "Revoke" on a comp that was already over, with no way to
+                  // give another one. The end time is the truth; the sweep is
+                  // just the thing that eventually tidies up after it.
+                  compedUntil={hasActiveComp(h) ? h.planCompedUntil!.toISOString() : null}
+                  endedAt={
+                    !hasActiveComp(h) && h.planCompedUntil ? h.planCompedUntil.toISOString() : null
+                  }
                   blockedReason={whyNotComped(h)}
                 />
               </td>

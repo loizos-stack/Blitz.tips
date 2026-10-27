@@ -33,13 +33,23 @@ export function CompPlanControl({
   handle,
   plan,
   compedUntil,
+  endedAt = null,
   blockedReason,
 }: {
   handicapperId: string;
   handle: string;
   plan: string;
-  /** ISO string while a comp is running, else null. */
+  /** ISO string while a comp is RUNNING, else null. */
   compedUntil: string | null;
+  /**
+   * When a comp ended, while the row still carries the plan it gave.
+   *
+   * The daily sweep is what returns them to Free, so for up to a day after a
+   * comp runs out the handicapper is still on Silver/Gold with nobody paying
+   * for it. Saying so beats a bare "Gold — not comped", which reads as a plan
+   * they bought.
+   */
+  endedAt?: string | null;
   /** Set when they pay through Stripe, so a comp must not be offered. */
   blockedReason: string | null;
 }) {
@@ -151,7 +161,11 @@ export function CompPlanControl({
         </button>
       </div>
       <span className="text-[11px] text-muted">
-        {plan === "FREE" ? "Free" : `${titleCase(plan)} — not comped`}
+        {endedAt
+          ? `Comp ended ${formatDate(endedAt)} · still on ${titleCase(plan)} until the daily sweep`
+          : plan === "FREE"
+            ? "Free"
+            : `${titleCase(plan)} — not comped`}
         {days < 3 && " · too short for a reminder"}
       </span>
       {error && <span className="max-w-[16rem] text-[11px] leading-snug text-danger">{error}</span>}

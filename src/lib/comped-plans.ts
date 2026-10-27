@@ -68,6 +68,34 @@ export function hasActiveComp(state: PlanState, now: Date = new Date()): boolean
   return state.planCompedUntil !== null && state.planCompedUntil.getTime() > now.getTime();
 }
 
+/** Everything needed to tell a plan somebody bought from one they were given. */
+export interface PlanBillingState extends PlanState {
+  planStatus: string;
+  /** Set by a crypto plan purchase, which has no Stripe subscription. */
+  planCurrentPeriodEnd: Date | null;
+}
+
+/**
+ * Whether anyone is actually paying for this handicapper's plan.
+ *
+ * `plan !== "FREE" && planStatus === "ACTIVE"` was standing in for this, and it
+ * counts three things that cost nothing: a running comp, a comp that ran out
+ * before the daily sweep demoted them, and any plan left behind by a lapsed
+ * crypto purchase. Each one added a full list price to the reported MRR.
+ *
+ * Two ways a plan is genuinely paid for, and the second is easy to forget:
+ * a Stripe subscription, or a crypto purchase — which sets no Stripe id at all
+ * and is identifiable only by a period end still in the future. Requiring a
+ * Stripe id would have thrown away every crypto plan's revenue to fix the comp
+ * over-count, which is the same error in the other direction.
+ */
+export function isPlanPaidFor(state: PlanBillingState, now: Date = new Date()): boolean {
+  if (state.plan === "FREE" || state.planStatus !== "ACTIVE") return false;
+  if (hasActiveComp(state, now)) return false;
+  if (state.planStripeSubscriptionId !== null) return true;
+  return state.planCurrentPeriodEnd !== null && state.planCurrentPeriodEnd.getTime() > now.getTime();
+}
+
 /**
  * RULE 3 — a comp shorter than the warning window gets no warning.
  *

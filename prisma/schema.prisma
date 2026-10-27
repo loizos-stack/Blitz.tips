@@ -517,11 +517,28 @@ model Subscription {
   currentPeriodEnd  DateTime?
   cancelAtPeriodEnd Boolean            @default(false)
 
+  /// Set when an admin GAVE this subscription rather than the customer buying
+  /// it. A comped subscription is ACTIVE and carries full access, but nobody
+  /// is billed for it — so counting it as revenue inflates every figure on the
+  /// financials tab by a package price that does not exist.
+  ///
+  /// `stripeSubscriptionId IS NULL` cannot stand in for this: a crypto pass
+  /// has no Stripe subscription either, and that one IS paid for.
+  ///
+  /// The granting admin's email is stored beside their id so the comped table
+  /// reads without a join and still names a person after that admin's account
+  /// is gone — the same reason XPost keeps sentByEmail.
+  compedAt      DateTime?
+  compedById    String?
+  compedByEmail String?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@unique([subscriberId, handicapperId])
   @@index([handicapperId, status])
+  // The financials tab asks only for the comped ones.
+  @@index([compedAt])
 }
 
 // A crypto payment for a fixed-length access pass (NOWPayments invoice).
