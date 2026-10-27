@@ -49,6 +49,48 @@ function htmlToText(html: string): string {
     .trim();
 }
 
+/**
+ * How recently someone must have received this subject to be skipped.
+ *
+ * A day, because the case this serves is "that send half failed, let me run it
+ * again" — which happens within minutes, not weeks. A deliberate re-run of the
+ * same subject next week is a different message to the same people, and
+ * blocking it would be the guard overreaching.
+ */
+const DEDUPE_WINDOW_MS = 24 * 60 * 60 * 1000;
+
+/** What counts as "the same email" — case and stray spacing shouldn't matter. */
+const subjectKeyOf = (subject: string) => subject.trim().toLowerCase().replace(/\s+/g, " ");
+
+/**
+ * Split a recipient list into who still needs this and who already has it.
+ *
+ * Matches on arrival, not on attempt: EmailDelivery only holds successes, so
+ * the eighteen people a rate limit refused are still in `send` while the ten
+ * who got it are not. That is the entire behaviour anyone wants from a resend.
+ */
+async function partitionByRecentDelivery(
+  recipients: { id: string; email: string }[],
+  subject: string,
+  now: Date
+): Promise<{ send: typeof recipients; skipped: typeof recipients }> {
+  if (recipients.length === 0) return { send: [], skipped: [] };
+
+  const already = await prisma.emailDelivery.findMany({
+    where: {
+      subjectKey: subjectKeyOf(subject),
+      email: { in: recipients.map((r) => r.email) },
+      sentAt: { gte: new Date(now.getTime() - DEDUPE_WINDOW_MS) },
+    },
+    select: { email: true },
+  });
+  const seen = new Set(already.map((a) => a.email));
+  return {
+    send: recipients.filter((r) => !seen.has(r.email)),
+    skipped: recipients.filter((r) => seen.has(r.email)),
+  };
+}
+
 export async function POST(request: Request) {
   const ctx = await requirePermission("emails");
   if (!ctx) return NextResponse.json({ error: "Not permitted" }, { status: 403 });
@@ -96,6 +138,39 @@ export async function POST(request: Request) {
   }
 
   const isBroadcast = audience !== "USER";
+  const now = new Date();
+
+  // The guard applies to broadcasts only. A message to one named person is
+  // correspondence — writing to the same person twice about the same thing is
+  // a normal thing to do, and silently refusing it would be baffling.
+  // `resend: true` from the composer's "send anyway" overrides it.
+  const skipRecent = isBroadcast && body.resend !== true;
+  const { send: toSend, skipped } = skipRecent
+    ? await partitionByRecentDelivery(recipients, subject, now)
+    : { send: recipients, skipped: [] as typeof recipients };
+
+  // Asked before the confirm dialog, so the numbers in it are the real ones.
+  if (body.action === "check") {
+    return NextResponse.json({
+      total: recipients.length,
+      skipped: skipped.length,
+      willSend: toSend.length,
+      windowHours: DEDUPE_WINDOW_MS / 3_600_000,
+    });
+  }
+
+  if (toSend.length === 0) {
+    return NextResponse.json({
+      sent: 0,
+      failed: 0,
+      skipped: skipped.length,
+      audience,
+      reasons: [],
+      failedSample: [],
+    });
+  }
+
+  recipients = toSend;
 
   const bodyHtml = sanitizeHtml(rawHtml);
   const text = htmlToText(rawHtml);
@@ -128,6 +203,30 @@ export async function POST(request: Request) {
     );
     sent += result.sent;
     failures.push(...result.failures);
+
+    // Record arrivals, not attempts. Everyone in this chunk the provider did
+    // not name as a failure got the message, so a resend must skip them —
+    // and everyone it did name must stay eligible for the retry.
+    if (isBroadcast) {
+      const rejected = new Set(result.failures.map((f) => f.email));
+      const delivered = chunk.filter((r) => !rejected.has(r.email));
+      if (delivered.length > 0) {
+        await prisma.emailDelivery
+          .createMany({
+            data: delivered.map((r) => ({
+              userId: r.id,
+              email: r.email,
+              subjectKey: subjectKeyOf(subject),
+              subject,
+              audience,
+              sentAt: now,
+            })),
+          })
+          // A lost delivery record costs a duplicate on the next resend. Losing
+          // the send itself because bookkeeping failed would cost more.
+          .catch((e) => console.error("[email] recording deliveries failed:", e));
+      }
+    }
   }
   const failed = failures.length;
 
@@ -137,6 +236,7 @@ export async function POST(request: Request) {
     isBroadcast ? "Broadcast" : "DirectEmail",
     auditTarget,
     `"${subject}" → ${sent} sent, ${failed} failed` +
+      (skipped.length ? `, ${skipped.length} skipped as already delivered` : "") +
       (failed ? ` (${[...new Set(failures.map((f) => f.reason))].slice(0, 3).join("; ")})` : "")
   );
 
@@ -146,6 +246,7 @@ export async function POST(request: Request) {
   return NextResponse.json({
     sent,
     failed,
+    skipped: skipped.length,
     audience,
     reasons: [...new Set(failures.map((f) => f.reason))].slice(0, 5),
     failedSample: failures.slice(0, 10),

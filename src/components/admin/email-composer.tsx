@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Bold, Italic, Underline, List, Link2, Send, X, Search, AlertCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { fetchJson } from "@/lib/fetch-json";
 
 const AUDIENCES = [
   { value: "ALL", label: "Everyone" },
@@ -85,24 +86,67 @@ export function EmailComposer({
       return;
     }
 
-    // Naming the single recipient's address in the prompt is the last chance to
-    // notice it is the wrong person.
-    const confirmText =
-      audience === "USER"
-        ? `Send this email to ${person!.email}?${person!.unsubscribed ? "\n\nThey have unsubscribed from announcements. A direct message still reaches them." : ""}`
-        : `Send this email to ${counts[audience]} recipient${counts[audience] === 1 ? "" : "s"} (${AUDIENCES.find((a) => a.value === audience)?.label})?`;
-    if (!window.confirm(confirmText)) return;
+    // Ask the server who would actually receive this BEFORE the confirm, so
+    // the number in the dialog is the number that will be sent — not the
+    // audience size with a silent subtraction applied afterwards.
+    // The composer never forces a duplicate. The API takes `resend: true` for
+    // the rare case of deliberately mailing everyone the same subject again
+    // within the day; putting it on screen would mostly be a way to do it by
+    // accident.
+    const resend = false;
+    if (audience !== "USER") {
+      const check = await fetchJson<{ total: number; skipped: number; willSend: number; windowHours: number }>(
+        "/api/admin/email",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "check", audience, subject, html }),
+        }
+      );
+      const c = check.data;
+      if (c && c.skipped > 0 && c.willSend === 0) {
+        // Everyone already has it. There is no send to confirm, so don't dress
+        // the refusal up as a choice.
+        setResult(
+          `All ${c.total} already received "${subject}" in the last ${c.windowHours} hours. Nothing to send.`
+        );
+        setState("error");
+        return;
+      }
+      if (c && c.skipped > 0) {
+        const ask =
+          `${c.skipped} of ${c.total} already received "${subject}" in the last ${c.windowHours} hours.\n\n` +
+          `OK — send it to the remaining ${c.willSend}.\n` +
+          `Cancel — send nothing.`;
+        if (!window.confirm(ask)) return;
+      } else if (
+        !window.confirm(
+          `Send this email to ${counts[audience]} recipient${counts[audience] === 1 ? "" : "s"} (${AUDIENCES.find((a) => a.value === audience)?.label})?`
+        )
+      ) {
+        return;
+      }
+    } else if (
+      // Naming the single recipient's address in the prompt is the last chance
+      // to notice it is the wrong person.
+      !window.confirm(
+        `Send this email to ${person!.email}?${person!.unsubscribed ? "\n\nThey have unsubscribed from announcements. A direct message still reaches them." : ""}`
+      )
+    ) {
+      return;
+    }
 
     setState("sending");
     setResult(null);
     const res = await fetch("/api/admin/email", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ audience, subject, html, userId: person?.id }),
+      body: JSON.stringify({ audience, subject, html, userId: person?.id, resend }),
     });
     const body = (await res.json().catch(() => ({}))) as {
       sent?: number;
       failed?: number;
+      skipped?: number;
       error?: string;
       reasons?: string[];
       failedSample?: { email: string; reason: string }[];
@@ -119,6 +163,7 @@ export function EmailComposer({
       audience === "USER"
         ? `Sent to ${person!.email}.`
         : `Sent to ${body.sent} recipient${body.sent === 1 ? "" : "s"}` +
+          (body.skipped ? `, ${body.skipped} skipped (already had it)` : "") +
           (body.failed
             ? `, ${body.failed} failed — ${(body.reasons ?? []).join("; ") || "no reason given"}`
             : ".")

@@ -510,6 +510,40 @@ model AdminTabView {
 }
 
 // One row per admin mutation — who did what to which record, when.
+/// One person, one broadcast, one time it actually arrived.
+///
+/// Exists so a resend can skip the people who already got the message. The
+/// case it is built for: a send that half failed, where the right next move is
+/// to retry the ones that did not arrive WITHOUT mailing the ones that did a
+/// second time.
+///
+/// Only successful deliveries are recorded. A failure writes nothing, because
+/// the whole point is that a failure stays retryable — recording attempts
+/// rather than arrivals would make the guard block exactly the people it is
+/// supposed to let through.
+model EmailDelivery {
+  id String @id @default(cuid())
+
+  /// Null once the account is gone; `email` is what the guard matches on, so
+  /// the record keeps working either way.
+  userId String?
+  email  String
+
+  /// Trimmed and lowercased subject — what "the same email" means to a person
+  /// who has just changed the capitalisation of a word.
+  subjectKey String
+  /// As typed, for the admin to read back.
+  subject    String
+  /// Which audience it went to, for context in the log.
+  audience   String
+
+  sentAt DateTime @default(now())
+
+  /// The guard's only query: has THIS address had THIS subject recently.
+  @@index([email, subjectKey, sentAt])
+  @@index([sentAt])
+}
+
 model AdminAuditLog {
   id         String   @id @default(cuid())
   actorId    String
