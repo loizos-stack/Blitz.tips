@@ -5,6 +5,8 @@ import { guardAdminPage } from "@/lib/permissions";
 import { telegramConfigured } from "@/lib/telegram";
 import { TelegramManager } from "@/components/admin/telegram-manager";
 import { getAutopostConfig } from "@/lib/telegram-autopost";
+import { alertSettings, ALERT_KINDS } from "@/lib/admin-alerts";
+import { AlertSettings } from "@/components/admin/alert-settings";
 
 export const dynamic = "force-dynamic";
 
@@ -17,14 +19,30 @@ export default async function AdminTelegramPage() {
     .then((files) => files.filter((f) => /\.(png|mp4)$/.test(f)).sort())
     .catch(() => [] as string[]);
 
-  const [autopost, broadcasts, spend] = await Promise.all([
+  const [autopost, broadcasts, spend, alerts] = await Promise.all([
     getAutopostConfig(),
     prisma.telegramBroadcast.findMany({ orderBy: { createdAt: "desc" }, take: 25 }),
     prisma.adSpendEntry.findMany({ orderBy: { spentOn: "desc" }, take: 50 }),
+    alertSettings(),
   ]);
 
   return (
-    <TelegramManager
+    <div className="space-y-6">
+      <AlertSettings
+        kinds={ALERT_KINDS.map((k) => ({
+          key: k.key,
+          label: k.label,
+          description: k.description,
+          channels: k.channels,
+        }))}
+        chatId={alerts.chatId}
+        telegramReady={alerts.telegramReady}
+        toggles={alerts.toggles}
+        alertEmail={
+          process.env.ADMIN_ALERT_EMAIL ?? process.env.CONTACT_EMAIL ?? "support@blitz.tips"
+        }
+      />
+      <TelegramManager
       configured={telegramConfigured()}
       autopost={autopost}
       assets={assets}
@@ -52,6 +70,7 @@ export default async function AdminTelegramPage() {
         clicks: s.clicks,
         notes: s.notes,
       }))}
-    />
+      />
+    </div>
   );
 }

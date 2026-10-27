@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { verifyIpnSignature, PASS_DAYS } from "@/lib/nowpayments";
 import { logActivity } from "@/lib/audit";
 import { formatDate } from "@/lib/date-format";
+import { notifyAdmins } from "@/lib/admin-alerts";
 
 // NOWPayments IPN callback: activates the access pass when a payment finishes.
 export async function POST(request: Request) {
@@ -160,6 +161,27 @@ export async function POST(request: Request) {
         targetType: "CryptoPayment",
         targetId: payment.id,
         detail: `${payment.interval} pass → handicapper ${payment.handicapperId} ($${(payment.amountCents / 100).toFixed(2)})`,
+      });
+
+      // A pass is a package sale like any other. Announced whether or not it
+      // extends an existing one — unlike a Stripe renewal, each crypto pass is
+      // a separate purchase somebody chose to make.
+      const buyer = await prisma.user.findUnique({
+        where: { id: payment.subscriberId },
+        select: { email: true },
+      });
+      await notifyAdmins({
+        kind: "subscription.new",
+        title: `New ${payment.interval.toLowerCase()} pass to @${handicapper?.handle ?? payment.handicapperId}`,
+        details: [
+          ["Customer", buyer?.email ?? payment.subscriberId],
+          ["Handicapper", `@${handicapper?.handle ?? payment.handicapperId}`],
+          ["Paid", `$${(payment.amountCents / 100).toFixed(2)}`],
+          ["Your cut", `$${(payment.commissionCents / 100).toFixed(2)}`],
+          ["Paid with", "Crypto"],
+          ["Runs until", formatDate(periodEnd)],
+        ],
+        path: "/admin/subscriptions",
       });
     }
   } else if (status === "failed" || status === "expired" || status === "refunded") {

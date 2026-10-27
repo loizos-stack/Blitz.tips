@@ -1,5 +1,6 @@
-import { NextResponse } from "next/server";
+import { NextResponse, after } from "next/server";
 import { auth } from "@/auth";
+import { notifyAdmins } from "@/lib/admin-alerts";
 import { prisma } from "@/lib/prisma";
 import { ensureSubscriberPrices } from "@/lib/subscriber-pricing";
 import { becomeHandicapperSchema, updateSportsSchema } from "@/lib/validations";
@@ -64,6 +65,21 @@ export async function POST(request: Request) {
     targetId: handicapper.id,
     detail: `@${handicapper.handle} became a handicapper`,
   });
+
+  after(() =>
+    notifyAdmins({
+      kind: "signup.handicapper",
+      title: `New handicapper: @${handicapper.handle}`,
+      details: [
+        ["Name", handicapper.displayName],
+        ["Handle", `@${handicapper.handle}`],
+        ["Email", session.user.email ?? "—"],
+        ["Monthly", `${(handicapper.monthlyPriceCents / 100).toFixed(2)}`],
+        ["Sports", handicapper.sports.map((s) => SPORT_LABELS[s] ?? s).join(", ") || "—"],
+      ],
+      path: "/admin/handicappers",
+    })
+  );
 
   return NextResponse.json({ handicapper }, { status: 201 });
 }

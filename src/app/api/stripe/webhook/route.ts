@@ -3,6 +3,7 @@ import Stripe from "stripe";
 import { stripe } from "@/lib/stripe";
 import { prisma } from "@/lib/prisma";
 import { logActivity } from "@/lib/audit";
+import { notifyAdmins } from "@/lib/admin-alerts";
 import type { BillingInterval, HandicapperPlan, SubscriptionStatus } from "@prisma/client";
 
 const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
@@ -32,6 +33,14 @@ async function syncSubscription(subscription: Stripe.Subscription) {
 
   const periodEndUnix = subscription.items.data[0]?.current_period_end;
 
+  // Read before the write so the alert can tell a NEW subscription from the
+  // stream of updates Stripe sends for the same one. Without this every
+  // renewal, card update and cancellation would announce itself as a sale.
+  const before = await prisma.subscription.findUnique({
+    where: { subscriberId_handicapperId: { subscriberId, handicapperId } },
+    select: { status: true },
+  });
+
   await prisma.subscription.upsert({
     where: { subscriberId_handicapperId: { subscriberId, handicapperId } },
     create: {
@@ -59,6 +68,38 @@ async function syncSubscription(subscription: Stripe.Subscription) {
     targetId: subscription.id,
     detail: `subscriber ${subscriberId} → handicapper ${handicapperId}`,
   });
+
+  // A sale is the first time this pair becomes ACTIVE. Coming back from
+  // past_due counts as one too — the money arrived either way — but a renewal
+  // of an already-active subscription does not.
+  if (mapStatus(subscription.status) === "ACTIVE" && before?.status !== "ACTIVE") {
+    const [subscriber, handicapper] = await Promise.all([
+      prisma.user.findUnique({ where: { id: subscriberId }, select: { email: true, name: true } }),
+      prisma.handicapperProfile.findUnique({
+        where: { id: handicapperId },
+        select: { handle: true, monthlyPriceCents: true, priceCurrency: true },
+      }),
+    ]);
+    await notifyAdmins({
+      kind: "subscription.new",
+      title: `New subscription to @${handicapper?.handle ?? handicapperId}`,
+      details: [
+        ["Customer", subscriber?.email ?? subscriberId],
+        ["Handicapper", `@${handicapper?.handle ?? handicapperId}`],
+        ...(handicapper
+          ? ([
+              [
+                "Price",
+                `${(handicapper.monthlyPriceCents / 100).toFixed(2)} ${handicapper.priceCurrency}/mo`,
+              ],
+            ] as [string, string][])
+          : []),
+        ["Paid with", "Stripe"],
+        ...(before ? ([["Previously", before.status]] as [string, string][]) : []),
+      ],
+      path: "/admin/subscriptions",
+    });
+  }
 }
 
 /** A handicapper's own plan subscription with the platform — separate revenue stream from syncSubscription above. */

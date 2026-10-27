@@ -23,7 +23,14 @@ export function telegramWebhookSecret(): string {
   return webhookSecret;
 }
 
-/** Send a Telegram message. `gone: true` when the user has blocked the bot. */
+/**
+ * Send a Telegram message. `gone: true` when the user has blocked the bot.
+ *
+ * Deadline for the same reason the broadcast calls below have one, which this
+ * one was missing: a slow api.telegram.org would otherwise hold the caller
+ * open until the platform kills it. That caller is now sometimes a payment
+ * webhook, where a hang means Stripe gets no 200 and retries the event.
+ */
 export async function sendTelegram(chatId: string, text: string): Promise<{ gone: boolean }> {
   if (!token) return { gone: false };
   try {
@@ -31,6 +38,7 @@ export async function sendTelegram(chatId: string, text: string): Promise<{ gone
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ chat_id: chatId, text, parse_mode: "HTML" }),
+      signal: AbortSignal.timeout(TEXT_TIMEOUT_MS),
     });
     // 403 = bot blocked by the user; caller should drop the link.
     return { gone: res.status === 403 };

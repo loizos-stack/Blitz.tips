@@ -1,4 +1,5 @@
-import { NextResponse } from "next/server";
+import { NextResponse, after } from "next/server";
+import { notifyAdmins } from "@/lib/admin-alerts";
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
 import { registerSchema } from "@/lib/validations";
@@ -75,6 +76,22 @@ export async function POST(request: Request) {
   // Onboarding verifies with a 6-digit code entered on-screen.
   await sendVerificationCode(normalizedEmail).catch((e) =>
     console.error("Failed to send verification code:", e)
+  );
+
+  // After the response, so an alert channel having a bad minute can't slow
+  // down — or fail — somebody's signup.
+  after(() =>
+    notifyAdmins({
+      kind: "signup.subscriber",
+      title: "New customer registered",
+      details: [
+        ["Name", user.name ?? "—"],
+        ["Email", user.email],
+        ...(country ? ([["Country", country]] as [string, string][]) : []),
+        ...(referredById ? ([["Referred", "yes"]] as [string, string][]) : []),
+      ],
+      path: "/admin/users",
+    })
   );
 
   const res = NextResponse.json({ user }, { status: 201 });
