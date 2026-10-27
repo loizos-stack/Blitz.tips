@@ -6,8 +6,24 @@ import { sendEmail } from "@/lib/email";
 import { emailWrapper } from "@/lib/email-template";
 import { unsubscribeUrl, unsubscribePostUrl } from "@/lib/unsubscribe";
 
-const AUDIENCES = ["ALL", "HANDICAPPERS", "CUSTOMERS", "CONTEST_ENTRANTS"] as const;
+const AUDIENCES = ["ALL", "HANDICAPPERS", "CUSTOMERS", "CONTEST_ENTRANTS", "USER"] as const;
 type Audience = (typeof AUDIENCES)[number];
+
+/**
+ * "USER" is a message to one named person, and it is deliberately NOT a
+ * one-recipient broadcast. Two things differ:
+ *
+ *  - It ignores the notifyEmail opt-out. Unsubscribing turns off
+ *    announcements; it is not a request never to be replied to, and an admin
+ *    answering someone who wrote in should not find the reply silently
+ *    dropped.
+ *  - It carries no unsubscribe footer, because there is no list to leave.
+ *    This is the rule email-template.ts already states: an unsubscribe line is
+ *    for marketing, transactional mail leaves it undefined.
+ *
+ * What keeps that from being a hole: one recipient, chosen from a lookup
+ * rather than typed, and the audit line names them.
+ */
 
 // Admin-authored content, but strip the obviously dangerous bits anyway.
 function sanitizeHtml(html: string): string {
@@ -45,21 +61,39 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Subject and message are required" }, { status: 400 });
   }
 
-  const where =
-    audience === "HANDICAPPERS"
-      ? { handicapper: { isNot: null } }
-      : audience === "CUSTOMERS"
-        ? { handicapper: { is: null } }
-        : audience === "CONTEST_ENTRANTS"
-          ? { contestEntries: { some: {} } }
-          : {};
+  let recipients: { id: string; email: string }[];
+  /** The audit line's target — who this actually went to. */
+  let auditTarget: string = audience;
 
-  // A broadcast is non-operational, so it only goes to users who haven't
-  // unsubscribed (notifyEmail), and each carries a per-user unsubscribe link.
-  const recipients = await prisma.user.findMany({
-    where: { ...where, notifyEmail: true },
-    select: { id: true, email: true },
-  });
+  if (audience === "USER") {
+    const userId = typeof body.userId === "string" ? body.userId : "";
+    const user = userId
+      ? await prisma.user.findUnique({ where: { id: userId }, select: { id: true, email: true } })
+      : null;
+    if (!user) {
+      return NextResponse.json({ error: "Pick someone to send this to." }, { status: 400 });
+    }
+    recipients = [user];
+    auditTarget = user.email;
+  } else {
+    const where =
+      audience === "HANDICAPPERS"
+        ? { handicapper: { isNot: null } }
+        : audience === "CUSTOMERS"
+          ? { handicapper: { is: null } }
+          : audience === "CONTEST_ENTRANTS"
+            ? { contestEntries: { some: {} } }
+            : {};
+
+    // A broadcast is non-operational, so it only goes to users who haven't
+    // unsubscribed (notifyEmail), and each carries a per-user unsubscribe link.
+    recipients = await prisma.user.findMany({
+      where: { ...where, notifyEmail: true },
+      select: { id: true, email: true },
+    });
+  }
+
+  const isBroadcast = audience !== "USER";
 
   const bodyHtml = sanitizeHtml(rawHtml);
   const text = htmlToText(rawHtml);
@@ -76,9 +110,12 @@ export async function POST(request: Request) {
         sendEmail({
           to: r.email,
           subject,
-          html: emailWrapper({ bodyHtml, unsubscribeUrl: unsubscribeUrl(r.id) }),
+          html: emailWrapper({
+            bodyHtml,
+            ...(isBroadcast ? { unsubscribeUrl: unsubscribeUrl(r.id) } : {}),
+          }),
           text,
-          listUnsubscribeUrl: unsubscribePostUrl(r.id),
+          ...(isBroadcast ? { listUnsubscribeUrl: unsubscribePostUrl(r.id) } : {}),
         })
       )
     );
@@ -88,6 +125,12 @@ export async function POST(request: Request) {
     }
   }
 
-  await logAdmin(session, "email.send", "Broadcast", audience, `"${subject}" → ${sent} sent, ${failed} failed`);
+  await logAdmin(
+    session,
+    "email.send",
+    isBroadcast ? "Broadcast" : "DirectEmail",
+    auditTarget,
+    `"${subject}" → ${sent} sent, ${failed} failed`
+  );
   return NextResponse.json({ sent, failed, audience });
 }
