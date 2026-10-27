@@ -2,7 +2,9 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requirePermission } from "@/lib/permissions";
 import { logAdmin } from "@/lib/audit";
-import { sendEmail } from "@/lib/email";
+// Both paths go through the batch sender — a message to one person is simply
+// a batch of one, and sharing the path means they fail and report the same way.
+import { sendEmailBatch, type BatchFailure } from "@/lib/email";
 import { emailWrapper } from "@/lib/email-template";
 import { unsubscribeUrl, unsubscribePostUrl } from "@/lib/unsubscribe";
 
@@ -99,38 +101,53 @@ export async function POST(request: Request) {
   const text = htmlToText(rawHtml);
 
   let sent = 0;
-  let failed = 0;
+  const failures: BatchFailure[] = [];
 
-  // Modest parallelism keeps us under Resend's rate limits without a queue.
-  const CHUNK = 10;
-  for (let i = 0; i < recipients.length; i += CHUNK) {
-    const chunk = recipients.slice(i, i + CHUNK);
-    const results = await Promise.allSettled(
-      chunk.map((r) =>
-        sendEmail({
-          to: r.email,
-          subject,
-          html: emailWrapper({
-            bodyHtml,
-            ...(isBroadcast ? { unsubscribeUrl: unsubscribeUrl(r.id) } : {}),
-          }),
-          text,
-          ...(isBroadcast ? { listUnsubscribeUrl: unsubscribePostUrl(r.id) } : {}),
-        })
-      )
+  // One request per 100 recipients, not one per recipient.
+  //
+  // This used to fire ten concurrent sends per chunk, which is ten requests
+  // against a limit counted in requests per second. A 28-person send delivered
+  // the first ten and failed the remaining eighteen — the shape of a burst
+  // going through a token bucket, not of a bad mailing list. The batch
+  // endpoint carries up to 100 messages in a single call, so the limit stops
+  // deciding who gets the email.
+  const BATCH = 100;
+  for (let i = 0; i < recipients.length; i += BATCH) {
+    const chunk = recipients.slice(i, i + BATCH);
+    const result = await sendEmailBatch(
+      chunk.map((r) => ({
+        to: r.email,
+        subject,
+        html: emailWrapper({
+          bodyHtml,
+          ...(isBroadcast ? { unsubscribeUrl: unsubscribeUrl(r.id) } : {}),
+        }),
+        text,
+        ...(isBroadcast ? { listUnsubscribeUrl: unsubscribePostUrl(r.id) } : {}),
+      }))
     );
-    for (const result of results) {
-      if (result.status === "fulfilled") sent += 1;
-      else failed += 1;
-    }
+    sent += result.sent;
+    failures.push(...result.failures);
   }
+  const failed = failures.length;
 
   await logAdmin(
     session,
     "email.send",
     isBroadcast ? "Broadcast" : "DirectEmail",
     auditTarget,
-    `"${subject}" → ${sent} sent, ${failed} failed`
+    `"${subject}" → ${sent} sent, ${failed} failed` +
+      (failed ? ` (${[...new Set(failures.map((f) => f.reason))].slice(0, 3).join("; ")})` : "")
   );
-  return NextResponse.json({ sent, failed, audience });
+
+  // The reasons go back to the sender, not just the tally. A bare "18 failed"
+  // sends someone to the logs to find out whether their list is wrong or the
+  // provider refused them, and until now the logs did not say either.
+  return NextResponse.json({
+    sent,
+    failed,
+    audience,
+    reasons: [...new Set(failures.map((f) => f.reason))].slice(0, 5),
+    failedSample: failures.slice(0, 10),
+  });
 }

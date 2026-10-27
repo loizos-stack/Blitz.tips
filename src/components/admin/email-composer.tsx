@@ -31,6 +31,8 @@ export function EmailComposer({
   const [subject, setSubject] = useState("");
   const [state, setState] = useState<"idle" | "sending" | "done" | "error">("idle");
   const [result, setResult] = useState<string | null>(null);
+  /** Who was dropped and why — a count alone sends you to the logs. */
+  const [failures, setFailures] = useState<{ email: string; reason: string }[]>([]);
 
   // One-to-one: who it goes to, and the lookup that finds them.
   const [person, setPerson] = useState<Person | null>(null);
@@ -98,18 +100,28 @@ export function EmailComposer({
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ audience, subject, html, userId: person?.id }),
     });
-    const body = await res.json().catch(() => ({}));
+    const body = (await res.json().catch(() => ({}))) as {
+      sent?: number;
+      failed?: number;
+      error?: string;
+      reasons?: string[];
+      failedSample?: { email: string; reason: string }[];
+    };
 
     if (!res.ok) {
       setState("error");
       setResult(body.error ?? "Sending failed");
       return;
     }
-    setState("done");
+    setState(body.failed ? "error" : "done");
+    setFailures(body.failedSample ?? []);
     setResult(
       audience === "USER"
         ? `Sent to ${person!.email}.`
-        : `Sent to ${body.sent} recipient${body.sent === 1 ? "" : "s"}${body.failed ? `, ${body.failed} failed` : ""}.`
+        : `Sent to ${body.sent} recipient${body.sent === 1 ? "" : "s"}` +
+          (body.failed
+            ? `, ${body.failed} failed — ${(body.reasons ?? []).join("; ") || "no reason given"}`
+            : ".")
     );
   }
 
@@ -284,6 +296,19 @@ export function EmailComposer({
           <p className={cn("text-sm", state === "error" ? "text-danger" : "text-accent")}>{result}</p>
         )}
       </div>
+
+      {failures.length > 0 && (
+        <div className="mt-3 rounded-lg border border-danger/30 bg-danger/5 p-3">
+          <p className="text-xs font-semibold text-danger">Didn&apos;t go out</p>
+          <ul className="mt-1.5 space-y-0.5 text-xs text-muted">
+            {failures.map((f) => (
+              <li key={f.email}>
+                <span className="font-medium">{f.email}</span> — {f.reason}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
     </div>
   );
 }

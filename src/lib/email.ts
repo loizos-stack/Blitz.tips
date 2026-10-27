@@ -46,7 +46,85 @@ export async function sendEmail(opts: {
         }
       : {}),
   });
-  if (error) throw new Error(error.message);
+  // Keep Resend's own error name on the message. "rate_limit_exceeded" is the
+  // difference between "your list is wrong" and "you sent too fast", and a
+  // caller that only sees the prose cannot tell them apart.
+  if (error) throw new Error(error.name ? `${error.name}: ${error.message}` : error.message);
+}
+
+/** One recipient's outcome in a batch. */
+export interface BatchFailure {
+  email: string;
+  reason: string;
+}
+
+/**
+ * Send the same message to many people in ONE API call per 100.
+ *
+ * Why this exists: Resend rate-limits by REQUEST, and a broadcast sent one
+ * request per recipient hits that wall almost immediately — a 28-person send
+ * delivered the first 10 and failed the other 18, which is what a burst
+ * through a token bucket looks like. The batch endpoint takes up to 100
+ * messages per call, so the same send is one request instead of a hundred and
+ * the limit stops being the thing that decides who gets the email.
+ *
+ * `batchValidation: "permissive"` is deliberate. Strict validation fails the
+ * WHOLE batch on one malformed address, which means a single bad row in the
+ * users table silently costs everyone else their copy. Permissive sends the
+ * rest and names the ones it dropped.
+ */
+export async function sendEmailBatch(
+  messages: Array<{
+    to: string;
+    subject: string;
+    html: string;
+    text: string;
+    listUnsubscribeUrl?: string;
+  }>
+): Promise<{ sent: number; failures: BatchFailure[] }> {
+  if (messages.length === 0) return { sent: 0, failures: [] };
+  if (!resend) {
+    for (const m of messages) {
+      console.warn(`[email] RESEND_API_KEY not set — would send "${m.subject}" to ${m.to}`);
+    }
+    return { sent: messages.length, failures: [] };
+  }
+
+  const { data, error } = await resend.batch.send(
+    messages.map((m) => ({
+      from,
+      to: m.to,
+      subject: m.subject,
+      html: m.html,
+      text: m.text,
+      ...(m.listUnsubscribeUrl
+        ? {
+            headers: {
+              "List-Unsubscribe": `<${m.listUnsubscribeUrl}>`,
+              "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
+            },
+          }
+        : {}),
+    })),
+    { batchValidation: "permissive" }
+  );
+
+  // The whole call failed — a bad key, a rate limit, the network. Everyone in
+  // it failed for that one reason, and saying so beats a bare count.
+  if (error) {
+    const reason = error.name ? `${error.name}: ${error.message}` : error.message;
+    console.error(`[email] batch of ${messages.length} failed: ${reason}`);
+    return { sent: 0, failures: messages.map((m) => ({ email: m.to, reason })) };
+  }
+
+  const perMessage = (data as { errors?: { index: number; message: string }[] } | null)?.errors ?? [];
+  const failures = perMessage.map((e) => ({
+    email: messages[e.index]?.to ?? `#${e.index}`,
+    reason: e.message,
+  }));
+  for (const f of failures) console.error(`[email] ${f.email} rejected: ${f.reason}`);
+
+  return { sent: messages.length - failures.length, failures };
 }
 
 export function verificationEmailText(url: string): string {
