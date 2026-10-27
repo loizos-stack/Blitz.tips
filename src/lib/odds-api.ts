@@ -90,6 +90,47 @@ const API_BASE = process.env.ODDS_API_BASE ?? "https://api.the-odds-api.com/v4";
 const ODDS_REQUEST_TIMEOUT_MS = 6_000;
 
 /**
+ * How long to stop calling the feed after it says the key is out of quota or
+ * invalid.
+ *
+ * Short enough that topping the account up brings the board back within
+ * minutes, long enough that an exhausted key costs one request per instance
+ * per window instead of one per league per page view.
+ */
+const QUOTA_COOLDOWN_MS = 10 * 60 * 1000;
+
+/**
+ * Stop asking a feed that has already said no.
+ *
+ * A 401 or 429 is about the KEY, not the request: every other call in flight
+ * will get the same answer, and the board fans out to dozens of leagues per
+ * render. Without this, running out of quota makes the site call HARDER — each
+ * page view re-attempts every league, and the failures aren't cacheable, so the
+ * one condition that should quieten the traffic is the one that multiplies it.
+ *
+ * Per-instance and best-effort, like workingMarketTier: a cold start simply
+ * re-learns it, and being wrong costs one request.
+ */
+let quotaBlockedUntil = 0;
+let quotaBlockReason = "";
+
+function quotaBlocked(now = Date.now()): boolean {
+  return now < quotaBlockedUntil;
+}
+
+/** Open the breaker, logging once rather than once per league. */
+function blockOnQuota(status: number, label: string) {
+  const now = Date.now();
+  if (quotaBlocked(now)) return;
+  quotaBlockedUntil = now + QUOTA_COOLDOWN_MS;
+  quotaBlockReason = status === 429 ? "out of quota" : "key rejected";
+  console.error(
+    `Odds API ${quotaBlockReason} (${status} on ${label}). ` +
+      `Pausing all odds requests for ${QUOTA_COOLDOWN_MS / 60000} minutes.`
+  );
+}
+
+/**
  * `fetch` with a deadline, returning null instead of throwing.
  *
  * Returns null for a timeout or a transport error, which every caller treats
@@ -98,8 +139,13 @@ const ODDS_REQUEST_TIMEOUT_MS = 6_000;
  * to the log.
  */
 async function oddsFetch(url: string, init: RequestInit, label: string): Promise<Response | null> {
+  // Cheaper than any request, and the only thing that keeps a dead key from
+  // being asked dozens of times a render.
+  if (quotaBlocked()) return null;
+
+  let res: Response;
   try {
-    return await fetch(url, { ...init, signal: AbortSignal.timeout(ODDS_REQUEST_TIMEOUT_MS) });
+    res = await fetch(url, { ...init, signal: AbortSignal.timeout(ODDS_REQUEST_TIMEOUT_MS) });
   } catch (err) {
     const timedOut = err instanceof Error && (err.name === "TimeoutError" || err.name === "AbortError");
     console.error(
@@ -107,6 +153,21 @@ async function oddsFetch(url: string, init: RequestInit, label: string): Promise
     );
     return null;
   }
+
+  if (res.status === 429 || res.status === 401) blockOnQuota(res.status, label);
+  return res;
+}
+
+/**
+ * Whether a failed request is worth re-sending with different parameters.
+ *
+ * Only a rejection OF THE REQUEST can be fixed by changing the request. A 401
+ * or 429 is about the key and a 5xx is about their server: re-sending any of
+ * those is a second billed call for the same answer, and the board makes that
+ * decision once per league.
+ */
+function worthRetryingWithDifferentParams(status: number): boolean {
+  return status === 422 || status === 400;
 }
 
 // Read the Odds API key robustly: trims stray whitespace/newlines from a pasted
@@ -748,12 +809,17 @@ async function fetchLeagueEvents(
   const primary =
     sport === "SOCCER" ? `${base}&regions=${SOCCER_REGIONS}` : `${base}&bookmakers=${BOOKMAKERS_PARAM}`;
   let res = await oddsFetch(primary, { next: { revalidate } }, `odds ${sportKey}`);
-  // Retry only when the API ANSWERED and disliked the request — the fallback
-  // exists because a bookmaker list can be rejected where a plain region is
-  // accepted. If nothing answered at all, the second call waits out the same
-  // timeout for the same silence, and a six-second worst case quietly becomes
-  // twelve on the request a visitor is waiting for.
-  if (res && !res.ok) {
+  // Retry only when the API ANSWERED and specifically disliked THE REQUEST —
+  // the fallback exists because a bookmaker list can be rejected where a plain
+  // region is accepted. Two cases are deliberately excluded:
+  //
+  //  - Nothing answered at all: the second call waits out the same timeout for
+  //    the same silence, turning a six-second worst case into twelve on the
+  //    request a visitor is waiting for.
+  //  - The key is out of quota or rejected: changing the region cannot help,
+  //    and this runs once per league. Retrying there doubled the call volume
+  //    at the exact moment the quota was already gone.
+  if (res && !res.ok && worthRetryingWithDifferentParams(res.status)) {
     console.error(
       `Odds API bookmakers request failed for ${sportKey}: ${res.status}; retrying with regions=us`
     );

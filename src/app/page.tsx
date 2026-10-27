@@ -15,7 +15,23 @@ export const metadata: Metadata = {
   alternates: { canonical: "/" },
 };
 
-export const dynamic = "force-dynamic";
+// `export const dynamic = "force-dynamic"` was removed here, and should not
+// come back.
+//
+// This page renders <HomeBoard>, whose fetches are the site's only paid ones.
+// Next's own docs say force-dynamic is equivalent to giving every fetch() in
+// the segment `{ cache: 'no-store', next: { revalidate: 0 } }` — which would
+// silently void every cache window in odds-api.ts and make each homepage view
+// re-buy the whole board.
+//
+// Measured against 16.2.11, it does NOT currently do that: a cold render cost
+// 39 upstream requests with the directive and 39 without, and five further
+// renders cost nothing either way. So this is not a bug fix; it is removing a
+// documented foot-gun that happens to be dormant. Depending on undocumented
+// behaviour to keep the odds bill down is not a position worth being in.
+//
+// Nothing about the page changes: it reads searchParams, so it renders per
+// request regardless. The directive bought nothing.
 
 export default async function Home({
   searchParams,
