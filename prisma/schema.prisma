@@ -544,6 +544,44 @@ model EmailDelivery {
   @@index([sentAt])
 }
 
+/// One page view, recorded first-party and without cookies.
+///
+/// Why this exists rather than reading Vercel's numbers: the dashboard shows
+/// totals, not the breakdowns anyone actually asks for — which countries,
+/// which referrers, which pages — and its retention depends on the plan.
+///
+/// NOTHING HERE IDENTIFIES A PERSON. No IP, no cookie, no device id.
+/// `visitorHash` is a salted digest of IP + user agent where the salt is
+/// derived from AUTH_SECRET and the calendar day, so it rotates at midnight:
+/// it can count the same browser twice in an afternoon and cannot follow it
+/// into tomorrow. That is the property that keeps this outside the cookie
+/// consent gate, alongside Vercel's own cookieless analytics — see
+/// components/analytics-gate.tsx for the same reasoning applied to GA.
+model PageView {
+  id String @id @default(cuid())
+
+  /// Pathname only. Query strings are dropped before this is written — they
+  /// carry tokens, emails and search terms, and none of that belongs here.
+  path String
+  /// The referring HOST, never the full URL: another site's path can contain
+  /// as much private detail as our own.
+  referrer String?
+  /// Two-letter country from the edge, which is as precise as this gets.
+  country String?
+  /// "mobile" | "tablet" | "desktop".
+  device String
+
+  /// See the note above — a daily-rotating digest, not an identifier.
+  visitorHash String
+
+  createdAt DateTime @default(now())
+
+  /// Every query on the admin page filters by time first and aggregates after,
+  /// so one index on the range carries all of them. More would cost writes on
+  /// the hot path to speed up a page one person reads.
+  @@index([createdAt])
+}
+
 model AdminAuditLog {
   id         String   @id @default(cuid())
   actorId    String

@@ -27,6 +27,7 @@ export type AdminPermission =
   | "picks"
   | "subscriptions"
   | "financials"
+  | "traffic"
   | "emails"
   | "promos"
   | "ads"
@@ -61,6 +62,7 @@ export const ADMIN_PERMISSIONS: PermissionDef[] = [
   { key: "picks", label: "Picks", href: "/admin/picks", description: "Review picks and settlement integrity" },
   { key: "subscriptions", label: "Subscriptions", href: "/admin/subscriptions", description: "Cancel or refund subscriptions" },
   { key: "financials", label: "Financials", href: "/admin/financials", description: "Revenue, MRR and payout figures" },
+  { key: "traffic", label: "Traffic", href: "/admin/traffic", description: "Visitors, countries, referrers and the pages they land on" },
   { key: "emails", label: "Emails", href: "/admin/emails", description: "Send mass email to users and handicappers" },
   { key: "promos", label: "Promos", href: "/admin/promos", description: "Create and manage promo codes" },
   { key: "ads", label: "Ads", href: "/admin/ads", description: "Create and track Meta (Facebook/Instagram) ad campaigns" },

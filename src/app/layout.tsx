@@ -14,6 +14,7 @@ import { RegisterServiceWorker } from "@/components/register-service-worker";
 import { DeferredWidgets } from "@/components/deferred-widgets";
 import { SitePopups } from "@/components/site-popups";
 import { AnalyticsGate } from "@/components/analytics-gate";
+import { PageViewTracker } from "@/components/page-view-tracker";
 import { needsCookieConsent } from "@/lib/geo";
 import { cookies } from "next/headers";
 import { OddsFormatProvider } from "@/components/odds-format";
@@ -123,6 +124,11 @@ export default async function RootLayout({
             any compliance gain. */}
         <SpeedInsights />
         <Analytics />
+        {/* Ours, on the same footing: a daily-rotating digest computed on the
+            server, nothing stored on the device. Feeds Admin → Traffic, which
+            answers the questions Vercel's totals can't — which countries, which
+            referrers, which pages. */}
+        <PageViewTracker />
         {/* Google Analytics writes cookies, so it only loads once consent
             allows it. */}
         <AnalyticsGate consentRequired={consentRequired} />
