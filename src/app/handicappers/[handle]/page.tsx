@@ -6,6 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { getHandicapperByHandle } from "@/lib/handicappers";
 import { summarizeRatings } from "@/lib/reviews";
 import { isPickLocked } from "@/lib/pick-visibility";
+import { canBypassPickPaywall } from "@/lib/permissions";
 import { tailStates } from "@/lib/pick-tails";
 import { ClvBanner } from "@/components/clv-banner";
 import { ReviewsList, type ReviewItem } from "@/components/reviews-list";
@@ -112,7 +113,12 @@ export default async function HandicapperProfilePage({
     isFollowing = Boolean(follow);
   }
 
-  const unlocked = isOwner || isSubscribed;
+  // Admins who manage picks read them unlocked here, so the public profile
+  // agrees with what the admin Picks tab already shows them. Evaluated last, so
+  // `||` short-circuits it away for an owner or a subscriber; for everyone else
+  // it costs a session read, and the database lookup behind it only happens
+  // once that session turns out to exist.
+  const unlocked = isOwner || isSubscribed || (await canBypassPickPaywall());
     const book = await sportsbookForVisitor();
   const picks = await enrichPickCrests(handicapper.picksList);
   const pendingPicks = picks.filter((p) => p.result === "PENDING");

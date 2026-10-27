@@ -154,6 +154,27 @@ export async function requireAnyPermission(keys: AdminPermission[]): Promise<Adm
   return null;
 }
 
+/**
+ * Whether the signed-in viewer may read premium picks they have not paid for.
+ *
+ * An admin browsing the public site is still a visitor to it, so the paywall
+ * used to show them the same teaser as anyone else — which makes the one
+ * person responsible for moderating a pick the one person who cannot read it.
+ * The admin Picks tab already lists every selection in full; this only stops
+ * the rest of the site disagreeing with it.
+ *
+ * Scoped to the "picks" permission rather than to admins generally: an admin
+ * who only handles ads has no more business reading paid selections than any
+ * other subscriber would.
+ *
+ * NOT applied to surfaces that render for someone else or are cached publicly
+ * — share cards, digest emails, Telegram autoposts, the contest funnel's
+ * deliberate teaser. Those take an explicit `unlocked: false` and must keep it.
+ */
+export async function canBypassPickPaywall(): Promise<boolean> {
+  return (await requirePermission("picks")) !== null;
+}
+
 /** Guard for superadmin-only surfaces (managing other admins). */
 export async function requireSuperAdmin(): Promise<AdminContext | null> {
   const ctx = await getAdminContext();
