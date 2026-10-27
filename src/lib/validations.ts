@@ -62,14 +62,46 @@ export const updateSportsSchema = z.object({
 export const MAX_POSITIVE_ODDS = 10000;
 export const MIN_NEGATIVE_ODDS = -100000;
 
-const boundedOdds = z
-  .number()
-  .int()
-  .refine((v) => v !== 0 && (v >= 100 || v <= -100), "Odds must be +100/-100 or beyond")
-  .refine(
-    (v) => v <= MAX_POSITIVE_ODDS && v >= MIN_NEGATIVE_ODDS,
-    `Odds must be between ${MIN_NEGATIVE_ODDS} and +${MAX_POSITIVE_ODDS}`
-  );
+/**
+ * Decimal odds as American odds, for the hint below.
+ *
+ * 2.50 → +150, 1.91 → −110. Rounded, because American odds are whole numbers
+ * and the point is to show the person the number to type.
+ */
+function decimalToAmerican(decimal: number): number {
+  return decimal >= 2
+    ? Math.round((decimal - 1) * 100)
+    : -Math.round(100 / (decimal - 1));
+}
+
+/** The shape of a decimal price: between evens and a longshot, with a fraction. */
+function looksLikeDecimalOdds(v: number): boolean {
+  return v > 1 && v < 101 && !Number.isInteger(v);
+}
+
+const boundedOdds = z.number().superRefine((v, ctx) => {
+  // A whole number is what American odds are. This check used to be a bare
+  // `.int()`, whose message is "Invalid input: expected int, received number" —
+  // which told a real customer nothing, did not name the field, and sent them
+  // asking what to put in Units. Someone typing a decimal price is not making
+  // a type error, they are using the odds format their country uses, so the
+  // message says which format this site wants and what their number is in it.
+  if (!Number.isInteger(v)) {
+    ctx.addIssue(
+      looksLikeDecimalOdds(v)
+        ? `Odds are in American format here, so they're whole numbers. ${v} in decimal odds is ${decimalToAmerican(v) > 0 ? "+" : ""}${decimalToAmerican(v)} — enter that.`
+        : "Odds must be a whole number, like -110 or +150."
+    );
+    return;
+  }
+  if (v === 0 || (v > -100 && v < 100)) {
+    ctx.addIssue("Odds must be +100 or longer, or -100 or shorter (American format).");
+    return;
+  }
+  if (v > MAX_POSITIVE_ODDS || v < MIN_NEGATIVE_ODDS) {
+    ctx.addIssue(`Odds must be between ${MIN_NEGATIVE_ODDS} and +${MAX_POSITIVE_ODDS}.`);
+  }
+});
 
 // A single pick submitted into a handicapping contest (Supercapper). Contest
 // picks are always taken from our own odds board, so the entrant identifies the
@@ -82,7 +114,12 @@ export const createContestPickSchema = z.object({
   oddsApiEventId: z.string().min(1, "Pick a game from the board").max(64),
   selection: z.string().min(1).max(140),
   odds: boundedOdds,
-  units: z.number().min(0.1).max(20),
+  // Messages spelled out: the defaults read "Too small: expected number to
+  // be >=0.1", which is a sentence written for whoever wrote the schema.
+  units: z
+    .number()
+    .min(0.1, "Units must be at least 0.1.")
+    .max(20, "Units can be at most 20."),
 });
 
 export const becomeHandicapperSchema = z.object({
@@ -150,7 +187,10 @@ export const createPickSchema = z.object({
   betType: z.string(),
   selection: z.string().min(1).max(140),
   odds: boundedOdds,
-  units: z.number().min(0.1).max(20),
+  units: z
+    .number()
+    .min(0.1, "Units must be at least 0.1.")
+    .max(20, "Units can be at most 20."),
   analysis: z.string().max(2000).optional(),
   isPremium: z.boolean().default(true),
   eventStartsAt: z.string().min(1, "Event start time is required"),
@@ -178,7 +218,10 @@ export const parlayLegSchema = z.object({
 
 export const createParlaySchema = z.object({
   sport: z.string(),
-  units: z.number().min(0.1).max(20),
+  units: z
+    .number()
+    .min(0.1, "Units must be at least 0.1.")
+    .max(20, "Units can be at most 20."),
   analysis: z.string().max(2000).optional(),
   isPremium: z.boolean().default(true),
   eventStartsAt: z.string().min(1, "Event start time is required"),
@@ -188,3 +231,58 @@ export const createParlaySchema = z.object({
 export const settlePickSchema = z.object({
   result: z.enum(["WIN", "LOSS", "PUSH", "VOID", "PENDING"]),
 });
+
+/**
+ * Turn a validation failure into something the person who filled the form can
+ * act on.
+ *
+ * The routes used to answer with `error.issues[0].message` and nothing else.
+ * That is fine while every message is hand-written, and silently awful the
+ * moment one isn't: a customer hit Zod's own "Invalid input: expected int,
+ * received number", had no idea which of eight inputs it meant, and wrote in
+ * asking what to put in the Units box. The field was Odds.
+ *
+ * So the field name is always included, and anything that still reads like a
+ * library's internal message is replaced rather than forwarded. The aim is
+ * that nobody has to email to find out which box is wrong.
+ */
+const FIELD_LABELS: Record<string, string> = {
+  odds: "Odds",
+  units: "Units",
+  selection: "Selection",
+  matchup: "Matchup",
+  sport: "Sport",
+  betType: "Bet type",
+  eventStartsAt: "Start time",
+  analysis: "Analysis",
+  handle: "Handle",
+  displayName: "Display name",
+  monthlyPriceCents: "Monthly price",
+  weeklyPriceCents: "Weekly price",
+  annualPriceCents: "Annual price",
+  legs: "Parlay legs",
+};
+
+/** Zod's untranslated defaults, which should never reach a person. */
+const LIBRARY_MESSAGE = /^(Invalid input|Too small|Too big|Invalid option|Required|Expected)\b/;
+
+export function firstValidationError(error: z.ZodError, fallback = "Check the form and try again."): string {
+  const issue = error.issues[0];
+  if (!issue) return fallback;
+
+  const key = issue.path.map(String).find((p) => p in FIELD_LABELS);
+  const label = key ? FIELD_LABELS[key] : null;
+
+  // A written message already says what is wrong; it only needs the field.
+  if (!LIBRARY_MESSAGE.test(issue.message)) {
+    return label && !issue.message.toLowerCase().startsWith(label.toLowerCase())
+      ? `${label}: ${issue.message}`
+      : issue.message;
+  }
+
+  // A library message says nothing useful, so say where the problem is and let
+  // them look, rather than repeating jargon at them.
+  return label
+    ? `${label} isn't valid — check what you entered there.`
+    : fallback;
+}

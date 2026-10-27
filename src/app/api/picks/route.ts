@@ -1,7 +1,7 @@
 import { NextResponse, after } from "next/server";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
-import { createPickSchema, createParlaySchema } from "@/lib/validations";
+import { createPickSchema, createParlaySchema, firstValidationError } from "@/lib/validations";
 import { isEmailVerified } from "@/lib/verification";
 import { logActivity } from "@/lib/audit";
 import { notifyNewPick } from "@/lib/notifications";
@@ -54,7 +54,7 @@ export async function POST(request: Request) {
 
   const parsed = createPickSchema.safeParse(body);
   if (!parsed.success) {
-    return NextResponse.json({ error: parsed.error.issues[0]?.message ?? "Invalid input" }, { status: 400 });
+    return NextResponse.json({ error: firstValidationError(parsed.error) }, { status: 400 });
   }
 
   const eventStartsAt = new Date(parsed.data.eventStartsAt);
@@ -134,7 +134,10 @@ async function createParlay(
   const actorId = handicapper.userId;
   const parsed = createParlaySchema.safeParse(body);
   if (!parsed.success) {
-    return NextResponse.json({ error: parsed.error.issues[0]?.message ?? "Invalid parlay" }, { status: 400 });
+    return NextResponse.json(
+      { error: firstValidationError(parsed.error, "Check the parlay and try again.") },
+      { status: 400 }
+    );
   }
 
   const eventStartsAt = new Date(parsed.data.eventStartsAt);
