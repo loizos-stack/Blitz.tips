@@ -303,13 +303,13 @@ model HandicapperProfile {
   // planCurrentPeriodEnd, which belongs to Stripe: the sweep that ends comps
   // must never be able to touch a real subscription, and `planCompedUntil is
   // not null` is what makes a comp identifiable as one.
-  planCompedUntil          DateTime?
-  planCompedAt             DateTime?
+  planCompedUntil  DateTime?
+  planCompedAt     DateTime?
   // The admin who granted it, so a comp on a profile can be traced to a person.
-  planCompedById           String?
+  planCompedById   String?
   // When the three-days-out warning was sent, so it goes exactly once per
   // grant. Cleared whenever a new comp is granted or an existing one extended.
-  planCompWarnedAt         DateTime?
+  planCompWarnedAt DateTime?
 
   picks         Pick[]
   subscriptions Subscription[] @relation("HandicapperSubscriptions")
@@ -330,21 +330,21 @@ model Pick {
   handicapperId String
   handicapper   HandicapperProfile @relation(fields: [handicapperId], references: [id], onDelete: Cascade)
 
-  sport     PickSport
-  league    String?
-  matchup   String
-  betType   BetType
-  selection String
-  odds      Int
-  units     Float      @default(1)
-  analysis  String?    @db.Text
+  sport        PickSport
+  league       String?
+  matchup      String
+  betType      BetType
+  selection    String
+  odds         Int
+  units        Float      @default(1)
+  analysis     String?    @db.Text
   /// The language the analysis is written in, as an ISO 639-1 code, learned
   /// the first time someone translates it. Lets the translate button stop
   /// being offered to readers who already speak it — so one reader's click
   /// settles it for everyone after.
   analysisLang String?
-  result    PickResult @default(PENDING)
-  isPremium Boolean    @default(true)
+  result       PickResult @default(PENDING)
+  isPremium    Boolean    @default(true)
 
   eventStartsAt   DateTime
   settledAt       DateTime?
@@ -401,8 +401,8 @@ model PickTranslation {
   pick   Pick   @relation(fields: [pickId], references: [id], onDelete: Cascade)
 
   /// ISO 639-1 code of the language this row is IN.
-  language String
-  analysis String @db.Text
+  language       String
+  analysis       String  @db.Text
   /// What the model said the original was written in. Null when it could not
   /// say, which only costs an extra offer of the button.
   sourceLanguage String?
@@ -562,14 +562,14 @@ model PageView {
 
   /// Pathname only. Query strings are dropped before this is written — they
   /// carry tokens, emails and search terms, and none of that belongs here.
-  path String
+  path     String
   /// The referring HOST, never the full URL: another site's path can contain
   /// as much private detail as our own.
   referrer String?
   /// Two-letter country from the edge, which is as precise as this gets.
-  country String?
+  country  String?
   /// "mobile" | "tablet" | "desktop".
-  device String
+  device   String
 
   /// See the note above — a daily-rotating digest, not an identifier.
   visitorHash String
@@ -1187,7 +1187,6 @@ model XQueuedPost {
   @@index([slot, createdAt])
 }
 
-
 // --- Blitz Odds -------------------------------------------------------------
 // Private line-movement watcher. Polls the odds feed, keeps a short history of
 // every price it sees, and raises an alert when a selection shortens at more
@@ -1450,4 +1449,28 @@ model OddsFixture {
   @@index([sportKey, commenceTime])
 }
 
+/// A rendered results-recap video for one day's settled picks.
+///
+/// The file lives in Blob storage; this row is what the admin panel lists and
+/// what stops the nightly job rendering the same day twice. The figures are
+/// copied in at render time on purpose: they are what the video actually
+/// shows, and a pick re-graded next week must not silently make a published
+/// video's caption wrong.
+model RecapVideo {
+  id String @id @default(cuid())
 
+  /// The day covered, YYYY-MM-DD in UTC.
+  date String @unique
+
+  /// Public Blob URL of the MP4.
+  url String
+
+  /// What the video claims, frozen at render time.
+  settled Int
+  record  String
+  units   Float
+
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
+}
