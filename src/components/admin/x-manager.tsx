@@ -1,5 +1,6 @@
 "use client";
 
+import { LocalTime } from "@/components/local-time";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useSearchParams } from "next/navigation";
@@ -16,7 +17,6 @@ import {
   Clock,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { formatDateTime } from "@/lib/date-format";
 import { fetchJson } from "@/lib/fetch-json";
 import { X_SLOTS, slotLabel } from "@/lib/x-slots";
 
@@ -163,7 +163,8 @@ export function XManager({ configured, assets, account, posts, queued, autoSend 
                 {account.name && <span className="ml-2 font-normal text-muted">{account.name}</span>}
               </p>
               <p className="mt-1 text-xs text-muted">
-                Connected {formatDateTime(account.connectedAt)} · scopes {account.scopes.split(" ").join(", ")}
+                Connected <LocalTime iso={new Date(account.connectedAt).toISOString()} withZone /> · scopes{" "}
+                {account.scopes.split(" ").join(", ")}
               </p>
               {!account.scopes.includes("offline.access") && (
                 <p className="mt-1 text-xs text-danger">
@@ -279,7 +280,9 @@ export function XManager({ configured, assets, account, posts, queued, autoSend 
                   <span className="rounded-full bg-accent/10 px-2 py-0.5 font-semibold text-accent">
                     {slotLabel(q.slot)}
                   </span>
-                  <span>composed {formatDateTime(q.createdAt)}</span>
+                  <span>
+                    composed <LocalTime iso={new Date(q.createdAt).toISOString()} withZone />
+                  </span>
                   {q.subject && <span>· about @{q.subject}</span>}
                   <span>· {count(q.text)} chars</span>
                 </div>
@@ -394,7 +397,8 @@ export function XManager({ configured, assets, account, posts, queued, autoSend 
                   <div className="min-w-0">
                     <p className="text-sm">{p.text}</p>
                     <p className="mt-1 text-xs text-muted">
-                      @{p.username} · {formatDateTime(p.createdAt)} · {p.sentByEmail}
+                      @{p.username} · <LocalTime iso={new Date(p.createdAt).toISOString()} withZone /> ·{" "}
+                      {p.sentByEmail}
                       {p.asset && <> · {p.asset}</>}
                       {p.source && <> · auto: {p.source}</>}
                     </p>

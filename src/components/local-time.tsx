@@ -25,11 +25,20 @@ const emptySubscribe = () => () => {};
  * is merely a different zone, rather than the wrong time with nothing to say
  * so.
  */
-export function LocalTime({ iso, withZone = false }: { iso: string; withZone?: boolean }) {
+export function LocalTime({
+  iso,
+  withZone = false,
+  withSeconds = false,
+}: {
+  iso: string;
+  withZone?: boolean;
+  /** Seconds too — for logs, where the order within a minute is the point. */
+  withSeconds?: boolean;
+}) {
   const render = (zone?: string) =>
     withZone
-      ? `${formatDateTimeInZone(iso, zone)} ${zoneAbbreviation(iso, zone)}`
-      : formatDateTimeInZone(iso, zone);
+      ? `${formatDateTimeInZone(iso, zone, withSeconds)} ${zoneAbbreviation(iso, zone)}`
+      : formatDateTimeInZone(iso, zone, withSeconds);
 
   const text = useSyncExternalStore(
     emptySubscribe,

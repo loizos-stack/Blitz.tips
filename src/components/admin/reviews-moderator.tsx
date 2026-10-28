@@ -1,11 +1,11 @@
 "use client";
 
+import { LocalTime } from "@/components/local-time";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Star, Check, X, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { formatDateTime } from "@/lib/date-format";
 
 type Status = "PENDING" | "APPROVED" | "REJECTED";
 
@@ -134,7 +134,9 @@ export function ReviewsModerator({ initialReviews }: { initialReviews: Review[] 
                       {r.handicapperName}
                     </Link>
                   </p>
-                  <p className="text-xs text-muted">{formatDateTime(r.createdAt)}</p>
+                  <p className="text-xs text-muted">
+                    <LocalTime iso={new Date(r.createdAt).toISOString()} withZone />
+                  </p>
                 </div>
                 <div className="flex shrink-0 items-center gap-2">
                   {r.status !== "APPROVED" && (

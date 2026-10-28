@@ -1,10 +1,10 @@
 "use client";
 
+import { LocalTime } from "@/components/local-time";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { MessageSquare, Send, Trash2, CheckCircle2, RotateCcw, Hand } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { formatDateTime } from "@/lib/date-format";
 
 type Author = "VISITOR" | "BOT" | "AGENT" | "SYSTEM";
 type Status = "BOT" | "WAITING" | "LIVE" | "CLOSED";
@@ -35,7 +35,7 @@ function ref(id: string) {
   return id.slice(-6).toUpperCase();
 }
 function when(iso: string) {
-  return formatDateTime(iso);
+  return <LocalTime iso={iso} withZone />;
 }
 
 const STATUS_STYLES: Record<Status, string> = {

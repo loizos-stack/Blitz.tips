@@ -1,10 +1,11 @@
 "use client";
 
+import { LocalTime } from "@/components/local-time";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Send, Info, Check, AlertCircle, Trash2, Plus, Radio } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { formatDate, formatDateTime } from "@/lib/date-format";
+import { formatDate } from "@/lib/date-format";
 import { fetchJson } from "@/lib/fetch-json";
 
 const CAPTION_LIMIT = 1024;
@@ -262,7 +263,7 @@ function BroadcastPanel({
                     )}
                   </p>
                   <span className="text-xs text-muted">
-                    {formatDateTime(b.createdAt)} · {b.sentByEmail}
+                    <LocalTime iso={new Date(b.createdAt).toISOString()} withZone /> · {b.sentByEmail}
                   </span>
                 </div>
                 <p className="mt-2 line-clamp-2 text-sm text-muted">{b.text}</p>

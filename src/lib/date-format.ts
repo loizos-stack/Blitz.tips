@@ -77,19 +77,28 @@ const ZONED_LOCALE = "en-GB";
  * formats in the RUNTIME's zone, which on a server-rendered page is the
  * Vercel lambda's: UTC, for everybody, wherever they are.
  */
-export function formatDateTimeInZone(value: DateLike, timeZone?: string): string {
+export function formatDateTimeInZone(
+  value: DateLike,
+  timeZone?: string,
+  /** Seconds too — for logs, where the ordering within a minute is the point. */
+  withSeconds = false
+): string {
   const parts = new Intl.DateTimeFormat(ZONED_LOCALE, {
     day: "2-digit",
     month: "2-digit",
     year: "numeric",
     hour: "2-digit",
     minute: "2-digit",
+    ...(withSeconds ? { second: "2-digit" as const } : {}),
     hour12: false,
     timeZone,
   }).formatToParts(toDate(value));
 
   const get = (type: Intl.DateTimeFormatPartTypes) => parts.find((p) => p.type === type)?.value ?? "";
-  return `${get("day")}/${get("month")}/${get("year")} ${get("hour")}:${get("minute")}`;
+  const clock = withSeconds
+    ? `${get("hour")}:${get("minute")}:${get("second")}`
+    : `${get("hour")}:${get("minute")}`;
+  return `${get("day")}/${get("month")}/${get("year")} ${clock}`;
 }
 
 /**

@@ -1,10 +1,10 @@
 "use client";
 
+import { LocalTime } from "@/components/local-time";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Mail, Send, Trash2, CheckCircle2, RotateCcw } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { formatDateTime } from "@/lib/date-format";
 
 type Author = "CUSTOMER" | "ADMIN";
 type Status = "OPEN" | "CLOSED";
@@ -31,7 +31,7 @@ function ref(id: string) {
   return id.slice(-8).toUpperCase();
 }
 function when(iso: string) {
-  return formatDateTime(iso);
+  return <LocalTime iso={iso} withZone />;
 }
 
 // How often to reload tickets so new customer replies (threaded in from inbound
