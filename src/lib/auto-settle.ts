@@ -68,10 +68,21 @@ interface FinalScore {
  * be interpreted confidently — never guess a result on the record.
  */
 export function gradePick(
-  pick: { betType: string; selection: string },
+  pick: { betType: string; selection: string; sport?: PickSport },
   score: FinalScore
 ): PickResult | null {
   const { homeTeam, awayTeam, homeScore, awayScore } = score;
+
+  // Soccer's moneyline is three-way: home, draw, away are three separate
+  // selections at three prices. That changes what a level score means, in two
+  // ways the two-way logic below gets wrong — see both notes.
+  const threeWay = pick.sport === "SOCCER";
+
+  // "Draw ML" — a real selection in a three-way market, and one the team-name
+  // matching below can never resolve, so it used to stay pending forever.
+  if (pick.betType === "MONEYLINE" && /^draw\b/i.test(pick.selection.trim())) {
+    return homeScore === awayScore ? "WIN" : "LOSS";
+  }
 
   if (pick.betType === "TOTAL") {
     const m = pick.selection.match(/^(Over|Under)\s+(\d+(?:\.\d+)?)/i);
@@ -94,7 +105,11 @@ export function gradePick(
   const opp = side === "home" ? awayScore : homeScore;
 
   if (pick.betType === "MONEYLINE") {
-    if (own === opp) return "PUSH";
+    // A level score pushes a two-way moneyline — there was no third option to
+    // take. In soccer there was: backing a team and watching it draw is a
+    // LOSS, and grading it a push silently refunded a losing bet on the record
+    // of every handicapper who had one.
+    if (own === opp) return threeWay ? "LOSS" : "PUSH";
     return own > opp ? "WIN" : "LOSS";
   }
 

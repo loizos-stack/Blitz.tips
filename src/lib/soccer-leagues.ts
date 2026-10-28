@@ -216,7 +216,13 @@ function uefaFallback(sportKey: string): SoccerLeagueMeta | null {
   };
 }
 
-export function soccerLeagueMeta(sportKey: string): SoccerLeagueMeta {
+export function soccerLeagueMeta(rawKey: string): SoccerLeagueMeta {
+  // An event from the free ESPN board carries the same league key behind an
+  // `espn:` marker (see lib/espn-odds.ts), so it resolves to the same country
+  // and competition as the paid one. Stripped here rather than at each call
+  // site — and spelled out rather than imported, because espn-odds depends on
+  // odds-api which depends on this file.
+  const sportKey = rawKey.startsWith("espn:") ? rawKey.slice(5) : rawKey;
   return (
     LEAGUES[sportKey] ??
     uefaFallback(sportKey) ?? {
