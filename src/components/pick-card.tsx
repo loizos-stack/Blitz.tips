@@ -1,6 +1,6 @@
 import { Lock, Layers } from "lucide-react";
 import { TailButtons } from "@/components/tail-buttons";
-import { formatDateTime } from "@/lib/date-format";
+import { LocalTime } from "@/components/local-time";
 import type { Pick as PickModel, ParlayLeg } from "@prisma/client";
 import { ResultPill } from "@/components/result-pill";
 import { SportsbookCta } from "@/components/sportsbook-cta";
@@ -123,7 +123,7 @@ export function PickCard({
             {isParlay ? <Layers className="h-4 w-4" /> : <SportIcon sport={pick.sport} className="h-4 w-4" />}
             {isParlay ? `${legs.length}-leg parlay` : SPORT_LABELS[pick.sport]}
           </span>
-          <span>{formatDateTime(pick.eventStartsAt)}</span>
+          <LocalTime iso={new Date(pick.eventStartsAt).toISOString()} withZone />
         </div>
         <div className="mt-3 flex items-center gap-2 blur-sm select-none">
           <p className="font-display font-semibold">{pick.matchup}</p>
@@ -149,7 +149,7 @@ export function PickCard({
           {isParlay ? "Parlay" : SPORT_LABELS[pick.sport]}
           {!isParlay && pick.league ? ` · ${pick.league}` : ""}
         </span>
-        <span>{formatDateTime(pick.eventStartsAt)}</span>
+        <LocalTime iso={new Date(pick.eventStartsAt).toISOString()} withZone />
       </div>
 
       {isParlay ? (

@@ -1,9 +1,10 @@
 "use client";
 
+import { LocalTime } from "@/components/local-time";
 import { useCallback, useState } from "react";
 import { useRouter } from "next/navigation";
 import { format } from "date-fns";
-import { formatDateTime } from "@/lib/date-format";
+
 import { CalendarSearch, PencilLine, ImageUp, Trash2, Layers, Plus, X } from "lucide-react";
 import { SPORT_LABELS, cn, formatMatchup, usesVsSeparator, parseMatchupSides } from "@/lib/utils";
 import { combineParlayOdds } from "@/lib/odds";
@@ -465,7 +466,9 @@ export function CreateParlayForm({
                       )}
                       <span className="truncate font-display font-medium">{event.matchup}</span>
                     </span>
-                    <span className="ml-2 shrink-0 text-xs text-muted">{formatDateTime(new Date(event.commenceTime))}</span>
+                    <span className="ml-2 shrink-0 text-xs text-muted">
+                      <LocalTime iso={event.commenceTime} withZone />
+                    </span>
                   </button>
                   {openEvent === event.id && (
                     <div className="border-t border-border p-3">

@@ -1,8 +1,9 @@
 "use client";
 
+import { LocalTime } from "@/components/local-time";
 import { useCallback, useState } from "react";
 import { useRouter } from "next/navigation";
-import { formatDateTime } from "@/lib/date-format";
+
 import { CalendarSearch, PencilLine, Plus, X } from "lucide-react";
 import { SPORT_LABELS, BET_TYPE_LABELS, cn, formatMatchup, usesVsSeparator } from "@/lib/utils";
 import { Odds } from "@/components/odds-format";
@@ -239,7 +240,7 @@ export function CreatePickForm({
             <span className="truncate font-display font-medium">{event.matchup}</span>
           </span>
           <span className="ml-2 shrink-0 text-xs text-muted">
-            {formatDateTime(new Date(event.commenceTime))}
+            <LocalTime iso={event.commenceTime} withZone />
           </span>
         </button>
 

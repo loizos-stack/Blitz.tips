@@ -1,10 +1,11 @@
 "use client";
 
+import { LocalTime } from "@/components/local-time";
 import { useCallback, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { format } from "date-fns";
-import { DATE_PATTERN, formatDateTime } from "@/lib/date-format";
+import { DATE_PATTERN } from "@/lib/date-format";
 import { Plus, Check, Lock, X } from "lucide-react";
 import { SPORT_LABELS, formatCents } from "@/lib/utils";
 import { Odds } from "@/components/odds-format";
@@ -155,7 +156,7 @@ export function ContestPickForm({
             textClassName="truncate font-display font-medium"
           />
           <span className="shrink-0 text-xs text-muted">
-            {formatDateTime(new Date(event.commenceTime))}
+            <LocalTime iso={event.commenceTime} withZone />
           </span>
         </button>
 

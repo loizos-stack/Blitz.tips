@@ -70,8 +70,12 @@ const ZONED_LOCALE = "en-GB";
 
 /**
  * The same dd/MM/yyyy HH:mm, but rendered in `timeZone` (undefined = the
- * runtime's own zone). Used for kickoff times, which are shown to each visitor
- * in their local zone rather than in UTC.
+ * runtime's own zone).
+ *
+ * Reach for this — through <LocalTime>, which supplies the visitor's zone —
+ * for any moment in time a visitor needs to act on. `formatDateTime` above
+ * formats in the RUNTIME's zone, which on a server-rendered page is the
+ * Vercel lambda's: UTC, for everybody, wherever they are.
  */
 export function formatDateTimeInZone(value: DateLike, timeZone?: string): string {
   const parts = new Intl.DateTimeFormat(ZONED_LOCALE, {
@@ -86,4 +90,27 @@ export function formatDateTimeInZone(value: DateLike, timeZone?: string): string
 
   const get = (type: Intl.DateTimeFormatPartTypes) => parts.find((p) => p.type === type)?.value ?? "";
   return `${get("day")}/${get("month")}/${get("year")} ${get("hour")}:${get("minute")}`;
+}
+
+/**
+ * The short zone name for an instant — "EDT", "GMT+3", "UTC".
+ *
+ * Worth showing beside a kickoff even though it is the reader's own zone,
+ * because a server-rendered page necessarily ships UTC first and corrects it
+ * once the browser runs. Labelled, that first paint says something true;
+ * unlabelled, it is a wrong time with nothing to mark it as wrong.
+ *
+ * Tied to the instant rather than the zone alone, since the same zone is EST
+ * in January and EDT in July.
+ */
+export function zoneAbbreviation(value: DateLike, timeZone?: string): string {
+  // en-US rather than the en-GB above, and only for this one part: en-GB names
+  // New York "GMT-5", en-US names it "EST". Nothing else about the format is
+  // taken from it, so the dd/MM house style is untouched. Zones with no
+  // customary abbreviation still fall back to an offset ("GMT+3").
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    timeZoneName: "short",
+  }).formatToParts(toDate(value));
+  return parts.find((p) => p.type === "timeZoneName")?.value ?? "";
 }
