@@ -156,13 +156,32 @@ async function sendAlertEmail(alert: AdminAlert): Promise<void> {
   }
 }
 
+/**
+ * Why an alert did not go out, in the log.
+ *
+ * Every one of the checks below used to be a bare `return`. Between them they
+ * are the whole reason an alert silently fails to arrive, and they left nothing
+ * behind — so "I never got a Telegram for two new handicappers" could not be
+ * answered from the logs at all, by anyone. Each now says which gate it was.
+ */
+function skipped(kind: AdminAlertKind, why: string): void {
+  console.warn(`[alerts] no telegram for ${kind}: ${why}`);
+}
+
 async function sendAlertTelegram(alert: AdminAlert): Promise<void> {
   try {
+    // Not a skip worth logging: this event is email-only by design.
     if (!carries(alert.kind, "telegram")) return;
-    if (!(await enabled(alert.kind, "telegram"))) return;
-    if (!telegramConfigured()) return;
+    if (!(await enabled(alert.kind, "telegram"))) {
+      return skipped(alert.kind, "switched off in Admin → Telegram");
+    }
+    if (!telegramConfigured()) {
+      return skipped(alert.kind, "TELEGRAM_BOT_TOKEN/TELEGRAM_BOT_USERNAME not set");
+    }
     const chatId = (await getSetting(ALERT_CHAT_KEY))?.trim();
-    if (!chatId) return;
+    if (!chatId) {
+      return skipped(alert.kind, `no chat ID saved (setting ${ALERT_CHAT_KEY})`);
+    }
 
     const link = alert.path ? `${siteUrl()}${alert.path}` : null;
     const text = [
@@ -171,7 +190,10 @@ async function sendAlertTelegram(alert: AdminAlert): Promise<void> {
       ...(link ? ["", link] : []),
     ].join("\n");
 
-    await sendTelegram(chatId, text);
+    const sent = await sendTelegram(chatId, text);
+    if (!sent.ok) {
+      console.error(`[alerts] telegram for ${alert.kind} refused by Telegram: ${sent.error}`);
+    }
   } catch (err) {
     console.error(`[alerts] telegram for ${alert.kind} failed:`, err);
   }

@@ -57,20 +57,30 @@ export async function POST(request: Request) {
     const chatId = (await getSetting(ALERT_CHAT_KEY))?.trim();
     if (!chatId) return NextResponse.json({ error: "Set a chat ID first." }, { status: 400 });
 
-    const { gone } = await sendTelegram(
+    const sent = await sendTelegram(
       chatId,
       "<b>Blitz.tips alerts</b>\nThis is a test. If you can read it, alerts will reach you here."
     );
-    if (gone) {
+    if (sent.gone) {
       return NextResponse.json(
         { error: "Telegram refused: the bot is blocked, or it isn't in that chat." },
+        { status: 400 }
+      );
+    }
+    // Only a 403 used to be treated as failure, so a mistyped chat ID — which
+    // Telegram rejects with 400 "chat not found" — reported "Sent." A test that
+    // passes when nothing was delivered is worse than having no test at all:
+    // it is why two handicapper signups went unnoticed.
+    if (!sent.ok) {
+      return NextResponse.json(
+        { error: `Telegram rejected it: ${sent.error}. Check the chat ID.` },
         { status: 400 }
       );
     }
     await logAdmin(ctx.session, "alerts.test", "SiteSetting", ALERT_CHAT_KEY, chatId);
     return NextResponse.json({
       ok: true,
-      detail: "Sent. If nothing arrives, the bot isn't a member of that chat.",
+      detail: "Telegram accepted it — it should be in that chat now.",
     });
   }
 

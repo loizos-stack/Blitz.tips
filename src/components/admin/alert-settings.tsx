@@ -119,6 +119,16 @@ export function AlertSettings({
             nothing will send until they are. Email alerts still work.
           </p>
         )}
+        {/* Said out loud, because the empty box on its own said nothing: every
+            Telegram alert is being dropped and the only hint was a greyed-out
+            test button. */}
+        {telegramReady && !initialChatId && (
+          <p className="mt-2 flex items-start gap-2 text-xs text-danger">
+            <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+            No chat ID saved, so <strong>every Telegram alert below is being dropped</strong> — signups
+            included. Save one here and send a test. Email alerts are unaffected.
+          </p>
+        )}
       </div>
 
       {/* Per-event switches */}

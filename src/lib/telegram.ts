@@ -23,16 +23,40 @@ export function telegramWebhookSecret(): string {
   return webhookSecret;
 }
 
+export interface TelegramDmResult {
+  /** Telegram accepted the message. */
+  ok: boolean;
+  /** The bot is blocked by this recipient; callers should drop the stored link. */
+  gone: boolean;
+  /** Telegram's own description of the refusal, when there was one. */
+  error: string | null;
+}
+
 /**
- * Send a Telegram message. `gone: true` when the user has blocked the bot.
+ * Send a Telegram message.
+ *
+ * This used to answer `{gone: res.status === 403}` and nothing else, which
+ * meant it reported success for every other refusal — a mistyped chat ID, a
+ * bot that had never been spoken to, a group it had been removed from. Telegram
+ * answers those with 400 and a precise description, and all of it was thrown
+ * away: no return value, no log. An admin alert that never arrived left not one
+ * trace anywhere, and the "Send a test" button said "Sent."
+ *
+ * So the body is parsed and the description comes back, and a refusal is logged
+ * here rather than at each call site, because almost every caller is right not
+ * to act on a failed DM — and "nothing to act on" must not keep meaning
+ * "nothing to see".
+ *
+ * Still never throws: the callers are payment webhooks and signups where an
+ * alert must not be what breaks the real work.
  *
  * Deadline for the same reason the broadcast calls below have one, which this
  * one was missing: a slow api.telegram.org would otherwise hold the caller
  * open until the platform kills it. That caller is now sometimes a payment
  * webhook, where a hang means Stripe gets no 200 and retries the event.
  */
-export async function sendTelegram(chatId: string, text: string): Promise<{ gone: boolean }> {
-  if (!token) return { gone: false };
+export async function sendTelegram(chatId: string, text: string): Promise<TelegramDmResult> {
+  if (!token) return { ok: false, gone: false, error: "TELEGRAM_BOT_TOKEN is not set" };
   try {
     const res = await fetch(`${API_BASE}/bot${token}/sendMessage`, {
       method: "POST",
@@ -40,10 +64,23 @@ export async function sendTelegram(chatId: string, text: string): Promise<{ gone
       body: JSON.stringify({ chat_id: chatId, text, parse_mode: "HTML" }),
       signal: AbortSignal.timeout(TEXT_TIMEOUT_MS),
     });
+    const json = (await res.json().catch(() => null)) as TelegramApiResponse | null;
     // 403 = bot blocked by the user; caller should drop the link.
-    return { gone: res.status === 403 };
-  } catch {
-    return { gone: false };
+    const gone = res.status === 403;
+    if (!res.ok || !json?.ok) {
+      const error = apiError(json, res.status);
+      // A block is an ordinary outcome the caller handles; anything else is a
+      // misconfiguration somebody needs to see.
+      if (!gone) console.error(`[telegram] sendMessage to ${chatId} refused: ${error}`);
+      return { ok: false, gone, error };
+    }
+    return { ok: true, gone: false, error: null };
+  } catch (e) {
+    const error = isTimeout(e)
+      ? `Telegram didn't answer within ${TEXT_TIMEOUT_MS / 1000}s`
+      : "Couldn't reach Telegram";
+    console.error(`[telegram] sendMessage to ${chatId} failed: ${error}`);
+    return { ok: false, gone: false, error };
   }
 }
 
@@ -58,8 +95,9 @@ export async function sendTelegram(chatId: string, text: string): Promise<{ gone
  * the target channel with "post messages" permission; Telegram returns 400 with
  * a readable reason when it isn't.
  *
- * Unlike sendTelegram, these surface the failure. A DM that fails is one lost
- * notification; a broadcast that fails is the post you thought went out.
+ * These also return the failure to the caller to show on screen, since a
+ * broadcast that fails is the post you thought went out, whereas a failed DM is
+ * one lost notification that only needs logging.
  */
 
 /**
