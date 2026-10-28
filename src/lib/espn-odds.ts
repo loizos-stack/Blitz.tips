@@ -106,42 +106,37 @@ interface EspnTeam {
   abbreviation?: string;
   logo?: string;
 }
-interface EspnPrice {
-  /** Sometimes a number, sometimes "-110". */
-  american?: string | number;
-  value?: number;
-  odds?: string | number;
-  close?: { odds?: string | number };
-  open?: { odds?: string | number };
+/**
+ * One side of one market, as ESPN actually returns it.
+ *
+ * `close` is the current price and `open` is where it started; both carry the
+ * price as a signed string ("-135", "+114") and, for spreads and totals, the
+ * line alongside it ("-2.5", "o242.5").
+ */
+interface EspnSide {
+  open?: { odds?: string | number; line?: string | number };
+  close?: { odds?: string | number; line?: string | number };
 }
 interface EspnTeamOdds {
   favorite?: boolean;
   underdog?: boolean;
+  /** Older/other shapes put a bare moneyline here. Read as a fallback. */
   moneyLine?: number;
-  spreadOdds?: number;
   team?: EspnTeam;
-  close?: { pointSpread?: EspnPrice; moneyLine?: EspnPrice };
 }
 interface EspnOdds {
   provider?: { name?: string };
   details?: string;
   spread?: number;
   overUnder?: number;
-  overOdds?: number;
-  underOdds?: number;
-  /** Three-way only: the price on the draw. */
-  drawOdds?: number;
+  /** Three-way only. Confirmed live as `{ moneyLine: 295 }`. */
+  drawOdds?: { moneyLine?: number } | number;
+  /** The markets proper — each side priced, and lines given per side. */
+  moneyline?: { home?: EspnSide; away?: EspnSide; draw?: EspnSide };
+  pointSpread?: { home?: EspnSide; away?: EspnSide };
+  total?: { over?: EspnSide; under?: EspnSide };
   homeTeamOdds?: EspnTeamOdds;
   awayTeamOdds?: EspnTeamOdds;
-  current?: {
-    over?: EspnPrice;
-    under?: EspnPrice;
-    total?: EspnPrice;
-    spread?: EspnPrice;
-    moneyline?: { draw?: { close?: { odds?: string | number } } };
-    homeFavorite?: boolean;
-    awayFavorite?: boolean;
-  };
 }
 interface EspnCompetitor {
   homeAway?: "home" | "away";
@@ -185,103 +180,110 @@ function firstPrice(...candidates: unknown[]): number | null {
   return null;
 }
 
+/** A side's current price — `close`, falling back to `open` before kickoff. */
+function sidePrice(side: EspnSide | undefined): number | null {
+  return firstPrice(side?.close?.odds, side?.open?.odds);
+}
+
+/**
+ * A side's line. "-2.5" for a spread, "o242.5"/"u242.5" for a total — the
+ * over/under letter is stripped, leaving the number both sides share.
+ */
+function sideLine(side: EspnSide | undefined): number | null {
+  const raw = side?.close?.line ?? side?.open?.line;
+  if (typeof raw === "number") return Number.isFinite(raw) ? raw : null;
+  if (typeof raw !== "string") return null;
+  const n = Number(raw.trim().replace(/^[ou]/i, "").replace(/^\+/, ""));
+  return Number.isFinite(n) ? n : null;
+}
+
 const teamName = (t?: EspnTeam): string =>
   t?.displayName || t?.shortDisplayName || t?.abbreviation || "";
 
 /**
- * Which side the spread belongs to.
+ * The markets, built only from prices ESPN actually published.
  *
- * ESPN states the favourite explicitly often enough that guessing is
- * unnecessary, and a spread on the wrong team is the single worst thing this
- * file could output — so when the favourite can't be established, the spread
- * is dropped rather than assumed.
+ * Written against a live response rather than documentation — the field names
+ * below were read off site.api.espn.com from a Vercel sandbox, because an
+ * earlier version of this file guessed them (`homeTeamOdds.moneyLine`) and
+ * silently produced an empty board: every game was dropped for having no
+ * priced market, with nothing in the logs to say why.
+ *
+ * What ESPN really returns, per competition:
+ *
+ *   moneyline:   home/away/draw -> close.odds   "-135" "+114" "+295"
+ *   pointSpread: home/away      -> close.line + close.odds   "-2.5" "-105"
+ *   total:       over/under     -> close.line + close.odds   "o242.5" "-105"
+ *
+ * The spread line is stated per side, so the favourite never has to be
+ * inferred — the old guesswork is gone entirely.
+ *
+ * `close` is the current price; `open` is the fallback for a market that has
+ * not moved yet. A market missing either its line or its price is dropped: a
+ * site selling verified records cannot show a price no book offered.
  */
-function homeIsFavourite(odds: EspnOdds, homeAbbr: string): boolean | null {
-  if (odds.homeTeamOdds?.favorite === true) return true;
-  if (odds.awayTeamOdds?.favorite === true) return false;
-  if (odds.current?.homeFavorite === true) return true;
-  if (odds.current?.awayFavorite === true) return false;
-  // "LAL -4.5" — the abbreviation in details names the favourite.
-  const detail = odds.details?.trim();
-  if (detail && homeAbbr) {
-    const named = detail.split(/\s+/)[0]?.toUpperCase();
-    if (named && named !== "EVEN") return named === homeAbbr.toUpperCase();
-  }
-  return null;
-}
-
 function buildMarkets(
   odds: EspnOdds,
   home: string,
   away: string,
-  homeAbbr: string,
   threeWay: boolean
 ): MarketOption[] {
   const out: MarketOption[] = [];
 
-  // ---- moneyline: the one market ESPN prices consistently.
-  const homeMl = firstPrice(odds.homeTeamOdds?.moneyLine, odds.homeTeamOdds?.close?.moneyLine?.odds);
-  const awayMl = firstPrice(odds.awayTeamOdds?.moneyLine, odds.awayTeamOdds?.close?.moneyLine?.odds);
-  // Soccer's moneyline is three-way, and two of three prices is not that
-  // market: a reader seeing only two would take the shorter one for an
-  // even-money shot it isn't. All three or none.
-  const drawMl = firstPrice(odds.drawOdds, odds.current?.moneyline?.draw?.close?.odds);
+  // ---- moneyline
+  const homeMl = firstPrice(sidePrice(odds.moneyline?.home), odds.homeTeamOdds?.moneyLine);
+  const awayMl = firstPrice(sidePrice(odds.moneyline?.away), odds.awayTeamOdds?.moneyLine);
+  // Three-way: two of three prices is not that market. A reader seeing only
+  // home and away would take the shorter one for an even-money shot it isn't.
+  const drawMl = firstPrice(
+    sidePrice(odds.moneyline?.draw),
+    typeof odds.drawOdds === "number" ? odds.drawOdds : odds.drawOdds?.moneyLine
+  );
   if (homeMl !== null && awayMl !== null && (!threeWay || drawMl !== null)) {
     out.push({ betType: "MONEYLINE", selection: `${away} ML`, odds: awayMl, marketKey: "h2h", side: away });
     if (threeWay && drawMl !== null) {
       // "Draw ML" / side "Draw" — the exact shape the paid feed produces from
-      // the Odds API's own h2h outcome, so nothing downstream sees a second
+      // the Odds API's own h2h outcome, so nothing downstream meets a second
       // convention.
       out.push({ betType: "MONEYLINE", selection: "Draw ML", odds: drawMl, marketKey: "h2h", side: "Draw" });
     }
     out.push({ betType: "MONEYLINE", selection: `${home} ML`, odds: homeMl, marketKey: "h2h", side: home });
   }
 
-  // ---- spread: only with both a line AND a price, and a known favourite.
-  const line = typeof odds.spread === "number" ? Math.abs(odds.spread) : null;
-  const fav = homeIsFavourite(odds, homeAbbr);
-  const homeSpreadPrice = firstPrice(
-    odds.homeTeamOdds?.spreadOdds,
-    odds.homeTeamOdds?.close?.pointSpread?.odds,
-    odds.homeTeamOdds?.close?.pointSpread?.american
-  );
-  const awaySpreadPrice = firstPrice(
-    odds.awayTeamOdds?.spreadOdds,
-    odds.awayTeamOdds?.close?.pointSpread?.odds,
-    odds.awayTeamOdds?.close?.pointSpread?.american
-  );
-  if (line !== null && line > 0 && fav !== null && homeSpreadPrice !== null && awaySpreadPrice !== null) {
-    const homePoint = fav ? -line : line;
-    const awayPoint = -homePoint;
+  // ---- spread, each side with its own line and price
+  const homeSpread = sideLine(odds.pointSpread?.home);
+  const awaySpread = sideLine(odds.pointSpread?.away);
+  const homeSpreadPrice = sidePrice(odds.pointSpread?.home);
+  const awaySpreadPrice = sidePrice(odds.pointSpread?.away);
+  if (
+    homeSpread !== null && awaySpread !== null &&
+    homeSpreadPrice !== null && awaySpreadPrice !== null
+  ) {
     const fmt = (n: number) => (n > 0 ? `+${n}` : `${n}`);
     out.push({
-      betType: "SPREAD", selection: `${away} ${fmt(awayPoint)}`, odds: awaySpreadPrice,
-      point: awayPoint, marketKey: "spreads", side: away,
+      betType: "SPREAD", selection: `${away} ${fmt(awaySpread)}`, odds: awaySpreadPrice,
+      point: awaySpread, marketKey: "spreads", side: away,
     });
     out.push({
-      betType: "SPREAD", selection: `${home} ${fmt(homePoint)}`, odds: homeSpreadPrice,
-      point: homePoint, marketKey: "spreads", side: home,
+      betType: "SPREAD", selection: `${home} ${fmt(homeSpread)}`, odds: homeSpreadPrice,
+      point: homeSpread, marketKey: "spreads", side: home,
     });
   }
 
-  // ---- total: same rule. ESPN usually gives the number with no price, and a
-  // number without a price is not a bet anyone can place.
-  const total =
-    typeof odds.overUnder === "number"
-      ? odds.overUnder
-      : typeof odds.current?.total?.value === "number"
-        ? odds.current.total.value
-        : null;
-  const overPrice = firstPrice(odds.overOdds, odds.current?.over?.american, odds.current?.over?.value);
-  const underPrice = firstPrice(odds.underOdds, odds.current?.under?.american, odds.current?.under?.value);
-  if (total !== null && overPrice !== null && underPrice !== null) {
+  // ---- total
+  const overLine = sideLine(odds.total?.over);
+  const underLine = sideLine(odds.total?.under);
+  const overPrice = sidePrice(odds.total?.over);
+  const underPrice = sidePrice(odds.total?.under);
+  const line = overLine ?? underLine ?? (typeof odds.overUnder === "number" ? odds.overUnder : null);
+  if (line !== null && overPrice !== null && underPrice !== null) {
     out.push({
-      betType: "TOTAL", selection: `Over ${total}`, odds: overPrice,
-      point: total, marketKey: "totals", side: "Over",
+      betType: "TOTAL", selection: `Over ${line}`, odds: overPrice,
+      point: line, marketKey: "totals", side: "Over",
     });
     out.push({
-      betType: "TOTAL", selection: `Under ${total}`, odds: underPrice,
-      point: total, marketKey: "totals", side: "Under",
+      betType: "TOTAL", selection: `Under ${line}`, odds: underPrice,
+      point: line, marketKey: "totals", side: "Under",
     });
   }
 
@@ -358,7 +360,7 @@ function parseEvent(
 
     const odds = comp.odds?.[0];
     const markets = odds
-      ? buildMarkets(odds, home, away, homeC?.team?.abbreviation ?? "", sport === "SOCCER")
+      ? buildMarkets(odds, home, away, sport === "SOCCER")
       : [];
     // No priced market means nothing to show on a card whose whole point is
     // the price.
