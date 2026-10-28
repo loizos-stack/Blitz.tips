@@ -1,5 +1,11 @@
 import { UpcomingGames } from "@/components/upcoming-games";
-import { getUpcomingEvents, getAllUpcomingEvents, getAvailableHomepageSports } from "@/lib/odds-api";
+import {
+  getUpcomingEvents,
+  getAllUpcomingEvents,
+  getAvailableHomepageSports,
+  HOMEPAGE_SPORTS,
+} from "@/lib/odds-api";
+import { espnCoveredSports } from "@/lib/espn-odds";
 import { sportsbookForVisitor } from "@/lib/sportsbooks";
 import { SPORT_LABELS } from "@/lib/utils";
 import type { PickSport } from "@prisma/client";
@@ -20,7 +26,13 @@ import type { PickSport } from "@prisma/client";
  * grid render and stream immediately, and the board drops in when it's ready.
  */
 export async function HomeBoard({ sportParam }: { sportParam?: string }) {
-  const unsortedSports = await getAvailableHomepageSports();
+  const discovered = await getAvailableHomepageSports();
+
+  // Which sports have games is itself answered by the paid API, so a dead key
+  // empties this list and hides the whole section — including the free board
+  // that exists precisely for that case. Fall back to what ESPN covers.
+  const unsortedSports =
+    discovered.length > 0 ? discovered : espnCoveredSports().filter((s) => HOMEPAGE_SPORTS.includes(s));
 
   // Alphabetized by display label so the tab order is predictable.
   const availableSports = [...unsortedSports].sort((a, b) =>

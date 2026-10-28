@@ -1,3 +1,4 @@
+import { ESPN_PREFIX } from "@/lib/espn-odds";
 import "server-only";
 import { prisma } from "@/lib/prisma";
 import { oddsApiKey } from "@/lib/odds-api";
@@ -107,6 +108,13 @@ export async function runClvCapture(opts: { dryRun?: boolean } = {}): Promise<Cl
       oddsApiEventId: { not: null },
       oddsApiSportKey: { not: null },
       marketKey: { not: null },
+      // Picks from the free ESPN board are excluded. CLV is the gap between the
+      // price taken and the market's closing price, and ESPN publishes one
+      // provider's line and drops it at kickoff — there is no close to compare
+      // against. Asking the Odds API about an `espn:` id would 404 on a billed
+      // endpoint, and leaving closingOdds null is the honest outcome: no claim
+      // about beating a close we never saw.
+      NOT: { oddsApiSportKey: { startsWith: ESPN_PREFIX } },
       // Kicking off soon, but not yet started.
       eventStartsAt: { gt: now, lt: new Date(now.getTime() + CAPTURE_WINDOW_MS) },
     },

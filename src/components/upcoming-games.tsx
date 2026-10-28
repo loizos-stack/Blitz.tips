@@ -84,6 +84,10 @@ export function UpcomingGames({
   // than page height.
   const eventCap = sport === "SOCCER" ? 48 : sport ? 20 : 16;
 
+  // The fallback board is all-or-nothing per sport, so one ESPN event means
+  // this view is the free board.
+  const fromEspn = Boolean(feed?.events.some((e) => e.source === "espn"));
+
   return (
     <section className="relative overflow-hidden border-b border-border bg-surface/60 py-14">
       <div
@@ -94,7 +98,23 @@ export function UpcomingGames({
         <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
           <div>
             <h2 className="text-2xl font-bold">Today&apos;s lines</h2>
-            <p className="mt-1 text-muted">Live moneyline, spread, and total odds from the board.</p>
+            {/* Said plainly when the free fallback is in use. These are one
+                provider's numbers rather than a shopped market, and a board
+                that doesn't distinguish the two is quietly overstating what it
+                is showing. */}
+            {fromEspn ? (
+              <p className="mt-1 text-muted">
+                Indicative lines from{" "}
+                <span className="font-medium text-foreground">
+                  {feed?.events.find((e) => e.source === "espn")?.bookmaker ?? "ESPN"}
+                </span>{" "}
+                — a single provider, not a shopped market. Always check the price at your book.
+              </p>
+            ) : (
+              <p className="mt-1 text-muted">
+                Live moneyline, spread, and total odds from the board.
+              </p>
+            )}
           </div>
           <div className="flex flex-wrap gap-2">
             <Link

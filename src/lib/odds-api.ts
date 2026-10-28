@@ -6,6 +6,7 @@ import { sportsDbConfigured, resolveSportsDbLogo, resolveSportsDbLeagueBadge } f
 import { soccerBadgeQuery, soccerLeagueMeta } from "@/lib/soccer-leagues";
 import { propMarketKeys, extraMarketKeys, buildGroups, type MarketGroup, type RawMarket } from "@/lib/odds-markets";
 import { getLiveGameStates, livePairKey, getUfcFighterSet, fighterKey } from "@/lib/espn-scores";
+import { espnCovers, getEspnUpcomingEvents, isEspnSourced } from "@/lib/espn-odds";
 
 // The Odds API (the-odds-api.com) client.
 //
@@ -757,6 +758,13 @@ export interface UpcomingEvent {
   bookmaker: string | null;
   markets: MarketOption[];
   liveScore: LiveScore | null;
+  /**
+   * Where this event came from. Absent means the paid odds feed. "espn" is the
+   * free fallback (see lib/espn-odds.ts): one provider's line rather than a
+   * shopped market, so the board says so and anything created from it carries
+   * an `espn:` id that settlement and CLV branch on.
+   */
+  source?: "espn";
 }
 
 export type OddsFeedResult =
@@ -920,12 +928,14 @@ export async function getUpcomingEvents(
   { windowOnly = false }: { windowOnly?: boolean } = {}
 ): Promise<OddsFeedResult> {
   const apiKey = oddsApiKey();
-  if (!apiKey) return { configured: false, supported: false, events: [] };
+  // No key at all is exactly the case the free board exists for, so this is a
+  // fallback rather than a dead end.
+  if (!apiKey) return espnFeed(sport);
 
   if (!isSportSupported(sport)) return { configured: true, supported: false, events: [] };
 
   const sportKeys = await resolveSportKeys(sport, apiKey);
-  if (sportKeys.length === 0) return { configured: true, supported: true, events: [] };
+  if (sportKeys.length === 0) return espnFeed(sport);
 
   // Usually one league; soccer merges several. Fetch in parallel and combine.
   const perLeague = await Promise.all(
@@ -987,7 +997,31 @@ export async function getUpcomingEvents(
     }
   }
 
+  // The paid feed answered with nothing — out of quota, key rejected, league
+  // out of season, or genuinely no games. Only the last of those should leave
+  // the board empty, and from here they are indistinguishable, so try the free
+  // one before giving up.
+  if (finalEvents.length === 0) return espnFeed(sport);
+
   return { configured: true, supported: true, events: finalEvents };
+}
+
+/**
+ * The free ESPN board for one sport, shaped like a paid feed result.
+ *
+ * `configured: true` even with no API key: from a caller's point of view the
+ * board IS configured — there are games on it — and reporting otherwise would
+ * hide the section the fallback exists to fill.
+ */
+async function espnFeed(sport: PickSport): Promise<OddsFeedResult> {
+  if (!espnCovers(sport)) {
+    if (!oddsApiKey()) return { configured: false, supported: false, events: [] };
+    return isSportSupported(sport)
+      ? { configured: true, supported: true, events: [] }
+      : { configured: true, supported: false, events: [] };
+  }
+  const events = await getEspnUpcomingEvents(sport);
+  return { configured: true, supported: true, events };
 }
 
 /**
@@ -1090,8 +1124,9 @@ export async function getSoccerFeedDiagnostics(): Promise<{
 }
 
 export async function getAllUpcomingEvents(sports: PickSport[]): Promise<OddsFeedResult> {
-  const apiKey = oddsApiKey();
-  if (!apiKey) return { configured: false, supported: false, events: [] };
+  // No `apiKey` guard: getUpcomingEvents falls back to the free ESPN board per
+  // sport, and bailing out here would skip it for the merged view only — the
+  // one view most visitors actually land on.
   if (sports.length === 0) return { configured: true, supported: true, events: [] };
 
   const feeds = await Promise.all(sports.map((s) => getUpcomingEvents(s, { windowOnly: true })));
@@ -1288,6 +1323,13 @@ export async function getEventMarkets(
   sportKey: string,
   eventId: string
 ): Promise<EventMarketsResult> {
+  // An ESPN event has no Odds API id, so asking the Odds API about it would be
+  // a guaranteed 404 on a billed endpoint. The board card already carries every
+  // market ESPN priced; there is nothing deeper to open.
+  if (isEspnSourced(eventId) || isEspnSourced(sportKey)) {
+    return { configured: true, groups: [], bookmaker: null };
+  }
+
   const apiKey = oddsApiKey();
   if (!apiKey) return { configured: false, groups: [], bookmaker: null };
 

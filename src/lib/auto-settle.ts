@@ -2,6 +2,7 @@ import "server-only";
 import { prisma } from "@/lib/prisma";
 import { notifyPickSettled } from "@/lib/notifications";
 import { oddsApiKey } from "@/lib/odds-api";
+import { ESPN_PREFIX, getEspnFinals, isEspnSourced } from "@/lib/espn-odds";
 import {
   getFinalPeriodScores,
   getPlayerStats,
@@ -345,13 +346,32 @@ export async function runAutoSettle(): Promise<AutoSettleReport> {
   // One scores request per distinct league (2 credits each with daysFrom), and
   // both pick types share the results — grading contest picks adds no extra
   // upstream calls when the leagues overlap.
+  const allPicks = [...picks, ...contestPicks];
+  // ESPN-sourced keys are filtered out rather than requested: they are not Odds
+  // API league keys, so each one would be a guaranteed 404 on a billed
+  // endpoint. Their finals come free from ESPN, below.
   const sportKeys = [
-    ...new Set([
-      ...picks.map((p) => p.oddsApiSportKey!),
-      ...contestPicks.map((p) => p.oddsApiSportKey!),
-    ]),
+    ...new Set(allPicks.map((p) => p.oddsApiSportKey!).filter((k) => !isEspnSourced(k))),
   ];
   const finals = new Map<string, FinalScore>();
+
+  // Picks made from the free board carry ESPN's own event id, so they are
+  // graded from ESPN's own finals — no name matching, no billed call. Without
+  // this they would be selected for settlement (their id is non-null), match
+  // nothing, and sit PENDING forever while appearing to be handled.
+  const espnSports = [
+    ...new Set(allPicks.filter((p) => isEspnSourced(p.oddsApiEventId)).map((p) => p.sport)),
+  ];
+  for (const sport of espnSports) {
+    for (const [espnId, final] of await getEspnFinals(sport)) {
+      finals.set(`${ESPN_PREFIX}${espnId}`, {
+        homeTeam: final.homeTeam,
+        awayTeam: final.awayTeam,
+        homeScore: final.homeScore,
+        awayScore: final.awayScore,
+      });
+    }
+  }
 
   // Fetched with a small amount of concurrency rather than one at a time.
   //
