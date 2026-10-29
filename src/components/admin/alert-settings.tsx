@@ -26,12 +26,15 @@ export function AlertSettings({
   kinds,
   chatId: initialChatId,
   telegramReady,
+  botUsername,
   toggles: initialToggles,
   alertEmail,
 }: {
   kinds: AlertKindRow[];
   chatId: string | null;
   telegramReady: boolean;
+  /** Our own bot's @name, for the /id instructions. */
+  botUsername: string;
   toggles: Record<string, boolean>;
   /** Where the email alerts land, for display only. */
   alertEmail: string;
@@ -84,9 +87,17 @@ export function AlertSettings({
       {/* Telegram destination */}
       <div className="mt-4 border-t border-border pt-4">
         <label className="text-sm font-medium">Telegram chat ID</label>
+        {/* This used to point at @userinfobot. It gives you a correct number,
+            and the number is only half the problem: our bot can only post
+            where it is itself a member, so a perfectly valid ID still answers
+            "chat not found". Asking our own bot proves both at once — if it
+            replies, it can post there. */}
         <p className="mt-0.5 text-xs text-muted">
-          Message <span className="font-medium">@userinfobot</span> on Telegram and it replies with
-          your ID. For a group, add the bot to it first — group IDs start with a minus.
+          Send <code className="font-medium">/id</code> to{" "}
+          <span className="font-medium">{botUsername ? `@${botUsername}` : "the bot"}</span> and it
+          replies with the ID of that chat. For a group, add the bot to the group first and send{" "}
+          <code className="font-medium">/id</code> there — it also says the ID by itself when you add
+          it. Group IDs start with a minus.
         </p>
         <div className="mt-2 flex flex-wrap items-center gap-2">
           <input

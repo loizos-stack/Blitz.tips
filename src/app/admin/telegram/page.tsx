@@ -37,6 +37,7 @@ export default async function AdminTelegramPage() {
         }))}
         chatId={alerts.chatId}
         telegramReady={alerts.telegramReady}
+        botUsername={alerts.botUsername}
         toggles={alerts.toggles}
         alertEmail={
           process.env.ADMIN_ALERT_EMAIL ?? process.env.CONTACT_EMAIL ?? "support@blitz.tips"

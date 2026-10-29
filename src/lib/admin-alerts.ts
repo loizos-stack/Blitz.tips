@@ -2,7 +2,7 @@ import "server-only";
 import { getSetting } from "@/lib/settings";
 import { sendEmail } from "@/lib/email";
 import { emailWrapper } from "@/lib/email-template";
-import { sendTelegram, telegramConfigured } from "@/lib/telegram";
+import { sendTelegram, telegramBotUsername, telegramConfigured } from "@/lib/telegram";
 import { siteUrl } from "@/lib/site";
 
 /**
@@ -78,6 +78,8 @@ async function enabled(kind: AdminAlertKind, channel: "email" | "telegram"): Pro
 export async function alertSettings(): Promise<{
   chatId: string | null;
   telegramReady: boolean;
+  /** For the "send /id to @bot" instructions; empty when the bot isn't configured. */
+  botUsername: string;
   toggles: Record<string, boolean>;
 }> {
   const entries = await Promise.all(
@@ -88,6 +90,7 @@ export async function alertSettings(): Promise<{
   return {
     chatId: (await getSetting(ALERT_CHAT_KEY))?.trim() || null,
     telegramReady: telegramConfigured(),
+    botUsername: telegramBotUsername(),
     toggles: Object.fromEntries(entries),
   };
 }
