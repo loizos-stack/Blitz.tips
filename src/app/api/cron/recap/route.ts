@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { put } from "@vercel/blob";
 import { prisma } from "@/lib/prisma";
 import { blobToken } from "@/lib/blob";
-import { recapFor, yesterday } from "@/lib/recap";
+import { recapFor, winnersFor, yesterday } from "@/lib/recap";
 import { requirePermission } from "@/lib/permissions";
 
 export const maxDuration = 60;
@@ -32,10 +32,21 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const asked = new URL(request.url).searchParams.get("date");
-  // Only ever a plain date, because it goes into a timestamp range query.
-  const date = /^\d{4}-\d{2}-\d{2}$/.test(asked ?? "") ? asked! : yesterday();
+  const params = new URL(request.url).searchParams;
+  const plainDate = (v: string | null) => (/^\d{4}-\d{2}-\d{2}$/.test(v ?? "") ? v! : null);
 
+  // Winners mode spans a range: ?mode=winners&from=…&to=… — the promo reel.
+  // Without it, one day's honest recap.
+  if (params.get("mode") === "winners") {
+    const from = plainDate(params.get("from")) ?? plainDate(params.get("date")) ?? yesterday();
+    const to = plainDate(params.get("to")) ?? from;
+    const payload = await winnersFor(from, to);
+    const existing = await prisma.recapVideo.findUnique({ where: { date: payload.date } });
+    return NextResponse.json({ ...payload, alreadyRendered: existing?.url ?? null });
+  }
+
+  // Only ever a plain date, because it goes into a timestamp range query.
+  const date = plainDate(params.get("date")) ?? yesterday();
   const payload = await recapFor(date);
   const existing = await prisma.recapVideo.findUnique({ where: { date } });
 
@@ -50,9 +61,16 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  // One day ("2026-10-28") for a recap, or a span ("2026-10-28_2026-10-29")
+  // for a winners reel — the same key winnersFor() returns, so one video per
+  // period and a re-run overwrites rather than piling up.
   const date = new URL(request.url).searchParams.get("date");
-  if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
-    return NextResponse.json({ error: "A ?date=YYYY-MM-DD is required." }, { status: 400 });
+  const span = date?.match(/^(\d{4}-\d{2}-\d{2})_(\d{4}-\d{2}-\d{2})$/);
+  if (!date || !(span || /^\d{4}-\d{2}-\d{2}$/.test(date))) {
+    return NextResponse.json(
+      { error: "A ?date=YYYY-MM-DD (or YYYY-MM-DD_YYYY-MM-DD for a winners reel) is required." },
+      { status: 400 }
+    );
   }
 
   const bytes = Buffer.from(await request.arrayBuffer());
@@ -82,7 +100,7 @@ export async function POST(request: Request) {
   // Re-read the figures here rather than trusting the body: the caption that
   // ends up beside this video has to come from the database, not from whatever
   // posted the file.
-  const payload = await recapFor(date);
+  const payload = span ? await winnersFor(span[1], span[2]) : await recapFor(date);
 
   const blob = await put(`recaps/${date}.mp4`, bytes, {
     access: "public",

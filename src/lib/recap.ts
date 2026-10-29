@@ -42,6 +42,8 @@ export interface RecapPayload {
   rows: RecapRow[];
   /** Settled picks not shown as rows. */
   omitted: number;
+  /** "winners" is the promo reel; absent means the honest daily recap. */
+  mode?: "winners";
   totals: {
     settled: number;
     wins: number;
@@ -66,6 +68,85 @@ function dayBounds(date: string): { start: Date; end: Date } {
 /** YYYY-MM-DD for the UTC day before the given moment. */
 export function yesterday(now: Date = new Date()): string {
   return new Date(now.getTime() - 86_400_000).toISOString().slice(0, 10);
+}
+
+/**
+ * The winners across a span of days, for a promo reel.
+ *
+ * Deliberately built on the same totals as the recap. A winners-only video is
+ * ordinary marketing, but on a site whose pitch is *verified* records it
+ * cannot be the whole story on screen — so `totals` still covers EVERY settled
+ * pick in the span, wins and losses alike, and the renderer prints it. The
+ * reel shows the best of a period; the figure beneath it says what the period
+ * actually did.
+ */
+export async function winnersFor(from: string, to: string): Promise<RecapPayload> {
+  const { start } = dayBounds(from);
+  const { end } = dayBounds(to);
+  if (end <= start) throw new Error(`${to} is not on or after ${from}`);
+
+  const picks = await prisma.pick.findMany({
+    where: {
+      settledAt: { gte: start, lt: end },
+      result: { in: ["WIN", "LOSS", "PUSH"] },
+    },
+    select: {
+      odds: true, units: true, result: true, sport: true,
+      matchup: true, selection: true,
+      handicapper: { select: { handle: true } },
+    },
+    orderBy: { settledAt: "asc" },
+  });
+
+  const stats = computeStats(picks);
+  const units = picks.reduce((sum, p) => sum + unitProfit(p.odds, p.units, p.result), 0);
+  const toRow = (p: (typeof picks)[number]): RecapRow => ({
+    handle: p.handicapper.handle,
+    sport: SPORT_LABELS[p.sport] ?? String(p.sport),
+    matchup: p.matchup,
+    selection: p.selection,
+    odds: formatOdds(p.odds),
+    units: p.units,
+    result: p.result as RecapOutcome,
+    profit: unitProfit(p.odds, p.units, p.result),
+  });
+
+  // Biggest wins first — this one IS a highlight reel, and says so.
+  const wins = picks
+    .filter((p) => p.result === "WIN")
+    .map(toRow)
+    .sort((a, b) => b.profit - a.profit);
+  const rows = wins.slice(0, RECAP_ROW_LIMIT);
+  const decided = stats.wins + stats.losses;
+
+  const label =
+    from === to
+      ? dayBounds(from).start.toLocaleDateString("en-GB", {
+          weekday: "long", day: "numeric", month: "long", timeZone: "UTC",
+        })
+      : `${dayBounds(from).start.toLocaleDateString("en-GB", { day: "numeric", month: "long", timeZone: "UTC" })} – ${dayBounds(to).start.toLocaleDateString("en-GB", { day: "numeric", month: "long", timeZone: "UTC" })}`;
+
+  return {
+    date: from === to ? from : `${from}_${to}`,
+    label,
+    rows,
+    // How many WINNERS are not shown — the reel's own omission.
+    omitted: Math.max(wins.length - rows.length, 0),
+    mode: "winners",
+    totals: {
+      settled: picks.length,
+      wins: stats.wins,
+      losses: stats.losses,
+      pushes: stats.pushes,
+      record:
+        stats.pushes > 0
+          ? `${stats.wins}-${stats.losses}-${stats.pushes}`
+          : `${stats.wins}-${stats.losses}`,
+      units: Math.round(units * 100) / 100,
+      hitRate: decided > 0 ? Math.round((stats.wins / decided) * 100) : null,
+      handicappers: new Set(picks.map((p) => p.handicapper.handle)).size,
+    },
+  };
 }
 
 export async function recapFor(date: string): Promise<RecapPayload> {

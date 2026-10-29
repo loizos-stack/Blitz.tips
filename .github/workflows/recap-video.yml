@@ -26,6 +26,15 @@ on:
         description: "Day to render, YYYY-MM-DD in UTC (default: yesterday)"
         type: string
         required: false
+      mode:
+        description: "recap = the day's full card. winners = a promo reel of the winning tips over a span."
+        type: choice
+        options: [recap, winners]
+        default: recap
+      to:
+        description: "Winners mode only: last day of the span, YYYY-MM-DD (default: same as date)"
+        type: string
+        required: false
 
 jobs:
   recap:
@@ -56,7 +65,16 @@ jobs:
           fi
 
           URL="$SITE_URL/api/cron/recap"
-          if [ -n "${{ inputs.date }}" ]; then URL="$URL?date=${{ inputs.date }}"; fi
+          if [ "${{ inputs.mode }}" = "winners" ]; then
+            # The span defaults to the single day given, so "winners for the
+            # 28th" needs no `to`.
+            FROM="${{ inputs.date }}"
+            TO="${{ inputs.to }}"
+            [ -z "$TO" ] && TO="$FROM"
+            URL="$URL?mode=winners&from=$FROM&to=$TO"
+          elif [ -n "${{ inputs.date }}" ]; then
+            URL="$URL?date=${{ inputs.date }}"
+          fi
 
           http_status=$(curl -sS -o payload.json -w '%{http_code}' \
             --max-time 60 \

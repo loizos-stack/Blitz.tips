@@ -126,13 +126,13 @@
 
   <div class="wrap" id="s1"><div>
     <p class="kicker">Blitz.tips</p>
-    <p class="big">RESULTS</p>
+    <p class="big" id="titleWord">RESULTS</p>
     <p class="date" id="dateLabel"></p>
-    <p class="note">Every pick graded &amp; published</p>
+    <p class="note" id="titleNote">Every pick graded &amp; published</p>
   </div></div>
 
   <div class="wrap" id="s2">
-    <div id="rowsHead"><span class="t">Yesterday's card</span><span class="d" id="rowsCount"></span></div>
+    <div id="rowsHead"><span class="t" id="rowsTitle">Yesterday's card</span><span class="d" id="rowsCount"></span></div>
     <div id="rows"></div>
     <p id="more"></p>
   </div>
@@ -195,7 +195,15 @@ window.load = function (data) {
   DATA = data;
   const t = data.totals;
 
+  const winners = data.mode === "winners";
   document.getElementById("dateLabel").textContent = data.label;
+  // A winners reel is a highlight reel and names itself one. Calling it
+  // "RESULTS" would present a selection as the whole record.
+  document.getElementById("titleWord").textContent = winners ? "WINNERS" : "RESULTS";
+  document.getElementById("titleNote").textContent = winners
+    ? "Best of the card \u2014 full record below"
+    : "Every pick graded & published";
+  document.getElementById("rowsTitle").textContent = winners ? "Winning tips" : "Yesterday's card";
   document.getElementById("rowsCount").textContent =
     `${t.settled} settled · ${t.handicappers} handicapper${t.handicappers === 1 ? "" : "s"}`;
 
@@ -222,15 +230,23 @@ window.load = function (data) {
   // Said out loud whenever rows are left out, so six rows are never mistaken
   // for the whole day. See the note in src/lib/recap.ts.
   document.getElementById("more").textContent =
-    data.omitted > 0 ? `+ ${data.omitted} more settled — full card on the site` : "";
+    data.omitted > 0
+      ? winners
+        ? `+ ${data.omitted} more winners — full record on the site`
+        : `+ ${data.omitted} more settled — full card on the site`
+      : "";
 
   const colour = t.units > 0 ? "var(--win)" : t.units < 0 ? "var(--loss)" : "var(--push)";
   const unitsEl = document.getElementById("unitsVal");
   unitsEl.style.color = colour;
   document.getElementById("recVal").textContent = t.record;
   document.getElementById("hitVal").textContent = t.hitRate === null ? "—" : `${t.hitRate}%`;
-  document.getElementById("totCaption").textContent =
-    `${t.settled} pick${t.settled === 1 ? "" : "s"} settled across ${t.handicappers} handicapper${t.handicappers === 1 ? "" : "s"}.`;
+  // On a winners reel this line is the one that keeps it honest: the figures
+  // above cover EVERY settled pick in the period, not the winners shown.
+  document.getElementById("totCaption").textContent = winners
+    ? `Across ALL ${t.settled} settled pick${t.settled === 1 ? "" : "s"} in this period — wins and losses — from ${t.handicappers} handicapper${t.handicappers === 1 ? "" : "s"}.`
+    : `${t.settled} pick${t.settled === 1 ? "" : "s"} settled across ${t.handicappers} handicapper${t.handicappers === 1 ? "" : "s"}.`;
+  document.querySelector("#s3 .kicker").textContent = winners ? "Period total" : "Day total";
 
   // The glow follows the day: green when up, red when down. A losing day that
   // still looked triumphant would be the tell that none of it is real.

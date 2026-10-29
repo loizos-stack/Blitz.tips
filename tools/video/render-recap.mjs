@@ -33,6 +33,13 @@ if (!data.totals || data.totals.settled === 0) {
   console.log(`No settled picks for ${data.date} — nothing to render.`);
   process.exit(3);
 }
+// A winners reel with no winners is not a reel. Same exit: a losing period is
+// a fact about the period, not a failure of this script — and publishing an
+// empty "WINNERS" card would be worse than publishing nothing.
+if (data.mode === "winners" && (data.rows?.length ?? 0) === 0) {
+  console.log(`No winning picks in ${data.date} — nothing to render.`);
+  process.exit(3);
+}
 
 const FPS = 30;
 const DURATION_MS = 9000;
