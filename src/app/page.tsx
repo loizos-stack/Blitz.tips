@@ -2,9 +2,15 @@ import Link from "next/link";
 import { Suspense } from "react";
 import { ContestPromoStrip } from "@/components/cross-promo-strip";
 import { ShieldCheck, LineChart, Users, ArrowRight } from "lucide-react";
-import { listHandicapperDirectory, applyHandicapperFinder } from "@/lib/handicappers";
+import {
+  listHandicapperDirectory,
+  applyHandicapperFinder,
+  splitByActivity,
+  ACTIVE_WITHIN_DAYS,
+} from "@/lib/handicappers";
 import { HandicapperCard } from "@/components/handicapper-card";
 import { HandicapperFinder } from "@/components/handicapper-finder";
+import { HandicapperReveal } from "@/components/handicapper-reveal";
 import { HomeBoard, HomeBoardSkeleton } from "@/components/home-board";
 import type { Metadata } from "next";
 import type { PickSport } from "@prisma/client";
@@ -51,6 +57,12 @@ export default async function Home({
   const activeFilter = params.find ?? "all";
   const query = params.q ?? "";
   const foundHandicappers = applyHandicapperFinder(handicappers, activeFilter, query);
+
+  // Handicappers who have gone quiet are held behind a "Load more" button, so
+  // the directory leads with people actually posting. The split runs after the
+  // finder, so it applies to whatever the current filter or search matched.
+  const { active: activeHandicappers, dormant: dormantHandicappers } =
+    splitByActivity(foundHandicappers);
 
   const totalPicks = handicappers.reduce((sum, h) => sum + h.stats.totalPicks, 0);
 
@@ -145,11 +157,25 @@ export default async function Home({
             No handicappers match your search. Try a different filter.
           </div>
         ) : (
-          <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {foundHandicappers.map((h) => (
+          <HandicapperReveal
+            shownCount={activeHandicappers.length}
+            hiddenCount={dormantHandicappers.length}
+            days={ACTIVE_WITHIN_DAYS}
+            empty={
+              <div className="card mt-8 p-8 text-center text-muted">
+                {activeFilter === "all" && query === ""
+                  ? `No handicapper has posted a pick in the last ${ACTIVE_WITHIN_DAYS} days.`
+                  : `Nothing matching this has been posted in the last ${ACTIVE_WITHIN_DAYS} days.`}
+              </div>
+            }
+            hidden={dormantHandicappers.map((h) => (
               <HandicapperCard key={h.id} handicapper={h} />
             ))}
-          </div>
+          >
+            {activeHandicappers.map((h) => (
+              <HandicapperCard key={h.id} handicapper={h} />
+            ))}
+          </HandicapperReveal>
         )}
         </div>
       </section>

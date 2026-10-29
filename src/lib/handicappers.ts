@@ -84,6 +84,18 @@ export type DirectoryHandicapper = HandicapperSummary & {
   hasParlays: boolean;
   /** Lowercased haystack of everything on the profile the finder search matches. */
   searchText: string;
+  /**
+   * When the most recent pick was posted, as an ISO string — null for a
+   * handicapper who has never posted one.
+   *
+   * A string rather than a Date deliberately. `unstable_cache` persists its
+   * value with `JSON.stringify`, so every Date on this object already comes
+   * back as a string on a cache hit however it is typed. Declaring the one
+   * field callers actually compare as what survives that round trip is the
+   * difference between a working comparison and one that silently reads
+   * `"2026-10-29T…" >= Date` — true for no good reason.
+   */
+  lastPickAt: string | null;
 };
 
 /**
@@ -116,22 +128,65 @@ async function loadHandicapperDirectory(): Promise<DirectoryHandicapper[]> {
       .join(" ")
       .toLowerCase();
 
+    // Posting time, not event time: a capper who put up ten picks today for
+    // games next Sunday is active, and one whose last post was a month ago is
+    // not, whenever those games happen to kick off.
+    const lastPostedAt = h.picks.reduce<Date | null>(
+      (latest, p) => (latest === null || p.createdAt > latest ? p.createdAt : latest),
+      null
+    );
+
     return {
       ...toSummary(h),
       followersCount: h._count.followers,
       hasProps: h.picks.some((p) => p.betType === "PROP"),
       hasParlays: h.picks.some((p) => p.betType === "PARLAY"),
       searchText,
+      lastPickAt: lastPostedAt?.toISOString() ?? null,
     };
   });
 }
 
 // Cached like the summaries — the homepage finder reads only precomputed fields,
 // so a 60s-stale directory is fine and keeps the aggregation off the hot path.
-export const listHandicapperDirectory = unstable_cache(loadHandicapperDirectory, ["handicapper-directory-v1"], {
+// v2 adds lastPickAt. The key is bumped with the shape: a warm v1 entry has no
+// lastPickAt at all, and `undefined` reads as "never posted" — which would hide
+// every handicapper on the homepage for the first minute after a deploy.
+export const listHandicapperDirectory = unstable_cache(loadHandicapperDirectory, ["handicapper-directory-v2"], {
   revalidate: 60,
   tags: ["handicappers"],
 });
+
+/** A handicapper counts as active if they posted a pick within this many days. */
+export const ACTIVE_WITHIN_DAYS = 7;
+
+/**
+ * Split the directory into handicappers who have posted recently and ones who
+ * have gone quiet. The homepage shows the first group and keeps the second
+ * behind a "Load more" button.
+ *
+ * Never having posted counts as quiet. An empty profile is the least useful
+ * card on the page, and it is also exactly what a newly registered capper
+ * looks like — so it sits with the dormant ones rather than at the top of the
+ * directory.
+ *
+ * `now` is injectable for tests only.
+ */
+export function splitByActivity<T extends { lastPickAt: string | null }>(
+  list: T[],
+  { days = ACTIVE_WITHIN_DAYS, now = Date.now() }: { days?: number; now?: number } = {}
+): { active: T[]; dormant: T[] } {
+  const cutoff = now - days * 24 * 60 * 60 * 1000;
+  const active: T[] = [];
+  const dormant: T[] = [];
+  for (const h of list) {
+    const posted = h.lastPickAt === null ? NaN : Date.parse(h.lastPickAt);
+    // An unparseable timestamp is treated as quiet rather than throwing: a bad
+    // value should cost a handicapper a click, not the whole page.
+    (Number.isFinite(posted) && posted >= cutoff ? active : dormant).push(h);
+  }
+  return { active, dormant };
+}
 
 // The non-sport quick filters for the homepage finder. Sport keys (NBA, MLB, …)
 // are the other valid filter values.
