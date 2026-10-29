@@ -46,6 +46,17 @@ jobs:
         with:
           node-version: "22"
 
+      # ffmpeg is NOT on the ubuntu-latest image — assuming it was cost this
+      # workflow a run that fetched the data and rendered all 270 frames
+      # before failing on the encode. Playwright ships its own ffmpeg, but
+      # that build is cut down for its video recorder and carries no libx264,
+      # so the distribution package is what we want.
+      - name: Install ffmpeg
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq --no-install-recommends ffmpeg
+          ffmpeg -version | head -1
+
       # Not a project dependency: it is only ever used here, and adding it to
       # package.json would make every Vercel build install it for nothing.
       - name: Install renderer
