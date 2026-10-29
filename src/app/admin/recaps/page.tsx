@@ -2,6 +2,8 @@ import { Download, Film, Info } from "lucide-react";
 import { guardAdminPage } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { recapFor, yesterday } from "@/lib/recap";
+import { getConnectedAccount, tiktokConfigured } from "@/lib/tiktok";
+import { SendToTikTok, TikTokConnection } from "@/components/admin/tiktok-connection";
 import { cn } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
@@ -11,14 +13,20 @@ function units(n: number): string {
   return `${n > 0 ? "+" : n < 0 ? "−" : ""}${Math.abs(n).toFixed(2)}u`;
 }
 
-export default async function AdminRecapsPage() {
+export default async function AdminRecapsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ error?: string; connected?: string }>;
+}) {
   await guardAdminPage("recaps");
 
-  const [videos, pending] = await Promise.all([
+  const [videos, pending, tiktok, params] = await Promise.all([
     prisma.recapVideo.findMany({ orderBy: { date: "desc" }, take: 30 }),
     // What tonight's run would produce, so a day with nothing settled is
     // visible as such rather than looking like the job failed.
     recapFor(yesterday()),
+    getConnectedAccount(),
+    searchParams,
   ]);
 
   const haveYesterday = videos.some((v) => v.date === pending.date);
@@ -32,6 +40,19 @@ export default async function AdminRecapsPage() {
           and post to TikTok, Reels or Shorts.
         </p>
       </div>
+
+      <TikTokConnection
+        configured={tiktokConfigured()}
+        error={params.error}
+        account={
+          tiktok && {
+            openId: tiktok.openId,
+            displayName: tiktok.displayName,
+            scopes: tiktok.scopes,
+            connectedAt: tiktok.connectedAt.toISOString(),
+          }
+        }
+      />
 
       {!haveYesterday && (
         <div className="card p-5">
@@ -88,13 +109,21 @@ export default async function AdminRecapsPage() {
                     · {v.settled} settled
                   </p>
                 </div>
-                <a
-                  href={v.url}
-                  download={`blitz-recap-${v.date}.mp4`}
-                  className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-border px-3 py-2 text-sm font-medium hover:border-accent hover:text-accent"
-                >
-                  <Download className="h-3.5 w-3.5" /> Save
-                </a>
+                <div className="flex shrink-0 items-start gap-2">
+                  <a
+                    href={v.url}
+                    download={`blitz-recap-${v.date}.mp4`}
+                    className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-border px-3 py-2 text-sm font-medium hover:border-accent hover:text-accent"
+                  >
+                    <Download className="h-3.5 w-3.5" /> Save
+                  </a>
+                  <SendToTikTok
+                    date={v.date}
+                    connected={tiktok !== null}
+                    sent={Boolean(v.tiktokSentAt)}
+                    failed={v.tiktokError}
+                  />
+                </div>
               </div>
             </div>
           ))}

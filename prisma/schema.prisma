@@ -1477,7 +1477,47 @@ model RecapVideo {
   record  String
   units   Float
 
+  /// TikTok draft push: what came back the last time this video was sent to
+  /// the connected creator's inbox. Held here rather than in a log table
+  /// because the only question anyone asks is "has this one been sent", and
+  /// the answer belongs next to the video it is about.
+  tiktokPublishId String?
+  tiktokStatus    String?
+  tiktokError     String?   @db.Text
+  tiktokSentAt    DateTime?
+
   createdAt DateTime @default(now())
 
   @@index([createdAt])
+}
+
+/**
+ * The one connected TikTok account, for pushing recap videos into its drafts.
+ * Same shape and the same reasoning as XAccount: a single row with a fixed
+ * primary key, because there is one account and a table that could hold two
+ * invites the question of which one posts.
+ */
+model TikTokAccount {
+  /// Always "default". One connected account, enforced by the primary key.
+  id String @id @default("default")
+
+  /// TikTok's per-app user identifier. Stable; the display name is not.
+  openId      String
+  displayName String?
+
+  /// Encrypted at rest (lib/token-crypto). A leaked refresh token is a year of
+  /// access to someone's TikTok account, so these never sit here in the clear.
+  accessToken  String  @db.Text
+  refreshToken String? @db.Text
+
+  /// When the access token dies. Refreshed ahead of this, not after it.
+  expiresAt DateTime
+
+  /// Granted scopes, so the UI can say why a push was refused rather than
+  /// showing a bare error. Drafts need video.upload.
+  scopes String
+
+  connectedAt DateTime @default(now())
+  connectedBy String
+  updatedAt   DateTime @updatedAt
 }
