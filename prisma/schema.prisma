@@ -231,9 +231,9 @@ model HandicapperProfile {
   userId String @unique
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  handle      String      @unique
+  handle      String              @unique
   displayName String
-  bio         String?     @db.Text
+  bio         String?             @db.Text
   avatarUrl   String?
   coverUrl    String?
   /// DEPRECATED — not written, not read. Which sports a handicapper covers is
@@ -243,8 +243,9 @@ model HandicapperProfile {
   /// deliberate migration rather than a side effect of this change; the rows
   /// still hold whatever was last declared, which is exactly why nothing
   /// should read them.
-  sports      PickSport[] @default([])
-  isVerified  Boolean     @default(false)
+  sports      PickSport[]         @default([])
+  prizeAwards MonthlyPrizeAward[]
+  isVerified  Boolean             @default(false)
   // Soft suspension: hidden from listings, profile 404s, can't post picks or
   // take new subscribers; existing data stays intact.
   suspendedAt DateTime?
@@ -1497,6 +1498,43 @@ model RecapVideo {
  * primary key, because there is one account and a table that could hold two
  * invites the question of which one posts.
  */
+/**
+ * A frozen monthly-prize result: one row per paid place, per month.
+ * The standings are computed live from picks while a month runs, so why store
+ * anything? Because a published winner must not move. Picks can be regraded,
+ * a void can be corrected days later, and any of that would silently rewrite
+ * history on a page that says "this capper won $500 in November". Recording
+ * the result freezes it, and `paidAt` then tracks the money separately from
+ * the ranking.
+ */
+model MonthlyPrizeAward {
+  id String @id @default(cuid())
+
+  /// "2026-11" — the month covered, UTC.
+  month String
+  /// 1-based finishing place. One row per place.
+  rank  Int
+
+  handicapperId String
+  handicapper   HandicapperProfile @relation(fields: [handicapperId], references: [id], onDelete: Cascade)
+
+  /// Cents won. Stored rather than derived so changing the prize ladder later
+  /// cannot retroactively alter what someone was told they had won.
+  prizeCents Int
+  /// The figures as they stood when the month was recorded.
+  unitsNet   Float
+  record     String
+
+  paidAt   DateTime?
+  paidNote String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([month, rank])
+  @@index([handicapperId])
+}
+
 model TikTokAccount {
   /// Always "default". One connected account, enforced by the primary key.
   id String @id @default("default")

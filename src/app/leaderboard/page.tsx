@@ -10,22 +10,32 @@ import { SPORT_LABELS } from "@/lib/utils";
 import { cn } from "@/lib/utils";
 import { siteUrl } from "@/lib/site";
 import { ShareButtons } from "@/components/share-buttons";
+import { MonthlyPrizeBoard } from "@/components/monthly-prize-board";
+import {
+  PRIZE_POOL_CENTS,
+  isPrizeMonth,
+  monthlyStandings,
+  prizeMonth,
+} from "@/lib/monthly-prizes";
+import { formatCents } from "@/lib/utils";
 import type { PickSport } from "@prisma/client";
 
 export const metadata: Metadata = {
   title: "Leaderboard",
   description:
-    "The Blitz.tips leaderboard ranks verified sports handicappers by net units, ROI, win rate, and current streak. Find the sharpest cappers across the NFL, NBA, MLB, NHL, and soccer.",
+    "$800 in cash prizes every month for the best verified handicappers. The Blitz.tips leaderboard ranks them by net units, ROI, win rate, and current streak across the NFL, NBA, MLB, NHL, and soccer.",
   alternates: { canonical: "/leaderboard" },
   openGraph: {
-    title: "Handicapper Leaderboard — Blitz.tips",
-    description: "Verified handicappers ranked by net units, ROI, win rate, and streak.",
+    title: "Handicapper Leaderboard — $800 monthly prizes — Blitz.tips",
+    description:
+      "$500, $200 and $100 every month to the handicappers with the best settled record. Verified, unedited, ranked.",
     url: "/leaderboard",
   },
   twitter: {
     card: "summary_large_image",
-    title: "Handicapper Leaderboard — Blitz.tips",
-    description: "Verified handicappers ranked by net units, ROI, win rate, and streak.",
+    title: "Handicapper Leaderboard — $800 monthly prizes — Blitz.tips",
+    description:
+      "$500, $200 and $100 every month to the handicappers with the best settled record. Verified, unedited, ranked.",
   },
 };
 export const dynamic = "force-dynamic";
@@ -79,7 +89,13 @@ export default async function LeaderboardPage({
   const sportFilter =
     params.sport && params.sport in SPORT_LABELS ? (params.sport as PickSport) : undefined;
 
-  const handicappers = await listHandicapperSummaries();
+  // The prize race is its own query — a month's settled picks, not the
+  // all-time figures the table below is built from.
+  const month = prizeMonth();
+  const [handicappers, standings] = await Promise.all([
+    listHandicapperSummaries(),
+    isPrizeMonth(month) ? monthlyStandings(month) : Promise.resolve([]),
+  ]);
 
   let list = sportFilter ? handicappers.filter((h) => h.sports.includes(sportFilter)) : handicappers;
   if (view.filter) list = list.filter(view.filter);
@@ -96,16 +112,28 @@ export default async function LeaderboardPage({
       <div className="container-page relative py-12">
       <div className="mb-8 flex flex-wrap items-end justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold">Leaderboard</h1>
+          <h1 className="text-3xl font-bold">
+            Leaderboard{" "}
+            <span className="whitespace-nowrap text-gold">
+              — {formatCents(PRIZE_POOL_CENTS)}/month
+            </span>
+          </h1>
           <p className="mt-2 text-muted">
-            Verified handicappers ranked by their full, unedited pick history. Filter by tier, metric, or sport.
+            Verified handicappers ranked by their full, unedited pick history. Every month the top
+            three by net units win {formatCents(PRIZE_POOL_CENTS)} between them.
           </p>
         </div>
         <ShareButtons
           url={`${siteUrl()}/leaderboard`}
-          text="The sharpest verified sports handicappers on Blitz.tips, ranked by net units, ROI, and win rate 📈"
+          text={`The sharpest verified sports handicappers on Blitz.tips, ranked by net units, ROI and win rate — and ${formatCents(PRIZE_POOL_CENTS)} in prizes every month 📈`}
         />
       </div>
+
+      {isPrizeMonth(month) && (
+        <div className="mb-8">
+          <MonthlyPrizeBoard month={month} standings={standings} />
+        </div>
+      )}
 
       <div className="mb-6 flex flex-wrap items-center gap-2">
         {VIEW_KEYS.map((key) => {

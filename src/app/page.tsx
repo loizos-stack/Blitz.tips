@@ -1,7 +1,9 @@
 import Link from "next/link";
 import { Suspense } from "react";
 import { ContestPromoStrip } from "@/components/cross-promo-strip";
-import { ShieldCheck, LineChart, Users, ArrowRight } from "lucide-react";
+import { PRIZE_CENTS, PRIZE_POOL_CENTS, isPrizeMonth, prizeMonth } from "@/lib/monthly-prizes";
+import { formatCents } from "@/lib/utils";
+import { ShieldCheck, LineChart, Users, ArrowRight, Trophy } from "lucide-react";
 import {
   listHandicapperDirectory,
   applyHandicapperFinder,
@@ -114,7 +116,11 @@ export default async function Home({
             />
             <Stat label="Picks tracked" value={totalPicks.toString()} />
             <Stat label="Verified records" value="100%" />
-            <Stat label="Platform fee" value="Transparent" />
+            {isPrizeMonth(prizeMonth()) ? (
+              <Stat label="Prizes every month" value={formatCents(PRIZE_POOL_CENTS)} />
+            ) : (
+              <Stat label="Platform fee" value="Transparent" />
+            )}
           </div>
         </div>
       </section>
@@ -191,7 +197,7 @@ export default async function Home({
         />
         <div className="container-page relative">
           <h2 className="text-2xl font-bold">How Blitz.tips works</h2>
-          <div className="mt-8 grid gap-6 md:grid-cols-3">
+          <div className="mt-8 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
             <HowItWorksCard
               icon={<LineChart className="h-5 w-5" />}
               title="Every pick is timestamped"
@@ -206,6 +212,11 @@ export default async function Home({
               icon={<Users className="h-5 w-5" />}
               title="Subscribe directly"
               description="Pay a handicapper's monthly price to unlock their premium picks. Cancel any time, no middlemen."
+            />
+            <HowItWorksCard
+              icon={<Trophy className="h-5 w-5" />}
+              title={`${formatCents(PRIZE_POOL_CENTS)} every month`}
+              description={`The three handicappers with the best settled record each month win ${formatCents(PRIZE_CENTS[0])}, ${formatCents(PRIZE_CENTS[1])} and ${formatCents(PRIZE_CENTS[2])}. Ranked on the same public record everyone else sees.`}
             />
           </div>
         </div>

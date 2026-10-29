@@ -65,6 +65,7 @@ const ICONS: Record<AdminPermission, React.ReactNode> = {
   reviews: <Star className="h-3.5 w-3.5" />,
   blog: <FileText className="h-3.5 w-3.5" />,
   contests: <Trophy className="h-3.5 w-3.5" />,
+  prizes: <Banknote className="h-3.5 w-3.5" />,
   integrity: <ShieldAlert className="h-3.5 w-3.5" />,
   audit: <ScrollText className="h-3.5 w-3.5" />,
   permissions: <KeyRound className="h-3.5 w-3.5" />,
