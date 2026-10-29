@@ -3,10 +3,8 @@ import { auth } from "@/auth";
 import { notifyAdmins } from "@/lib/admin-alerts";
 import { prisma } from "@/lib/prisma";
 import { ensureSubscriberPrices } from "@/lib/subscriber-pricing";
-import { becomeHandicapperSchema, updateSportsSchema } from "@/lib/validations";
+import { becomeHandicapperSchema } from "@/lib/validations";
 import { logActivity } from "@/lib/audit";
-import { SPORT_LABELS } from "@/lib/utils";
-import type { PickSport } from "@prisma/client";
 
 export async function POST(request: Request) {
   const session = await auth();
@@ -28,7 +26,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "That handle is already taken" }, { status: 409 });
   }
 
-  const { handle, displayName, bio, sports, monthlyPriceCents, weeklyPriceCents, annualPriceCents } =
+  const { handle, displayName, bio, monthlyPriceCents, weeklyPriceCents, annualPriceCents } =
     parsed.data;
 
   let handicapper = await prisma.$transaction(async (tx) => {
@@ -39,7 +37,11 @@ export async function POST(request: Request) {
         handle,
         displayName,
         bio,
-        sports: sports as PickSport[],
+        // No sports here. Which sports a handicapper covers is read off the
+        // picks they post (lib/handicappers → sportsFromPicks), so a brand new
+        // profile covers nothing until it has posted something — which is the
+        // honest answer, and what keeps the sport filters free of people who
+        // have never posted in that sport.
         monthlyPriceCents,
         weeklyPriceCents: weeklyPriceCents ?? null,
         annualPriceCents: annualPriceCents ?? null,
@@ -75,52 +77,10 @@ export async function POST(request: Request) {
         ["Handle", `@${handicapper.handle}`],
         ["Email", session.user.email ?? "—"],
         ["Monthly", `${(handicapper.monthlyPriceCents / 100).toFixed(2)}`],
-        ["Sports", handicapper.sports.map((s) => SPORT_LABELS[s] ?? s).join(", ") || "—"],
       ],
       path: "/admin/handicappers",
     })
   );
 
   return NextResponse.json({ handicapper }, { status: 201 });
-}
-
-// Update the sports a handicapper covers (the profile tab's sports editor).
-// These drive where the handicapper is searchable and ranked.
-export async function PATCH(request: Request) {
-  const session = await auth();
-  if (!session) return NextResponse.json({ error: "Sign in required" }, { status: 401 });
-
-  const handicapper = await prisma.handicapperProfile.findUnique({ where: { userId: session.user.id } });
-  if (!handicapper) {
-    return NextResponse.json({ error: "You need a handicapper profile first" }, { status: 403 });
-  }
-
-  const body = await request.json().catch(() => null);
-  const parsed = updateSportsSchema.safeParse(body);
-  if (!parsed.success) {
-    return NextResponse.json({ error: parsed.error.issues[0]?.message ?? "Invalid input" }, { status: 400 });
-  }
-
-  // Keep only known sports and drop duplicates before writing the enum array.
-  const valid = new Set(Object.keys(SPORT_LABELS));
-  const sports = [...new Set(parsed.data.sports)].filter((s) => valid.has(s)) as PickSport[];
-  if (sports.length === 0) {
-    return NextResponse.json({ error: "Pick at least one valid sport" }, { status: 400 });
-  }
-
-  const updated = await prisma.handicapperProfile.update({
-    where: { id: handicapper.id },
-    data: { sports },
-  });
-
-  await logActivity({
-    actorId: session.user.id,
-    actorEmail: session.user.email,
-    action: "handicapper.update",
-    targetType: "HandicapperProfile",
-    targetId: handicapper.id,
-    detail: `Updated covered sports: ${sports.join(", ")}`,
-  });
-
-  return NextResponse.json({ handicapper: updated });
 }

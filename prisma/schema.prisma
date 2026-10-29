@@ -236,6 +236,13 @@ model HandicapperProfile {
   bio         String?     @db.Text
   avatarUrl   String?
   coverUrl    String?
+  /// DEPRECATED — not written, not read. Which sports a handicapper covers is
+  /// derived from the picks they have actually posted (lib/handicappers →
+  /// sportsFromPicks), because a declared list is a claim and the sport
+  /// filters have to be evidence. Left in place so dropping it is a separate,
+  /// deliberate migration rather than a side effect of this change; the rows
+  /// still hold whatever was last declared, which is exactly why nothing
+  /// should read them.
   sports      PickSport[] @default([])
   isVerified  Boolean     @default(false)
   // Soft suspension: hidden from listings, profile 404s, can't post picks or

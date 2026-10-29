@@ -48,10 +48,6 @@ export const registerSchema = z.object({
   country: z.string().min(2, "Select your country").max(60).optional(),
 });
 
-export const updateSportsSchema = z.object({
-  sports: z.array(z.string()).min(1, "Pick at least one sport"),
-});
-
 // American odds bounds for a single selection. The ceiling matters: profit on a
 // winner is units x (odds / 100), so an unbounded positive price lets one pick
 // manufacture an arbitrarily large unit/ROI figure and take over the leaderboard
@@ -130,7 +126,6 @@ export const becomeHandicapperSchema = z.object({
     .regex(/^[a-z0-9_]+$/, "Lowercase letters, numbers, and underscores only"),
   displayName: z.string().min(2).max(60),
   bio: z.string().max(1000).optional(),
-  sports: z.array(z.string()).min(1, "Pick at least one sport"),
   monthlyPriceCents: z
     .number()
     .int()

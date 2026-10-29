@@ -54,6 +54,37 @@ export function sortPaidFirst<T extends Pick<HandicapperProfile, "plan" | "planS
 
 const STATS_LOOKBACK_DAYS = 30;
 
+/**
+ * The sports a handicapper actually posts in, busiest first.
+ *
+ * Derived from their picks, never declared. A declared list is a claim, and on
+ * a site whose whole pitch is that the record cannot be edited after the fact,
+ * a claim is the wrong thing to filter on: someone who ticked NCAAF at signup
+ * and never posted an NCAAF tip would still appear under the NCAAF filter,
+ * which makes the filter a list of intentions rather than of evidence.
+ *
+ * Deriving also means it is self-correcting in the direction the old column
+ * never was: the previous code added a sport when a pick was posted but had no
+ * way to take one away, so a sport posted once and abandoned — or a pick later
+ * deleted — stayed on the profile forever.
+ *
+ * Busiest first so the card, which has room for four, shows what the
+ * handicapper is actually known for. Ties break alphabetically, only so the
+ * order is stable between renders rather than shifting with row order.
+ *
+ * Parlays count under the sport on the parlay itself, not its legs. A
+ * cross-sport parlay therefore reports only its headline sport — the legs are
+ * a separate table and joining it on every directory render costs more than
+ * that edge is worth.
+ */
+export function sportsFromPicks(picks: { sport: PickSport }[]): PickSport[] {
+  const counts = new Map<PickSport, number>();
+  for (const p of picks) counts.set(p.sport, (counts.get(p.sport) ?? 0) + 1);
+  return [...counts.entries()]
+    .sort(([aSport, aCount], [bSport, bCount]) => bCount - aCount || aSport.localeCompare(bSport))
+    .map(([sport]) => sport);
+}
+
 const APPROVED_REVIEW_RATINGS = {
   reviews: { where: { status: "APPROVED" as const }, select: { rating: true } },
 } as const;
@@ -71,7 +102,7 @@ async function loadHandicapperSummaries(): Promise<HandicapperSummary[]> {
 // Public listing pages (leaderboard, /handicappers) tolerate ~1 min of stat
 // staleness, so cache the whole aggregation. This keeps the heavy full-table
 // scan + per-pick stat computation off the request path — the main TTFB win.
-export const listHandicapperSummaries = unstable_cache(loadHandicapperSummaries, ["handicapper-summaries-v1"], {
+export const listHandicapperSummaries = unstable_cache(loadHandicapperSummaries, ["handicapper-summaries-v2"], {
   revalidate: 60,
   tags: ["handicappers"],
 });
@@ -122,7 +153,7 @@ async function loadHandicapperDirectory(): Promise<DirectoryHandicapper[]> {
       h.displayName,
       h.handle,
       h.bio ?? "",
-      ...h.sports.map((s) => SPORT_LABELS[s] ?? s),
+      ...sportsFromPicks(h.picks).map((s) => SPORT_LABELS[s] ?? s),
       ...h.picks.flatMap((p) => [p.matchup, p.selection, p.league ?? "", p.analysis ?? ""]),
     ]
       .join(" ")
@@ -149,10 +180,12 @@ async function loadHandicapperDirectory(): Promise<DirectoryHandicapper[]> {
 
 // Cached like the summaries — the homepage finder reads only precomputed fields,
 // so a 60s-stale directory is fine and keeps the aggregation off the hot path.
-// v2 adds lastPickAt. The key is bumped with the shape: a warm v1 entry has no
-// lastPickAt at all, and `undefined` reads as "never posted" — which would hide
-// every handicapper on the homepage for the first minute after a deploy.
-export const listHandicapperDirectory = unstable_cache(loadHandicapperDirectory, ["handicapper-directory-v2"], {
+// Bumped with the shape, because a warm entry from the previous version is
+// wrong rather than merely stale: v1 had no lastPickAt, and `undefined` reads
+// as "never posted", which would hide every handicapper on the homepage; v2
+// still carried declared sports, which would show pills for sports nobody has
+// posted in. Either would be served for the first minute after a deploy.
+export const listHandicapperDirectory = unstable_cache(loadHandicapperDirectory, ["handicapper-directory-v3"], {
   revalidate: 60,
   tags: ["handicappers"],
 });
@@ -328,6 +361,11 @@ function toSummary(
 
   return {
     ...handicapper,
+    // Overrides the profile's stored `sports` column, which is no longer
+    // written and no longer means anything. Everything that renders a sport
+    // pill or filters by sport reads this object, so this one line is what
+    // makes the filters match the record.
+    sports: sportsFromPicks(handicapper.picks),
     stats: computeStats(handicapper.picks),
     last30Stats: computeStats(recentPicks),
     last10Stats: lastNStats(handicapper.picks, 10),
