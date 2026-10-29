@@ -20,6 +20,16 @@ on:
     # 09:20 UTC — late enough that the previous day's US night games have been
     # graded by the auto-settle run, early enough to post in the morning.
     - cron: "20 9 * * *"
+    # Mondays, 09:47 UTC: the week's winners reel, covering the seven days
+    # ending yesterday (Sunday). Weekly rather than daily because a one-day
+    # winners cut is the same picks as that morning's recap with the losses
+    # removed — worth posting once a week, not twice a day.
+    #
+    # The two are twenty-odd minutes apart so Monday's recap run finishes
+    # first; GitHub queues scheduled runs and can delay them, and the second
+    # job re-reads from the API anyway, so an overlap would be harmless, just
+    # confusing to read in the run list.
+    - cron: "47 9 * * 1"
   workflow_dispatch:
     inputs:
       date:
@@ -75,12 +85,30 @@ jobs:
             exit 1
           fi
 
+          # A scheduled run carries no inputs, so the mode comes from which
+          # cron fired. Matching on the expression is how GitHub identifies a
+          # schedule — there is no name to give one.
+          MODE="${{ inputs.mode }}"
+          if [ -z "$MODE" ]; then
+            if [ "${{ github.event.schedule }}" = "47 9 * * 1" ]; then
+              MODE="winners"
+            else
+              MODE="recap"
+            fi
+          fi
+          echo "mode=$MODE"
+
           URL="$SITE_URL/api/cron/recap"
-          if [ "${{ inputs.mode }}" = "winners" ]; then
+          if [ "$MODE" = "winners" ]; then
             # The span defaults to the single day given, so "winners for the
-            # 28th" needs no `to`.
+            # 28th" needs no `to`. On the weekly schedule neither is given, so
+            # it covers the seven days ending yesterday.
             FROM="${{ inputs.date }}"
             TO="${{ inputs.to }}"
+            if [ -z "$FROM" ]; then
+              TO=$(date -u -d 'yesterday' +%F)
+              FROM=$(date -u -d '7 days ago' +%F)
+            fi
             [ -z "$TO" ] && TO="$FROM"
             URL="$URL?mode=winners&from=$FROM&to=$TO"
           elif [ -n "${{ inputs.date }}" ]; then
@@ -98,6 +126,7 @@ jobs:
             exit 1
           fi
 
+          echo "mode=$MODE" >> "$GITHUB_OUTPUT"
           echo "date=$(jq -r .date payload.json)" >> "$GITHUB_OUTPUT"
           echo "settled=$(jq -r .totals.settled payload.json)" >> "$GITHUB_OUTPUT"
           jq -r '"\(.label): \(.totals.record), \(.totals.units)u from \(.totals.settled) settled"' payload.json
@@ -142,7 +171,7 @@ jobs:
           fi
 
           {
-            echo "### Recap for ${{ steps.fetch.outputs.date }}"
+            echo "### ${{ steps.fetch.outputs.mode == 'winners' && 'Winners reel' || 'Recap' }} for ${{ steps.fetch.outputs.date }}"
             jq -r '"[Download](\(.url)) — \(.bytes) bytes"' upload.json
           } >> "$GITHUB_STEP_SUMMARY"
 
@@ -151,6 +180,6 @@ jobs:
         if: steps.render.outputs.skipped != 'true'
         uses: actions/upload-artifact@v4
         with:
-          name: recap-${{ steps.fetch.outputs.date }}
+          name: ${{ steps.fetch.outputs.mode }}-${{ steps.fetch.outputs.date }}
           path: recap.mp4
           retention-days: 14
