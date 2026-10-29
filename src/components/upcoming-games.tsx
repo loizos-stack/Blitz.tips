@@ -18,7 +18,11 @@ import type { PickSport } from "@prisma/client";
 interface OddsBoard {
   spread: { away: MarketOption | null; home: MarketOption | null };
   total: { over: MarketOption | null; under: MarketOption | null };
-  moneyline: { away: MarketOption | null; home: MarketOption | null };
+  /**
+   * `draw` is the third outcome of a soccer moneyline. Null for every other
+   * sport, where a tie either can't happen or isn't separately priced.
+   */
+  moneyline: { away: MarketOption | null; home: MarketOption | null; draw: MarketOption | null };
 }
 
 function buildOddsBoard(event: UpcomingEvent): OddsBoard {
@@ -37,6 +41,11 @@ function buildOddsBoard(event: UpcomingEvent): OddsBoard {
     moneyline: {
       away: bySelectionStart(event.awayTeam, "MONEYLINE"),
       home: bySelectionStart(event.homeTeam, "MONEYLINE"),
+      // Matched on `side` rather than the selection text, because "Draw" is a
+      // side rather than a team and both the paid feed and the ESPN fallback
+      // label it that way.
+      draw:
+        event.markets.find((m) => m.betType === "MONEYLINE" && m.side === "Draw") ?? null,
     },
   };
 }
@@ -245,6 +254,20 @@ export function UpcomingGames({
                           <span className="shrink-0 text-sm font-semibold tabular-nums">{cell(s.moneyline)}</span>
                         </div>
                       ))}
+                      {/* Same rule as the grid below: a three-way market is
+                          never shown as a two-way one. The logo column is held
+                          empty so the prices stay in line. */}
+                      {board.moneyline.draw && (
+                        <div className="flex items-center gap-2">
+                          <span className="h-7 w-7 shrink-0" aria-hidden />
+                          <p className="min-w-0 flex-1 truncate font-display text-sm font-semibold text-muted">
+                            Draw
+                          </p>
+                          <span className="shrink-0 text-sm font-semibold tabular-nums">
+                            {cell(board.moneyline.draw)}
+                          </span>
+                        </div>
+                      )}
                     </div>
                   ) : (
                     <>
@@ -273,6 +296,20 @@ export function UpcomingGames({
                               <span className="text-right">{cell(s.moneyline)}</span>
                             </Fragment>
                           ))}
+
+                          {/* Soccer's third outcome. Two rows on a three-way
+                              market reads as a two-way one, and the shorter
+                              price looks far better than it is — the draw was
+                              priced, so it is shown. Only the ML column has a
+                              value: a draw has no spread and no total. */}
+                          {board.moneyline.draw && (
+                            <Fragment>
+                              <span className="truncate text-muted">Draw</span>
+                              <span className="text-right">{cell(null)}</span>
+                              <span className="text-right">{cell(null)}</span>
+                              <span className="text-right">{cell(board.moneyline.draw)}</span>
+                            </Fragment>
+                          )}
                         </div>
                       )}
                     </>
