@@ -6,13 +6,18 @@ const nextConfig: NextConfig = {
   serverExternalPackages: ["tesseract.js", "web-push"],
   images: {
     // Serve modern formats and allow optimizing user-uploaded images (Vercel
-    // Blob), Google OAuth avatars, and team-logo CDNs via next/image.
+    // Blob) and Google OAuth avatars via next/image.
+    //
+    // The team-logo CDNs (*.espncdn.com, *.thesportsdb.com) are deliberately
+    // ABSENT. The optimizer bills per distinct source image and a sports site
+    // has thousands of crests, which is what exhausted the image quota; see
+    // components/team-logo.tsx. Leaving them unlisted means a future
+    // <Image src={crest}> fails loudly in development rather than quietly
+    // spending the month's allowance again.
     formats: ["image/avif", "image/webp"],
     remotePatterns: [
       { protocol: "https", hostname: "*.public.blob.vercel-storage.com" },
       { protocol: "https", hostname: "lh3.googleusercontent.com" },
-      { protocol: "https", hostname: "*.espncdn.com" },
-      { protocol: "https", hostname: "*.thesportsdb.com" },
       // Avatars carried over from a Telegram sign-in. next/image rejects any
       // host that isn't listed, so without this the avatar renders broken.
       { protocol: "https", hostname: "t.me" },

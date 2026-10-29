@@ -69,6 +69,14 @@ const ESPN_SOCCER_LEAGUES: { path: string; oddsKey: string }[] = [
   { path: "arg.1", oddsKey: "soccer_argentina_primera_division" },
 ];
 
+/**
+ * How long a fallback board is reused before ESPN is asked again.
+ *
+ * Free to ESPN, not free to us: every miss is an outbound fetch inside billed
+ * function time, multiplied by the number of slugs.
+ */
+const ESPN_BOARD_REVALIDATE_SECONDS = 600;
+
 /** How many soccer competitions the fallback fans out to. Free, but not instant. */
 const MAX_ESPN_SOCCER_LEAGUES = (() => {
   const raw = Number(process.env.MAX_ESPN_SOCCER_LEAGUES?.trim());
@@ -308,7 +316,13 @@ export async function getEspnUpcomingEvents(sport: PickSport): Promise<UpcomingE
       let data: { events?: EspnScoreboardEvent[] };
       try {
         const res = await fetch(`${ESPN_SCOREBOARD_BASE}/${path}/scoreboard`, {
-          next: { revalidate: 120 },
+          // Ten minutes, not two. Soccer alone fans out to ten slugs, so a
+          // two-minute window had a busy board re-fetching seventeen URLs
+          // every couple of minutes — thousands of requests a day, every one
+          // of them inside billed function time. These are indicative lines
+          // from a single book, already labelled as such on the card; ten
+          // minutes of staleness costs the reader nothing they were promised.
+          next: { revalidate: ESPN_BOARD_REVALIDATE_SECONDS },
         });
         if (!res.ok) {
           console.warn(`[espn-odds] ${path} returned ${res.status}`);

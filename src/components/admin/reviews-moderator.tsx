@@ -1,7 +1,8 @@
 "use client";
 
+import { useVisibleInterval } from "@/lib/use-visible-interval";
 import { LocalTime } from "@/components/local-time";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Star, Check, X, Trash2 } from "lucide-react";
@@ -35,7 +36,8 @@ const STATUS_BADGE: Record<Status, string> = {
 };
 
 // Keep the queue fresh so newly submitted reviews surface without a manual reload.
-const REFRESH_MS = 20_000;
+// Widened from 20s. Reviews are moderated in batches, not watched live.
+const REFRESH_MS = 60_000;
 
 function ReviewStars({ rating }: { rating: number }) {
   return (
@@ -54,10 +56,8 @@ export function ReviewsModerator({ initialReviews }: { initialReviews: Review[] 
   const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    const id = setInterval(() => router.refresh(), REFRESH_MS);
-    return () => clearInterval(id);
-  }, [router]);
+  // Paused while the tab is hidden — see useVisibleInterval.
+  useVisibleInterval(() => router.refresh(), REFRESH_MS);
 
   const pendingCount = reviews.filter((r) => r.status === "PENDING").length;
   const shown = filter === "ALL" ? reviews : reviews.filter((r) => r.status === filter);

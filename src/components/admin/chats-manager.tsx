@@ -1,5 +1,6 @@
 "use client";
 
+import { useVisibleInterval } from "@/lib/use-visible-interval";
 import { LocalTime } from "@/components/local-time";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -29,7 +30,9 @@ const HEARTBEAT_MS = 20_000;
 const POLL_MS = 4000;
 // How often to pull fresh server data so the chat LIST (new chats, status
 // changes, ordering) updates on its own — the open thread already polls faster.
-const LIST_REFRESH_MS = 10_000;
+// Widened from 10s: a chat list that lags by half a minute is fine, and the
+// previous rate was a request every ten seconds for as long as a tab existed.
+const LIST_REFRESH_MS = 30_000;
 
 function ref(id: string) {
   return id.slice(-6).toUpperCase();
@@ -131,11 +134,12 @@ export function ChatsManager({ initialChats, onlineAgents }: { initialChats: Cha
     return () => clearTimeout(t);
   }, [initialChats]);
 
-  // Pull fresh server data periodically so new/updated chats surface on their own.
-  useEffect(() => {
-    const id = setInterval(() => router.refresh(), LIST_REFRESH_MS);
-    return () => clearInterval(id);
-  }, [router]);
+  // Pull fresh server data periodically so new/updated chats surface on their
+  // own. Paused while the tab is hidden — see useVisibleInterval. The presence
+  // heartbeat above is deliberately NOT paused: it is what tells visitors an
+  // agent is available, and an agent who has flipped to another tab for a
+  // moment has not gone offline.
+  useVisibleInterval(() => router.refresh(), LIST_REFRESH_MS);
 
   async function call(id: string, init: RequestInit) {
     setBusy(true);
