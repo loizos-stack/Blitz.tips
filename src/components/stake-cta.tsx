@@ -2,6 +2,7 @@ import Image from "next/image";
 import { ArrowUpRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { stakeGoHref } from "@/lib/stake";
+import { CtaMatchupLogos, matchupLabel, type CtaMatchup } from "@/components/cta-matchup";
 import type { PickSport } from "@prisma/client";
 
 /**
@@ -39,6 +40,7 @@ function StakeWordmark({ height, onDark }: { height: number; onDark?: boolean })
 export function StakeCta({
   sport,
   event,
+  matchup,
   variant = "inline",
   onDark = false,
   className,
@@ -48,11 +50,14 @@ export function StakeCta({
   sport?: PickSport | string | null;
   /** Carried for click analytics only — Stake has no per-match URL we can build. */
   event?: string | null;
+  /** When given, the button names the game by its crests. */
+  matchup?: CtaMatchup | null;
   /** "inline" sits under an odds block; "button" is a standalone action. */
   variant?: "inline" | "button";
   className?: string;
 }) {
   const href = stakeGoHref({ sport, event });
+  const label = matchup ? `Bet on ${matchupLabel(matchup)} at Stake.com` : undefined;
 
   if (variant === "button") {
     return (
@@ -60,12 +65,15 @@ export function StakeCta({
         href={href}
         target="_blank"
         rel="sponsored noopener noreferrer"
+        aria-label={label}
         className={cn(
           "inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs font-semibold hover:border-accent hover:text-accent",
           className
         )}
       >
-        Bet on <StakeWordmark height={24} onDark={onDark} /> <ArrowUpRight className="h-3.5 w-3.5" />
+        Bet on {matchup && <CtaMatchupLogos matchup={matchup} />}
+        {matchup && "at"} <StakeWordmark height={24} onDark={onDark} />{" "}
+        <ArrowUpRight className="h-3.5 w-3.5" />
       </a>
     );
   }

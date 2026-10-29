@@ -322,7 +322,23 @@ export function UpcomingGames({
                       the card from the prices it refers to. */}
                   {book && (
                     <div className="mt-2 flex justify-end">
-                      <SportsbookCta book={book} variant="button" sport={event.sport} league={event.sportKey} event={event.id} />
+                      {/* `sides` is already ordered per sport (home first for
+                          soccer), so the button reads in the same order as the
+                          rows above it. */}
+                      <SportsbookCta
+                        book={book}
+                        variant="button"
+                        sport={event.sport}
+                        league={event.sportKey}
+                        event={event.id}
+                        matchup={{
+                          sport: event.sport,
+                          sides: [
+                            { name: sides[0].team, logo: sides[0].logo },
+                            { name: sides[1].team, logo: sides[1].logo },
+                          ],
+                        }}
+                      />
                     </div>
                   )}
                 </div>

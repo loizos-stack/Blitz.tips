@@ -3,6 +3,7 @@ import { ArrowUpRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { StakeCta } from "@/components/stake-cta";
 import { oneWinGoHref } from "@/lib/onewin";
+import { CtaMatchupLogos, matchupLabel, type CtaMatchup } from "@/components/cta-matchup";
 import type { Sportsbook } from "@/lib/sportsbooks";
 import type { PickSport } from "@prisma/client";
 
@@ -58,18 +59,34 @@ interface Props {
   league?: string | null;
   /** Carried for click analytics only — neither book has a per-match URL we can build. */
   event?: string | null;
+  /**
+   * When given, the button names the game by its crests: "Bet on [crest] vs
+   * [crest] at [book]". Both books get it, so which one a visitor is shown
+   * never changes the shape of the card.
+   */
+  matchup?: CtaMatchup | null;
   variant?: "inline" | "button";
   onDark?: boolean;
   className?: string;
 }
 
-export function SportsbookCta({ book, sport, league, event, variant = "inline", onDark = false, className }: Props) {
+export function SportsbookCta({ book, sport, league, event, matchup, variant = "inline", onDark = false, className }: Props) {
   if (book === null) return null;
   if (book === "stake") {
-    return <StakeCta sport={sport} event={event} variant={variant} onDark={onDark} className={className} />;
+    return (
+      <StakeCta
+        sport={sport}
+        event={event}
+        matchup={matchup}
+        variant={variant}
+        onDark={onDark}
+        className={className}
+      />
+    );
   }
 
   const href = oneWinGoHref({ sport, league, event });
+  const label = matchup ? `Bet on ${matchupLabel(matchup)} at 1win` : undefined;
 
   if (variant === "button") {
     return (
@@ -77,12 +94,15 @@ export function SportsbookCta({ book, sport, league, event, variant = "inline", 
         href={href}
         target="_blank"
         rel="sponsored noopener noreferrer"
+        aria-label={label}
         className={cn(
           "inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs font-semibold hover:border-accent hover:text-accent",
           className
         )}
       >
-        Bet on <OneWinWordmark height={24} onDark={onDark} /> <ArrowUpRight className="h-3.5 w-3.5" />
+        Bet on {matchup && <CtaMatchupLogos matchup={matchup} />}
+        {matchup && "at"} <OneWinWordmark height={24} onDark={onDark} />{" "}
+        <ArrowUpRight className="h-3.5 w-3.5" />
       </a>
     );
   }
