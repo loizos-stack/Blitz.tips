@@ -79,6 +79,36 @@ export function isPrizeMonth(month: string): boolean {
   return month >= PRIZES_START_MONTH;
 }
 
+/**
+ * Where the prize is right now.
+ *
+ * "upcoming" exists because the promotion starts before the competition does:
+ * the money is announced today and the first month runs from
+ * PRIZES_START_MONTH. Without this the whole thing would be invisible until
+ * the morning it begins, which is the one week it most needs to be seen — a
+ * capper cannot qualify in a month they did not know about.
+ */
+export type PrizePhase = "upcoming" | "live";
+
+export function prizePhase(now: Date = new Date()): PrizePhase {
+  return isPrizeMonth(prizeMonth(now)) ? "live" : "upcoming";
+}
+
+/** The month the board is about: the current one once live, else the first one. */
+export function boardMonth(now: Date = new Date()): string {
+  return prizePhase(now) === "live" ? prizeMonth(now) : PRIZES_START_MONTH;
+}
+
+/** "Sunday 1 November" — the day the first month opens, for the countdown copy. */
+export function startsOnLabel(): string {
+  return monthWindow(PRIZES_START_MONTH).start.toLocaleDateString("en-GB", {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+    timeZone: "UTC",
+  });
+}
+
 /** Cents won at a 1-based rank, or 0 for places outside the ladder. */
 export function prizeForRank(rank: number): number {
   return PRIZE_CENTS[rank - 1] ?? 0;

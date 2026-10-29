@@ -8,7 +8,9 @@ import {
   PRIZE_CENTS,
   PRIZE_POOL_CENTS,
   monthLabel,
+  startsOnLabel,
   type MonthlyStanding,
+  type PrizePhase,
 } from "@/lib/monthly-prizes";
 
 /** "+2.40u" / "−1.66u", with the real minus sign. */
@@ -30,10 +32,13 @@ const MEDAL = ["text-yellow-500", "text-zinc-400", "text-amber-700"];
 export function MonthlyPrizeBoard({
   month,
   standings,
+  phase = "live",
   frozen,
 }: {
   month: string;
   standings: MonthlyStanding[];
+  /** "upcoming" before the first month opens: announced, not yet running. */
+  phase?: PrizePhase;
   /** True once the month is recorded — the race is over and this is the result. */
   frozen?: boolean;
 }) {
@@ -50,14 +55,20 @@ export function MonthlyPrizeBoard({
               {formatCents(PRIZE_POOL_CENTS)} — {monthLabel(month)}
             </h2>
             <p className="mt-0.5 text-xs text-muted">
-              {frozen ? "Final standings." : "Live. Best net units this month wins."}{" "}
+              {phase === "upcoming"
+                ? `Starts ${startsOnLabel()}.`
+                : frozen
+                  ? "Final standings."
+                  : "Live. Best net units this month wins."}{" "}
               {formatCents(PRIZE_CENTS[0])} / {formatCents(PRIZE_CENTS[1])} /{" "}
               {formatCents(PRIZE_CENTS[2])}.
             </p>
           </div>
         </div>
         <p className="text-xs text-muted">
-          {contenders} {contenders === 1 ? "capper has" : "cappers have"} qualified
+          {phase === "upcoming"
+            ? "Everyone starts on zero"
+            : `${contenders} ${contenders === 1 ? "capper has" : "cappers have"} qualified`}
         </p>
       </div>
 
@@ -102,6 +113,8 @@ export function MonthlyPrizeBoard({
                     </span>
                   </span>
                 </Link>
+              ) : phase === "upcoming" ? (
+                <p className="mt-3 text-xs text-muted">Open. Nobody has a head start.</p>
               ) : (
                 <p className="mt-3 text-xs text-muted">
                   Open — no one has {MIN_SETTLED_PICKS} settled picks here yet.

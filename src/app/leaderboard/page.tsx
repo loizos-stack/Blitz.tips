@@ -13,9 +13,10 @@ import { ShareButtons } from "@/components/share-buttons";
 import { MonthlyPrizeBoard } from "@/components/monthly-prize-board";
 import {
   PRIZE_POOL_CENTS,
-  isPrizeMonth,
+  boardMonth,
   monthlyStandings,
-  prizeMonth,
+  prizePhase,
+  startsOnLabel,
 } from "@/lib/monthly-prizes";
 import { formatCents } from "@/lib/utils";
 import type { PickSport } from "@prisma/client";
@@ -90,11 +91,13 @@ export default async function LeaderboardPage({
     params.sport && params.sport in SPORT_LABELS ? (params.sport as PickSport) : undefined;
 
   // The prize race is its own query — a month's settled picks, not the
-  // all-time figures the table below is built from.
-  const month = prizeMonth();
+  // all-time figures the table below is built from. Before the first month
+  // opens there is nothing to rank, so the query is skipped entirely.
+  const phase = prizePhase();
+  const month = boardMonth();
   const [handicappers, standings] = await Promise.all([
     listHandicapperSummaries(),
-    isPrizeMonth(month) ? monthlyStandings(month) : Promise.resolve([]),
+    phase === "live" ? monthlyStandings(month) : Promise.resolve([]),
   ]);
 
   let list = sportFilter ? handicappers.filter((h) => h.sports.includes(sportFilter)) : handicappers;
@@ -119,8 +122,10 @@ export default async function LeaderboardPage({
             </span>
           </h1>
           <p className="mt-2 text-muted">
-            Verified handicappers ranked by their full, unedited pick history. Every month the top
-            three by net units win {formatCents(PRIZE_POOL_CENTS)} between them.
+            Verified handicappers ranked by their full, unedited pick history.{" "}
+            {phase === "upcoming"
+              ? `From ${startsOnLabel()}, the top three by net units each month win ${formatCents(PRIZE_POOL_CENTS)} between them.`
+              : `Every month the top three by net units win ${formatCents(PRIZE_POOL_CENTS)} between them.`}
           </p>
         </div>
         <ShareButtons
@@ -129,11 +134,9 @@ export default async function LeaderboardPage({
         />
       </div>
 
-      {isPrizeMonth(month) && (
-        <div className="mb-8">
-          <MonthlyPrizeBoard month={month} standings={standings} />
-        </div>
-      )}
+      <div className="mb-8">
+        <MonthlyPrizeBoard month={month} standings={standings} phase={phase} />
+      </div>
 
       <div className="mb-6 flex flex-wrap items-center gap-2">
         {VIEW_KEYS.map((key) => {

@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { Suspense } from "react";
 import { ContestPromoStrip } from "@/components/cross-promo-strip";
-import { PRIZE_CENTS, PRIZE_POOL_CENTS, isPrizeMonth, prizeMonth } from "@/lib/monthly-prizes";
+import { PRIZE_CENTS, PRIZE_POOL_CENTS, prizePhase, startsOnLabel } from "@/lib/monthly-prizes";
 import { formatCents } from "@/lib/utils";
 import { ShieldCheck, LineChart, Users, ArrowRight, Trophy } from "lucide-react";
 import {
@@ -116,11 +116,10 @@ export default async function Home({
             />
             <Stat label="Picks tracked" value={totalPicks.toString()} />
             <Stat label="Verified records" value="100%" />
-            {isPrizeMonth(prizeMonth()) ? (
-              <Stat label="Prizes every month" value={formatCents(PRIZE_POOL_CENTS)} />
-            ) : (
-              <Stat label="Platform fee" value="Transparent" />
-            )}
+            <Stat
+              label={prizePhase() === "upcoming" ? "Prizes from 1 Nov" : "Prizes every month"}
+              value={formatCents(PRIZE_POOL_CENTS)}
+            />
           </div>
         </div>
       </section>
@@ -216,7 +215,7 @@ export default async function Home({
             <HowItWorksCard
               icon={<Trophy className="h-5 w-5" />}
               title={`${formatCents(PRIZE_POOL_CENTS)} every month`}
-              description={`The three handicappers with the best settled record each month win ${formatCents(PRIZE_CENTS[0])}, ${formatCents(PRIZE_CENTS[1])} and ${formatCents(PRIZE_CENTS[2])}. Ranked on the same public record everyone else sees.`}
+              description={`${prizePhase() === "upcoming" ? `From ${startsOnLabel()}, the` : "The"} three handicappers with the best settled record each month win ${formatCents(PRIZE_CENTS[0])}, ${formatCents(PRIZE_CENTS[1])} and ${formatCents(PRIZE_CENTS[2])}. Ranked on the same public record everyone else sees.`}
             />
           </div>
         </div>
