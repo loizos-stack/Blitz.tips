@@ -146,6 +146,12 @@ export default async function LeaderboardPage({
   ]);
 
   let list = sportFilter ? handicappers.filter((h) => h.sports.includes(sportFilter)) : handicappers;
+  // A leaderboard ranks records, and no record is not a good one. Without this
+  // the all-time board put every profile that had never settled a pick at
+  // +0.00 — above everyone actually down units, which is both wrong and a
+  // standing insult to the cappers who posted and got graded. The period views
+  // drop them at the query, so this only has to cover all time.
+  list = list.filter((h) => h.stats.wins + h.stats.losses + h.stats.pushes > 0);
   if (view.filter) list = list.filter(view.filter);
 
   // Rank strictly by the active view's metric — no featured-first pinning.
