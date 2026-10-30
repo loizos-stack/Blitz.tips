@@ -107,6 +107,41 @@ export const listHandicapperSummaries = unstable_cache(loadHandicapperSummaries,
   tags: ["handicappers"],
 });
 
+/**
+ * Summaries built only from picks settled inside a window, for the
+ * leaderboard's period filters.
+ *
+ * Every figure on the row — record, units, ROI, streak, L10, picks — is then
+ * about that window, because toSummary derives all of them from whatever picks
+ * it is handed. That is the point: "last 7 days" showing an all-time streak
+ * beside a 7-day record would be two different claims in one row.
+ *
+ * Handicappers with nothing settled in the window are dropped rather than
+ * listed at zero. Over a 7-day window most of the roster has no result, and a
+ * ranking whose middle is a hundred identical zeroes is not a ranking.
+ */
+async function loadSummariesInWindow(start: Date, end: Date): Promise<HandicapperSummary[]> {
+  const handicappers = await prisma.handicapperProfile.findMany({
+    where: { suspendedAt: null },
+    include: {
+      picks: { where: { settledAt: { gte: start, lt: end }, result: { not: "PENDING" } } },
+      ...APPROVED_REVIEW_RATINGS,
+    },
+    orderBy: { createdAt: "asc" },
+  });
+
+  return handicappers.filter((h) => h.picks.length > 0).map(toSummary);
+}
+
+// Cached per window like the all-time list. unstable_cache keys on the
+// arguments, so each period gets its own entry; a 60s-stale window boundary is
+// irrelevant to a 7-day span.
+export const listHandicapperSummariesInWindow = unstable_cache(
+  loadSummariesInWindow,
+  ["handicapper-window-v1"],
+  { revalidate: 60, tags: ["handicappers"] }
+);
+
 export type DirectoryHandicapper = HandicapperSummary & {
   followersCount: number;
   /** Has posted at least one player-prop pick. */

@@ -1,7 +1,23 @@
 import Link from "next/link";
 import type { Metadata } from "next";
-import { Crown, Medal, Coins, Percent, TrendingUp, Flame, History, ListChecks, type LucideIcon } from "lucide-react";
-import { listHandicapperSummaries, type HandicapperSummary } from "@/lib/handicappers";
+import {
+  Crown,
+  Medal,
+  Coins,
+  Percent,
+  TrendingUp,
+  Flame,
+  History,
+  ListChecks,
+  CalendarRange,
+  Infinity,
+  type LucideIcon,
+} from "lucide-react";
+import {
+  listHandicapperSummaries,
+  listHandicapperSummariesInWindow,
+  type HandicapperSummary,
+} from "@/lib/handicappers";
 import { Avatar } from "@/components/avatar";
 import { SportFilterSelect } from "@/components/sport-filter-select";
 import { PlanBadge } from "@/components/plan-badge";
@@ -19,6 +35,13 @@ import {
   startsOnLabel,
 } from "@/lib/monthly-prizes";
 import { formatCents } from "@/lib/utils";
+import {
+  PERIODS,
+  isPeriodKey,
+  periodLabel,
+  periodWindow,
+  type PeriodKey,
+} from "@/lib/leaderboard-periods";
 import type { PickSport } from "@prisma/client";
 
 export const metadata: Metadata = {
@@ -87,13 +110,28 @@ const DEFAULT_VIEW = "units";
 export default async function LeaderboardPage({
   searchParams,
 }: {
-  searchParams: Promise<{ sort?: string; sport?: string }>;
+  searchParams: Promise<{ sort?: string; sport?: string; period?: string }>;
 }) {
   const params = await searchParams;
   const viewKey = params.sort && params.sort in VIEWS ? params.sort : DEFAULT_VIEW;
   const view = VIEWS[viewKey];
   const sportFilter =
     params.sport && params.sport in SPORT_LABELS ? (params.sport as PickSport) : undefined;
+  const period: PeriodKey = isPeriodKey(params.period) ? params.period : "all";
+  const window = periodWindow(period);
+
+  /** Every filter link carries the other two, so choosing one never clears them. */
+  const hrefFor = (next: { sort?: string; sport?: string | null; period?: PeriodKey }) => {
+    const q = new URLSearchParams();
+    const sort = next.sort ?? viewKey;
+    const sp = next.sport === undefined ? sportFilter : next.sport;
+    const pe = next.period ?? period;
+    if (sort !== DEFAULT_VIEW) q.set("sort", sort);
+    if (sp) q.set("sport", sp);
+    if (pe !== "all") q.set("period", pe);
+    const qs = q.toString();
+    return `/leaderboard${qs ? `?${qs}` : ""}`;
+  };
 
   // The prize race is its own query — a month's settled picks, not the
   // all-time figures the table below is built from. Before the first month
@@ -101,7 +139,9 @@ export default async function LeaderboardPage({
   const phase = prizePhase();
   const month = boardMonth();
   const [handicappers, standings] = await Promise.all([
-    listHandicapperSummaries(),
+    window
+      ? listHandicapperSummariesInWindow(window.start, window.end)
+      : listHandicapperSummaries(),
     phase === "live" ? monthlyStandings(month) : Promise.resolve([]),
   ]);
 
@@ -127,7 +167,11 @@ export default async function LeaderboardPage({
             </span>
           </h1>
           <p className="mt-2 text-muted">
-            Every verified handicapper, ranked by their full, unedited pick history.{" "}
+            {period === "all"
+              ? "Every verified handicapper, ranked by their full, unedited pick history."
+              : `Ranked on picks settled in ${periodLabel(period).toLowerCase()} — ${
+                  period === "7d" || period === "30d" ? "a rolling window" : "calendar month"
+                }.`}{" "}
             {phase === "upcoming"
               ? `From ${startsOnLabel()}, the top three by net units each month win ${formatCents(PRIZE_POOL_CENTS)} between them.`
               : `Every month the top three by net units win ${formatCents(PRIZE_POOL_CENTS)} between them.`}
@@ -150,7 +194,7 @@ export default async function LeaderboardPage({
           return (
             <Link
               key={key}
-              href={`/leaderboard?sort=${key}${sportFilter ? `&sport=${sportFilter}` : ""}`}
+              href={hrefFor({ sort: key })}
               className={cn(
                 "inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm font-medium",
                 active ? "border-accent bg-accent/10 text-accent" : "border-border text-muted hover:text-foreground"
@@ -161,7 +205,37 @@ export default async function LeaderboardPage({
             </Link>
           );
         })}
-        <SportFilterSelect basePath="/leaderboard" sort={viewKey} sport={sportFilter} />
+      </div>
+
+      {/* Period on its own row: it answers a different question from the metric
+          pills above it, and reading them as one list suggested they were
+          alternatives rather than combinable. */}
+      <div className="mb-6 flex flex-wrap items-center gap-2">
+        <span className="mr-1 text-xs font-medium uppercase tracking-wide text-muted">Period</span>
+        {PERIODS.map((p) => {
+          const active = p.key === period;
+          return (
+            <Link
+              key={p.key}
+              href={hrefFor({ period: p.key })}
+              className={cn(
+                "inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm font-medium",
+                active
+                  ? "border-accent bg-accent/10 text-accent"
+                  : "border-border text-muted hover:text-foreground"
+              )}
+            >
+              {p.key === "all" ? <Infinity className="h-4 w-4" /> : <CalendarRange className="h-4 w-4" />}
+              {p.label}
+            </Link>
+          );
+        })}
+        <SportFilterSelect
+          basePath="/leaderboard"
+          sort={viewKey}
+          sport={sportFilter}
+          period={period === "all" ? undefined : period}
+        />
       </div>
 
       <div className="card overflow-hidden">
@@ -177,7 +251,11 @@ export default async function LeaderboardPage({
           <span className="hidden text-right lg:block">Picks</span>
         </div>
         {sorted.length === 0 ? (
-          <p className="p-8 text-center text-muted">No handicappers match this filter yet.</p>
+          <p className="p-8 text-center text-muted">
+            {period === "all"
+              ? "No handicappers match this filter yet."
+              : `Nobody has a settled pick in ${periodLabel(period).toLowerCase()} matching this filter.`}
+          </p>
         ) : (
           sorted.map((h, i) => {
             return (
