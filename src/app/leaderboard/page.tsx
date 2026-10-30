@@ -54,6 +54,15 @@ type View = {
 };
 
 const VIEWS: Record<string, View> = {
+  units: { label: "Net units", Icon: Coins, iconClass: "text-accent", value: (h) => h.stats.unitsNet },
+  winRate: { label: "Win rate", Icon: Percent, iconClass: "text-sky-500", value: (h) => h.stats.winRate ?? -Infinity },
+  roi: { label: "ROI", Icon: TrendingUp, iconClass: "text-teal-500", value: (h) => h.stats.roi ?? -Infinity },
+  streak: { label: "Streak", Icon: Flame, iconClass: "text-orange-500", value: (h) => h.currentStreak },
+  l10: { label: "L10", Icon: History, iconClass: "text-violet-500", value: (h) => h.last10Stats.unitsNet },
+  picks: { label: "Picks made", Icon: ListChecks, iconClass: "text-muted", value: (h) => h.stats.totalPicks },
+  // The plan tiers are filters, not the headline. They live at the end of the
+  // row because a visitor arriving at a leaderboard wants the leaderboard —
+  // opening on "Gold" showed a paid subset and read as a ranking of everyone.
   gold: {
     label: "Gold",
     Icon: Crown,
@@ -68,16 +77,12 @@ const VIEWS: Record<string, View> = {
     value: (h) => h.stats.unitsNet,
     filter: (h) => h.plan === "SILVER" && h.planStatus === "ACTIVE",
   },
-  units: { label: "Net units", Icon: Coins, iconClass: "text-accent", value: (h) => h.stats.unitsNet },
-  winRate: { label: "Win rate", Icon: Percent, iconClass: "text-sky-500", value: (h) => h.stats.winRate ?? -Infinity },
-  roi: { label: "ROI", Icon: TrendingUp, iconClass: "text-teal-500", value: (h) => h.stats.roi ?? -Infinity },
-  streak: { label: "Streak", Icon: Flame, iconClass: "text-orange-500", value: (h) => h.currentStreak },
-  l10: { label: "L10", Icon: History, iconClass: "text-violet-500", value: (h) => h.last10Stats.unitsNet },
-  picks: { label: "Picks made", Icon: ListChecks, iconClass: "text-muted", value: (h) => h.stats.totalPicks },
 };
 
 const VIEW_KEYS = Object.keys(VIEWS);
-const DEFAULT_VIEW = "gold";
+// Everyone, best net units first. Net units rather than ROI for the same
+// reason the monthly prize uses it: ROI rewards a tiny lucky sample.
+const DEFAULT_VIEW = "units";
 
 export default async function LeaderboardPage({
   searchParams,
@@ -122,7 +127,7 @@ export default async function LeaderboardPage({
             </span>
           </h1>
           <p className="mt-2 text-muted">
-            Verified handicappers ranked by their full, unedited pick history.{" "}
+            Every verified handicapper, ranked by their full, unedited pick history.{" "}
             {phase === "upcoming"
               ? `From ${startsOnLabel()}, the top three by net units each month win ${formatCents(PRIZE_POOL_CENTS)} between them.`
               : `Every month the top three by net units win ${formatCents(PRIZE_POOL_CENTS)} between them.`}
