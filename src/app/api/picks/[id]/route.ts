@@ -3,6 +3,9 @@ import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { settlePickSchema } from "@/lib/validations";
 import { logActivity } from "@/lib/audit";
+import { notifyPickSettled } from "@/lib/notifications";
+import { isGradableByHandicapper } from "@/lib/pick-visibility";
+import { formatDateTime } from "@/lib/date-format";
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const session = await auth();
@@ -26,6 +29,21 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     );
   }
 
+  // A game that has not kicked off has no result to report. Checked here, on
+  // the server, because the dashboard's buttons are only a courtesy — this
+  // endpoint is reachable directly, and a grade written from it is permanent
+  // and counts towards a public record.
+  if (!isGradableByHandicapper(pick)) {
+    return NextResponse.json(
+      {
+        error: `This game hasn't started yet, so it can't be graded. It kicks off at ${formatDateTime(
+          pick.eventStartsAt
+        )} — you can grade it after that, or leave it for automatic settlement.`,
+      },
+      { status: 409 }
+    );
+  }
+
   const body = await request.json().catch(() => null);
   const parsed = settlePickSchema.safeParse(body);
   if (!parsed.success) {
@@ -40,6 +58,23 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       // Audit who graded it — self-settled picks are flagged in the admin
       // panel so suspicious grading can be spot-checked.
       settledBy: parsed.data.result === "PENDING" ? null : session.user.id,
+    },
+  });
+
+  // Same announcement a graded pick gets from the auto-settler, so a
+  // hand-graded record behaves identically to a machine-graded one.
+  await notifyPickSettled({
+    id: updated.id,
+    matchup: updated.matchup,
+    selection: updated.selection,
+    odds: updated.odds,
+    units: updated.units,
+    result: updated.result,
+    handicapper: {
+      id: pick.handicapper.id,
+      userId: pick.handicapper.userId,
+      handle: pick.handicapper.handle,
+      displayName: pick.handicapper.displayName,
     },
   });
 

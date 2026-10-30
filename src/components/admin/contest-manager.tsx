@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { format } from "date-fns";
+import { formatDate } from "@/lib/date-format";
 import { Trophy, Plus, Check, ShieldAlert, Ban, Trash2 } from "lucide-react";
 import { formatCents, SPORT_LABELS, cn } from "@/lib/utils";
 
@@ -287,7 +287,7 @@ export function ContestManager({
                 <span className={cn("rounded-full px-2 py-0.5 text-xs font-semibold", statusClass(c.status))}>{c.status}</span>
               </p>
               <p className="text-xs text-muted">
-                /{c.slug} · {format(new Date(c.startsAt), "MMM d, yyyy")}–{format(new Date(c.endsAt), "MMM d, yyyy")} ·{" "}
+                /{c.slug} · {formatDate(new Date(c.startsAt))}–{formatDate(new Date(c.endsAt))} ·{" "}
                 {formatCents(c.prizePoolCents)} · {c.entryCount} entries · {c.pendingPicks.length} picks to grade
               </p>
               {c.dynamicPayouts && (
@@ -295,7 +295,7 @@ export function ContestManager({
                   Dynamic payouts: {c.paidSpots} paid place{c.paidSpots === 1 ? "" : "s"} (auto-scales +1 per 10 entrants,
                   ICM-chopped from the pool)
                   {c.registrationClosesAt
-                    ? ` · registration closes ${format(new Date(c.registrationClosesAt), "MMM d, yyyy")}`
+                    ? ` · registration closes ${formatDate(new Date(c.registrationClosesAt))}`
                     : ""}
                 </p>
               )}

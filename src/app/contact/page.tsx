@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Mail } from "lucide-react";
 import { ContactForm } from "@/components/contact-form";
+import { DEFAULT_TICKET_CATEGORY, isTicketCategory } from "@/lib/ticket-categories";
 
 export const metadata: Metadata = {
   title: "Contact us",
@@ -8,7 +9,16 @@ export const metadata: Metadata = {
   alternates: { canonical: "/contact" },
 };
 
-export default function ContactPage() {
+// `?category=` pre-selects the dropdown, so the contest pages can hand people
+// straight to a contest ticket instead of asking them to classify it again.
+export default async function ContactPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ category?: string }>;
+}) {
+  const { category } = await searchParams;
+  const defaultCategory = isTicketCategory(category) ? category : DEFAULT_TICKET_CATEGORY;
+
   return (
     <div className="container-page py-16">
       <div className="mx-auto max-w-2xl">
@@ -23,7 +33,7 @@ export default function ContactPage() {
         </p>
 
         <div className="mt-8">
-          <ContactForm />
+          <ContactForm defaultCategory={defaultCategory} />
         </div>
       </div>
     </div>

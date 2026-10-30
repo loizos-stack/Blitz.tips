@@ -1,0 +1,32 @@
+-- Push the Supercapper Contest start from Aug 16 to Sep 7 2026.
+--
+-- The third move (Aug 3 -> Aug 10 -> Aug 16 -> Sep 7) and the second made
+-- while the contest is LIVE: it started Aug 16 and this runs on Aug 20, so
+-- four days of entries and picks already exist. Setting startsAt into the
+-- future un-launches it — contestPhase returns "upcoming" again, the countdown
+-- reappears, and isContestLive() goes false so the board stops accepting
+-- contest picks until Sep 7.
+--
+-- What happens to the picks posted during Aug 16-20: they are kept, and they
+-- still count. rankAt() windows picks with `eventStartsAt < cutoff` and applies
+-- no lower bound, so a pick made before startsAt is still ranked and still
+-- feeds ROI once the contest is live again. The one visible effect is the
+-- entrant rank-history chart, whose first cutoff is derived from startsAt and
+-- therefore moves to Sep 8; it will not plot points before that date, though
+-- the earlier picks are already counted inside the first point it does plot.
+--
+-- Only startsAt moves. endsAt (Jan 10 2027) is unchanged, so the season keeps
+-- shortening rather than shifting: it is now four months and three days, down
+-- from the five months the marketing copy was originally written around.
+-- registrationClosesAt (Sep 27 2026) is also unchanged, which leaves entrants
+-- 20 days after the start to join rather than the 42 they had before. Both are
+-- still coherent; both are worth a deliberate look if the intent was to shift
+-- the whole contest rather than trim its front.
+--
+-- Midnight UTC, matching every other contest timestamp.
+--
+-- Idempotent, and it overwrites whatever the row holds so the published date
+-- can't drift from the one the site enforces.
+UPDATE "Contest"
+SET "startsAt" = '2026-09-07T00:00:00.000Z'
+WHERE "slug" = 'supercapper';

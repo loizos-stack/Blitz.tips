@@ -2,6 +2,7 @@ import { after } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { AdminSelect, AdminButton } from "@/components/admin/admin-actions";
 import { guardAdminPage } from "@/lib/permissions";
+import { formatDate } from "@/lib/date-format";
 import { markAdminTabSeen } from "@/lib/admin-badges";
 
 export const dynamic = "force-dynamic";
@@ -63,7 +64,7 @@ export default async function AdminUsersPage() {
                 {u.handicapper ? `@${u.handicapper.handle}` : "—"}
               </td>
               <td className="px-4 py-2.5 tabular-nums">{u._count.subscriptions}</td>
-              <td className="px-4 py-2.5 text-muted">{u.createdAt.toLocaleDateString()}</td>
+              <td className="px-4 py-2.5 text-muted">{formatDate(u.createdAt)}</td>
               <td className="px-4 py-2.5">
                 <AdminSelect
                   endpoint={`/api/admin/users/${u.id}`}

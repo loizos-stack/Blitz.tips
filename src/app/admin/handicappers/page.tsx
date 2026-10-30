@@ -1,17 +1,13 @@
 import { after } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { formatCents } from "@/lib/utils";
-import { AdminSelect, AdminButton } from "@/components/admin/admin-actions";
+import { AdminButton } from "@/components/admin/admin-actions";
+import { CompPlanControl } from "@/components/admin/comp-plan-control";
 import { guardAdminPage } from "@/lib/permissions";
 import { markAdminTabSeen } from "@/lib/admin-badges";
+import { whyNotComped, hasActiveComp } from "@/lib/comped-plans";
 
 export const dynamic = "force-dynamic";
-
-const PLAN_OPTIONS = [
-  { value: "FREE", label: "Free" },
-  { value: "SILVER", label: "Silver" },
-  { value: "GOLD", label: "Gold" },
-];
 
 export default async function AdminHandicappersPage() {
   const ctx = await guardAdminPage("handicappers");
@@ -36,7 +32,7 @@ export default async function AdminHandicappersPage() {
             <th className="px-4 py-3">Picks</th>
             <th className="px-4 py-3">Subs</th>
             <th className="px-4 py-3">Payouts</th>
-            <th className="px-4 py-3">Plan</th>
+            <th className="px-4 py-3">Plan / comp</th>
             <th className="px-4 py-3">Verified badge</th>
             <th className="px-4 py-3" />
           </tr>
@@ -58,11 +54,22 @@ export default async function AdminHandicappersPage() {
               <td className="px-4 py-2.5 tabular-nums">{h._count.subscriptions}</td>
               <td className="px-4 py-2.5">{h.stripeAccountReady ? <span className="text-accent">✓</span> : "—"}</td>
               <td className="px-4 py-2.5">
-                <AdminSelect
-                  endpoint={`/api/admin/handicappers/${h.id}`}
-                  field="plan"
-                  value={h.plan}
-                  options={PLAN_OPTIONS}
+                <CompPlanControl
+                  handicapperId={h.id}
+                  handle={h.handle}
+                  plan={h.plan}
+                  // A RUNNING comp, not merely a set column. The sweep that
+                  // clears these runs once a day, so between a comp expiring
+                  // and the next sweep the row still carries an end date — and
+                  // reading the column directly left the control stuck offering
+                  // "Revoke" on a comp that was already over, with no way to
+                  // give another one. The end time is the truth; the sweep is
+                  // just the thing that eventually tidies up after it.
+                  compedUntil={hasActiveComp(h) ? h.planCompedUntil!.toISOString() : null}
+                  endedAt={
+                    !hasActiveComp(h) && h.planCompedUntil ? h.planCompedUntil.toISOString() : null
+                  }
+                  blockedReason={whyNotComped(h)}
                 />
               </td>
               <td className="px-4 py-2.5">

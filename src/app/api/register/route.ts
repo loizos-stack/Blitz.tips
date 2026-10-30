@@ -1,10 +1,13 @@
-import { NextResponse } from "next/server";
+import { NextResponse, after } from "next/server";
+import { notifyAdmins } from "@/lib/admin-alerts";
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
 import { registerSchema } from "@/lib/validations";
 import { sendVerificationCode } from "@/lib/verification";
 import { logActivity } from "@/lib/audit";
 import { rateLimit, clientIp, tooManyRequests } from "@/lib/rate-limit";
+import { cookies } from "next/headers";
+import { REFERRAL_COOKIE, resolveReferrer } from "@/lib/referrals";
 
 export async function POST(request: Request) {
   // Cap signups per IP to blunt automated account spam.
@@ -32,10 +35,24 @@ export async function POST(request: Request) {
 
   const passwordHash = await bcrypt.hash(password, 12);
 
+  // Who sent them, if anyone. Resolved before the create so attribution is
+  // written in the same statement the account is — there's no window where a
+  // user exists un-credited, and no second write that could fail on its own.
+  // An unresolvable code credits nobody rather than failing the signup.
+  const referralCookie = (await cookies()).get(REFERRAL_COOKIE)?.value;
+  const referredById = await resolveReferrer(referralCookie);
+
   let user;
   try {
     user = await prisma.user.create({
-      data: { name, username, email: normalizedEmail, passwordHash, country: country ?? null },
+      data: {
+        name,
+        username,
+        email: normalizedEmail,
+        passwordHash,
+        country: country ?? null,
+        ...(referredById ? { referredById, referredAt: new Date() } : {}),
+      },
       select: { id: true, email: true, name: true },
     });
   } catch (e) {
@@ -61,5 +78,25 @@ export async function POST(request: Request) {
     console.error("Failed to send verification code:", e)
   );
 
-  return NextResponse.json({ user }, { status: 201 });
+  // After the response, so an alert channel having a bad minute can't slow
+  // down — or fail — somebody's signup.
+  after(() =>
+    notifyAdmins({
+      kind: "signup.subscriber",
+      title: "New customer registered",
+      details: [
+        ["Name", user.name ?? "—"],
+        ["Email", user.email],
+        ...(country ? ([["Country", country]] as [string, string][]) : []),
+        ...(referredById ? ([["Referred", "yes"]] as [string, string][]) : []),
+      ],
+      path: "/admin/users",
+    })
+  );
+
+  const res = NextResponse.json({ user }, { status: 201 });
+  // Spent. Leaving it would credit the same referrer for the next person who
+  // signs up on a shared browser.
+  if (referralCookie) res.cookies.delete(REFERRAL_COOKIE);
+  return res;
 }

@@ -1,0 +1,21 @@
+name = "blitz-x-rotation"
+main = "worker.mjs"
+compatibility_date = "2024-11-01"
+
+# Set the secret after the first deploy (it is NOT stored in this file):
+#   npx wrangler secret put CRON_SECRET   # must equal CRON_SECRET on the site
+
+[vars]
+SITE_URL = "https://blitz.tips"
+
+# UTC. Written for a US sports audience, so the small hours are left empty.
+# Cloudflare's free plan allows five cron triggers per Worker — exactly what
+# this uses, so a sixth slot means merging two or upgrading.
+[triggers]
+crons = [
+  "0 12 * * *", # 08:00 ET — today's board
+  "0 16 * * *", # 12:00 ET — Gold capper
+  "0 20 * * *", # 16:00 ET — leaderboard
+  "0 0 * * *",  # 20:00 ET — a pick that landed
+  "0 3 * * *",  # 23:00 ET — recruiting
+]

@@ -1,6 +1,6 @@
 import Link from "next/link";
 import type { Metadata } from "next";
-import { format } from "date-fns";
+import { formatDate } from "@/lib/date-format";
 import { listPublishedPosts } from "@/lib/blog";
 
 export const dynamic = "force-dynamic";
@@ -41,7 +41,7 @@ export default async function BlogIndexPage() {
               )}
               <div className="flex flex-1 flex-col p-5">
                 {p.publishedAt && (
-                  <p className="text-xs text-muted">{format(new Date(p.publishedAt), "MMMM d, yyyy")}</p>
+                  <p className="text-xs text-muted">{formatDate(new Date(p.publishedAt))}</p>
                 )}
                 <h2 className="mt-1 font-semibold group-hover:text-accent">{p.title}</h2>
                 <p className="mt-2 line-clamp-3 text-sm text-muted">{p.excerpt}</p>
