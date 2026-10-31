@@ -187,7 +187,27 @@ function worthRetryingWithDifferentParams(status: number): boolean {
 // NEXT_PUBLIC_* value into the client bundle, so honouring that name would ship
 // a paid, billable API key to every visitor's browser the moment someone set it
 // — and it would keep working, so nothing would look wrong.
+/**
+ * Off switch for the paid feed, independent of whether a key is present.
+ *
+ * Deliberately not the same thing as deleting the key. A rejected or unfunded
+ * key still costs something: the breaker above reopens every ten minutes and
+ * the next page view spends a request per league discovering the same 401,
+ * which is noise in the error log forever rather than a problem anyone is
+ * about to fix. This turns the feed off outright while leaving the key in the
+ * environment, so funding the account again is a one-variable change and not
+ * an archaeology exercise.
+ *
+ * Everything downstream already treats "no key" as "use ESPN", so this is the
+ * only place that needs to know.
+ */
+export function oddsApiDisabled(): boolean {
+  const v = process.env.ODDS_API_DISABLED?.trim().toLowerCase();
+  return v === "1" || v === "true" || v === "yes";
+}
+
 export function oddsApiKey(): string | undefined {
+  if (oddsApiDisabled()) return undefined;
   const raw =
     process.env.THE_ODDS_API_KEY ?? process.env.ODDS_API_KEY ?? process.env.THEODDS_API_KEY;
   const key = raw?.trim();

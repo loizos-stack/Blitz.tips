@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { notifyPickSettled } from "@/lib/notifications";
 import { oddsApiKey } from "@/lib/odds-api";
 import { ESPN_PREFIX, getEspnFinals, isEspnSourced } from "@/lib/espn-odds";
+import { parseMatchupSides } from "@/lib/utils";
 import {
   getFinalPeriodScores,
   getPlayerStats,
@@ -320,13 +321,14 @@ export interface AutoSettleReport {
  * that can't be parsed are left untouched.
  */
 export async function runAutoSettle(): Promise<AutoSettleReport> {
+  // Absent — or switched off — the paid feed, this run still does almost all of
+  // its job: ESPN publishes the finals, the linescores and the box scores, and
+  // all three are free. This used to return here instead, which meant turning
+  // the paid feed off stopped grading altogether, including for picks that
+  // never needed it. Grading is what the public record and the monthly prize
+  // are built on, so it degrades rather than stops.
   const apiKey = oddsApiKey();
   const report: AutoSettleReport = { candidates: 0, settled: 0, skipped: 0, errors: [] };
-
-  if (!apiKey) {
-    report.errors.push("THE_ODDS_API_KEY not configured");
-    return report;
-  }
 
   const cutoff = new Date(Date.now() - DAYS_FROM * 24 * 60 * 60 * 1000);
   const started = { lt: new Date(), gt: cutoff };
@@ -365,9 +367,11 @@ export async function runAutoSettle(): Promise<AutoSettleReport> {
   // ESPN-sourced keys are filtered out rather than requested: they are not Odds
   // API league keys, so each one would be a guaranteed 404 on a billed
   // endpoint. Their finals come free from ESPN, below.
-  const sportKeys = [
-    ...new Set(allPicks.map((p) => p.oddsApiSportKey!).filter((k) => !isEspnSourced(k))),
-  ];
+  // Without a key there is nothing to ask, and every one of these would be an
+  // unauthenticated request to a billed endpoint. Their games are graded from
+  // ESPN by name below instead.
+  const feedPicks = allPicks.filter((p) => !isEspnSourced(p.oddsApiSportKey!));
+  const sportKeys = apiKey ? [...new Set(feedPicks.map((p) => p.oddsApiSportKey!))] : [];
   const finals = new Map<string, FinalScore>();
 
   // Picks made from the free board carry ESPN's own event id, so they are
@@ -385,6 +389,37 @@ export async function runAutoSettle(): Promise<AutoSettleReport> {
         homeScore: final.homeScore,
         awayScore: final.awayScore,
       });
+    }
+  }
+
+  /**
+   * ESPN finals indexed by the two team names, for picks taken off the paid
+   * board while it was on.
+   *
+   * Their ids are Odds API ids, so with the feed off there is nothing to look
+   * them up by — they would be selected for settlement every run, match
+   * nothing, and sit PENDING forever. The two providers name the same game, so
+   * the names are the join: `parseMatchupSides` is the documented inverse of
+   * the label the pick was stored with, and `livePairKey` is the same
+   * normalisation the period-score matching already relies on.
+   *
+   * Only built when there is no key. With the feed on, nothing about grading
+   * changes — a pick's own event id remains an exact match, and a name match is
+   * a weaker claim that should not quietly take over from one.
+   */
+  const espnFinalsByPair = new Map<PickSport, Map<string, FinalScore>>();
+  if (!apiKey && feedPicks.length > 0) {
+    for (const sport of new Set(feedPicks.map((p) => p.sport))) {
+      const byPair = new Map<string, FinalScore>();
+      for (const final of (await getEspnFinals(sport)).values()) {
+        byPair.set(livePairKey(final.awayTeam, final.homeTeam), {
+          homeTeam: final.homeTeam,
+          awayTeam: final.awayTeam,
+          homeScore: final.homeScore,
+          awayScore: final.awayScore,
+        });
+      }
+      espnFinalsByPair.set(sport, byPair);
     }
   }
 
@@ -473,6 +508,7 @@ export async function runAutoSettle(): Promise<AutoSettleReport> {
   function resolveResult(pick: {
     betType: string;
     selection: string;
+    matchup: string;
     marketKey: string | null;
     side: string | null;
     linePoint: number | null;
@@ -480,7 +516,12 @@ export async function runAutoSettle(): Promise<AutoSettleReport> {
     sport: PickSport;
     oddsApiEventId: string | null;
   }): PickResult | null {
-    const score = finals.get(pick.oddsApiEventId!);
+    const sides = espnFinalsByPair.size > 0 ? parseMatchupSides(pick.matchup) : null;
+    const score =
+      finals.get(pick.oddsApiEventId!) ??
+      (sides
+        ? espnFinalsByPair.get(pick.sport)?.get(livePairKey(sides.awayTeam, sides.homeTeam))
+        : undefined);
     if (!score) return null; // game not finished, or no score available yet
 
     const espnGame = periodScores.get(pick.sport)?.get(livePairKey(score.awayTeam, score.homeTeam));
