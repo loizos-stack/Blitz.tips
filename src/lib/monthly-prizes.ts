@@ -18,8 +18,8 @@ import { computeStats, type HandicapperStats } from "@/lib/odds";
  *     repeatedly, which is the thing worth paying for.
  *
  *  2. **A floor on settled picks.** Without one, a single +500 longshot wins
- *     $500. MIN_SETTLED_PICKS is what makes the ranking a record rather than a
- *     coin flip — and it is why the standings show ineligible cappers greyed
+ *     first place. MIN_SETTLED_PICKS is what makes the ranking a record rather
+ *     than a coin flip — and it is why the standings show ineligible cappers greyed
  *     out rather than hiding them, so nobody thinks the board is broken.
  *
  *  3. **Settlement date, not post date.** A pick counts for the month it was
@@ -32,7 +32,7 @@ import { computeStats, type HandicapperStats } from "@/lib/odds";
 export const PRIZES_START_MONTH = "2026-11";
 
 /** 1st, 2nd, 3rd, in cents. Length defines how many places pay. */
-export const PRIZE_CENTS = [50_000, 20_000, 10_000] as const;
+export const PRIZE_CENTS = [25_000, 15_000, 10_000] as const;
 
 /** Total guaranteed each month, for the promo copy. */
 export const PRIZE_POOL_CENTS = PRIZE_CENTS.reduce((a, b) => a + b, 0);

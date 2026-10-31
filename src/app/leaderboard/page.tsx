@@ -28,6 +28,7 @@ import { siteUrl } from "@/lib/site";
 import { ShareButtons } from "@/components/share-buttons";
 import { MonthlyPrizeBoard } from "@/components/monthly-prize-board";
 import {
+  PRIZE_CENTS,
   PRIZE_POOL_CENTS,
   boardMonth,
   monthlyStandings,
@@ -44,22 +45,27 @@ import {
 } from "@/lib/leaderboard-periods";
 import type { PickSport } from "@prisma/client";
 
+// Built from the prize constants rather than typed out. These strings are the
+// ones nobody looks at when the amounts change — they sit in <head> and in
+// link previews, so a stale figure here is the version that gets shared.
+const POOL = formatCents(PRIZE_POOL_CENTS);
+const SPLIT = `${formatCents(PRIZE_CENTS[0])}, ${formatCents(PRIZE_CENTS[1])} and ${formatCents(PRIZE_CENTS[2])}`;
+const SOCIAL_TITLE = `Handicapper Leaderboard — ${POOL} monthly prizes — Blitz.tips`;
+const SOCIAL_DESCRIPTION = `${SPLIT} every month to the handicappers with the best settled record. Verified, unedited, ranked.`;
+
 export const metadata: Metadata = {
   title: "Leaderboard",
-  description:
-    "$800 in cash prizes every month for the best verified handicappers. The Blitz.tips leaderboard ranks them by net units, ROI, win rate, and current streak across the NFL, NBA, MLB, NHL, and soccer.",
+  description: `${POOL} in cash prizes every month for the best verified handicappers. The Blitz.tips leaderboard ranks them by net units, ROI, win rate, and current streak across the NFL, NBA, MLB, NHL, and soccer.`,
   alternates: { canonical: "/leaderboard" },
   openGraph: {
-    title: "Handicapper Leaderboard — $800 monthly prizes — Blitz.tips",
-    description:
-      "$500, $200 and $100 every month to the handicappers with the best settled record. Verified, unedited, ranked.",
+    title: SOCIAL_TITLE,
+    description: SOCIAL_DESCRIPTION,
     url: "/leaderboard",
   },
   twitter: {
     card: "summary_large_image",
-    title: "Handicapper Leaderboard — $800 monthly prizes — Blitz.tips",
-    description:
-      "$500, $200 and $100 every month to the handicappers with the best settled record. Verified, unedited, ranked.",
+    title: SOCIAL_TITLE,
+    description: SOCIAL_DESCRIPTION,
   },
 };
 export const dynamic = "force-dynamic";
