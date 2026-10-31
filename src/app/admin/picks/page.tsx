@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { formatOdds } from "@/lib/odds";
 import { AdminSelect, AdminButton } from "@/components/admin/admin-actions";
+import { PickCorrection } from "@/components/admin/pick-correction";
 import { LocalTime } from "@/components/local-time";
 import { guardAdminPage } from "@/lib/permissions";
 
@@ -38,7 +39,7 @@ export default async function AdminPicksPage() {
 
   return (
     <div className="card overflow-x-auto p-0">
-      <table className="w-full min-w-[64rem] text-sm">
+      <table className="w-full min-w-[68rem] text-sm">
         <thead>
           <tr className="border-b border-border text-left text-xs uppercase tracking-wide text-muted">
             <th className="px-4 py-3">Capper</th>
@@ -57,8 +58,8 @@ export default async function AdminPicksPage() {
           {picks.map((p) => (
             <tr key={p.id} className="border-b border-border last:border-b-0">
               <td className="px-4 py-2.5 font-medium">@{p.handicapper.handle}</td>
-              <td className="max-w-52 truncate px-4 py-2.5 font-display">{p.matchup}</td>
-              <td className="max-w-48 truncate px-4 py-2.5 font-display text-muted">{p.selection}</td>
+              <td className="max-w-44 truncate px-4 py-2.5 font-display">{p.matchup}</td>
+              <td className="max-w-44 truncate px-4 py-2.5 font-display text-muted">{p.selection}</td>
               <td className="px-4 py-2.5 tabular-nums">{formatOdds(p.odds)}</td>
               <td className="px-4 py-2.5 tabular-nums">{p.units}u</td>
               <td className="whitespace-nowrap px-4 py-2.5 text-muted">
@@ -76,14 +77,23 @@ export default async function AdminPicksPage() {
                 />
               </td>
               <td className="px-4 py-2.5 text-xs">{settledByLabel(p)}</td>
-              <td className="px-4 py-2.5 text-right">
-                <AdminButton
-                  endpoint={`/api/admin/picks/${p.id}`}
-                  method="DELETE"
-                  label="Delete"
-                  tone="danger"
-                  confirmText="Delete this pick from the record? This cannot be undone."
-                />
+              <td className="whitespace-nowrap px-4 py-2.5 text-right">
+                <div className="flex justify-end gap-1.5">
+                  <PickCorrection
+                    id={p.id}
+                    matchup={p.matchup}
+                    selection={p.selection}
+                    playerName={p.playerName}
+                    linePoint={p.linePoint}
+                  />
+                  <AdminButton
+                    endpoint={`/api/admin/picks/${p.id}`}
+                    method="DELETE"
+                    label="Delete"
+                    tone="danger"
+                    confirmText="Delete this pick from the record? This cannot be undone."
+                  />
+                </div>
               </td>
             </tr>
           ))}

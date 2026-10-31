@@ -228,6 +228,25 @@ export const settlePickSchema = z.object({
 });
 
 /**
+ * An admin correcting what a pick says — a mis-typed player, the wrong
+ * matchup, a line entered a half-point out.
+ *
+ * Every field is optional, but the structured twins have to be editable
+ * alongside their display text: `selection` is the string readers see, while
+ * `playerName` and `linePoint` are what the auto-settler actually grades on. A
+ * correction that moved one without the other would leave the site showing one
+ * bet and grading another, which is the one failure this site cannot afford.
+ */
+export const correctPickSchema = z
+  .object({
+    matchup: z.string().min(2).max(140).optional(),
+    selection: z.string().min(1).max(140).optional(),
+    playerName: z.string().max(120).nullable().optional(),
+    linePoint: z.number().nullable().optional(),
+  })
+  .refine((v) => Object.keys(v).length > 0, { message: "Nothing to correct." });
+
+/**
  * Turn a validation failure into something the person who filled the form can
  * act on.
  *
