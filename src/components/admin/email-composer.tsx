@@ -30,6 +30,18 @@ export function EmailComposer({
   const editorRef = useRef<HTMLDivElement>(null);
   const [audience, setAudience] = useState<Audience>("ALL");
   const [subject, setSubject] = useState("");
+  /**
+   * Rich text, or raw HTML typed as source.
+   *
+   * The rich-text box is a contentEditable, and pasting markup into one of
+   * those inserts it as *text* — so `innerHTML` comes back escaped and the
+   * email arrives showing `<p style="...">` to the reader. That is not a
+   * mistake anyone makes twice, but it is invisible until it lands in an
+   * inbox, so the composer now has a mode where markup is markup.
+   */
+  const [mode, setMode] = useState<"rich" | "html">("rich");
+  const [htmlSource, setHtmlSource] = useState("");
+  const [preview, setPreview] = useState(false);
   const [state, setState] = useState<"idle" | "sending" | "done" | "error">("idle");
   const [result, setResult] = useState<string | null>(null);
   /** Who was dropped and why — a count alone sends you to the logs. */
@@ -72,9 +84,29 @@ export function EmailComposer({
     document.execCommand(command, false, value);
   }
 
+  /**
+   * Switch modes without losing what is written.
+   *
+   * Each direction hands the other its content: rich text becomes the source
+   * you can edit, and source becomes the rendered document. Both are
+   * admin-authored and the server sanitizes on send, so assigning innerHTML
+   * here is the same trust boundary the editor already sits on.
+   */
+  function switchMode(next: "rich" | "html") {
+    if (next === mode) return;
+    if (next === "html") {
+      setHtmlSource(editorRef.current?.innerHTML ?? "");
+    } else if (editorRef.current) {
+      editorRef.current.innerHTML = htmlSource;
+    }
+    setPreview(false);
+    setMode(next);
+  }
+
   async function send() {
-    const html = editorRef.current?.innerHTML ?? "";
-    const isEmpty = !editorRef.current?.textContent?.trim();
+    const html = mode === "html" ? htmlSource.trim() : (editorRef.current?.innerHTML ?? "");
+    const isEmpty =
+      mode === "html" ? !htmlSource.trim() : !editorRef.current?.textContent?.trim();
     if (!subject.trim() || isEmpty) {
       setResult("Add a subject and a message first.");
       setState("error");
@@ -289,6 +321,35 @@ export function EmailComposer({
 
       <div className="mt-3 overflow-hidden rounded-lg border border-border">
         <div className="flex items-center gap-1 border-b border-border bg-surface-raised px-2 py-1.5">
+          <div className="mr-1 flex items-center gap-0.5 rounded-md border border-border p-0.5">
+            {(["rich", "html"] as const).map((m) => (
+              <button
+                key={m}
+                type="button"
+                onClick={() => switchMode(m)}
+                className={cn(
+                  "rounded px-2 py-1 text-xs font-medium",
+                  mode === m ? "bg-foreground text-background" : "text-muted hover:text-foreground"
+                )}
+              >
+                {m === "rich" ? "Rich text" : "HTML"}
+              </button>
+            ))}
+          </div>
+          {mode === "html" && (
+            <button
+              type="button"
+              onClick={() => setPreview((p) => !p)}
+              className={cn(
+                "rounded px-2 py-1 text-xs font-medium",
+                preview ? "bg-foreground text-background" : "text-muted hover:text-foreground"
+              )}
+            >
+              {preview ? "Edit" : "Preview"}
+            </button>
+          )}
+          {mode === "rich" && (
+            <>
           <button type="button" onClick={() => exec("bold")} className={toolBtn} aria-label="Bold">
             <Bold className="h-4 w-4" />
           </button>
@@ -317,15 +378,48 @@ export function EmailComposer({
           >
             <Link2 className="h-4 w-4" />
           </button>
+            </>
+          )}
         </div>
+
+        {/* The rich-text box stays mounted in both modes: it holds the
+            document, and unmounting it would lose the content on every
+            toggle. In HTML mode it is simply not the thing on screen. */}
         <div
           ref={editorRef}
           contentEditable
           suppressContentEditableWarning
           data-placeholder="Write your message…"
-          className="min-h-48 px-4 py-3 text-sm leading-relaxed outline-none [&_a]:text-accent [&_a]:underline [&_ul]:list-disc [&_ul]:pl-5"
+          className={cn(
+            "min-h-48 px-4 py-3 text-sm leading-relaxed outline-none [&_a]:text-accent [&_a]:underline [&_ul]:list-disc [&_ul]:pl-5",
+            mode === "html" && "hidden"
+          )}
         />
+
+        {mode === "html" &&
+          (preview ? (
+            <div
+              className="min-h-48 px-4 py-3 text-sm leading-relaxed [&_a]:text-accent [&_a]:underline [&_ul]:list-disc [&_ul]:pl-5"
+              dangerouslySetInnerHTML={{ __html: htmlSource }}
+            />
+          ) : (
+            <textarea
+              value={htmlSource}
+              onChange={(e) => setHtmlSource(e.target.value)}
+              spellCheck={false}
+              placeholder="Paste HTML — it is sent as markup, not shown as text."
+              className="min-h-48 w-full resize-y bg-transparent px-4 py-3 font-mono text-xs leading-relaxed outline-none"
+            />
+          ))}
       </div>
+
+      {mode === "html" && (
+        <p className="mt-2 text-xs text-muted">
+          Body content only — the branded header, footer and unsubscribe link are added when it
+          sends. Use literal characters rather than named entities like <code>&amp;mdash;</code>:
+          the plain-text copy that goes alongside the HTML does not decode them.
+        </p>
+      )}
 
       <div className="mt-4 flex items-center gap-3">
         <button
