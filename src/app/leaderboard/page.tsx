@@ -42,7 +42,7 @@ import {
   periodLabel,
   periodWindow,
   type PeriodKey,
-} from "@/lib/leaderboard-periods";
+} from "@/lib/stat-periods";
 import type { PickSport } from "@prisma/client";
 
 // Built from the prize constants rather than typed out. These strings are the

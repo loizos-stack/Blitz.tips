@@ -2,7 +2,8 @@ import "server-only";
 import { monthWindow, previousMonth, prizeMonth } from "@/lib/monthly-prizes";
 
 /**
- * The time windows the leaderboard can be ranked over.
+ * The time windows a record can be measured over, shared by the leaderboard
+ * and the handicapper profiles.
  *
  * All-time is still the default: it is the claim the site is built on — a
  * complete, unedited record — and a leaderboard that opened on "last 7 days"
@@ -18,24 +19,46 @@ import { monthWindow, previousMonth, prizeMonth } from "@/lib/monthly-prizes";
  * genuinely confusing bug, and the prize already had to answer it precisely.
  */
 
-export type PeriodKey = "all" | "7d" | "30d" | "month" | "lastmonth";
+export type PeriodKey = "all" | "3d" | "7d" | "30d" | "month" | "lastmonth";
 
-export const PERIODS: { key: PeriodKey; label: string; short: string }[] = [
+interface Period {
+  key: PeriodKey;
+  label: string;
+  short: string;
+}
+
+const ALL_PERIODS: Period[] = [
   { key: "all", label: "All time", short: "All time" },
-  { key: "7d", label: "Last 7 days", short: "7d" },
-  { key: "30d", label: "Last 30 days", short: "30d" },
+  { key: "3d", label: "Last 3 days", short: "L3" },
+  { key: "7d", label: "Last 7 days", short: "L7" },
+  { key: "30d", label: "Last 30 days", short: "L30" },
   { key: "month", label: "This month", short: "This month" },
   { key: "lastmonth", label: "Last month", short: "Last month" },
 ];
 
-const PERIOD_KEYS = new Set<string>(PERIODS.map((p) => p.key));
+const by = (...keys: PeriodKey[]) => keys.map((k) => ALL_PERIODS.find((p) => p.key === k)!);
+
+/**
+ * Two pages offer different subsets of the same windows, and they differ on
+ * purpose.
+ *
+ * A leaderboard ranks people against each other, and three days is too short a
+ * window to rank anyone on — whoever happened to settle two winners on Tuesday
+ * would top it. A profile is one person's record, where "how are they going
+ * right now" is a fair question and a three-day answer is informative rather
+ * than misleading.
+ */
+export const PERIODS: Period[] = by("all", "7d", "30d", "month", "lastmonth");
+export const PROFILE_PERIODS: Period[] = by("all", "3d", "7d", "30d", "month", "lastmonth");
+
+const PERIOD_KEYS = new Set<string>(ALL_PERIODS.map((p) => p.key));
 
 export function isPeriodKey(v: string | undefined): v is PeriodKey {
   return v !== undefined && PERIOD_KEYS.has(v);
 }
 
 export function periodLabel(key: PeriodKey): string {
-  return PERIODS.find((p) => p.key === key)?.label ?? "All time";
+  return ALL_PERIODS.find((p) => p.key === key)?.label ?? "All time";
 }
 
 export interface Window {
@@ -58,6 +81,8 @@ export function periodWindow(key: PeriodKey, now: Date = new Date()): Window | n
   switch (key) {
     case "all":
       return null;
+    case "3d":
+      return { start: new Date(now.getTime() - 3 * DAY_MS), end: now };
     case "7d":
       return { start: new Date(now.getTime() - 7 * DAY_MS), end: now };
     case "30d":
