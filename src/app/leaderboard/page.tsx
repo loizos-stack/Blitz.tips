@@ -37,7 +37,7 @@ import {
 } from "@/lib/monthly-prizes";
 import { formatCents } from "@/lib/utils";
 import {
-  PERIODS,
+  LEADERBOARD_PERIODS,
   isPeriodKey,
   periodLabel,
   periodWindow,
@@ -224,7 +224,7 @@ export default async function LeaderboardPage({
           alternatives rather than combinable. */}
       <div className="mb-6 flex flex-wrap items-center gap-2">
         <span className="mr-1 text-xs font-medium uppercase tracking-wide text-muted">Period</span>
-        {PERIODS.map((p) => {
+        {LEADERBOARD_PERIODS.map((p) => {
           const active = p.key === period;
           return (
             <Link

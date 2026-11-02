@@ -39,17 +39,16 @@ const ALL_PERIODS: Period[] = [
 const by = (...keys: PeriodKey[]) => keys.map((k) => ALL_PERIODS.find((p) => p.key === k)!);
 
 /**
- * Two pages offer different subsets of the same windows, and they differ on
- * purpose.
+ * The leaderboard offers a shorter list than everywhere else, on purpose.
  *
- * A leaderboard ranks people against each other, and three days is too short a
- * window to rank anyone on — whoever happened to settle two winners on Tuesday
- * would top it. A profile is one person's record, where "how are they going
- * right now" is a fair question and a three-day answer is informative rather
- * than misleading.
+ * It is the board the monthly prize is read off, and three days is too short a
+ * window to settle money on — whoever happened to land two winners on Tuesday
+ * would top it. The directory and the profiles are for judging form, where
+ * "how are they going right now" is a fair question and a three-day answer is
+ * informative as long as the sample is on screen next to it.
  */
-export const PERIODS: Period[] = by("all", "7d", "30d", "month", "lastmonth");
-export const PROFILE_PERIODS: Period[] = by("all", "3d", "7d", "30d", "month", "lastmonth");
+export const LEADERBOARD_PERIODS: Period[] = by("all", "7d", "30d", "month", "lastmonth");
+export const PERIODS: Period[] = by("all", "3d", "7d", "30d", "month", "lastmonth");
 
 const PERIOD_KEYS = new Set<string>(ALL_PERIODS.map((p) => p.key));
 

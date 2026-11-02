@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { SportIcon } from "@/components/sport-icon";
 import { SPORT_LABELS, cn } from "@/lib/utils";
-import { PROFILE_PERIODS, type PeriodKey } from "@/lib/stat-periods";
+import { PERIODS, type PeriodKey } from "@/lib/stat-periods";
 import type { PickSport } from "@prisma/client";
 
 /**
@@ -48,7 +48,7 @@ export function ProfileRecordFilters({
   return (
     <div className="flex flex-col gap-2">
       <div className="flex flex-wrap items-center gap-2">
-        {PROFILE_PERIODS.map((p) => (
+        {PERIODS.map((p) => (
           <Link key={p.key} href={href({ period: p.key })} className={pill(p.key === period)}>
             {p.short}
           </Link>
