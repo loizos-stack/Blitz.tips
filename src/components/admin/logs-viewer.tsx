@@ -1,5 +1,6 @@
 "use client";
 
+import { LocalTime } from "@/components/local-time";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Search, X } from "lucide-react";
 
@@ -133,7 +134,7 @@ export function LogsViewer({ actions, targetTypes }: { actions: string[]; target
               rows.map((e) => (
                 <tr key={e.id} className="border-b border-border last:border-b-0">
                   <td className="whitespace-nowrap px-4 py-2.5 text-muted">
-                    {new Date(e.createdAt).toLocaleString()}
+                    <LocalTime iso={e.createdAt} withZone withSeconds />
                   </td>
                   <td className="px-4 py-2.5">{e.actorEmail}</td>
                   <td className="px-4 py-2.5 font-mono text-xs">{e.action}</td>

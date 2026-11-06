@@ -43,6 +43,7 @@ export function HandicapperCard({ handicapper, rank }: { handicapper: Handicappe
           <Avatar
             src={handicapper.avatarUrl}
             name={handicapper.displayName}
+            fallback="logo"
             // relative z-10: the cover banner above is position:relative (for
             // the rank badge), which would otherwise paint over this avatar's
             // overlapping top half.

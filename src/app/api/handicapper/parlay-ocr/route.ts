@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { upstreamFailed } from "@/lib/api-status";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { readParlayFromImage } from "@/lib/parlay-ocr";
@@ -24,6 +25,6 @@ export async function POST(request: Request) {
     return NextResponse.json({ legs });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Couldn't read the image";
-    return NextResponse.json({ error: message }, { status: 502 });
+    return upstreamFailed(message);
   }
 }

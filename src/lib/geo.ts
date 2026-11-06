@@ -28,3 +28,27 @@ export async function isOutsideUs(): Promise<boolean> {
   const country = await visitorCountry();
   return country !== null && country !== "US";
 }
+
+// EU + EEA + UK + Switzerland — everywhere the GDPR/ePrivacy consent rules
+// reach. Kept as one list because the practical obligation is the same in all
+// of them, and splitting it would only invite one to drift.
+const CONSENT_REQUIRED = new Set([
+  "AT", "BE", "BG", "HR", "CY", "CZ", "DK", "EE", "FI", "FR", "DE", "GR", "HU",
+  "IE", "IT", "LV", "LT", "LU", "MT", "NL", "PL", "PT", "RO", "SK", "SI", "ES",
+  "SE", // EU
+  "IS", "LI", "NO", // EEA
+  "GB", "CH", // UK, Switzerland
+]);
+
+/**
+ * Whether this visitor needs the cookie-consent prompt.
+ *
+ * Fails *open* — the opposite of isOutsideUs. When the edge can't place someone
+ * we show the prompt anyway: an unnecessary banner is a mild annoyance, while
+ * skipping it for someone actually in the EU is a compliance failure. The
+ * expensive mistake is in the other direction here.
+ */
+export async function needsCookieConsent(): Promise<boolean> {
+  const country = await visitorCountry();
+  return country === null || CONSENT_REQUIRED.has(country);
+}

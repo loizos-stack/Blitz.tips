@@ -5,7 +5,10 @@ import { prisma } from "@/lib/prisma";
 import { AccountDetailsForm } from "@/components/account/account-details-form";
 import { ChangePasswordForm } from "@/components/account/change-password-form";
 
-export const metadata: Metadata = { title: "Account settings" };
+export const metadata: Metadata = {
+  title: "Account settings",
+  robots: { index: false, follow: false },
+};
 export const dynamic = "force-dynamic";
 
 export default async function AccountPage() {

@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { requireContestUsername } from "@/lib/contest-username";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
-import { createContestPickSchema } from "@/lib/validations";
+import { createContestPickSchema, firstValidationError } from "@/lib/validations";
 import { isContestAcceptingPicks } from "@/lib/contest";
 import { getUpcomingEvents, getEventMarkets } from "@/lib/odds-api";
 import { cappersOnEvent } from "@/lib/contest-funnel";
@@ -47,7 +47,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   const body = await request.json().catch(() => null);
   const parsed = createContestPickSchema.safeParse(body);
   if (!parsed.success) {
-    return NextResponse.json({ error: parsed.error.issues[0]?.message ?? "Invalid input" }, { status: 400 });
+    return NextResponse.json({ error: firstValidationError(parsed.error) }, { status: 400 });
   }
 
   const sport = parsed.data.sport;

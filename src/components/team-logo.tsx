@@ -1,23 +1,28 @@
 "use client";
 
 import { useState } from "react";
-import Image from "next/image";
 import type { PickSport } from "@prisma/client";
 import { SportIcon } from "@/components/sport-icon";
 import { cn } from "@/lib/utils";
 
-// Hosts we've whitelisted in next.config's images.remotePatterns. Only these get
-// routed through next/image; any other host renders as a plain <img> so an
-// unconfigured source can never throw at render time.
-const OPTIMIZABLE_HOST = /(^|\.)(espncdn\.com|thesportsdb\.com)$/i;
-
-function isOptimizable(url: string): boolean {
-  try {
-    return OPTIMIZABLE_HOST.test(new URL(url).hostname);
-  } catch {
-    return false;
-  }
-}
+/**
+ * Team crests and competition badges, served straight from their CDN.
+ *
+ * Deliberately NOT through next/image. Vercel's optimizer bills per distinct
+ * SOURCE image, and a sports site has an unbounded supply of them: every club
+ * in every league the board touches is another one. Counting only the crests
+ * reachable from here — the four US majors, the college sports, and ten soccer
+ * leagues at ~18 clubs each — the figure is comfortably over a thousand, and
+ * it grew again the day the board started falling back to ESPN for soccer.
+ *
+ * What that quota bought was nothing worth having. These are 5–20KB PNGs on a
+ * CDN already built to serve them, drawn at 28–40px. Resizing them through a
+ * paid optimizer saves a few kilobytes per crest and costs the entire monthly
+ * allowance, so the plain tag wins on every axis that matters.
+ *
+ * `loading="lazy"` keeps a long board from fetching every crest at once, which
+ * is where the real page-weight saving was anyway.
+ */
 
 /**
  * Competition badge for a league heading. Unlike TeamLogo there's no icon
@@ -28,16 +33,17 @@ export function LeagueBadge({ src, className }: { src: string | null; className?
   const [failed, setFailed] = useState(false);
   if (!src || failed) return null;
 
-  if (isOptimizable(src)) {
-    return (
-      <span className={cn("relative inline-block shrink-0 overflow-hidden", className)}>
-        <Image src={src} alt="" fill sizes="32px" className="object-contain" onError={() => setFailed(true)} />
-      </span>
-    );
-  }
-
-  // eslint-disable-next-line @next/next/no-img-element -- external, non-whitelisted CDN badge (rare fallback host)
-  return <img src={src} alt="" loading="lazy" decoding="async" onError={() => setFailed(true)} className={cn("shrink-0 object-contain", className)} />;
+  return (
+    // eslint-disable-next-line @next/next/no-img-element -- see the note above: optimizing crests is what blew the image quota.
+    <img
+      src={src}
+      alt=""
+      loading="lazy"
+      decoding="async"
+      onError={() => setFailed(true)}
+      className={cn("shrink-0 object-contain", className)}
+    />
+  );
 }
 
 export function TeamLogo({
@@ -59,16 +65,15 @@ export function TeamLogo({
     );
   }
 
-  // Optimized (resized to a small badge, WebP/AVIF, long-cached) for the known
-  // logo CDNs; a plain lazy <img> otherwise. onError degrades to the sport icon.
-  if (isOptimizable(logoUrl)) {
-    return (
-      <span className={cn("relative inline-block overflow-hidden", className)}>
-        <Image src={logoUrl} alt="" fill sizes="40px" className="object-contain" onError={() => setFailed(true)} />
-      </span>
-    );
-  }
-
-  // eslint-disable-next-line @next/next/no-img-element -- external, non-whitelisted CDN badge (rare fallback host)
-  return <img src={logoUrl} alt="" loading="lazy" decoding="async" onError={() => setFailed(true)} className={cn("object-contain", className)} />;
+  return (
+    // eslint-disable-next-line @next/next/no-img-element -- see the note above.
+    <img
+      src={logoUrl}
+      alt=""
+      loading="lazy"
+      decoding="async"
+      onError={() => setFailed(true)}
+      className={cn("object-contain", className)}
+    />
+  );
 }

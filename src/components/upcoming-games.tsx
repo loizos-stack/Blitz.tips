@@ -1,12 +1,14 @@
 import { Fragment } from "react";
 import Link from "next/link";
 import { CalendarClock, Radio } from "lucide-react";
-import { StakeCta } from "@/components/stake-cta";
-import { formatOdds } from "@/lib/odds";
+import { SportsbookCta } from "@/components/sportsbook-cta";
+import type { Sportsbook } from "@/lib/sportsbooks";
+import { Odds } from "@/components/odds-format";
 import { SPORT_LABELS, cn } from "@/lib/utils";
 import { isMoneylineOnly } from "@/lib/odds-api";
 import type { OddsFeedResult, UpcomingEvent, MarketOption } from "@/lib/odds-api";
 import { soccerLeagueMeta } from "@/lib/soccer-leagues";
+import { FlagIcon } from "@/components/flag-icon";
 import { SportIcon } from "@/components/sport-icon";
 import { TeamLogo } from "@/components/team-logo";
 import { LocalTime } from "@/components/local-time";
@@ -16,7 +18,11 @@ import type { PickSport } from "@prisma/client";
 interface OddsBoard {
   spread: { away: MarketOption | null; home: MarketOption | null };
   total: { over: MarketOption | null; under: MarketOption | null };
-  moneyline: { away: MarketOption | null; home: MarketOption | null };
+  /**
+   * `draw` is the third outcome of a soccer moneyline. Null for every other
+   * sport, where a tie either can't happen or isn't separately priced.
+   */
+  moneyline: { away: MarketOption | null; home: MarketOption | null; draw: MarketOption | null };
 }
 
 function buildOddsBoard(event: UpcomingEvent): OddsBoard {
@@ -35,6 +41,11 @@ function buildOddsBoard(event: UpcomingEvent): OddsBoard {
     moneyline: {
       away: bySelectionStart(event.awayTeam, "MONEYLINE"),
       home: bySelectionStart(event.homeTeam, "MONEYLINE"),
+      // Matched on `side` rather than the selection text, because "Draw" is a
+      // side rather than a team and both the paid feed and the ESPN fallback
+      // label it that way.
+      draw:
+        event.markets.find((m) => m.betType === "MONEYLINE" && m.side === "Draw") ?? null,
     },
   };
 }
@@ -45,7 +56,7 @@ function cell(market: MarketOption | null) {
   return (
     <span className="tabular-nums">
       {point && <span className="font-semibold">{point} </span>}
-      <span className={point ? "text-muted" : "font-semibold"}>{formatOdds(market.odds)}</span>
+      <span className={point ? "text-muted" : "font-semibold"}><Odds value={market.odds} /></span>
     </span>
   );
 }
@@ -54,10 +65,10 @@ export function UpcomingGames({
   sport,
   feed,
   availableSports,
-  showStake = false,
+  book = null,
 }: {
   /** Renders the Stake partner CTA. Caller must have geo-gated to non-US. */
-  showStake?: boolean;
+  book?: Sportsbook | null;
   // Null on the default "all sports" view — the board merges every sport's
   // games sorted by start time. A non-null value means the visitor narrowed to
   // a single sport via a pill.
@@ -75,7 +86,16 @@ export function UpcomingGames({
   // Narrowing to a sport must never show less of that sport than the mixed
   // board did, so the single-sport cap stays above the merged one. These are
   // horizontal carousels, so extra cards cost a scroll rather than page height.
-  const eventCap = sport ? 20 : 16;
+  // Soccer isn't one league, it's up to MAX_SOCCER_LEAGUES of them on one
+  // board, and they kick off in country order through the day — so a 20-card
+  // cap quietly cut the European evening games, which are the ones people came
+  // for. These are horizontal carousels, so extra cards cost a scroll rather
+  // than page height.
+  const eventCap = sport === "SOCCER" ? 48 : sport ? 20 : 16;
+
+  // The fallback board is all-or-nothing per sport, so one ESPN event means
+  // this view is the free board.
+  const fromEspn = Boolean(feed?.events.some((e) => e.source === "espn"));
 
   return (
     <section className="relative overflow-hidden border-b border-border bg-surface/60 py-14">
@@ -87,7 +107,23 @@ export function UpcomingGames({
         <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
           <div>
             <h2 className="text-2xl font-bold">Today&apos;s lines</h2>
-            <p className="mt-1 text-muted">Live moneyline, spread, and total odds from the board.</p>
+            {/* Said plainly when the free fallback is in use. These are one
+                provider's numbers rather than a shopped market, and a board
+                that doesn't distinguish the two is quietly overstating what it
+                is showing. */}
+            {fromEspn ? (
+              <p className="mt-1 text-muted">
+                Indicative lines from{" "}
+                <span className="font-medium text-foreground">
+                  {feed?.events.find((e) => e.source === "espn")?.bookmaker ?? "ESPN"}
+                </span>{" "}
+                — a single provider, not a shopped market. Always check the price at your book.
+              </p>
+            ) : (
+              <p className="mt-1 text-muted">
+                Live moneyline, spread, and total odds from the board.
+              </p>
+            )}
           </div>
           <div className="flex flex-wrap gap-2">
             <Link
@@ -193,7 +229,7 @@ export function UpcomingGames({
                         the soccer tab is itself a mix of leagues. */}
                     {league ? (
                       <span className="flex min-w-0 items-center gap-1 font-medium text-muted">
-                        {league.flag && <span aria-hidden>{league.flag}</span>}
+                        <FlagIcon code={league.code} />
                         <span className="truncate">{league.league}</span>
                       </span>
                     ) : (
@@ -218,6 +254,20 @@ export function UpcomingGames({
                           <span className="shrink-0 text-sm font-semibold tabular-nums">{cell(s.moneyline)}</span>
                         </div>
                       ))}
+                      {/* Same rule as the grid below: a three-way market is
+                          never shown as a two-way one. The logo column is held
+                          empty so the prices stay in line. */}
+                      {board.moneyline.draw && (
+                        <div className="flex items-center gap-2">
+                          <span className="h-7 w-7 shrink-0" aria-hidden />
+                          <p className="min-w-0 flex-1 truncate font-display text-sm font-semibold text-muted">
+                            Draw
+                          </p>
+                          <span className="shrink-0 text-sm font-semibold tabular-nums">
+                            {cell(board.moneyline.draw)}
+                          </span>
+                        </div>
+                      )}
                     </div>
                   ) : (
                     <>
@@ -246,14 +296,49 @@ export function UpcomingGames({
                               <span className="text-right">{cell(s.moneyline)}</span>
                             </Fragment>
                           ))}
+
+                          {/* Soccer's third outcome. Two rows on a three-way
+                              market reads as a two-way one, and the shorter
+                              price looks far better than it is — the draw was
+                              priced, so it is shown. Only the ML column has a
+                              value: a draw has no spread and no total. */}
+                          {board.moneyline.draw && (
+                            <Fragment>
+                              <span className="truncate text-muted">Draw</span>
+                              <span className="text-right">{cell(null)}</span>
+                              <span className="text-right">{cell(null)}</span>
+                              <span className="text-right">{cell(board.moneyline.draw)}</span>
+                            </Fragment>
+                          )}
                         </div>
                       )}
                     </>
                   )}
 
-                  {showStake && (
-                    <div className="mt-2">
-                      <StakeCta sport={event.sport} event={event.id} />
+                  {/* Directly beneath the price grid — the link is about the
+                      numbers immediately above it, so the gap stays tight.
+                      Right-aligned to sit under the odds columns: full width, it
+                      landed under the Away/Home labels on the opposite side of
+                      the card from the prices it refers to. */}
+                  {book && (
+                    <div className="mt-2 flex justify-end">
+                      {/* `sides` is already ordered per sport (home first for
+                          soccer), so the button reads in the same order as the
+                          rows above it. */}
+                      <SportsbookCta
+                        book={book}
+                        variant="button"
+                        sport={event.sport}
+                        league={event.sportKey}
+                        event={event.id}
+                        matchup={{
+                          sport: event.sport,
+                          sides: [
+                            { name: sides[0].team, logo: sides[0].logo },
+                            { name: sides[1].team, logo: sides[1].logo },
+                          ],
+                        }}
+                      />
                     </div>
                   )}
                 </div>

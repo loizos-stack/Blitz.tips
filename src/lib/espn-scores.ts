@@ -6,7 +6,14 @@ import type { PickSport } from "@prisma/client";
 // (e.g. "3rd Quarter - 5:23", "Top 5th", "Halftime", "45'+2'"). We fetch it
 // best-effort and attach the detail string to live board games.
 
-const ESPN_PATH: Partial<Record<PickSport, string>> = {
+// Overridable so the fallback board can be exercised against a stub instead of
+// ESPN — same escape hatch ODDS_API_BASE and TELEGRAM_API_BASE provide.
+export const ESPN_SCOREBOARD_BASE = (
+  process.env.ESPN_API_BASE?.trim() || "https://site.api.espn.com/apis/site/v2/sports"
+).replace(/\/+$/, "");
+
+/** The sports ESPN exposes on a single scoreboard slug. Shared with espn-odds.ts. */
+export const ESPN_PATH: Partial<Record<PickSport, string>> = {
   NFL: "football/nfl",
   NBA: "basketball/nba",
   WNBA: "basketball/wnba",
@@ -52,7 +59,7 @@ interface EspnMmaEvent {
 export async function getUfcFighterSet(): Promise<Set<string>> {
   const set = new Set<string>();
   try {
-    const res = await fetch("https://site.api.espn.com/apis/site/v2/sports/mma/ufc/scoreboard", {
+    const res = await fetch(`${ESPN_SCOREBOARD_BASE}/mma/ufc/scoreboard`, {
       next: { revalidate: 60 * 60 },
     });
     if (!res.ok) return set;
@@ -95,7 +102,7 @@ export async function getLiveGameStates(sport: PickSport): Promise<Map<string, s
   if (!path) return map;
 
   try {
-    const res = await fetch(`https://site.api.espn.com/apis/site/v2/sports/${path}/scoreboard`, {
+    const res = await fetch(`${ESPN_SCOREBOARD_BASE}/${path}/scoreboard`, {
       next: { revalidate: 30 },
     });
     if (!res.ok) return map;
@@ -161,7 +168,7 @@ export async function getFinalPeriodScores(sport: PickSport): Promise<Map<string
   if (!path) return map;
 
   try {
-    const res = await fetch(`https://site.api.espn.com/apis/site/v2/sports/${path}/scoreboard`, {
+    const res = await fetch(`${ESPN_SCOREBOARD_BASE}/${path}/scoreboard`, {
       next: { revalidate: 300 },
     });
     if (!res.ok) return map;
@@ -303,7 +310,7 @@ export async function getPlayerStats(sport: PickSport, espnEventId: string): Pro
 
   try {
     const res = await fetch(
-      `https://site.api.espn.com/apis/site/v2/sports/${path}/summary?event=${espnEventId}`,
+      `${ESPN_SCOREBOARD_BASE}/${path}/summary?event=${espnEventId}`,
       { next: { revalidate: 300 } }
     );
     if (!res.ok) return out;

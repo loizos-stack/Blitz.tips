@@ -12,7 +12,12 @@ import {
   ArrowDownWideNarrow,
   type LucideIcon,
 } from "lucide-react";
-import { listHandicapperSummaries, type HandicapperSummary } from "@/lib/handicappers";
+import {
+  listHandicapperSummaries,
+  listHandicapperSummariesInWindow,
+  type HandicapperSummary,
+} from "@/lib/handicappers";
+import { PERIODS, isPeriodKey, periodLabel, periodWindow, type PeriodKey } from "@/lib/stat-periods";
 import { HandicapperCard } from "@/components/handicapper-card";
 import { SportFilterSelect } from "@/components/sport-filter-select";
 import { SPORT_LABELS, cn } from "@/lib/utils";
@@ -78,40 +83,99 @@ const VIEWS: Record<string, View> = {
 };
 
 const VIEW_KEYS = Object.keys(VIEWS);
-const DEFAULT_VIEW = "gold";
+// Net units, not Gold.
+//
+// Opening on a plan tier meant the first thing a visitor saw was who had paid
+// for a plan, on the page whose entire promise is comparing records. Gold and
+// Silver are still here as filters, one click away, which is where a tier
+// belongs on a page about performance.
+const DEFAULT_VIEW = "units";
 
 export default async function HandicappersPage({
   searchParams,
 }: {
-  searchParams: Promise<{ sort?: string; sport?: string }>;
+  searchParams: Promise<{ sort?: string; sport?: string; period?: string }>;
 }) {
   const params = await searchParams;
   const viewKey = params.sort && params.sort in VIEWS ? params.sort : DEFAULT_VIEW;
   const view = VIEWS[viewKey];
   const sportFilter =
     params.sport && params.sport in SPORT_LABELS ? (params.sport as PickSport) : undefined;
+  const period: PeriodKey = isPeriodKey(params.period) ? params.period : "all";
+  const window = periodWindow(period);
 
-  const handicappers = await listHandicapperSummaries();
+  // A window re-reads the figures from the picks settled inside it, so every
+  // metric on the card — units, ROI, win rate, streak — describes that window
+  // rather than a career with a date range written over the top of it.
+  const handicappers = window
+    ? await listHandicapperSummariesInWindow(window.start, window.end)
+    : await listHandicapperSummaries();
 
   let list = sportFilter ? handicappers.filter((h) => h.sports.includes(sportFilter)) : handicappers;
   if (view.filter) list = list.filter(view.filter);
 
-  // Rank strictly by the active view's metric — no paid-first pinning.
-  const sorted = [...list].sort((a, b) => view.value(b) - view.value(a));
+  // Settled picks behind the figure. The windowed queries only return people
+  // who settled something inside the window, so this is really about all time.
+  const settled = (h: HandicapperSummary) => h.stats.wins + h.stats.losses + h.stats.pushes;
+
+  // Rank strictly by the active view's metric — no paid-first pinning — but a
+  // profile with no record at all goes last whatever the metric says. At +0.00
+  // units an ungraded profile outranks everyone who is down on the month, and
+  // reading that as "better" is exactly the wrong conclusion. They stay on the
+  // page, because browsing is also how a new capper gets found.
+  const sorted = [...list].sort((a, b) => {
+    const aHas = settled(a) > 0;
+    const bHas = settled(b) > 0;
+    if (aHas !== bHas) return aHas ? -1 : 1;
+    return view.value(b) - view.value(a);
+  });
+
+  const href = (next: { sort?: string; sport?: PickSport | null; period?: PeriodKey }) => {
+    const q = new URLSearchParams();
+    const sort = next.sort ?? viewKey;
+    const sp = next.sport === undefined ? sportFilter : (next.sport ?? undefined);
+    const pd = next.period ?? period;
+    if (sort !== DEFAULT_VIEW) q.set("sort", sort);
+    if (sp) q.set("sport", sp);
+    if (pd !== "all") q.set("period", pd);
+    const qs = q.toString();
+    return qs ? `/handicappers?${qs}` : "/handicappers";
+  };
 
   return (
     <div className="container-page py-12">
       <h1 className="text-3xl font-bold">Handicappers</h1>
-      <p className="mt-2 text-muted">Browse every capper on Blitz.tips and their public track record.</p>
+      <p className="mt-2 text-muted">
+        {period === "all"
+          ? "Browse every capper on Blitz.tips and their public track record."
+          : `Ranked on picks settled in ${periodLabel(period).toLowerCase()}. Short windows are small samples — the record on each card is the whole of it.`}
+      </p>
 
       <div className="mt-6 flex flex-wrap items-center gap-2">
+        {PERIODS.map((p) => (
+          <Link
+            key={p.key}
+            href={href({ period: p.key })}
+            className={cn(
+              "inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm font-medium",
+              p.key === period
+                ? "border-accent bg-accent/10 text-accent"
+                : "border-border text-muted hover:text-foreground"
+            )}
+          >
+            {p.short}
+          </Link>
+        ))}
+      </div>
+
+      <div className="mt-3 flex flex-wrap items-center gap-2">
         {VIEW_KEYS.map((key) => {
           const v = VIEWS[key];
           const active = key === viewKey;
           return (
             <Link
               key={key}
-              href={`/handicappers?sort=${key}${sportFilter ? `&sport=${sportFilter}` : ""}`}
+              href={href({ sort: key })}
               className={cn(
                 "inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm font-medium",
                 active ? "border-accent bg-accent/10 text-accent" : "border-border text-muted hover:text-foreground"
@@ -122,12 +186,21 @@ export default async function HandicappersPage({
             </Link>
           );
         })}
-        <SportFilterSelect basePath="/handicappers" sort={viewKey} sport={sportFilter} />
+        <SportFilterSelect
+          basePath="/handicappers"
+          sort={viewKey}
+          sport={sportFilter}
+          period={period === "all" ? undefined : period}
+        />
       </div>
 
       {sorted.length === 0 ? (
         <div className="card mt-8 p-8 text-center text-muted">
-          No handicappers match this filter yet.
+          {period === "all"
+            ? "No handicappers match this filter yet."
+            : `Nobody settled a pick in ${periodLabel(period).toLowerCase()}${
+                sportFilter ? ` in ${SPORT_LABELS[sportFilter] ?? sportFilter}` : ""
+              }. Try a longer window.`}
         </div>
       ) : (
         <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">

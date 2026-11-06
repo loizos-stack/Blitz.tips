@@ -9,6 +9,14 @@
     {
       "path": "/api/cron/expire-passes",
       "schedule": "30 7 * * *"
+    },
+    {
+      "path": "/api/cron/subscriber-digest",
+      "schedule": "0 13 * * *"
+    },
+    {
+      "path": "/api/cron/comped-plans",
+      "schedule": "0 8 * * *"
     }
   ]
 }

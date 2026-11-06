@@ -110,11 +110,21 @@ model User {
   accounts Account[]
   sessions Session[]
 
-  handicapper       HandicapperProfile?
-  subscriptions     Subscription[]      @relation("SubscriberSubscriptions")
-  reviews           Review[]            @relation("UserReviews")
-  adminTabViews     AdminTabView[]      @relation("AdminTabViews")
-  follows           Follow[]            @relation("UserFollows")
+  handicapper   HandicapperProfile?
+  subscriptions Subscription[]      @relation("SubscriberSubscriptions")
+  reviews       Review[]            @relation("UserReviews")
+  adminTabViews AdminTabView[]      @relation("AdminTabViews")
+  follows       Follow[]            @relation("UserFollows")
+  pickTails     PickTail[]          @relation("UserPickTails")
+
+  // Referrals. `referralCode` is this user's own code to hand out;
+  // `referredById` is who brought them in, set once at signup and never after —
+  // attribution that can be edited later isn't attribution.
+  referralCode      String?            @unique
+  referredById      String?
+  referredBy        User?              @relation("UserReferrals", fields: [referredById], references: [id], onDelete: SetNull)
+  referrals         User[]             @relation("UserReferrals")
+  referredAt        DateTime?
   notifications     Notification[]
   pushSubscriptions PushSubscription[]
 
@@ -191,18 +201,51 @@ model EmailVerificationCode {
   createdAt  DateTime @default(now())
 }
 
+// Password-reset links.
+//
+// The token is stored HASHED, unlike VerificationToken above. The difference is
+// what the token is worth: an email-verification token only confirms an address
+// the user already gave us, while a reset token is a bearer credential for the
+// whole account. Anyone reading this table — a dump, a backup, a support query
+// run against a replica — would otherwise hold a working reset link for every
+// pending request. The hash costs nothing and removes that.
+//
+// One row per request rather than one per email: the request endpoint is public,
+// so a single-row-per-email design would let anyone invalidate a real user's
+// in-flight reset simply by asking for another one.
+model PasswordResetToken {
+  id         String   @id @default(cuid())
+  // The account's email, lowercased.
+  identifier String
+  // SHA-256 of the token that went out in the link. Unique so a lookup by hash
+  // is a single indexed read and collisions are impossible to store.
+  tokenHash  String   @unique
+  expires    DateTime
+  createdAt  DateTime @default(now())
+
+  @@index([identifier])
+}
+
 model HandicapperProfile {
   id     String @id @default(cuid())
   userId String @unique
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  handle      String      @unique
+  handle      String              @unique
   displayName String
-  bio         String?     @db.Text
+  bio         String?             @db.Text
   avatarUrl   String?
   coverUrl    String?
-  sports      PickSport[] @default([])
-  isVerified  Boolean     @default(false)
+  /// DEPRECATED — not written, not read. Which sports a handicapper covers is
+  /// derived from the picks they have actually posted (lib/handicappers →
+  /// sportsFromPicks), because a declared list is a claim and the sport
+  /// filters have to be evidence. Left in place so dropping it is a separate,
+  /// deliberate migration rather than a side effect of this change; the rows
+  /// still hold whatever was last declared, which is exactly why nothing
+  /// should read them.
+  sports      PickSport[]         @default([])
+  prizeAwards MonthlyPrizeAward[]
+  isVerified  Boolean             @default(false)
   // Soft suspension: hidden from listings, profile 404s, can't post picks or
   // take new subscribers; existing data stays intact.
   suspendedAt DateTime?
@@ -260,6 +303,22 @@ model HandicapperProfile {
   // canceling and re-subscribing doesn't grant another free month.
   planTrialUsed            Boolean            @default(false)
 
+  // A COMPED plan: Silver or Gold given from the admin panel for a fixed
+  // period, with no Stripe subscription behind it and nothing to charge. It
+  // runs until planCompedUntil and then falls back to FREE.
+  //
+  // Deliberately separate from the plan* fields above rather than reusing
+  // planCurrentPeriodEnd, which belongs to Stripe: the sweep that ends comps
+  // must never be able to touch a real subscription, and `planCompedUntil is
+  // not null` is what makes a comp identifiable as one.
+  planCompedUntil  DateTime?
+  planCompedAt     DateTime?
+  // The admin who granted it, so a comp on a profile can be traced to a person.
+  planCompedById   String?
+  // When the three-days-out warning was sent, so it goes exactly once per
+  // grant. Cleared whenever a new comp is granted or an existing one extended.
+  planCompWarnedAt DateTime?
+
   picks         Pick[]
   subscriptions Subscription[] @relation("HandicapperSubscriptions")
   followers     Follow[]       @relation("HandicapperFollowers")
@@ -269,6 +328,9 @@ model HandicapperProfile {
   updatedAt DateTime @updatedAt
 
   @@index([handle])
+  // The daily sweep asks only "which comps are ending" — without this it reads
+  // every handicapper on the site to find the handful that matter.
+  @@index([planCompedUntil])
 }
 
 model Pick {
@@ -276,16 +338,21 @@ model Pick {
   handicapperId String
   handicapper   HandicapperProfile @relation(fields: [handicapperId], references: [id], onDelete: Cascade)
 
-  sport     PickSport
-  league    String?
-  matchup   String
-  betType   BetType
-  selection String
-  odds      Int
-  units     Float      @default(1)
-  analysis  String?    @db.Text
-  result    PickResult @default(PENDING)
-  isPremium Boolean    @default(true)
+  sport        PickSport
+  league       String?
+  matchup      String
+  betType      BetType
+  selection    String
+  odds         Int
+  units        Float      @default(1)
+  analysis     String?    @db.Text
+  /// The language the analysis is written in, as an ISO 639-1 code, learned
+  /// the first time someone translates it. Lets the translate button stop
+  /// being offered to readers who already speak it — so one reader's click
+  /// settles it for everyone after.
+  analysisLang String?
+  result       PickResult @default(PENDING)
+  isPremium    Boolean    @default(true)
 
   eventStartsAt   DateTime
   settledAt       DateTime?
@@ -297,6 +364,14 @@ model Pick {
   // this pick to a final score.
   oddsApiEventId  String?
   oddsApiSportKey String?
+  // The last price this selection was available at before kickoff, and when it
+  // was captured. Comparing it to `odds` gives closing line value: whether the
+  // market moved toward the pick or away from it. CLV is the one metric that
+  // can't be produced by cherry-picking results — you either beat the close or
+  // you didn't — which makes it the strongest claim a verified-records site can
+  // make. Null when the pick wasn't board-sourced, or the capture didn't run.
+  closingOdds     Int?
+  closingOddsAt   DateTime?
   // Structured form of the selection, captured from the board when the pick was
   // made off the schedule. Lets the settler grade period markets and player
   // props without parsing the display string. Null for manually-entered picks,
@@ -310,11 +385,66 @@ model Pick {
   // combined (multiplied) American odds; each leg keeps its own line.
   parlayLegs ParlayLeg[]
 
+  translations PickTranslation[]
+
+  // Who backed or faded this pick. Social proof at the point of decision, and
+  // the raw material for a consensus view of the whole board.
+  tails PickTail[]
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@index([handicapperId, createdAt])
   @@index([result])
+}
+
+/// One cached translation of a pick's analysis.
+///
+/// Keyed by pick and target language so a write-up is paid for once however
+/// many people read it. Cascades with the pick: a deleted pick's translations
+/// are of nothing.
+model PickTranslation {
+  id     String @id @default(cuid())
+  pickId String
+  pick   Pick   @relation(fields: [pickId], references: [id], onDelete: Cascade)
+
+  /// ISO 639-1 code of the language this row is IN.
+  language       String
+  analysis       String  @db.Text
+  /// What the model said the original was written in. Null when it could not
+  /// say, which only costs an extra offer of the button.
+  sourceLanguage String?
+
+  createdAt DateTime @default(now())
+
+  @@unique([pickId, language])
+}
+
+// A reader saying they're on a pick, or against it.
+//
+// One row per user per pick, with the side stored rather than implied, so
+// switching from tail to fade is an update rather than a delete plus an insert
+// — the count stays right and the history isn't a hole. Only picks the user can
+// actually see are tailable; the API enforces that, since a premium pick's
+// selection is exactly what a subscription buys.
+model PickTail {
+  id     String @id @default(cuid())
+  pickId String
+  pick   Pick   @relation(fields: [pickId], references: [id], onDelete: Cascade)
+  userId String
+  user   User   @relation("UserPickTails", fields: [userId], references: [id], onDelete: Cascade)
+
+  /**
+   * True = tailed (backing it), false = faded (against it).
+   */
+  tailed Boolean
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([pickId, userId])
+  @@index([pickId])
+  @@index([userId])
 }
 
 // One selection within a parlay Pick. Legs are display-only detail; the parlay
@@ -388,6 +518,78 @@ model AdminTabView {
 }
 
 // One row per admin mutation — who did what to which record, when.
+/// One person, one broadcast, one time it actually arrived.
+///
+/// Exists so a resend can skip the people who already got the message. The
+/// case it is built for: a send that half failed, where the right next move is
+/// to retry the ones that did not arrive WITHOUT mailing the ones that did a
+/// second time.
+///
+/// Only successful deliveries are recorded. A failure writes nothing, because
+/// the whole point is that a failure stays retryable — recording attempts
+/// rather than arrivals would make the guard block exactly the people it is
+/// supposed to let through.
+model EmailDelivery {
+  id String @id @default(cuid())
+
+  /// Null once the account is gone; `email` is what the guard matches on, so
+  /// the record keeps working either way.
+  userId String?
+  email  String
+
+  /// Trimmed and lowercased subject — what "the same email" means to a person
+  /// who has just changed the capitalisation of a word.
+  subjectKey String
+  /// As typed, for the admin to read back.
+  subject    String
+  /// Which audience it went to, for context in the log.
+  audience   String
+
+  sentAt DateTime @default(now())
+
+  /// The guard's only query: has THIS address had THIS subject recently.
+  @@index([email, subjectKey, sentAt])
+  @@index([sentAt])
+}
+
+/// One page view, recorded first-party and without cookies.
+///
+/// Why this exists rather than reading Vercel's numbers: the dashboard shows
+/// totals, not the breakdowns anyone actually asks for — which countries,
+/// which referrers, which pages — and its retention depends on the plan.
+///
+/// NOTHING HERE IDENTIFIES A PERSON. No IP, no cookie, no device id.
+/// `visitorHash` is a salted digest of IP + user agent where the salt is
+/// derived from AUTH_SECRET and the calendar day, so it rotates at midnight:
+/// it can count the same browser twice in an afternoon and cannot follow it
+/// into tomorrow. That is the property that keeps this outside the cookie
+/// consent gate, alongside Vercel's own cookieless analytics — see
+/// components/analytics-gate.tsx for the same reasoning applied to GA.
+model PageView {
+  id String @id @default(cuid())
+
+  /// Pathname only. Query strings are dropped before this is written — they
+  /// carry tokens, emails and search terms, and none of that belongs here.
+  path     String
+  /// The referring HOST, never the full URL: another site's path can contain
+  /// as much private detail as our own.
+  referrer String?
+  /// Two-letter country from the edge, which is as precise as this gets.
+  country  String?
+  /// "mobile" | "tablet" | "desktop".
+  device   String
+
+  /// See the note above — a daily-rotating digest, not an identifier.
+  visitorHash String
+
+  createdAt DateTime @default(now())
+
+  /// Every query on the admin page filters by time first and aggregates after,
+  /// so one index on the range carries all of them. More would cost writes on
+  /// the hot path to speed up a page one person reads.
+  @@index([createdAt])
+}
+
 model AdminAuditLog {
   id         String   @id @default(cuid())
   actorId    String
@@ -424,11 +626,28 @@ model Subscription {
   currentPeriodEnd  DateTime?
   cancelAtPeriodEnd Boolean            @default(false)
 
+  /// Set when an admin GAVE this subscription rather than the customer buying
+  /// it. A comped subscription is ACTIVE and carries full access, but nobody
+  /// is billed for it — so counting it as revenue inflates every figure on the
+  /// financials tab by a package price that does not exist.
+  ///
+  /// `stripeSubscriptionId IS NULL` cannot stand in for this: a crypto pass
+  /// has no Stripe subscription either, and that one IS paid for.
+  ///
+  /// The granting admin's email is stored beside their id so the comped table
+  /// reads without a join and still names a person after that admin's account
+  /// is gone — the same reason XPost keeps sentByEmail.
+  compedAt      DateTime?
+  compedById    String?
+  compedByEmail String?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@unique([subscriberId, handicapperId])
   @@index([handicapperId, status])
+  // The financials tab asks only for the comped ones.
+  @@index([compedAt])
 }
 
 // A crypto payment for a fixed-length access pass (NOWPayments invoice).
@@ -698,30 +917,30 @@ enum ContestStatus {
 }
 
 model Contest {
-  id              String        @id @default(cuid())
-  slug            String        @unique
-  name            String
-  tagline         String?
+  id                   String        @id @default(cuid())
+  slug                 String        @unique
+  name                 String
+  tagline              String?
   // Guaranteed pool (equals the sum of prizeSplitCents), stored in cents.
-  prizePoolCents  Int
-  currency        String        @default("USD")
+  prizePoolCents       Int
+  currency             String        @default("USD")
   // Cents awarded to each place; index 0 = 1st. Length = number of winners.
-  prizeSplitCents Int[]         @default([])
+  prizeSplitCents      Int[]         @default([])
   // Minimum settled picks an entry needs before it's ranked.
-  minPicks        Int           @default(20)
-  startsAt        DateTime
-  endsAt          DateTime
+  minPicks             Int           @default(20)
+  startsAt             DateTime
+  endsAt               DateTime
   // Entries close on this date (defaults to endsAt when null). After it, the
   // field — and therefore the number of paid places — is locked.
   registrationClosesAt DateTime?
   // When true, paid places scale with the number of entrants (one extra place
   // per 10 joiners, min 3) and the ladder is derived from prizePoolCents rather
   // than the stored prizeSplitCents.
-  dynamicPayouts  Boolean       @default(false)
-  status          ContestStatus @default(DRAFT)
-  settledAt       DateTime?
-  createdAt       DateTime      @default(now())
-  updatedAt       DateTime      @updatedAt
+  dynamicPayouts       Boolean       @default(false)
+  status               ContestStatus @default(DRAFT)
+  settledAt            DateTime?
+  createdAt            DateTime      @default(now())
+  updatedAt            DateTime      @updatedAt
 
   entries ContestEntry[]
   ipLogs  ContestIpLog[]
@@ -809,4 +1028,534 @@ model ContestPick {
   @@index([entryId])
   @@index([result])
   @@index([result, eventStartsAt])
+}
+
+/**
+ * A post sent to a Telegram channel through the bot.
+ * This is the *owned-channel* half of Telegram promotion. Telegram's paid ad
+ * platform (ads.telegram.org) has no public API — no endpoint creates a
+ * campaign or returns its stats — so paid spend is recorded by hand in
+ * AdSpendEntry instead. Broadcasting to a channel we control is the part that
+ * can actually be automated, and it reaches the same audience.
+ */
+model TelegramBroadcast {
+  id          String   @id @default(cuid())
+  /// Target as entered: @channelhandle or a numeric chat id.
+  chatId      String
+  /// Channel title at send time, so history stays readable after a rename.
+  chatTitle   String?
+  text        String
+  /// Attached file under public/marketing. Null for a text-only post.
+  asset       String?
+  /// Telegram's message id — what you need to find or delete the post later.
+  messageId   String?
+  /// Failures are kept, not discarded: a broadcast that didn't land is the
+  /// thing you most need to see in the history.
+  ok          Boolean  @default(false)
+  error       String?
+  /// Null for a manual post from the admin panel; otherwise what triggered it
+  /// (e.g. "free-pick"). Kept as its own column rather than encoded into
+  /// sentByEmail, so the history can tell an automatic post from a person's.
+  source      String?
+  sentById    String
+  sentByEmail String
+  createdAt   DateTime @default(now())
+
+  @@index([createdAt])
+}
+
+/**
+ * Manually recorded ad spend, for platforms with no API to pull it from.
+ * Telegram Ads is the reason this exists, but `platform` is free text rather
+ * than an enum so Reddit, TikTok or a podcast sponsorship can be logged here
+ * too without a migration per network. Meta is deliberately NOT recorded here —
+ * its numbers come live from the Marketing API, and a hand-typed second copy of
+ * a figure the API already owns would only ever drift.
+ */
+model AdSpendEntry {
+  id          String   @id @default(cuid())
+  platform    String
+  campaign    String
+  /// The day the spend applies to, not when it was typed in.
+  spentOn     DateTime
+  spendCents  Int
+  currency    String   @default("USD")
+  impressions Int?
+  clicks      Int?
+  notes       String?
+  createdById String
+  createdAt   DateTime @default(now())
+
+  @@index([platform, spentOn])
+}
+
+/**
+ * The X (Twitter) account the admin panel posts as.
+ * A row, not a SiteSetting pair, because posting to X needs a live credential
+ * rather than a static token. Unlike Telegram — where one bot token in the
+ * environment is the whole story — X will only accept a post in *user context*,
+ * so the panel holds an OAuth grant that expires and has to be refreshed.
+ * Single-row by construction: `id` is a fixed key, so connecting a different
+ * account replaces the grant instead of quietly accumulating several and
+ * leaving "which one did that post go to?" unanswerable.
+ */
+model XAccount {
+  /// Always "default". One connected account, enforced by the primary key.
+  id           String   @id @default("default")
+  /// X's numeric user id — stable across handle changes, unlike `username`.
+  xUserId      String
+  /// Handle at connect time, for display. Re-read on refresh.
+  username     String
+  name         String?
+  /// Encrypted at rest: these are live credentials, not identifiers. A leaked
+  /// refresh token is an account takeover, so unlike the Discord user id next
+  /// door these never sit in the database in the clear.
+  accessToken  String   @db.Text
+  refreshToken String?  @db.Text
+  /// When the access token dies. Refreshed ahead of this, not after it.
+  expiresAt    DateTime
+  /// Granted scopes, so the UI can say why a post was rejected rather than
+  /// showing a bare 403.
+  scopes       String
+  connectedAt  DateTime @default(now())
+  connectedBy  String
+  updatedAt    DateTime @updatedAt
+}
+
+/**
+ * Every post the panel has attempted, successful or not.
+ * Deliberately shaped like TelegramBroadcast: a failed send is the row you most
+ * want to see, so failures are kept rather than discarded.
+ */
+model XPost {
+  id          String   @id @default(cuid())
+  /// Handle posted as, captured at send time so history survives a rename.
+  username    String
+  text        String
+  /// Attached file under public/marketing. Null for a text-only post.
+  asset       String?
+  /// X's tweet id — what you need to find or delete the post later.
+  tweetId     String?
+  ok          Boolean  @default(false)
+  error       String?
+  /// Null for a manual post; otherwise what triggered it, matching the same
+  /// column on TelegramBroadcast.
+  source      String?
+  sentById    String
+  sentByEmail String
+  createdAt   DateTime @default(now())
+
+  @@index([createdAt])
+}
+
+/// Where a queued post is in its life. PENDING is the only state the sender
+/// acts on; everything else is history.
+enum XQueueStatus {
+  PENDING
+  SENT
+  FAILED
+  /// Approved copy that someone decided against before it went out.
+  DISCARDED
+}
+
+/// One composed post waiting to go out.
+///
+/// The rotation builds these from live data when a slot comes due, and either
+/// sends immediately or leaves them here for someone to approve. That choice
+/// is the `x.autoSend` site setting rather than a property of the row, so
+/// flipping it changes what happens next without touching what is already
+/// queued.
+///
+/// The composed TEXT is stored rather than rebuilt at send time. A post
+/// approved on the strength of a capper's record should go out saying what it
+/// said when it was approved, even if a pick settles in between.
+model XQueuedPost {
+  id       String       @id @default(cuid())
+  /// Which rotation slot produced this: board, gold, leaderboard, winner,
+  /// recruit. Used to keep a slot from running twice in a day and to group the
+  /// queue by kind.
+  slot     String
+  text     String       @db.Text
+  /// Absolute URL of the card to attach, fetched at send time so a queued post
+  /// carries a current image rather than one cached when it was composed.
+  imageUrl String?
+  /// Who the post is about, so the rotation can avoid featuring the same
+  /// handicapper twice running. Null for slots about nobody.
+  subject  String?
+  status   XQueueStatus @default(PENDING)
+  /// Set when sent, pointing at the XPost send-log row.
+  xPostId  String?
+  error    String?
+
+  createdAt   DateTime  @default(now())
+  decidedAt   DateTime?
+  decidedById String?
+
+  @@index([status, createdAt])
+  @@index([slot, createdAt])
+}
+
+// --- Blitz Odds -------------------------------------------------------------
+// Private line-movement watcher. Polls the odds feed, keeps a short history of
+// every price it sees, and raises an alert when a selection shortens at more
+// than one sportsbook before kickoff.
+
+// RETIRED — the five Odds* models below belonged to the Blitz Odds watcher,
+// which has been removed. Nothing reads or writes them any more.
+//
+// They are left declared on purpose: dropping the tables is irreversible, and
+// removing the models without a migration would leave the schema permanently
+// out of step with the database. When the data is confirmed unwanted, delete
+// these five models and generate one migration that drops the tables.
+
+/**
+ * One price, from one book, for one selection, at one moment.
+ * This is the only table in the app that grows with time rather than with user
+ * activity, so it is pruned aggressively (see pruneSnapshots): a drop is
+ * detected against a lookback of minutes, and nothing here has any value once
+ * the game has started.
+ */
+model OddsSnapshot {
+  id String @id @default(cuid())
+
+  /// The Odds API event id, and the league key it came from.
+  eventId  String
+  sportKey String
+
+  /// Market + selection identify what was priced. `point` separates the rungs
+  /// of a handicap or total — "Over 8.5" and "Over 9.5" are different bets and
+  /// must never be compared to each other.
+  marketKey String
+  selection String
+  point     Float?
+
+  bookmaker String
+  /// American, as the feed returns it and as picks are stored.
+  price     Int
+
+  commenceTime   DateTime
+  /// Minutes remaining before kickoff at the moment this price was captured.
+  ///
+  /// Stored rather than derived at read time because every rule in this tool is
+  /// expressed relative to kickoff, and a poll that arrives late must be judged
+  /// on when it actually landed — not on when it was scheduled to.
+  minutesToStart Int
+  capturedAt     DateTime @default(now())
+
+  // The detector reads one (event, market, selection, point) line across books
+  // over a short window; this index is that query.
+  @@index([eventId, marketKey, selection, point, capturedAt])
+  @@index([capturedAt])
+}
+
+/**
+ * A detected shortening, confirmed across at least `bookCount` books.
+ * Kept after notification so the panel has a feed and so a repeat move on the
+ * same selection can be measured against what was already reported rather than
+ * re-alerting on the same drift.
+ */
+model OddsDrop {
+  id String @id @default(cuid())
+
+  eventId      String
+  sportKey     String
+  sport        PickSport
+  matchup      String
+  commenceTime DateTime
+
+  marketKey   String
+  /// Human label for the market, resolved at detection time so the feed reads
+  /// the same as the pick forms.
+  marketLabel String
+  selection   String
+  point       Float?
+
+  /// Books that moved, and the size of the move in implied-probability points
+  /// (not raw American, which is non-linear — see lib/blitz-odds).
+  bookCount    Int
+  books        String
+  openPrice    Int
+  currentPrice Int
+  probDelta    Float
+
+  /// Minutes to kickoff at each side of the comparison, frozen at detection
+  /// time. Stored rather than recomputed because a delayed poll must not be
+  /// reported as though it had sampled the windows precisely.
+  baselineMinutes Int
+  minutesToStart  Int
+
+  notifiedAt DateTime?
+  detectedAt DateTime  @default(now())
+
+  @@index([detectedAt])
+  @@index([eventId, marketKey, selection, point])
+}
+
+/**
+ * What the watcher is allowed to do. A single row (id = "default").
+ * Every field here exists to bound spend. The feed bills per request as
+ * (markets x regions), so an unbounded watcher is an unbounded bill — the whole
+ * rest of the site runs on roughly 1,600 credits a month, and a naive poller
+ * would exceed that before lunch.
+ */
+model OddsWatchSettings {
+  id String @id @default("default")
+
+  enabled Boolean @default(false)
+
+  /// Which feed the watcher reads. "oddsapi" is the same provider the public
+  /// board uses; "rundown" is a separate subscription reached only by this tool.
+  ///
+  /// Worth keeping separate rather than switching the whole site: the two bill
+  /// on completely different axes — the Odds API per (markets x regions), so
+  /// asking for more costs more, and Rundown per request, so it doesn't. A
+  /// runaway watcher on its own provider also cannot take the public board's
+  /// odds down with it.
+  ///
+  /// Defaults to oddsapi because the Rundown adapter's field mapping has never
+  /// met a live response; see lib/blitz-odds-rundown.
+  provider String @default("oddsapi")
+
+  /// Effective poll cadence in minutes — how often a cycle actually runs, NOT
+  /// how often the workflow is scheduled. The workflow fires every 5 minutes and
+  /// polls 5 times within each run, so the real figure is 1. Used to project
+  /// spend and to warn when the cadence is too slow for the alert band.
+  pollMinutes Int @default(1)
+
+  /// The two windows the whole tool turns on, in minutes before kickoff.
+  ///
+  /// Baseline is drawn from [baselineTo, baselineFrom] — 16-30 minutes out by
+  /// default — and compared against a price inside the alert band
+  /// [alertTo, alertFrom], 10-15 minutes out.
+  ///
+  /// The alert band has a FLOOR as well as a ceiling on purpose. An alert that
+  /// arrives two minutes before kickoff is not actionable, and the point of the
+  /// floor is to guarantee there is still time to place the bet when the message
+  /// lands.
+  ///
+  /// Nothing outside these bands is ever fetched, which is what keeps the tool
+  /// affordable: the 0-9 minute run-in and everything beyond 30 minutes cost
+  /// nothing at all.
+  baselineFromMinutes Int @default(30)
+  baselineToMinutes   Int @default(16)
+  alertFromMinutes    Int @default(15)
+  alertToMinutes      Int @default(10)
+
+  /// Books to price against, as comma-separated feed keys. Up to ten bill as a
+  /// single region, so a short list costs no less than a long one — but one
+  /// invalid key rejects the entire request, so this is not a field to
+  /// experiment in blind. `booksSeen` on the run log reports which answered.
+  bookmakers String @default("bet365,betano")
+
+  /// A move must be at least this many implied-probability points, and appear
+  /// at this many distinct books, to raise an alert.
+  minProbDelta Float @default(2.0)
+  minBooks     Int   @default(2)
+
+  /// Market depth. Game lines come from one bulk request per league and are
+  /// cheap; the rest are per-event and are where the bill is made.
+  watchGameLines    Boolean @default(true)
+  watchAlternates   Boolean @default(false)
+  watchProps        Boolean @default(false)
+  watchSoccerExtras Boolean @default(false)
+
+  /// Hard ceiling. The poller stops when the day's spend reaches this, and says
+  /// so, rather than quietly draining the quota.
+  dailyCreditCap Int @default(2000)
+  /// Most events to deepen in one run, so an unusually busy slate cannot make
+  /// a single run cost multiples of a normal one.
+  maxDeepEvents  Int @default(20)
+
+  /// Leagues to watch. Empty = every league the board already carries.
+  sportKeys String @default("")
+
+  /// Cached league resolution, and when it was taken.
+  ///
+  /// Resolving soccer probes nine dormant competition keys, and each probe is a
+  /// billed request. At a ten-minute cadence that is over a thousand credits a
+  /// day spent deciding *what* to watch, before watching anything — so the
+  /// answer is cached here on its own slow schedule rather than left to the
+  /// framework's fetch cache, which is invisible, not guaranteed to survive
+  /// between serverless invocations, and the wrong thing to trust with money.
+  leaguesJson String    @default("")
+  leaguesAt   DateTime?
+
+  /// Where alerts go.
+  notifyOnSite   Boolean @default(true)
+  notifyPush     Boolean @default(true)
+  notifyTelegram Boolean @default(true)
+
+  /// Private Telegram destination — a direct chat with the bot, NOT the public
+  /// broadcast channel. Held separately from the broadcast target on purpose:
+  /// this tool is private, and a shared setting is one mistake away from
+  /// pushing line movement to every subscriber. Falls back to
+  /// TELEGRAM_ALERT_CHAT_ID when blank; alerts are skipped if neither is set.
+  telegramChatId String @default("")
+
+  updatedAt DateTime @updatedAt
+}
+
+/**
+ * One run of the watcher, with what it cost.
+ * The credit column is the point: spend is invisible until it is on a page, and
+ * this is what the panel's usage meter and the daily cap are both computed from.
+ */
+model OddsPollRun {
+  id String @id @default(cuid())
+
+  startedAt  DateTime  @default(now())
+  finishedAt DateTime?
+
+  /// Billed units consumed, counted as (markets x regions) per request the same
+  /// way the upstream bills them.
+  credits  Int @default(0)
+  requests Int @default(0)
+
+  eventsSeen Int @default(0)
+  dropsFound Int @default(0)
+
+  /// Books that actually returned a price this run, comma separated.
+  ///
+  /// The one reliable way to tell a wrong book key from a book that simply is
+  /// not pricing a game. The feed rejects an unknown key by failing the whole
+  /// request, so a configured book that never appears here is the first thing
+  /// to check when nothing ever alerts.
+  booksSeen String @default("")
+
+  /// Set when the run stopped early — budget cap hit, feed unavailable.
+  stoppedReason String?
+  error         String?
+
+  @@index([startedAt])
+}
+
+/**
+ * Upcoming kickoffs, refreshed on a slow schedule.
+ * This exists purely to avoid paying to find out that nothing is starting soon.
+ * The watcher only cares about games inside the last half hour before kickoff,
+ * and most leagues, most of the time, have none — but discovering that by
+ * requesting odds costs the same as requesting odds for a full slate.
+ * The upstream's events endpoint is far cheaper than an odds request, so the
+ * schedule is fetched from there occasionally and every poll in between reads
+ * this table for free. On a quiet hour the watcher makes no odds requests at
+ * all.
+ */
+model OddsFixture {
+  id String @id @default(cuid())
+
+  eventId  String    @unique
+  sportKey String
+  sport    PickSport
+
+  matchup      String
+  commenceTime DateTime
+
+  refreshedAt DateTime @default(now())
+
+  // The poll's only question: which leagues have a game starting soon.
+  @@index([commenceTime])
+  @@index([sportKey, commenceTime])
+}
+
+/// A rendered results-recap video for one day's settled picks.
+///
+/// The file lives in Blob storage; this row is what the admin panel lists and
+/// what stops the nightly job rendering the same day twice. The figures are
+/// copied in at render time on purpose: they are what the video actually
+/// shows, and a pick re-graded next week must not silently make a published
+/// video's caption wrong.
+model RecapVideo {
+  id String @id @default(cuid())
+
+  /// The day covered, YYYY-MM-DD in UTC.
+  date String @unique
+
+  /// Public Blob URL of the MP4.
+  url String
+
+  /// What the video claims, frozen at render time.
+  settled Int
+  record  String
+  units   Float
+
+  /// TikTok draft push: what came back the last time this video was sent to
+  /// the connected creator's inbox. Held here rather than in a log table
+  /// because the only question anyone asks is "has this one been sent", and
+  /// the answer belongs next to the video it is about.
+  tiktokPublishId String?
+  tiktokStatus    String?
+  tiktokError     String?   @db.Text
+  tiktokSentAt    DateTime?
+
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
+}
+
+/**
+ * The one connected TikTok account, for pushing recap videos into its drafts.
+ * Same shape and the same reasoning as XAccount: a single row with a fixed
+ * primary key, because there is one account and a table that could hold two
+ * invites the question of which one posts.
+ */
+/**
+ * A frozen monthly-prize result: one row per paid place, per month.
+ * The standings are computed live from picks while a month runs, so why store
+ * anything? Because a published winner must not move. Picks can be regraded,
+ * a void can be corrected days later, and any of that would silently rewrite
+ * history on a page that says "this capper won $500 in November". Recording
+ * the result freezes it, and `paidAt` then tracks the money separately from
+ * the ranking.
+ */
+model MonthlyPrizeAward {
+  id String @id @default(cuid())
+
+  /// "2026-11" — the month covered, UTC.
+  month String
+  /// 1-based finishing place. One row per place.
+  rank  Int
+
+  handicapperId String
+  handicapper   HandicapperProfile @relation(fields: [handicapperId], references: [id], onDelete: Cascade)
+
+  /// Cents won. Stored rather than derived so changing the prize ladder later
+  /// cannot retroactively alter what someone was told they had won.
+  prizeCents Int
+  /// The figures as they stood when the month was recorded.
+  unitsNet   Float
+  record     String
+
+  paidAt   DateTime?
+  paidNote String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([month, rank])
+  @@index([handicapperId])
+}
+
+model TikTokAccount {
+  /// Always "default". One connected account, enforced by the primary key.
+  id String @id @default("default")
+
+  /// TikTok's per-app user identifier. Stable; the display name is not.
+  openId      String
+  displayName String?
+
+  /// Encrypted at rest (lib/token-crypto). A leaked refresh token is a year of
+  /// access to someone's TikTok account, so these never sit here in the clear.
+  accessToken  String  @db.Text
+  refreshToken String? @db.Text
+
+  /// When the access token dies. Refreshed ahead of this, not after it.
+  expiresAt DateTime
+
+  /// Granted scopes, so the UI can say why a push was refused rather than
+  /// showing a bare error. Drafts need video.upload.
+  scopes String
+
+  connectedAt DateTime @default(now())
+  connectedBy String
+  updatedAt   DateTime @updatedAt
 }

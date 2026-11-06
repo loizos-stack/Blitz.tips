@@ -1,27 +1,86 @@
+import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { StatCard } from "@/components/stat-card";
 import { formatCents } from "@/lib/utils";
 import { commissionPercentForPlan, planPriceCents } from "@/lib/plans";
 import { guardAdminPage } from "@/lib/permissions";
+import { hasActiveComp, isPlanPaidFor } from "@/lib/comped-plans";
+import { formatDate } from "@/lib/date-format";
 
 export const dynamic = "force-dynamic";
+
+/**
+ * A subscription that is ACTIVE but was given away, not bought.
+ *
+ * `compedAt` alone is not the test. Someone comped last month may have started
+ * paying since, and a Stripe subscription means real money however the access
+ * began — so a Stripe id wins over the comp stamp.
+ */
+const PAID_SUBSCRIPTION: Prisma.SubscriptionWhereInput = {
+  status: "ACTIVE",
+  OR: [{ compedAt: null }, { stripeSubscriptionId: { not: null } }],
+};
 
 // Money view built from the database. Amounts are estimates: subscriptions are
 // counted at each handicapper's monthly price (weekly/annual packages
 // approximated), and Stripe fees aren't subtracted — the exact ledger lives in
 // the Stripe dashboard.
+//
+// What it does NOT estimate is anything given away. A comped subscription and
+// a comped Silver/Gold plan both look exactly like the paid article in the
+// database — ACTIVE, full access, a price attached — and counting them was
+// reporting money nobody sent. They are excluded from every figure here and
+// listed separately below, where what they cost is the point.
 export default async function AdminFinancialsPage() {
   await guardAdminPage("financials");
-  const [handicappers, activeSubs, cryptoPayments] = await Promise.all([
+  const [handicappers, activeSubs, cryptoPayments, compedSubs] = await Promise.all([
     prisma.handicapperProfile.findMany({
       include: {
-        _count: { select: { subscriptions: { where: { status: "ACTIVE" } } } },
+        _count: { select: { subscriptions: { where: PAID_SUBSCRIPTION } } },
       },
       orderBy: { createdAt: "asc" },
     }),
-    prisma.subscription.count({ where: { status: "ACTIVE" } }),
+    prisma.subscription.count({ where: PAID_SUBSCRIPTION }),
     prisma.cryptoPayment.findMany({ where: { status: "CONFIRMED" } }),
+    prisma.subscription.findMany({
+      where: { compedAt: { not: null }, stripeSubscriptionId: null },
+      orderBy: { compedAt: "desc" },
+      take: 200,
+      select: {
+        id: true,
+        compedAt: true,
+        compedByEmail: true,
+        currentPeriodEnd: true,
+        status: true,
+        subscriber: { select: { email: true } },
+        handicapper: { select: { handle: true, monthlyPriceCents: true } },
+      },
+    }),
   ]);
+
+  // Handicapper plans that were given rather than bought, from the same admin
+  // panel. Same problem, different table.
+  //
+  // Every row that still carries an end date, not only the running ones: a comp
+  // that ran out is still giving away the plan until the daily sweep demotes
+  // them, and that gap is exactly when someone would come here asking why a
+  // handicapper is on Gold for nothing. The sweep clears the columns, so these
+  // rows disappear on their own.
+  const compedPlans = handicappers.filter((h) => h.planCompedUntil !== null);
+
+  // HandicapperProfile stores only the granting admin's id, so resolve the
+  // emails here. "Given by" naming a cuid tells nobody anything.
+  const granterIds = [...new Set(compedPlans.map((h) => h.planCompedById).filter((id): id is string => Boolean(id)))];
+  const granters = new Map(
+    granterIds.length === 0
+      ? []
+      : (
+          await prisma.user.findMany({
+            where: { id: { in: granterIds } },
+            select: { id: true, email: true },
+          })
+        ).map((u) => [u.id, u.email] as const)
+  );
 
   const rows = handicappers
     .map((h) => {
@@ -48,7 +107,10 @@ export default async function AdminFinancialsPage() {
   const commissionMrr = rows.reduce((s, r) => s + r.platformCents, 0);
 
   // Handicapper plan revenue (Silver/Gold), normalized to a monthly figure.
-  const paidPlans = handicappers.filter((h) => h.plan !== "FREE" && h.planStatus === "ACTIVE");
+  // "Non-FREE and ACTIVE" used to stand in for "paid", which counted comps,
+  // comps the daily sweep hasn't cleared yet, and lapsed crypto plans — each at
+  // full list price. See isPlanPaidFor.
+  const paidPlans = handicappers.filter((h) => isPlanPaidFor(h));
   const planMrr = paidPlans.reduce((sum, h) => {
     const interval = h.planInterval ?? "MONTHLY";
     const price = planPriceCents(h.plan, interval) ?? 0;
@@ -159,6 +221,90 @@ export default async function AdminFinancialsPage() {
           </div>
         </>
       )}
+
+      <h2 className="mb-3 mt-8 font-semibold">Given away</h2>
+      <p className="mb-3 text-xs text-muted">
+        Packages and plans an admin handed out. None of this is counted anywhere above — that is
+        the point of the table: it is what was given, by whom, and what it would have been worth
+        if it had been sold. A comped subscription is valued at the handicapper&apos;s monthly
+        price, a comped plan at its list price.
+      </p>
+      <div className="card overflow-x-auto p-0">
+        <table className="w-full min-w-[52rem] text-sm">
+          <thead>
+            <tr className="border-b border-border text-left text-xs uppercase tracking-wide text-muted">
+              <th className="px-4 py-3">What</th>
+              <th className="px-4 py-3">Who got it</th>
+              <th className="px-4 py-3">Given by</th>
+              <th className="px-4 py-3">Given</th>
+              <th className="px-4 py-3">Until</th>
+              <th className="px-4 py-3">Would have cost</th>
+            </tr>
+          </thead>
+          <tbody>
+            {compedSubs.length === 0 && compedPlans.length === 0 ? (
+              <tr>
+                <td colSpan={6} className="px-4 py-8 text-center text-muted">
+                  Nothing has been given away.
+                </td>
+              </tr>
+            ) : (
+              <>
+                {compedPlans.map((h) => (
+                  <tr key={`plan-${h.id}`} className="border-b border-border last:border-b-0">
+                    <td className="px-4 py-2.5 font-medium">
+                      {h.plan} plan
+                      {!hasActiveComp(h) && (
+                        <span className="ml-2 rounded-full bg-muted/15 px-1.5 py-0.5 text-[10px] font-bold text-muted">
+                          ENDED
+                        </span>
+                      )}
+                    </td>
+                    <td className="px-4 py-2.5">@{h.handle}</td>
+                    <td className="px-4 py-2.5 text-muted">
+                      {(h.planCompedById && granters.get(h.planCompedById)) ?? "—"}
+                    </td>
+                    <td className="px-4 py-2.5 text-muted">
+                      {h.planCompedAt ? formatDate(h.planCompedAt) : "—"}
+                    </td>
+                    <td className="px-4 py-2.5 text-muted">
+                      {h.planCompedUntil ? formatDate(h.planCompedUntil) : "—"}
+                    </td>
+                    <td className="px-4 py-2.5 tabular-nums">
+                      {formatCents(planPriceCents(h.plan, h.planInterval ?? "MONTHLY") ?? 0)}
+                      <span className="text-muted"> /mo</span>
+                    </td>
+                  </tr>
+                ))}
+                {compedSubs.map((s) => (
+                  <tr key={`sub-${s.id}`} className="border-b border-border last:border-b-0">
+                    <td className="px-4 py-2.5 font-medium">
+                      Subscription to @{s.handicapper.handle}
+                      {s.status !== "ACTIVE" && (
+                        <span className="ml-2 rounded-full bg-muted/15 px-1.5 py-0.5 text-[10px] font-bold text-muted">
+                          {s.status}
+                        </span>
+                      )}
+                    </td>
+                    <td className="px-4 py-2.5">{s.subscriber.email}</td>
+                    <td className="px-4 py-2.5 text-muted">{s.compedByEmail ?? "—"}</td>
+                    <td className="px-4 py-2.5 text-muted">
+                      {s.compedAt ? formatDate(s.compedAt) : "—"}
+                    </td>
+                    <td className="px-4 py-2.5 text-muted">
+                      {s.currentPeriodEnd ? formatDate(s.currentPeriodEnd) : "open-ended"}
+                    </td>
+                    <td className="px-4 py-2.5 tabular-nums">
+                      {formatCents(s.handicapper.monthlyPriceCents)}
+                      <span className="text-muted"> /mo</span>
+                    </td>
+                  </tr>
+                ))}
+              </>
+            )}
+          </tbody>
+        </table>
+      </div>
 
       <h2 className="mb-3 mt-8 font-semibold">Paid handicapper plans</h2>
       <div className="card overflow-x-auto p-0">

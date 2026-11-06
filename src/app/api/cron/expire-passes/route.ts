@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requirePermission } from "@/lib/permissions";
+import { formatDate } from "@/lib/date-format";
+import { prunePageViews } from "@/lib/traffic";
 
 export const dynamic = "force-dynamic";
 
@@ -69,7 +71,7 @@ export async function GET(request: Request) {
           userId: sub.subscriberId,
           type: "crypto.expiring",
           title: "Your pass expires soon",
-          body: `Your access to ${sub.handicapper.displayName} ends ${sub.currentPeriodEnd?.toLocaleDateString()}. Renew to keep their picks coming.`,
+          body: `Your access to ${sub.handicapper.displayName} ends ${sub.currentPeriodEnd ? formatDate(sub.currentPeriodEnd) : "soon"}. Renew to keep their picks coming.`,
           url: `/handicappers/${sub.handicapper.handle}`,
           handicapperId: sub.handicapperId,
         },
@@ -78,5 +80,12 @@ export async function GET(request: Request) {
     reminded++;
   }
 
-  return NextResponse.json({ expired: ended.length, reminded });
+  // Ride along on the daily sweep rather than adding a cron of its own: this
+  // plan allows daily crons only, and they are a scarce resource here.
+  const prunedPageViews = await prunePageViews(now).catch((e) => {
+    console.error("[cron] pruning page views failed:", e);
+    return 0;
+  });
+
+  return NextResponse.json({ expired: ended.length, reminded, prunedPageViews });
 }
