@@ -2,6 +2,8 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { formatOdds, unitProfit } from "@/lib/odds";
+import type { PickResult } from "@prisma/client";
 
 /**
  * Correct what a pick says.
@@ -22,12 +24,19 @@ export function PickCorrection({
   selection,
   playerName,
   linePoint,
+  odds,
+  units,
+  result,
 }: {
   id: string;
   matchup: string;
   selection: string;
   playerName: string | null;
   linePoint: number | null;
+  odds: number;
+  /** Not editable — the stake is what the capper risked. Here to price the win. */
+  units: number;
+  result: PickResult;
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -38,7 +47,17 @@ export function PickCorrection({
     selection,
     playerName: playerName ?? "",
     linePoint: linePoint === null ? "" : String(linePoint),
+    odds: String(odds),
   });
+
+  // What the pick is worth at the price in the box, recomputed as it is typed.
+  // Units won is derived from odds on every read, so this is the figure the
+  // leaderboard will show the moment this is saved — not a projection.
+  const typedOdds = Number(form.odds);
+  const oddsValid = form.odds.trim() !== "" && Number.isInteger(typedOdds) && Math.abs(typedOdds) >= 100;
+  const wasWorth = unitProfit(odds, units, result);
+  const nowWorth = oddsValid ? unitProfit(typedOdds, units, result) : null;
+  const signed = (n: number) => `${n >= 0 ? "+" : ""}${n.toFixed(2)}u`;
 
   async function save() {
     setBusy(true);
@@ -53,6 +72,7 @@ export function PickCorrection({
         // sends grading back to parsing the selection text.
         playerName: form.playerName.trim() || null,
         linePoint: form.linePoint.trim() === "" ? null : Number(form.linePoint),
+        odds: Number(form.odds),
       }),
     });
     setBusy(false);
@@ -78,7 +98,10 @@ export function PickCorrection({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+    // Above the site pop-ups, which sit at z-[80]. At z-50 the Supercapper
+    // promo mounted over this dialog and swallowed the click on Save — the
+    // admin could see the form and not submit it.
+    <div className="fixed inset-0 z-[90] flex items-center justify-center bg-black/60 p-4">
       <div className="card w-full max-w-lg p-5 text-left">
         <h2 className="font-semibold">Correct this pick</h2>
         <p className="mt-1 text-xs text-muted">
@@ -106,6 +129,35 @@ export function PickCorrection({
             value={form.linePoint}
             onChange={(v) => setForm({ ...form, linePoint: v })}
           />
+          <Field
+            label="Odds"
+            hint="American, e.g. -110 or +150. Correcting this re-prices the pick."
+            value={form.odds}
+            onChange={(v) => setForm({ ...form, odds: v })}
+          />
+
+          {/* The consequence of the price, stated before it is saved. A graded
+              pick is the case that matters: changing the odds on it moves the
+              handicapper's record, and that should not be a surprise. */}
+          {result === "PENDING" ? (
+            <p className="text-xs text-muted">
+              Still pending, so no units have been won or lost yet. At{" "}
+              {oddsValid ? formatOdds(typedOdds) : "—"} a {units}u win would return{" "}
+              {nowWorth === null ? "—" : signed(unitProfit(typedOdds, units, "WIN"))}.
+            </p>
+          ) : nowWorth !== null && nowWorth !== wasWorth ? (
+            <p className="text-xs">
+              <span className="text-muted">Units won on this {result.toLowerCase()}: </span>
+              <span className="font-medium">{signed(wasWorth)}</span>
+              <span className="text-muted"> → </span>
+              <span className="font-semibold text-accent">{signed(nowWorth)}</span>
+              <span className="text-muted">, applied as soon as you save.</span>
+            </p>
+          ) : (
+            <p className="text-xs text-muted">
+              Units won on this {result.toLowerCase()}: {signed(wasWorth)}.
+            </p>
+          )}
         </div>
 
         {error ? <p className="mt-3 text-xs text-danger">{error}</p> : null}
@@ -151,7 +203,11 @@ function Field({
       <input
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="mt-1 w-full rounded-lg border border-border bg-surface px-3 py-1.5 text-sm outline-none focus:border-muted"
+        // `block`, not just `w-full`: an input is inline-block by default, so
+        // at width:100% it was laid out after the label text and ran past the
+        // right edge of the dialog — each field by a different amount, since
+        // each label is a different length.
+        className="mt-1 block w-full rounded-lg border border-border bg-surface px-3 py-1.5 text-sm outline-none focus:border-muted"
       />
     </label>
   );

@@ -196,6 +196,9 @@ export default async function AdminPicksPage({
                       selection={p.selection}
                       playerName={p.playerName}
                       linePoint={p.linePoint}
+                      odds={p.odds}
+                      units={p.units}
+                      result={p.result}
                     />
                     <AdminButton
                       endpoint={`/api/admin/picks/${p.id}`}

@@ -243,6 +243,12 @@ export const correctPickSchema = z
     selection: z.string().min(1).max(140).optional(),
     playerName: z.string().max(120).nullable().optional(),
     linePoint: z.number().nullable().optional(),
+    // The price. Correcting it re-prices the pick: units won is derived from
+    // odds at read time, never stored, so a graded win's profit moves the
+    // moment this is saved — which is the whole point of being able to fix a
+    // handicapper who posted a price they never got. Same validator the
+    // posting form uses, so an admin cannot save a price a capper could not.
+    odds: boundedOdds.optional(),
   })
   .refine((v) => Object.keys(v).length > 0, { message: "Nothing to correct." });
 
