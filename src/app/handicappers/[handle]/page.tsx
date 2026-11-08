@@ -31,6 +31,7 @@ import { getSetting } from "@/lib/settings";
 import { DASHBOARD_ORDER_SETTING, resolveSectionOrder } from "@/lib/dashboard-sections";
 import { isSubscriptionActive } from "@/lib/subscription-status";
 import { nowPaymentsConfigured } from "@/lib/nowpayments";
+import { directPaymentSettings } from "@/lib/direct-payments";
 import { enrichPickCrests } from "@/lib/pick-logos";
 import { MIN_INDEXABLE_PICKS } from "@/lib/seo";
 import type { ReactNode } from "react";
@@ -96,6 +97,11 @@ export default async function HandicapperProfilePage({
 
   const session = await auth();
   const isOwner = session?.user.id && handicapper.userId === session.user.id;
+
+  // Paying the platform directly, when it is switched on and has details
+  // to show. Empty list means the option simply isn't offered.
+  const direct = await directPaymentSettings();
+  const directMethods = direct.enabled ? direct.methods : [];
 
   // Suspended profiles disappear from the public site; the owner and admins
   // can still open them (the owner sees the suspension notice below).
@@ -388,6 +394,7 @@ export default async function HandicapperProfilePage({
               isReady={handicapper.stripeAccountReady}
               isOwner={Boolean(isOwner)}
               cryptoEnabled={nowPaymentsConfigured()}
+              directMethods={directMethods}
               trialDays={handicapper.subscriptionTrialDays}
               currency={handicapper.priceCurrency}
             />

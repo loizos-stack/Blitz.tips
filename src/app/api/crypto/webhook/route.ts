@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { verifyIpnSignature, PASS_DAYS } from "@/lib/nowpayments";
+import { verifyIpnSignature } from "@/lib/nowpayments";
+import { grantAccessPass } from "@/lib/access-pass";
 import { logActivity } from "@/lib/audit";
 import { formatDate } from "@/lib/date-format";
 import { notifyAdmins } from "@/lib/admin-alerts";
@@ -97,45 +98,12 @@ export async function POST(request: Request) {
         data: { status: "CONFIRMED", confirmedAt: new Date() },
       });
 
-      // Extend from the current pass end when one is still running, otherwise
-      // from now. Marked cancelAtPeriodEnd since crypto passes never auto-renew.
-      const existing = await prisma.subscription.findUnique({
-        where: {
-          subscriberId_handicapperId: {
-            subscriberId: payment.subscriberId,
-            handicapperId: payment.handicapperId,
-          },
-        },
-      });
-      const base =
-        existing?.status === "ACTIVE" &&
-        !existing.stripeSubscriptionId &&
-        existing.currentPeriodEnd &&
-        existing.currentPeriodEnd > new Date()
-          ? existing.currentPeriodEnd
-          : new Date();
-      const periodEnd = new Date(base.getTime() + PASS_DAYS[payment.interval] * 24 * 60 * 60 * 1000);
-
-      await prisma.subscription.upsert({
-        where: {
-          subscriberId_handicapperId: {
-            subscriberId: payment.subscriberId,
-            handicapperId: payment.handicapperId,
-          },
-        },
-        create: {
-          subscriberId: payment.subscriberId,
-          handicapperId: payment.handicapperId,
-          status: "ACTIVE",
-          currentPeriodEnd: periodEnd,
-          cancelAtPeriodEnd: true,
-        },
-        update: {
-          status: "ACTIVE",
-          stripeSubscriptionId: null,
-          currentPeriodEnd: periodEnd,
-          cancelAtPeriodEnd: true,
-        },
+      // Shared with the admin-confirmed transfer route, which sells the same
+      // kind of pass and has to extend it by the same rules.
+      const periodEnd = await grantAccessPass({
+        subscriberId: payment.subscriberId,
+        handicapperId: payment.handicapperId,
+        interval: payment.interval,
       });
 
       const handicapper = await prisma.handicapperProfile.findUnique({

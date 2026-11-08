@@ -153,6 +153,8 @@ model User {
   stripeCustomerId String? @unique
 
   @@index([role])
+  // See the note on Pick's indexes: present in the database, absent here.
+  @@index([referredById])
 }
 
 model Account {
@@ -396,6 +398,13 @@ model Pick {
 
   @@index([handicapperId, createdAt])
   @@index([result])
+  // Declared here because they exist in the database — added by earlier
+  // migrations and never written into this file. Prisma reads that gap as
+  // "these indexes should not exist" and generates a DROP for all three on
+  // the next migration, which is how a routine schema change nearly took
+  // three live indexes with it.
+  @@index([result, eventStartsAt])
+  @@index([closingOdds, eventStartsAt])
 }
 
 /// One cached translation of a pick's analysis.
@@ -677,6 +686,99 @@ enum CryptoPaymentStatus {
   PENDING
   CONFIRMED
   EXPIRED
+}
+
+/// A subscriber paying for a pass off-platform — bank transfer, PayPal,
+/// Revolut, Wise, whatever the admin has said they accept.
+///
+/// Why this exists at all: Stripe can only pay a handicapper in the EEA, the
+/// UK, the US, Canada or Switzerland, and crypto doesn't suit everybody. This
+/// route works wherever both parties are, because the money goes to the
+/// platform and the handicapper's share is sent on by hand.
+///
+/// The shape deliberately mirrors CryptoPayment: a one-time pass, priced at
+/// the handicapper's package rate, with the commission split frozen at the
+/// moment of purchase. The difference is who confirms it — a NOWPayments IPN
+/// there, a person here, which is why `confirmedById` is recorded.
+model DirectPayment {
+  id String @id @default(cuid())
+
+  /// Short code the payer quotes on the transfer, so an arriving payment can
+  /// be matched to the person who owes it. Unique, and shown to both sides.
+  reference String @unique
+
+  subscriberId  String
+  handicapperId String
+
+  interval        BillingIntervalPass
+  amountCents     Int // what the subscriber was asked for
+  currency        PriceCurrency       @default(USD)
+  commissionCents Int // platform's cut at the time of purchase
+  netCents        Int // owed to the handicapper
+
+  /// What the subscriber said they would pay with, from the methods on offer.
+  method String
+
+  /// Anything the subscriber added to help identify the payment — the PayPal
+  /// address it will come from, a bank reference, a screenshot's filename.
+  note String? @db.Text
+
+  status DirectPaymentStatus @default(PENDING)
+
+  /// Who confirmed or rejected it, and when. An admin's email is kept beside
+  /// their id for the same reason the comped columns keep one: the row has to
+  /// still name a person after that admin's account is gone.
+  decidedAt      DateTime?
+  decidedById    String?
+  decidedByEmail String?
+  /// Why it was rejected, shown to the subscriber.
+  rejectedReason String?   @db.Text
+
+  createdAt DateTime @default(now())
+
+  @@index([status, createdAt])
+  @@index([handicapperId, status])
+  @@index([subscriberId])
+}
+
+enum DirectPaymentStatus {
+  PENDING
+  CONFIRMED
+  REJECTED
+}
+
+/// Money actually sent on to a handicapper.
+///
+/// Without this, "net owed" on the financials tab is an all-time total that
+/// never goes down — it says what has been earned, not what is still
+/// outstanding, and the page had to tell the admin to keep their own record
+/// elsewhere. Each row here is one transfer that happened, so the figure on
+/// screen can mean what it says.
+///
+/// Deliberately free-form about method and reference: the whole point of this
+/// payout route is that it is whatever the two parties agreed — a SEPA
+/// transfer, a PayPal send, a USDT transaction hash.
+model HandicapperPayout {
+  id            String @id @default(cuid())
+  handicapperId String
+
+  amountCents Int
+  currency    PriceCurrency @default(USD)
+
+  /// How it was sent: "Bank transfer", "PayPal", "USDT (TRC-20)", …
+  method String
+  /// The transfer id, transaction hash or whatever identifies it afterwards.
+  reference String?
+  note      String? @db.Text
+
+  /// When the money left, which is not always when the row was written.
+  paidAt DateTime @default(now())
+
+  recordedById    String?
+  recordedByEmail String?
+  createdAt       DateTime @default(now())
+
+  @@index([handicapperId, paidAt])
 }
 
 enum BillingIntervalPass {

@@ -6,6 +6,12 @@ import { commissionPercentForPlan, planPriceCents } from "@/lib/plans";
 import { guardAdminPage } from "@/lib/permissions";
 import { hasActiveComp, isPlanPaidFor } from "@/lib/comped-plans";
 import { formatDate } from "@/lib/date-format";
+import { directPaymentSettings, SUGGESTED_METHODS } from "@/lib/direct-payments";
+import {
+  DirectPaymentSettings,
+  PendingDirectPayments,
+  RecordPayout,
+} from "@/components/admin/direct-payments-admin";
 
 export const dynamic = "force-dynamic";
 
@@ -33,7 +39,16 @@ const PAID_SUBSCRIPTION: Prisma.SubscriptionWhereInput = {
 // listed separately below, where what they cost is the point.
 export default async function AdminFinancialsPage() {
   await guardAdminPage("financials");
-  const [handicappers, activeSubs, cryptoPayments, compedSubs] = await Promise.all([
+  const [
+    handicappers,
+    activeSubs,
+    cryptoPayments,
+    compedSubs,
+    directConfirmed,
+    directPending,
+    payouts,
+    directSettings,
+  ] = await Promise.all([
     prisma.handicapperProfile.findMany({
       include: {
         _count: { select: { subscriptions: { where: PAID_SUBSCRIPTION } } },
@@ -56,7 +71,51 @@ export default async function AdminFinancialsPage() {
         handicapper: { select: { handle: true, monthlyPriceCents: true } },
       },
     }),
+    prisma.directPayment.findMany({ where: { status: "CONFIRMED" } }),
+    prisma.directPayment.findMany({
+      where: { status: "PENDING" },
+      orderBy: { createdAt: "asc" },
+      take: 50,
+    }),
+    prisma.handicapperPayout.findMany({ orderBy: { paidAt: "desc" } }),
+    directPaymentSettings(),
   ]);
+
+  // What is owed, and what has gone out. Both crypto and direct transfers are
+  // money the platform received on a handicapper's behalf, so they belong in
+  // one figure; payouts come off it. Stripe is absent on purpose — Stripe
+  // pays the handicapper itself, so there is nothing to settle by hand.
+  const owedByHandicapper = new Map<
+    string,
+    { gross: number; cut: number; net: number; paid: number; count: number }
+  >();
+  const bucket = (id: string) => {
+    let row = owedByHandicapper.get(id);
+    if (!row) owedByHandicapper.set(id, (row = { gross: 0, cut: 0, net: 0, paid: 0, count: 0 }));
+    return row;
+  };
+  for (const p of [...cryptoPayments, ...directConfirmed]) {
+    const row = bucket(p.handicapperId);
+    row.count += 1;
+    row.gross += p.amountCents;
+    row.cut += p.commissionCents;
+    row.net += p.netCents;
+  }
+  for (const p of payouts) bucket(p.handicapperId).paid += p.amountCents;
+
+  const owedRows = [...owedByHandicapper.entries()]
+    .map(([handicapperId, r]) => ({ handicapperId, ...r, outstanding: r.net - r.paid }))
+    .filter((r) => r.count > 0 || r.paid > 0)
+    .sort((a, b) => b.outstanding - a.outstanding);
+
+  const subscriberEmails = new Map(
+    (
+      await prisma.user.findMany({
+        where: { id: { in: directPending.map((p) => p.subscriberId) } },
+        select: { id: true, email: true },
+      })
+    ).map((u) => [u.id, u.email])
+  );
 
   // Handicapper plans that were given rather than bought, from the same admin
   // panel. Same problem, different table.
@@ -165,60 +224,94 @@ export default async function AdminFinancialsPage() {
         </table>
       </div>
 
-      {cryptoPayments.length > 0 && (
+      <PendingDirectPayments
+        payments={directPending.map((p) => ({
+          id: p.id,
+          reference: p.reference,
+          createdAt: p.createdAt.toISOString(),
+          interval: p.interval,
+          amountCents: p.amountCents,
+          currency: p.currency,
+          netCents: p.netCents,
+          method: p.method,
+          note: p.note,
+          subscriberEmail: subscriberEmails.get(p.subscriberId) ?? p.subscriberId,
+          handle: handicappers.find((h) => h.id === p.handicapperId)?.handle ?? p.handicapperId,
+        }))}
+      />
+
+      {owedRows.length > 0 && (
         <>
-          <h2 className="mb-3 mt-8 font-semibold">Crypto passes (owed to handicappers)</h2>
+          <div className="mb-3 mt-8 flex flex-wrap items-center justify-between gap-3">
+            <h2 className="font-semibold">Owed to handicappers</h2>
+            <RecordPayout
+              handicappers={owedRows.map((r) => {
+                const h = handicappers.find((x) => x.id === r.handicapperId);
+                return {
+                  id: r.handicapperId,
+                  handle: h?.handle ?? r.handicapperId,
+                  owedCents: Math.max(r.outstanding, 0),
+                  currency: h?.priceCurrency ?? "USD",
+                };
+              })}
+            />
+          </div>
           <p className="mb-3 text-xs text-muted">
-            Crypto payments land in your NOWPayments account; the net column is what you owe
-            each handicapper from confirmed passes (all-time). Pay out manually and keep your own
-            record of settled amounts.
+            Passes bought with crypto or paid straight to you. That money reached your account,
+            not the handicapper&apos;s, so their share is sent by hand — record each transfer and
+            the outstanding column comes down. Stripe subscriptions are not here: Stripe pays the
+            handicapper directly, so there is nothing to settle.
           </p>
           <div className="card overflow-x-auto p-0">
-            <table className="w-full min-w-[40rem] text-sm">
+            <table className="w-full min-w-[46rem] text-sm">
               <thead>
                 <tr className="border-b border-border text-left text-xs uppercase tracking-wide text-muted">
                   <th className="px-4 py-3">Handicapper</th>
-                  <th className="px-4 py-3">Confirmed passes</th>
+                  <th className="px-4 py-3">Passes</th>
                   <th className="px-4 py-3">Gross</th>
                   <th className="px-4 py-3">Platform cut</th>
-                  <th className="px-4 py-3">Net owed</th>
+                  <th className="px-4 py-3">Their share</th>
+                  <th className="px-4 py-3">Paid out</th>
+                  <th className="px-4 py-3">Outstanding</th>
                 </tr>
               </thead>
               <tbody>
-                {Object.values(
-                  cryptoPayments.reduce<
-                    Record<string, { handicapperId: string; count: number; gross: number; cut: number; net: number }>
-                  >((acc, p) => {
-                    const row = (acc[p.handicapperId] ??= {
-                      handicapperId: p.handicapperId,
-                      count: 0,
-                      gross: 0,
-                      cut: 0,
-                      net: 0,
-                    });
-                    row.count += 1;
-                    row.gross += p.amountCents;
-                    row.cut += p.commissionCents;
-                    row.net += p.netCents;
-                    return acc;
-                  }, {})
-                )
-                  .sort((a, b) => b.net - a.net)
-                  .map((r) => {
-                    const h = handicappers.find((x) => x.id === r.handicapperId);
-                    return (
-                      <tr key={r.handicapperId} className="border-b border-border last:border-b-0">
-                        <td className="px-4 py-2.5 font-medium">@{h?.handle ?? r.handicapperId}</td>
-                        <td className="px-4 py-2.5 tabular-nums">{r.count}</td>
-                        <td className="px-4 py-2.5 tabular-nums">{formatCents(r.gross)}</td>
-                        <td className="px-4 py-2.5 tabular-nums text-accent">{formatCents(r.cut)}</td>
-                        <td className="px-4 py-2.5 tabular-nums font-semibold">{formatCents(r.net)}</td>
-                      </tr>
-                    );
-                  })}
+                {owedRows.map((r) => {
+                  const h = handicappers.find((x) => x.id === r.handicapperId);
+                  const currency = h?.priceCurrency ?? "USD";
+                  return (
+                    <tr key={r.handicapperId} className="border-b border-border last:border-b-0">
+                      <td className="px-4 py-2.5 font-medium">@{h?.handle ?? r.handicapperId}</td>
+                      <td className="px-4 py-2.5 tabular-nums">{r.count}</td>
+                      <td className="px-4 py-2.5 tabular-nums">{formatCents(r.gross, currency)}</td>
+                      <td className="px-4 py-2.5 tabular-nums text-accent">
+                        {formatCents(r.cut, currency)}
+                      </td>
+                      <td className="px-4 py-2.5 tabular-nums">{formatCents(r.net, currency)}</td>
+                      <td className="px-4 py-2.5 tabular-nums text-muted">
+                        {formatCents(r.paid, currency)}
+                      </td>
+                      {/* Overpaid reads as a credit rather than a negative
+                          debt, because "-12.00 owed" is a sentence nobody
+                          parses correctly at a glance. */}
+                      <td className="px-4 py-2.5 tabular-nums font-semibold">
+                        {r.outstanding < 0
+                          ? `${formatCents(-r.outstanding, currency)} ahead`
+                          : formatCents(r.outstanding, currency)}
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
+          {payouts.length > 0 && (
+            <p className="mt-2 text-xs text-muted">
+              Last payout: {formatCents(payouts[0].amountCents, payouts[0].currency)} via{" "}
+              {payouts[0].method} on {formatDate(payouts[0].paidAt)}
+              {payouts[0].recordedByEmail ? `, recorded by ${payouts[0].recordedByEmail}` : ""}.
+            </p>
+          )}
         </>
       )}
 
@@ -344,6 +437,17 @@ export default async function AdminFinancialsPage() {
             )}
           </tbody>
         </table>
+      </div>
+
+      <div className="mt-8">
+        <DirectPaymentSettings
+          initial={{
+            enabled: directSettings.enabled,
+            methods: directSettings.methods,
+            instructions: directSettings.instructions,
+          }}
+          suggested={SUGGESTED_METHODS}
+        />
       </div>
     </div>
   );
