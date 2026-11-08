@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { put } from "@vercel/blob";
 import { prisma } from "@/lib/prisma";
 import { blobToken } from "@/lib/blob";
-import { recapFor, winnersFor, yesterday } from "@/lib/recap";
+import { parseHandles, recapFor, splitRecapKey, winnersFor, yesterday } from "@/lib/recap";
 import { requirePermission } from "@/lib/permissions";
 
 export const maxDuration = 60;
@@ -35,20 +35,25 @@ export async function GET(request: Request) {
   const params = new URL(request.url).searchParams;
   const plainDate = (v: string | null) => (/^\d{4}-\d{2}-\d{2}$/.test(v ?? "") ? v! : null);
 
+  // ?handicappers=alice,bob narrows the recap to those handicappers. Anything
+  // that isn't a valid handle is dropped rather than erroring: a stray comma
+  // should not cost someone a render.
+  const handles = parseHandles(params.get("handicappers"));
+
   // Winners mode spans a range: ?mode=winners&from=…&to=… — the promo reel.
   // Without it, one day's honest recap.
   if (params.get("mode") === "winners") {
     const from = plainDate(params.get("from")) ?? plainDate(params.get("date")) ?? yesterday();
     const to = plainDate(params.get("to")) ?? from;
-    const payload = await winnersFor(from, to);
+    const payload = await winnersFor(from, to, handles);
     const existing = await prisma.recapVideo.findUnique({ where: { date: payload.date } });
     return NextResponse.json({ ...payload, alreadyRendered: existing?.url ?? null });
   }
 
   // Only ever a plain date, because it goes into a timestamp range query.
   const date = plainDate(params.get("date")) ?? yesterday();
-  const payload = await recapFor(date);
-  const existing = await prisma.recapVideo.findUnique({ where: { date } });
+  const payload = await recapFor(date, handles);
+  const existing = await prisma.recapVideo.findUnique({ where: { date: payload.date } });
 
   return NextResponse.json({ ...payload, alreadyRendered: existing?.url ?? null });
 }
@@ -61,14 +66,22 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  // One day ("2026-10-28") for a recap, or a span ("2026-10-28_2026-10-29")
-  // for a winners reel — the same key winnersFor() returns, so one video per
-  // period and a re-run overwrites rather than piling up.
+  // The key the GET handed back, echoed: one day ("2026-10-28") for a recap,
+  // a span ("2026-10-28_2026-10-29") for a winners reel, either of them
+  // optionally followed by "+handle" for each handicapper it was narrowed to.
+  // One video per key, so a re-run overwrites rather than piling up, and a
+  // recap of one handicapper's day never lands on top of everyone's.
   const date = new URL(request.url).searchParams.get("date");
-  const span = date?.match(/^(\d{4}-\d{2}-\d{2})_(\d{4}-\d{2}-\d{2})$/);
-  if (!date || !(span || /^\d{4}-\d{2}-\d{2}$/.test(date))) {
+  const { period, handles } = splitRecapKey(date ?? "");
+  const span = period.match(/^(\d{4}-\d{2}-\d{2})_(\d{4}-\d{2}-\d{2})$/);
+  const wellFormed =
+    (span || /^\d{4}-\d{2}-\d{2}$/.test(period)) && handles.every((h) => /^[a-z0-9_]+$/.test(h));
+  if (!date || !wellFormed) {
     return NextResponse.json(
-      { error: "A ?date=YYYY-MM-DD (or YYYY-MM-DD_YYYY-MM-DD for a winners reel) is required." },
+      {
+        error:
+          "A ?date=YYYY-MM-DD (or YYYY-MM-DD_YYYY-MM-DD for a winners reel), optionally +handle per handicapper, is required.",
+      },
       { status: 400 }
     );
   }
@@ -100,7 +113,9 @@ export async function POST(request: Request) {
   // Re-read the figures here rather than trusting the body: the caption that
   // ends up beside this video has to come from the database, not from whatever
   // posted the file.
-  const payload = span ? await winnersFor(span[1], span[2]) : await recapFor(date);
+  const payload = span
+    ? await winnersFor(span[1], span[2], handles)
+    : await recapFor(period, handles);
 
   const blob = await put(`recaps/${date}.mp4`, bytes, {
     access: "public",

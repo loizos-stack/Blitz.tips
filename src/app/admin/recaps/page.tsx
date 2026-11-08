@@ -1,9 +1,11 @@
 import { Download, Film, Info } from "lucide-react";
 import { guardAdminPage } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
-import { recapFor, yesterday } from "@/lib/recap";
+import { splitRecapKey, yesterday } from "@/lib/recap";
+import { RECAP_WORKFLOW, recapDispatchConfig } from "@/lib/recap-dispatch";
 import { getConnectedAccount, tiktokConfigured } from "@/lib/tiktok";
 import { SendToTikTok, TikTokConnection } from "@/components/admin/tiktok-connection";
+import { RecapBuilder, type RecapCandidate } from "@/components/admin/recap-builder";
 import { cn } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
@@ -13,6 +15,13 @@ function units(n: number): string {
   return `${n > 0 ? "+" : n < 0 ? "−" : ""}${Math.abs(n).toFixed(2)}u`;
 }
 
+/** A stored key as a person reads it: the period, then who it covers. */
+function describeKey(key: string): { period: string; handles: string[] } {
+  const { period, handles } = splitRecapKey(key);
+  const span = period.match(/^(\d{4}-\d{2}-\d{2})_(\d{4}-\d{2}-\d{2})$/);
+  return { period: span ? `${span[1]} → ${span[2]}` : period, handles };
+}
+
 export default async function AdminRecapsPage({
   searchParams,
 }: {
@@ -20,26 +29,54 @@ export default async function AdminRecapsPage({
 }) {
   await guardAdminPage("recaps");
 
-  const [videos, pending, tiktok, params] = await Promise.all([
+  const [videos, settledBy, tiktok, params] = await Promise.all([
     prisma.recapVideo.findMany({ orderBy: { date: "desc" }, take: 30 }),
-    // What tonight's run would produce, so a day with nothing settled is
-    // visible as such rather than looking like the job failed.
-    recapFor(yesterday()),
+    // Who there is anything to make a recap of, busiest first. Handicappers
+    // with nothing settled are left out rather than offered and then refused.
+    prisma.pick.groupBy({
+      by: ["handicapperId"],
+      where: { result: { in: ["WIN", "LOSS", "PUSH"] }, settledAt: { not: null } },
+      _count: { _all: true },
+      orderBy: { _count: { id: "desc" } },
+      take: 100,
+    }),
     getConnectedAccount(),
     searchParams,
   ]);
 
-  const haveYesterday = videos.some((v) => v.date === pending.date);
+  const profiles = await prisma.handicapperProfile.findMany({
+    where: { id: { in: settledBy.map((s) => s.handicapperId) } },
+    select: { id: true, handle: true, displayName: true },
+  });
+  const byId = new Map(profiles.map((p) => [p.id, p]));
+  const candidates: RecapCandidate[] = settledBy.flatMap((s) => {
+    const p = byId.get(s.handicapperId);
+    return p
+      ? [{ handle: p.handle, displayName: p.displayName, settled: s._count._all }]
+      : [];
+  });
+
+  const dispatch = recapDispatchConfig();
+  const actionsUrl = dispatch.ready
+    ? `https://github.com/${dispatch.owner}/${dispatch.repo}/actions/workflows/${RECAP_WORKFLOW}`
+    : `https://github.com/${process.env.VERCEL_GIT_REPO_OWNER ?? "loizos-stack"}/${process.env.VERCEL_GIT_REPO_SLUG ?? "Blitz.tips"}/actions/workflows/${RECAP_WORKFLOW}`;
 
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-xl font-bold">Results recaps</h1>
         <p className="mt-1 text-sm text-muted">
-          A 9-second 1080×1920 video of each day&apos;s settled picks, rendered overnight. Download
-          and post to TikTok, Reels or Shorts.
+          A 9-second 1080×1920 video of a day&apos;s settled picks, made when you ask for one.
+          Download and post to TikTok, Reels or Shorts.
         </p>
       </div>
+
+      <RecapBuilder
+        candidates={candidates}
+        defaultDate={yesterday()}
+        setupNeeded={dispatch.ready ? null : dispatch.missing}
+        actionsUrl={actionsUrl}
+      />
 
       <TikTokConnection
         configured={tiktokConfigured()}
@@ -54,30 +91,12 @@ export default async function AdminRecapsPage({
         }
       />
 
-      {!haveYesterday && (
-        <div className="card p-5">
-          <h2 className="font-semibold">{pending.label}</h2>
-          {pending.totals.settled === 0 ? (
-            <p className="mt-2 text-sm text-muted">
-              Nothing settled yet, so there is no video for this day. The job skips quiet days
-              rather than publishing an empty card.
-            </p>
-          ) : (
-            <p className="mt-2 text-sm text-muted">
-              {pending.totals.settled} settled ({pending.totals.record}, {units(pending.totals.units)}
-              ) — not rendered yet. The nightly run is at 09:20 UTC; you can also start it from the
-              repository&apos;s Actions tab (&ldquo;Results recap video&rdquo;).
-            </p>
-          )}
-        </div>
-      )}
-
       {videos.length === 0 ? (
         <div className="card p-8 text-center">
           <Film className="mx-auto h-8 w-8 text-muted" />
           <p className="mt-3 font-medium">No recaps yet</p>
           <p className="mt-1 text-sm text-muted">
-            The first one appears after the nightly job runs on a day with settled picks.
+            Use &ldquo;Create a recap&rdquo; above and the first one appears here.
           </p>
         </div>
       ) : (
@@ -95,7 +114,14 @@ export default async function AdminRecapsPage({
               />
               <div className="flex items-center justify-between gap-3 p-4">
                 <div className="min-w-0">
-                  <p className="truncate font-semibold">{v.date}</p>
+                  <p className="truncate font-semibold">{describeKey(v.date).period}</p>
+                  {describeKey(v.date).handles.length > 0 && (
+                    <p className="truncate text-xs text-accent">
+                      {describeKey(v.date)
+                        .handles.map((h) => `@${h}`)
+                        .join(", ")}
+                    </p>
+                  )}
                   <p className="mt-0.5 text-sm text-muted">
                     {v.record} ·{" "}
                     <span

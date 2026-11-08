@@ -35,7 +35,16 @@ export interface RecapRow {
 }
 
 export interface RecapPayload {
-  /** The day covered, as YYYY-MM-DD in UTC. */
+  /**
+   * The storage key for this recap: the day (or span) covered, plus the
+   * handicappers it was narrowed to.
+   *
+   * It is one string rather than a set of columns because it is also the Blob
+   * filename and the unique key of RecapVideo, and a recap of one
+   * handicapper's Tuesday must not overwrite the video of everyone's Tuesday.
+   * Handles can only be lowercase letters, numbers and underscores, so "+"
+   * cannot appear inside one and is safe as the separator.
+   */
   date: string;
   /** "Tuesday 28 October", for the video's header. */
   label: string;
@@ -44,6 +53,8 @@ export interface RecapPayload {
   omitted: number;
   /** "winners" is the promo reel; absent means the honest daily recap. */
   mode?: "winners";
+  /** The handicappers this was narrowed to; empty means the whole site. */
+  handles: string[];
   totals: {
     settled: number;
     wins: number;
@@ -70,6 +81,50 @@ export function yesterday(now: Date = new Date()): string {
   return new Date(now.getTime() - 86_400_000).toISOString().slice(0, 10);
 }
 
+/** The shape a handicapper handle is allowed to take. */
+const HANDLE = /^[a-z0-9_]+$/;
+
+/**
+ * Clean up a requested set of handles.
+ *
+ * Sorted and de-duplicated because the result goes into the storage key:
+ * picking the same two handicappers in the other order has to land on the same
+ * video rather than rendering a second copy of it.
+ */
+export function normalizeHandles(handles: readonly string[] | undefined | null): string[] {
+  if (!handles?.length) return [];
+  return [...new Set(handles.map((h) => h.trim().toLowerCase()).filter((h) => HANDLE.test(h)))].sort();
+}
+
+/** Parse the `handicappers=a,b` query parameter. */
+export function parseHandles(value: string | null): string[] {
+  return normalizeHandles(value?.split(",") ?? []);
+}
+
+/** The storage key: the period, then the handles it was narrowed to. */
+function keyFor(period: string, handles: string[]): string {
+  return handles.length ? `${period}+${handles.join("+")}` : period;
+}
+
+/** Split a storage key back into its period and its handles, for display. */
+export function splitRecapKey(key: string): { period: string; handles: string[] } {
+  const [period, ...handles] = key.split("+");
+  return { period, handles };
+}
+
+/** Only these handicappers, or everyone when the list is empty. */
+function handleFilter(handles: string[]) {
+  return handles.length ? { handicapper: { handle: { in: handles } } } : {};
+}
+
+/** " — @alice & @bob" for the header, so a filtered video says it is filtered. */
+function handleSuffix(handles: string[]): string {
+  if (!handles.length) return "";
+  if (handles.length === 1) return ` — @${handles[0]}`;
+  if (handles.length === 2) return ` — @${handles[0]} & @${handles[1]}`;
+  return ` — ${handles.length} handicappers`;
+}
+
 /**
  * The winners across a span of days, for a promo reel.
  *
@@ -80,15 +135,21 @@ export function yesterday(now: Date = new Date()): string {
  * reel shows the best of a period; the figure beneath it says what the period
  * actually did.
  */
-export async function winnersFor(from: string, to: string): Promise<RecapPayload> {
+export async function winnersFor(
+  from: string,
+  to: string,
+  requested: readonly string[] = []
+): Promise<RecapPayload> {
   const { start } = dayBounds(from);
   const { end } = dayBounds(to);
   if (end <= start) throw new Error(`${to} is not on or after ${from}`);
+  const handles = normalizeHandles(requested);
 
   const picks = await prisma.pick.findMany({
     where: {
       settledAt: { gte: start, lt: end },
       result: { in: ["WIN", "LOSS", "PUSH"] },
+      ...handleFilter(handles),
     },
     select: {
       odds: true, units: true, result: true, sport: true,
@@ -127,12 +188,13 @@ export async function winnersFor(from: string, to: string): Promise<RecapPayload
       : `${dayBounds(from).start.toLocaleDateString("en-GB", { day: "numeric", month: "long", timeZone: "UTC" })} – ${dayBounds(to).start.toLocaleDateString("en-GB", { day: "numeric", month: "long", timeZone: "UTC" })}`;
 
   return {
-    date: from === to ? from : `${from}_${to}`,
-    label,
+    date: keyFor(from === to ? from : `${from}_${to}`, handles),
+    label: label + handleSuffix(handles),
     rows,
     // How many WINNERS are not shown — the reel's own omission.
     omitted: Math.max(wins.length - rows.length, 0),
     mode: "winners",
+    handles,
     totals: {
       settled: picks.length,
       wins: stats.wins,
@@ -149,8 +211,12 @@ export async function winnersFor(from: string, to: string): Promise<RecapPayload
   };
 }
 
-export async function recapFor(date: string): Promise<RecapPayload> {
+export async function recapFor(
+  date: string,
+  requested: readonly string[] = []
+): Promise<RecapPayload> {
   const { start, end } = dayBounds(date);
+  const handles = normalizeHandles(requested);
 
   // Settled, not posted: a pick made last week and graded today belongs to
   // today's results. VOID and PENDING are excluded — a voided pick is not a
@@ -159,6 +225,7 @@ export async function recapFor(date: string): Promise<RecapPayload> {
     where: {
       settledAt: { gte: start, lt: end },
       result: { in: ["WIN", "LOSS", "PUSH"] },
+      ...handleFilter(handles),
     },
     select: {
       odds: true,
@@ -197,15 +264,17 @@ export async function recapFor(date: string): Promise<RecapPayload> {
   const decided = stats.wins + stats.losses;
 
   return {
-    date,
-    label: start.toLocaleDateString("en-GB", {
-      weekday: "long",
-      day: "numeric",
-      month: "long",
-      timeZone: "UTC",
-    }),
+    date: keyFor(date, handles),
+    label:
+      start.toLocaleDateString("en-GB", {
+        weekday: "long",
+        day: "numeric",
+        month: "long",
+        timeZone: "UTC",
+      }) + handleSuffix(handles),
     rows,
     omitted: Math.max(all.length - rows.length, 0),
+    handles,
     totals: {
       settled: all.length,
       wins: stats.wins,

@@ -27,7 +27,11 @@ function authorized(request: Request): boolean {
 }
 
 /** One day ("2026-10-28") or a winners span ("2026-10-22_2026-10-28"). */
-const DATE_KEY = /^\d{4}-\d{2}-\d{2}(_\d{4}-\d{2}-\d{2})?$/;
+// A recap's storage key: a day, or a span for a winners reel, each optionally
+// followed by "+handle" for every handicapper it was narrowed to. Without the
+// handles this rejected every filtered recap, so Send to TikTok worked on the
+// whole-site videos and nowhere else.
+const DATE_KEY = /^\d{4}-\d{2}-\d{2}(_\d{4}-\d{2}-\d{2})?(\+[a-z0-9_]+)*$/;
 
 export async function POST(request: Request) {
   const isAdmin = !authorized(request) && Boolean(await requirePermission("recaps"));
