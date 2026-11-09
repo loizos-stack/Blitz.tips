@@ -20,10 +20,11 @@ const RESULT_OPTIONS = [
 
 const ROW_LIMIT = 150;
 
-type ViewKey = "tograde" | "all" | "pending" | "WIN" | "LOSS" | "PUSH" | "VOID";
+type ViewKey = "tograde" | "manual" | "all" | "pending" | "WIN" | "LOSS" | "PUSH" | "VOID";
 
 const VIEWS: { key: ViewKey; label: string }[] = [
   { key: "tograde", label: "To grade" },
+  { key: "manual", label: "Typed by hand" },
   { key: "pending", label: "Pending" },
   { key: "all", label: "All" },
   { key: "WIN", label: "Win" },
@@ -55,6 +56,12 @@ function whereFor(view: ViewKey, now: Date): Prisma.PickWhereInput {
       return { result: "PENDING" };
     case "tograde":
       return { result: "PENDING", eventStartsAt: { lte: now } };
+    // Picks nobody took off the odds board. They carry no event id, so the
+    // settler has no score to look up and has to grade them from their own
+    // wording — which is where wrong and ungraded results come from. This is
+    // the view that says who is still doing it.
+    case "manual":
+      return { oddsApiEventId: null };
     default:
       return { result: view };
   }
@@ -71,7 +78,7 @@ export default async function AdminPicksPage({
   const view: ViewKey = isViewKey(params.view) ? params.view : "all";
   const now = new Date();
 
-  const [picks, byResult, toGradeCount, total] = await Promise.all([
+  const [picks, byResult, toGradeCount, total, manualCount] = await Promise.all([
     prisma.pick.findMany({
       where: whereFor(view, now),
       // The grading queue is ordered by kickoff, oldest first: the game that
@@ -84,11 +91,13 @@ export default async function AdminPicksPage({
     prisma.pick.groupBy({ by: ["result"], _count: { _all: true } }),
     prisma.pick.count({ where: { result: "PENDING", eventStartsAt: { lte: now } } }),
     prisma.pick.count(),
+    prisma.pick.count({ where: { oddsApiEventId: null } }),
   ]);
 
   // Counts on the pills, so the queue can be read without clicking into it.
   const counts: Record<ViewKey, number> = {
     tograde: toGradeCount,
+    manual: manualCount,
     pending: byResult.find((r) => r.result === "PENDING")?._count._all ?? 0,
     all: total,
     WIN: byResult.find((r) => r.result === "WIN")?._count._all ?? 0,
@@ -154,6 +163,7 @@ export default async function AdminPicksPage({
               <th className="px-4 py-3">Capper</th>
               <th className="px-4 py-3">Matchup</th>
               <th className="px-4 py-3">Selection</th>
+              <th className="px-4 py-3">Source</th>
               <th className="px-4 py-3">Odds</th>
               <th className="px-4 py-3">Units</th>
               <th className="px-4 py-3">Posted</th>
@@ -170,6 +180,16 @@ export default async function AdminPicksPage({
                 <td className="max-w-44 truncate px-4 py-2.5 font-display">{p.matchup}</td>
                 <td className="max-w-44 truncate px-4 py-2.5 font-display text-muted">
                   {p.selection}
+                </td>
+                {/* Where the pick came from. A board pick carries the event id
+                    the settler looks a score up by; a hand-typed one doesn't,
+                    and has to be graded from its wording. */}
+                <td className="px-4 py-2.5 text-xs">
+                  {p.oddsApiEventId ? (
+                    <span className="text-muted">Board</span>
+                  ) : (
+                    <span className="font-medium text-gold">By hand</span>
+                  )}
                 </td>
                 <td className="px-4 py-2.5 tabular-nums">{formatOdds(p.odds)}</td>
                 <td className="px-4 py-2.5 tabular-nums">{p.units}u</td>
@@ -218,7 +238,9 @@ export default async function AdminPicksPage({
           <p className="px-4 py-10 text-center text-sm text-muted">
             {view === "tograde"
               ? "Nothing waiting. Every pick whose game has started is graded."
-              : "No picks in this view."}
+              : view === "manual"
+                ? "Every pick came off the odds board — nothing was typed by hand."
+                : "No picks in this view."}
           </p>
         ) : null}
       </div>
