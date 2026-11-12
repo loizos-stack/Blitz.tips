@@ -23,15 +23,26 @@ import { ContestCountdown } from "@/components/contest/contest-countdown";
 import { ContestJoinButton } from "@/components/contest/contest-join-button";
 import { ContestStandings } from "@/components/contest/contest-standings";
 import { SupercapperLogo } from "@/components/contest/supercapper-logo";
+import { supercapperVisible } from "@/lib/supercapper-visibility";
+import { notFound } from "next/navigation";
 
 export const dynamic = "force-dynamic";
 
-export const metadata: Metadata = {
+/**
+ * Metadata is resolved separately from the component, so the page's
+ * notFound() does not suppress it: while the contest was hidden the
+ * title, description and canonical for a $10,000 contest were still
+ * being served in the payload of a 404.
+ */
+export async function generateMetadata(): Promise<Metadata> {
+  if (!supercapperVisible()) return {};
+  return {
   title: "Supercapper Contest — $10,000 Guaranteed",
   description:
     "Enter the free Supercapper Contest for a shot at a $10,000 guaranteed prize pool. Post your picks, climb the ROI leaderboard, and finish top 20 to get paid.",
   alternates: { canonical: "/supercapper" },
 };
+}
 
 const PHASE_LABEL: Record<string, string> = {
   upcoming: "Starts soon",
@@ -41,6 +52,11 @@ const PHASE_LABEL: Record<string, string> = {
 };
 
 export default async function SupercapperPage() {
+  // The layout's gate returns the 404, but a layout and its page render
+  // together: without this the page still ran and its whole output — title,
+  // prize pool, standings, contest id — was serialised into the Flight payload
+  // of a page that claims not to exist. Checked here so nothing renders.
+  if (!supercapperVisible()) notFound();
   const [session, contest] = await Promise.all([
     auth(),
     prisma.contest.findUnique({

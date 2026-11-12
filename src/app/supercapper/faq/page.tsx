@@ -7,19 +7,35 @@ import { formatCents } from "@/lib/utils";
 import { MAX_PICKS_PER_DAY, MAX_PICKS_PER_WEEK, MAX_UNITS_PER_DAY } from "@/lib/contest-limits";
 import { MIN_PAYOUT_SPOTS, ENTRANTS_PER_EXTRA_SPOT } from "@/lib/contest";
 import { SupercapperLogo } from "@/components/contest/supercapper-logo";
+import { supercapperVisible } from "@/lib/supercapper-visibility";
+import { notFound } from "next/navigation";
 
 export const dynamic = "force-dynamic";
 
-export const metadata: Metadata = {
+/**
+ * Metadata is resolved separately from the component, so the page's
+ * notFound() does not suppress it: while the contest was hidden the
+ * title, description and canonical for a $10,000 contest were still
+ * being served in the payload of a 404.
+ */
+export async function generateMetadata(): Promise<Metadata> {
+  if (!supercapperVisible()) return {};
+  return {
   title: "Contest FAQ",
   description:
     "Common questions about the Supercapper handicapping contest — entry, qualifying, scoring, payouts and grading.",
   alternates: { canonical: "/supercapper/faq" },
 };
+}
 
 // Contest-specific FAQ. Separate from the site FAQ (/faq), which covers
 // subscriptions and selling picks — mixing the two buries both.
 export default async function ContestFaqPage() {
+  // The layout's gate returns the 404, but a layout and its page render
+  // together: without this the page still ran and its whole output — title,
+  // prize pool, standings, contest id — was serialised into the Flight payload
+  // of a page that claims not to exist. Checked here so nothing renders.
+  if (!supercapperVisible()) notFound();
   const contest = await prisma.contest.findUnique({ where: { slug: "supercapper" } });
   const prize = contest ? formatCents(contest.prizePoolCents) : "the guaranteed pool";
   const minPicks = contest?.minPicks ?? 100;
