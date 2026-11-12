@@ -54,6 +54,37 @@ export function sortPaidFirst<T extends Pick<HandicapperProfile, "plan" | "planS
 
 const STATS_LOOKBACK_DAYS = 30;
 
+/**
+ * The sports a handicapper actually posts in, busiest first.
+ *
+ * Derived from their picks, never declared. A declared list is a claim, and on
+ * a site whose whole pitch is that the record cannot be edited after the fact,
+ * a claim is the wrong thing to filter on: someone who ticked NCAAF at signup
+ * and never posted an NCAAF tip would still appear under the NCAAF filter,
+ * which makes the filter a list of intentions rather than of evidence.
+ *
+ * Deriving also means it is self-correcting in the direction the old column
+ * never was: the previous code added a sport when a pick was posted but had no
+ * way to take one away, so a sport posted once and abandoned — or a pick later
+ * deleted — stayed on the profile forever.
+ *
+ * Busiest first so the card, which has room for four, shows what the
+ * handicapper is actually known for. Ties break alphabetically, only so the
+ * order is stable between renders rather than shifting with row order.
+ *
+ * Parlays count under the sport on the parlay itself, not its legs. A
+ * cross-sport parlay therefore reports only its headline sport — the legs are
+ * a separate table and joining it on every directory render costs more than
+ * that edge is worth.
+ */
+export function sportsFromPicks(picks: { sport: PickSport }[]): PickSport[] {
+  const counts = new Map<PickSport, number>();
+  for (const p of picks) counts.set(p.sport, (counts.get(p.sport) ?? 0) + 1);
+  return [...counts.entries()]
+    .sort(([aSport, aCount], [bSport, bCount]) => bCount - aCount || aSport.localeCompare(bSport))
+    .map(([sport]) => sport);
+}
+
 const APPROVED_REVIEW_RATINGS = {
   reviews: { where: { status: "APPROVED" as const }, select: { rating: true } },
 } as const;
@@ -71,10 +102,45 @@ async function loadHandicapperSummaries(): Promise<HandicapperSummary[]> {
 // Public listing pages (leaderboard, /handicappers) tolerate ~1 min of stat
 // staleness, so cache the whole aggregation. This keeps the heavy full-table
 // scan + per-pick stat computation off the request path — the main TTFB win.
-export const listHandicapperSummaries = unstable_cache(loadHandicapperSummaries, ["handicapper-summaries-v1"], {
+export const listHandicapperSummaries = unstable_cache(loadHandicapperSummaries, ["handicapper-summaries-v2"], {
   revalidate: 60,
   tags: ["handicappers"],
 });
+
+/**
+ * Summaries built only from picks settled inside a window, for the
+ * leaderboard's period filters.
+ *
+ * Every figure on the row — record, units, ROI, streak, L10, picks — is then
+ * about that window, because toSummary derives all of them from whatever picks
+ * it is handed. That is the point: "last 7 days" showing an all-time streak
+ * beside a 7-day record would be two different claims in one row.
+ *
+ * Handicappers with nothing settled in the window are dropped rather than
+ * listed at zero. Over a 7-day window most of the roster has no result, and a
+ * ranking whose middle is a hundred identical zeroes is not a ranking.
+ */
+async function loadSummariesInWindow(start: Date, end: Date): Promise<HandicapperSummary[]> {
+  const handicappers = await prisma.handicapperProfile.findMany({
+    where: { suspendedAt: null },
+    include: {
+      picks: { where: { settledAt: { gte: start, lt: end }, result: { not: "PENDING" } } },
+      ...APPROVED_REVIEW_RATINGS,
+    },
+    orderBy: { createdAt: "asc" },
+  });
+
+  return handicappers.filter((h) => h.picks.length > 0).map(toSummary);
+}
+
+// Cached per window like the all-time list. unstable_cache keys on the
+// arguments, so each period gets its own entry; a 60s-stale window boundary is
+// irrelevant to a 7-day span.
+export const listHandicapperSummariesInWindow = unstable_cache(
+  loadSummariesInWindow,
+  ["handicapper-window-v1"],
+  { revalidate: 60, tags: ["handicappers"] }
+);
 
 export type DirectoryHandicapper = HandicapperSummary & {
   followersCount: number;
@@ -84,6 +150,18 @@ export type DirectoryHandicapper = HandicapperSummary & {
   hasParlays: boolean;
   /** Lowercased haystack of everything on the profile the finder search matches. */
   searchText: string;
+  /**
+   * When the most recent pick was posted, as an ISO string — null for a
+   * handicapper who has never posted one.
+   *
+   * A string rather than a Date deliberately. `unstable_cache` persists its
+   * value with `JSON.stringify`, so every Date on this object already comes
+   * back as a string on a cache hit however it is typed. Declaring the one
+   * field callers actually compare as what survives that round trip is the
+   * difference between a working comparison and one that silently reads
+   * `"2026-10-29T…" >= Date` — true for no good reason.
+   */
+  lastPickAt: string | null;
 };
 
 /**
@@ -110,11 +188,19 @@ async function loadHandicapperDirectory(): Promise<DirectoryHandicapper[]> {
       h.displayName,
       h.handle,
       h.bio ?? "",
-      ...h.sports.map((s) => SPORT_LABELS[s] ?? s),
+      ...sportsFromPicks(h.picks).map((s) => SPORT_LABELS[s] ?? s),
       ...h.picks.flatMap((p) => [p.matchup, p.selection, p.league ?? "", p.analysis ?? ""]),
     ]
       .join(" ")
       .toLowerCase();
+
+    // Posting time, not event time: a capper who put up ten picks today for
+    // games next Sunday is active, and one whose last post was a month ago is
+    // not, whenever those games happen to kick off.
+    const lastPostedAt = h.picks.reduce<Date | null>(
+      (latest, p) => (latest === null || p.createdAt > latest ? p.createdAt : latest),
+      null
+    );
 
     return {
       ...toSummary(h),
@@ -122,16 +208,53 @@ async function loadHandicapperDirectory(): Promise<DirectoryHandicapper[]> {
       hasProps: h.picks.some((p) => p.betType === "PROP"),
       hasParlays: h.picks.some((p) => p.betType === "PARLAY"),
       searchText,
+      lastPickAt: lastPostedAt?.toISOString() ?? null,
     };
   });
 }
 
 // Cached like the summaries — the homepage finder reads only precomputed fields,
 // so a 60s-stale directory is fine and keeps the aggregation off the hot path.
-export const listHandicapperDirectory = unstable_cache(loadHandicapperDirectory, ["handicapper-directory-v1"], {
+// Bumped with the shape, because a warm entry from the previous version is
+// wrong rather than merely stale: v1 had no lastPickAt, and `undefined` reads
+// as "never posted", which would hide every handicapper on the homepage; v2
+// still carried declared sports, which would show pills for sports nobody has
+// posted in. Either would be served for the first minute after a deploy.
+export const listHandicapperDirectory = unstable_cache(loadHandicapperDirectory, ["handicapper-directory-v3"], {
   revalidate: 60,
   tags: ["handicappers"],
 });
+
+/** A handicapper counts as active if they posted a pick within this many days. */
+export const ACTIVE_WITHIN_DAYS = 7;
+
+/**
+ * Split the directory into handicappers who have posted recently and ones who
+ * have gone quiet. The homepage shows the first group and keeps the second
+ * behind a "Load more" button.
+ *
+ * Never having posted counts as quiet. An empty profile is the least useful
+ * card on the page, and it is also exactly what a newly registered capper
+ * looks like — so it sits with the dormant ones rather than at the top of the
+ * directory.
+ *
+ * `now` is injectable for tests only.
+ */
+export function splitByActivity<T extends { lastPickAt: string | null }>(
+  list: T[],
+  { days = ACTIVE_WITHIN_DAYS, now = Date.now() }: { days?: number; now?: number } = {}
+): { active: T[]; dormant: T[] } {
+  const cutoff = now - days * 24 * 60 * 60 * 1000;
+  const active: T[] = [];
+  const dormant: T[] = [];
+  for (const h of list) {
+    const posted = h.lastPickAt === null ? NaN : Date.parse(h.lastPickAt);
+    // An unparseable timestamp is treated as quiet rather than throwing: a bad
+    // value should cost a handicapper a click, not the whole page.
+    (Number.isFinite(posted) && posted >= cutoff ? active : dormant).push(h);
+  }
+  return { active, dormant };
+}
 
 // The non-sport quick filters for the homepage finder. Sport keys (NBA, MLB, …)
 // are the other valid filter values.
@@ -273,6 +396,11 @@ function toSummary(
 
   return {
     ...handicapper,
+    // Overrides the profile's stored `sports` column, which is no longer
+    // written and no longer means anything. Everything that renders a sport
+    // pill or filters by sport reads this object, so this one line is what
+    // makes the filters match the record.
+    sports: sportsFromPicks(handicapper.picks),
     stats: computeStats(handicapper.picks),
     last30Stats: computeStats(recentPicks),
     last10Stats: lastNStats(handicapper.picks, 10),

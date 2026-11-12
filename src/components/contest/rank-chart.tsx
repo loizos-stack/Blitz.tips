@@ -1,6 +1,6 @@
 "use client";
 
-import { format } from "date-fns";
+import { formatDayMonth } from "@/lib/date-format";
 import type { RankPoint } from "@/lib/contest";
 
 // A self-contained (no external chart lib), theme-aware line chart of an
@@ -87,7 +87,7 @@ export function RankChart({ points }: { points: RankPoint[] }) {
           {points.map((p, i) => (
             <circle key={p.t} cx={x(i)} cy={y(p.rank)} r={n > 40 ? 1.6 : 3} fill="currentColor">
               <title>
-                {format(new Date(p.t), "MMM d")}: #{p.rank} of {p.of}
+                {formatDayMonth(new Date(p.t))}: #{p.rank} of {p.of}
                 {p.roi != null ? ` · ${p.roi > 0 ? "+" : ""}${p.roi.toFixed(1)}% ROI` : ""}
               </title>
             </circle>
@@ -95,11 +95,11 @@ export function RankChart({ points }: { points: RankPoint[] }) {
 
           {/* X axis end labels */}
           <text x={padL} y={H - 8} textAnchor="start" className="fill-muted" style={{ fontSize: 11 }}>
-            {format(new Date(points[0].t), "MMM d")}
+            {formatDayMonth(new Date(points[0].t))}
           </text>
           {n > 1 && (
             <text x={W - padR} y={H - 8} textAnchor="end" className="fill-muted" style={{ fontSize: 11 }}>
-              {format(new Date(current.t), "MMM d")}
+              {formatDayMonth(new Date(current.t))}
             </text>
           )}
         </svg>

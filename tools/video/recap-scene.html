@@ -1,0 +1,302 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Blitz results recap</title>
+<style>
+  /* Brand tokens from src/app/globals.css, on a dark field because that is
+     what a vertical video is watched on. The accent is lifted from the site's
+     green-700 (#15803d) to green-500: at phone size, after the encoder has
+     been at it, 700 reads as grey-green. */
+  :root {
+    --bg: #0a0d12;
+    --surface: #141922;
+    --surface-2: #1b2230;
+    --border: #232b38;
+    --fg: #ffffff;
+    --muted: #8b93a1;
+    --win: #22c55e;
+    --loss: #f05252;
+    --push: #8b93a1;
+    --gold: #f59e0b;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 1080px; height: 1920px; overflow: hidden; }
+  body {
+    background: var(--bg); color: var(--fg);
+    font-family: Inter, "DejaVu Sans", sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  #stage { position: relative; width: 1080px; height: 1920px; }
+  #glow {
+    position: absolute; left: 50%; top: 34%;
+    width: 1500px; height: 1500px; margin: -750px 0 0 -750px;
+  }
+  #grid {
+    position: absolute; inset: 0;
+    background-image:
+      linear-gradient(rgba(255,255,255,0.028) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255,255,255,0.028) 1px, transparent 1px);
+    background-size: 72px 72px;
+  }
+  .wrap { position: absolute; inset: 0; display: flex; flex-direction: column;
+          align-items: center; justify-content: center; padding: 0 70px; }
+
+  /* ------------------------------------------------------------ title */
+  #s1 .kicker { font-size: 36px; font-weight: 700; letter-spacing: 9px;
+                color: var(--muted); text-transform: uppercase; text-align: center; }
+  #s1 .big { margin-top: 24px; font-size: 150px; font-weight: 800;
+             letter-spacing: -6px; line-height: 1; text-align: center; }
+  #s1 .date { margin-top: 30px; font-size: 44px; font-weight: 600;
+              color: var(--muted); text-align: center; }
+  #s1 .note { margin-top: 56px; font-size: 30px; font-weight: 600; letter-spacing: 3px;
+              color: var(--win); text-transform: uppercase; text-align: center; }
+
+  /* ------------------------------------------------------------- rows */
+  #s2 { justify-content: flex-start; padding-top: 220px; }
+  #rowsHead { width: 100%; display: flex; align-items: baseline;
+              justify-content: space-between; margin-bottom: 34px; }
+  #rowsHead .t { font-size: 46px; font-weight: 800; }
+  #rowsHead .d { font-size: 30px; font-weight: 600; color: var(--muted); }
+  #rows { width: 100%; display: flex; flex-direction: column; gap: 18px; }
+  .row {
+    display: flex; align-items: center; gap: 26px;
+    background: var(--surface); border: 2px solid var(--border);
+    border-radius: 28px; padding: 26px 30px;
+  }
+  .row.win  { border-left: 12px solid var(--win); }
+  .row.loss { border-left: 12px solid var(--loss); }
+  .row.push { border-left: 12px solid var(--push); }
+  .row .body { flex: 1; min-width: 0; }
+  .row .top { display: flex; align-items: baseline; gap: 16px; }
+  .row .handle { font-size: 30px; font-weight: 700; color: var(--muted); }
+  .row .sport { font-size: 24px; font-weight: 600; letter-spacing: 2px;
+                color: #5b6472; text-transform: uppercase; }
+  .row .sel { margin-top: 10px; font-size: 42px; font-weight: 700;
+              white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .row .match { margin-top: 8px; font-size: 27px; color: var(--muted);
+                white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .row .right { text-align: right; flex: none; }
+  .stamp { display: inline-block; padding: 9px 22px; border-radius: 12px;
+           font-size: 27px; font-weight: 800; letter-spacing: 3px; }
+  .win  .stamp { background: rgba(34,197,94,0.16);  color: var(--win); }
+  .loss .stamp { background: rgba(240,82,82,0.16);  color: var(--loss); }
+  .push .stamp { background: rgba(139,147,161,0.16); color: var(--push); }
+  .row .p { margin-top: 12px; font-size: 42px; font-weight: 800;
+            font-variant-numeric: tabular-nums; }
+  .win  .p { color: var(--win); }
+  .loss .p { color: var(--loss); }
+  .push .p { color: var(--push); }
+  #more { margin-top: 26px; width: 100%; text-align: center; font-size: 30px;
+          font-weight: 600; color: var(--muted); }
+
+  /* ----------------------------------------------------------- totals */
+  #s3 { text-align: center; }
+  #s3 .kicker { font-size: 34px; font-weight: 700; letter-spacing: 7px;
+                color: var(--muted); text-transform: uppercase; }
+  #s3 .units { margin-top: 30px; font-size: 200px; font-weight: 800;
+               letter-spacing: -9px; line-height: 1; font-variant-numeric: tabular-nums; }
+  #s3 .row2 { display: flex; gap: 26px; margin-top: 74px; width: 100%; }
+  #s3 .cell { flex: 1; border: 2px solid var(--border); border-radius: 30px;
+              padding: 36px 20px; background: var(--surface); }
+  #s3 .cell .v { font-size: 64px; font-weight: 800; font-variant-numeric: tabular-nums; }
+  #s3 .cell .k { margin-top: 12px; font-size: 24px; font-weight: 600;
+                 letter-spacing: 3px; color: var(--muted); text-transform: uppercase; }
+  #s3 .caption { margin-top: 44px; font-size: 29px; color: var(--muted); line-height: 1.5; }
+
+  /* -------------------------------------------------------------- cta */
+  #s4 { text-align: center; }
+  #s4 .line { font-size: 46px; font-weight: 600; color: var(--muted); line-height: 1.4; }
+  #s4 .url { margin-top: 36px; font-size: 132px; font-weight: 800; letter-spacing: -5px; }
+  #s4 .url b { color: var(--win); font-weight: 800; }
+  #s4 .pill { display: inline-block; margin-top: 50px; padding: 26px 58px;
+              border-radius: 999px; background: var(--win); color: #05240f;
+              font-size: 38px; font-weight: 800; letter-spacing: 1px; }
+
+  #bar { position: absolute; left: 0; bottom: 0; height: 10px; background: var(--win); }
+  #watermark { position: absolute; left: 0; right: 0; bottom: 54px; text-align: center;
+               font-size: 29px; font-weight: 700; letter-spacing: 5px;
+               color: rgba(255,255,255,0.3); }
+</style>
+</head>
+<body>
+<div id="stage">
+  <div id="glow"></div>
+  <div id="grid"></div>
+
+  <div class="wrap" id="s1"><div>
+    <p class="kicker">Blitz.tips</p>
+    <p class="big" id="titleWord">RESULTS</p>
+    <p class="date" id="dateLabel"></p>
+    <p class="note" id="titleNote">Every pick graded &amp; published</p>
+  </div></div>
+
+  <div class="wrap" id="s2">
+    <div id="rowsHead"><span class="t" id="rowsTitle">Yesterday's card</span><span class="d" id="rowsCount"></span></div>
+    <div id="rows"></div>
+    <p id="more"></p>
+  </div>
+
+  <div class="wrap" id="s3"><div style="width:100%">
+    <p class="kicker">Day total</p>
+    <p class="units" id="unitsVal">0.00u</p>
+    <div class="row2">
+      <div class="cell"><p class="v" id="recVal">0-0</p><p class="k">Record</p></div>
+      <div class="cell"><p class="v" id="hitVal">—</p><p class="k">Hit rate</p></div>
+    </div>
+    <p class="caption" id="totCaption"></p>
+  </div></div>
+
+  <div class="wrap" id="s4"><div>
+    <p class="line">Every pick. Win or lose.<br>Graded automatically.</p>
+    <p class="url">blitz<b>.tips</b></p>
+    <p class="pill">SEE TODAY'S CARD</p>
+  </div></div>
+
+  <div id="bar"></div>
+  <div id="watermark">BLITZ.TIPS</div>
+</div>
+
+<script>
+/**
+ * One function, one frame.
+ *
+ * Everything is computed from the timestamp passed in rather than a running
+ * clock or a CSS animation, because the renderer screenshots frames one at a
+ * time, far slower than real time. Anything driven by the wall clock would
+ * smear across the capture.
+ */
+const DURATION = 9000;
+const SCENES = [
+  { el: "s1", start: 0,    end: 1500 },
+  { el: "s2", start: 1500, end: 5800 },
+  { el: "s3", start: 5800, end: 7600 },
+  { el: "s4", start: 7600, end: 9000 },
+];
+
+const clamp01 = (x) => (x < 0 ? 0 : x > 1 ? 1 : x);
+const outCubic = (x) => 1 - Math.pow(1 - clamp01(x), 3);
+const outBack = (x) => {
+  const c = 1.70158, u = clamp01(x) - 1;
+  return 1 + (c + 1) * u * u * u + c * u * u;
+};
+const inOut = (t, start, end, fade = 320) =>
+  t < start || t > end ? 0 : Math.min(outCubic((t - start) / fade), outCubic((end - t) / fade));
+
+const esc = (s) => String(s).replace(/[&<>"]/g, (c) =>
+  ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+
+const signed = (n, dp = 2) => `${n > 0 ? "+" : n < 0 ? "−" : ""}${Math.abs(n).toFixed(dp)}`;
+
+let DATA = null;
+
+/** Put the day's figures on the page. Called once, before any seek(). */
+window.load = function (data) {
+  DATA = data;
+  const t = data.totals;
+
+  const winners = data.mode === "winners";
+  document.getElementById("dateLabel").textContent = data.label;
+  // A winners reel is a highlight reel and names itself one. Calling it
+  // "RESULTS" would present a selection as the whole record.
+  document.getElementById("titleWord").textContent = winners ? "WINNERS" : "RESULTS";
+  document.getElementById("titleNote").textContent = winners
+    ? "Best of the card \u2014 full record below"
+    : "Every pick graded & published";
+  document.getElementById("rowsTitle").textContent = winners ? "Winning tips" : "Yesterday's card";
+  document.getElementById("rowsCount").textContent =
+    `${t.settled} settled · ${t.handicappers} handicapper${t.handicappers === 1 ? "" : "s"}`;
+
+  document.getElementById("rows").innerHTML = data.rows
+    .map(
+      (r) => `
+      <div class="row ${r.result.toLowerCase()}">
+        <div class="body">
+          <div class="top">
+            <span class="handle">@${esc(r.handle)}</span>
+            <span class="sport">${esc(r.sport)}</span>
+          </div>
+          <p class="sel">${esc(r.selection)} <span style="color:var(--muted);font-weight:600">${esc(r.odds)}</span></p>
+          <p class="match">${esc(r.matchup)} · ${r.units}u</p>
+        </div>
+        <div class="right">
+          <span class="stamp">${r.result}</span>
+          <p class="p">${r.result === "PUSH" ? "0.00" : signed(r.profit)}u</p>
+        </div>
+      </div>`
+    )
+    .join("");
+
+  // Said out loud whenever rows are left out, so six rows are never mistaken
+  // for the whole day. See the note in src/lib/recap.ts.
+  document.getElementById("more").textContent =
+    data.omitted > 0
+      ? winners
+        ? `+ ${data.omitted} more winners — full record on the site`
+        : `+ ${data.omitted} more settled — full card on the site`
+      : "";
+
+  const colour = t.units > 0 ? "var(--win)" : t.units < 0 ? "var(--loss)" : "var(--push)";
+  const unitsEl = document.getElementById("unitsVal");
+  unitsEl.style.color = colour;
+  document.getElementById("recVal").textContent = t.record;
+  document.getElementById("hitVal").textContent = t.hitRate === null ? "—" : `${t.hitRate}%`;
+  // On a winners reel this line is the one that keeps it honest: the figures
+  // above cover EVERY settled pick in the period, not the winners shown.
+  document.getElementById("totCaption").textContent = winners
+    ? `Across ALL ${t.settled} settled pick${t.settled === 1 ? "" : "s"} in this period — wins and losses — from ${t.handicappers} handicapper${t.handicappers === 1 ? "" : "s"}.`
+    : `${t.settled} pick${t.settled === 1 ? "" : "s"} settled across ${t.handicappers} handicapper${t.handicappers === 1 ? "" : "s"}.`;
+  document.querySelector("#s3 .kicker").textContent = winners ? "Period total" : "Day total";
+
+  // The glow follows the day: green when up, red when down. A losing day that
+  // still looked triumphant would be the tell that none of it is real.
+  document.getElementById("glow").style.background =
+    `radial-gradient(circle, ${
+      t.units >= 0 ? "rgba(34,197,94,0.17)" : "rgba(240,82,82,0.15)"
+    } 0%, rgba(0,0,0,0) 62%)`;
+  for (const id of ["bar"]) document.getElementById(id).style.background = colour;
+  document.querySelector("#s4 .pill").style.background = colour;
+  document.querySelector("#s4 .url b").style.color = colour;
+  document.querySelector("#s1 .note").style.color = colour;
+};
+
+window.seek = function (t) {
+  if (!DATA) throw new Error("load(data) before seek(t)");
+
+  for (const s of SCENES) {
+    const node = document.getElementById(s.el);
+    node.style.opacity = inOut(t, s.start, s.end);
+    const local = clamp01((t - s.start) / 420);
+    node.style.transform = `translateY(${(1 - outCubic(local)) * 44}px)`;
+  }
+
+  // Rows stamp in one after another rather than all at once — the stagger is
+  // what makes it read as a list being revealed instead of a static card.
+  const rows = document.querySelectorAll("#rows .row");
+  rows.forEach((row, i) => {
+    const at = 1750 + i * 300;
+    const p = clamp01((t - at) / 460);
+    row.style.opacity = outCubic(p);
+    row.style.transform = `translateX(${(1 - outCubic(p)) * -40}px)`;
+    const stamp = row.querySelector(".stamp");
+    // The verdict lands a beat after its row, with a small overshoot.
+    const sp = clamp01((t - (at + 170)) / 380);
+    stamp.style.transform = `scale(${0.6 + 0.4 * outBack(sp)})`;
+    stamp.style.opacity = outCubic(sp);
+  });
+  const moreEl = document.getElementById("more");
+  moreEl.style.opacity = outCubic(clamp01((t - (1750 + rows.length * 300)) / 420));
+
+  // The day's total counts up, then holds long enough to read.
+  const up = outCubic(clamp01((t - 5900) / 900));
+  document.getElementById("unitsVal").textContent = `${signed(DATA.totals.units * up)}u`;
+
+  const p = t / DURATION;
+  document.getElementById("glow").style.transform =
+    `translate(${Math.sin(p * 3.1) * 120}px, ${Math.cos(p * 2.3) * 170}px)`;
+  document.getElementById("grid").style.transform = `translateY(${-p * 72}px)`;
+  document.getElementById("bar").style.width = `${p * 1080}px`;
+};
+</script>
+</body>
+</html>

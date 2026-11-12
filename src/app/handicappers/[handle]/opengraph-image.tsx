@@ -2,6 +2,7 @@ import { ImageResponse } from "next/og";
 import { prisma } from "@/lib/prisma";
 import { computeStats } from "@/lib/odds";
 import { computeStreaks, lastNStats } from "@/lib/analytics";
+import { sportsFromPicks } from "@/lib/handicappers";
 import { SPORT_LABELS } from "@/lib/utils";
 import { recordCard, SHARE_CARD_SIZE } from "@/lib/share-cards";
 
@@ -62,12 +63,13 @@ export default async function Image({ params }: { params: Promise<{ handle: stri
       select: {
         displayName: true,
         handle: true,
-        sports: true,
         suspendedAt: true,
         avatarUrl: true,
         coverUrl: true,
         picks: {
-          select: { odds: true, units: true, result: true, eventStartsAt: true, settledAt: true },
+          // `sport` is here because the pills are derived from the picks
+          // rather than read off the profile — see sportsFromPicks.
+          select: { odds: true, units: true, result: true, eventStartsAt: true, settledAt: true, sport: true },
         },
       },
     })
@@ -95,7 +97,7 @@ export default async function Image({ params }: { params: Promise<{ handle: stri
       streak: computeStreaks(profile.picks).current,
       l10: lastNStats(profile.picks, 10).record,
       totalPicks: stats.totalPicks,
-      sports: profile.sports.map((s) => SPORT_LABELS[s] ?? s),
+      sports: sportsFromPicks(profile.picks).map((s) => SPORT_LABELS[s] ?? s),
       avatarDataUri,
       coverDataUri,
     }),

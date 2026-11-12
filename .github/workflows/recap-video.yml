@@ -1,0 +1,221 @@
+name: Results recap video
+
+# Renders a day's settled picks into a 9:16 MP4 and posts it back to the site,
+# where it appears in Admin → Recaps ready to download and upload to TikTok /
+# Reels / Shorts.
+#
+# ON DEMAND ONLY. This used to run itself every morning and post a reel every
+# Monday; it doesn't any more. A recap now gets made when someone asks for one
+# — from the "Create a recap" card in Admin → Recaps, or from the Run workflow
+# button on this page. Nothing here fires on a schedule.
+#
+# Why it lives here rather than in vercel.json: rendering needs a browser and
+# ffmpeg, and the Vercel runtime has neither. A GitHub runner has both.
+#
+# Setup (one time) — the same secrets the other workflows use:
+#   Repo → Settings → Secrets and variables → Actions → New repository secret
+#     CRON_SECRET = the same value as the CRON_SECRET env var in Vercel
+#     SITE_URL    = https://blitz.tips        (optional; defaults to that)
+#
+# Safe to re-run: one video per day and handicapper selection, overwritten in
+# place.
+
+on:
+  workflow_dispatch:
+    inputs:
+      date:
+        description: "Day to render, YYYY-MM-DD in UTC (default: yesterday)"
+        type: string
+        required: false
+      mode:
+        description: "recap = the day's full card. winners = a promo reel of the winning tips over a span."
+        type: choice
+        options: [recap, winners]
+        default: recap
+      to:
+        description: "Winners mode only: last day of the span, YYYY-MM-DD (default: same as date)"
+        type: string
+        required: false
+      handicappers:
+        description: "Comma-separated handles to limit the recap to, e.g. diabolikbets,mufsalo (default: everyone)"
+        type: string
+        required: false
+      tiktok:
+        description: "Also push the finished video to the connected TikTok account's drafts"
+        type: boolean
+        default: false
+
+jobs:
+  recap:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      # ffmpeg is NOT on the ubuntu-latest image — assuming it was cost this
+      # workflow a run that fetched the data and rendered all 270 frames
+      # before failing on the encode. Playwright ships its own ffmpeg, but
+      # that build is cut down for its video recorder and carries no libx264,
+      # so the distribution package is what we want.
+      - name: Install ffmpeg
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq --no-install-recommends ffmpeg
+          ffmpeg -version | head -1
+
+      # Not a project dependency: it is only ever used here, and adding it to
+      # package.json would make every Vercel build install it for nothing.
+      - name: Install renderer
+        run: |
+          npm i --no-save playwright@1.56.1
+          npx playwright install --with-deps chromium
+
+      - name: Fetch the day's results
+        id: fetch
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+          SITE_URL: ${{ secrets.SITE_URL || 'https://blitz.tips' }}
+        run: |
+          if [ -z "$CRON_SECRET" ]; then
+            echo "::error::CRON_SECRET repository secret is not set — see the header of this file."
+            exit 1
+          fi
+
+          MODE="${{ inputs.mode }}"
+          [ -z "$MODE" ] && MODE="recap"
+          echo "mode=$MODE"
+
+          URL="$SITE_URL/api/cron/recap"
+          if [ "$MODE" = "winners" ]; then
+            # The span defaults to the single day given, so "winners for the
+            # 28th" needs no `to`. With neither, it covers the seven days
+            # ending yesterday.
+            FROM="${{ inputs.date }}"
+            TO="${{ inputs.to }}"
+            if [ -z "$FROM" ]; then
+              TO=$(date -u -d 'yesterday' +%F)
+              FROM=$(date -u -d '7 days ago' +%F)
+            fi
+            [ -z "$TO" ] && TO="$FROM"
+            URL="$URL?mode=winners&from=$FROM&to=$TO"
+          elif [ -n "${{ inputs.date }}" ]; then
+            URL="$URL?date=${{ inputs.date }}"
+          else
+            URL="$URL?date=$(date -u -d 'yesterday' +%F)"
+          fi
+
+          # The server decides which handles are real and what the resulting
+          # storage key is; this only passes the selection along.
+          HANDICAPPERS="${{ inputs.handicappers }}"
+          if [ -n "$HANDICAPPERS" ]; then
+            URL="$URL&handicappers=$(printf %s "$HANDICAPPERS" | tr -d '[:space:]')"
+          fi
+
+          http_status=$(curl -sS -o payload.json -w '%{http_code}' \
+            --max-time 60 \
+            -H "Authorization: Bearer $CRON_SECRET" \
+            "$URL")
+
+          if [ "$http_status" != "200" ]; then
+            echo "::error::Recap data returned HTTP $http_status"
+            cat payload.json
+            exit 1
+          fi
+
+          echo "mode=$MODE" >> "$GITHUB_OUTPUT"
+          echo "date=$(jq -r .date payload.json)" >> "$GITHUB_OUTPUT"
+          echo "settled=$(jq -r .totals.settled payload.json)" >> "$GITHUB_OUTPUT"
+          jq -r '"\(.label): \(.totals.record), \(.totals.units)u from \(.totals.settled) settled"' payload.json
+
+      - name: Render
+        id: render
+        run: |
+          set +e
+          node tools/video/render-recap.mjs payload.json recap.mp4
+          code=$?
+          set -e
+          # 3 is the renderer's own "nothing settled that day" exit. That is a
+          # quiet day, not a failure, so the job ends green with no video.
+          if [ $code -eq 3 ]; then
+            echo "skipped=true" >> "$GITHUB_OUTPUT"
+            echo "Nothing settled on ${{ steps.fetch.outputs.date }} — no video." >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          exit $code
+
+      - name: Upload to the site
+        if: steps.render.outputs.skipped != 'true'
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+          SITE_URL: ${{ secrets.SITE_URL || 'https://blitz.tips' }}
+        run: |
+          http_status=$(curl -sS -o upload.json -w '%{http_code}' \
+            --max-time 120 \
+            -X POST \
+            -H "Authorization: Bearer $CRON_SECRET" \
+            -H "Content-Type: video/mp4" \
+            --data-binary @recap.mp4 \
+            "$SITE_URL/api/cron/recap?date=${{ steps.fetch.outputs.date }}")
+
+          echo "HTTP $http_status"
+          cat upload.json
+          echo
+
+          if [ "$http_status" != "200" ]; then
+            echo "::error::Upload returned HTTP $http_status"
+            exit 1
+          fi
+
+          {
+            echo "### ${{ steps.fetch.outputs.mode == 'winners' && 'Winners reel' || 'Recap' }} for ${{ steps.fetch.outputs.date }}"
+            jq -r '"[Download](\(.url)) — \(.bytes) bytes"' upload.json
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      # Straight into the connected TikTok account's drafts, so the only
+      # remaining step is a caption and a tap. The server holds the TikTok
+      # grant and does the upload — the runner never sees those credentials,
+      # which is why this is a one-line call rather than an upload here.
+      #
+      # Off unless asked for. It used to happen on every run, which made sense
+      # while the recap was a nightly fixture; now that a recap is made
+      # deliberately, pushing it onward is its own decision. Every video can
+      # still be sent later with the button in Admin → Recaps.
+      #
+      # continue-on-error: a video that rendered and uploaded is a good run
+      # even if TikTok is having a bad day. The failure is recorded against
+      # the video in Admin -> Recaps, where it can be re-sent with a button.
+      - name: Send to TikTok drafts
+        if: steps.render.outputs.skipped != 'true' && inputs.tiktok
+        continue-on-error: true
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+          SITE_URL: ${{ secrets.SITE_URL || 'https://blitz.tips' }}
+        run: |
+          http_status=$(curl -sS -o tiktok.json -w '%{http_code}' \
+            --max-time 120 \
+            -X POST \
+            -H "Authorization: Bearer $CRON_SECRET" \
+            "$SITE_URL/api/cron/tiktok?date=${{ steps.fetch.outputs.date }}")
+
+          cat tiktok.json; echo
+          if [ "$http_status" = "200" ]; then
+            jq -r '"TikTok: \(.skipped // .status // "sent") \(.publishId // "")"' tiktok.json \
+              >> "$GITHUB_STEP_SUMMARY"
+          else
+            # 503 is "no TikTok app configured", which is not worth shouting
+            # about on every run of a site that has not connected one.
+            echo "::warning::TikTok push returned HTTP $http_status"
+            jq -r '"TikTok push failed: \(.error // "unknown")"' tiktok.json >> "$GITHUB_STEP_SUMMARY" || true
+          fi
+
+      # Kept on the run as well, so a failed upload does not mean a lost render.
+      - name: Keep a copy on the run
+        if: steps.render.outputs.skipped != 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.fetch.outputs.mode }}-${{ steps.fetch.outputs.date }}
+          path: recap.mp4
+          retention-days: 14

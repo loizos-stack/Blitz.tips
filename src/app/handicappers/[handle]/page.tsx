@@ -6,12 +6,15 @@ import { prisma } from "@/lib/prisma";
 import { getHandicapperByHandle } from "@/lib/handicappers";
 import { summarizeRatings } from "@/lib/reviews";
 import { isPickLocked } from "@/lib/pick-visibility";
+import { canBypassPickPaywall } from "@/lib/permissions";
+import { tailStates } from "@/lib/pick-tails";
+import { ClvBanner } from "@/components/clv-banner";
 import { ReviewsList, type ReviewItem } from "@/components/reviews-list";
 import { Stars } from "@/components/stars";
-import { HandicapperJsonLd } from "@/components/json-ld";
+import { HandicapperJsonLd, BreadcrumbJsonLd } from "@/components/json-ld";
 import { StatCard } from "@/components/stat-card";
 import { PickCard } from "@/components/pick-card";
-import { showStakeLinks } from "@/lib/stake-server";
+import { sportsbookForVisitor } from "@/lib/sportsbooks";
 import { PaginatedTrackRecord } from "@/components/paginated-track-record";
 import { SubscribeButton } from "@/components/subscribe-button";
 import { FollowButton } from "@/components/follow-button";
@@ -19,12 +22,18 @@ import { SocialLinks } from "@/components/social-links";
 import { Avatar } from "@/components/avatar";
 import { SportIcon } from "@/components/sport-icon";
 import { SPORT_LABELS } from "@/lib/utils";
+import { computeStats } from "@/lib/odds";
+import { ProfileRecordFilters } from "@/components/profile-record-filters";
+import { isPeriodKey, periodLabel, periodWindow, type PeriodKey } from "@/lib/stat-periods";
+import type { PickSport } from "@prisma/client";
 import { PlanBadge } from "@/components/plan-badge";
 import { getSetting } from "@/lib/settings";
 import { DASHBOARD_ORDER_SETTING, resolveSectionOrder } from "@/lib/dashboard-sections";
 import { isSubscriptionActive } from "@/lib/subscription-status";
 import { nowPaymentsConfigured } from "@/lib/nowpayments";
+import { directPaymentSettings } from "@/lib/direct-payments";
 import { enrichPickCrests } from "@/lib/pick-logos";
+import { MIN_INDEXABLE_PICKS } from "@/lib/seo";
 import type { ReactNode } from "react";
 
 export const dynamic = "force-dynamic";
@@ -50,6 +59,14 @@ export async function generateMetadata({
     title: `${handicapper.displayName} (@${handicapper.handle})`,
     description,
     alternates: { canonical: path },
+    // Thin profiles stay out of the index until they have a record to show
+    // (see MIN_INDEXABLE_PICKS). `follow` stays on so their outbound links
+    // still count. Counted on *graded* picks — totalPicks includes pending ones,
+    // which show no result and are exactly the thin content this is about, and
+    // the sitemap filters on graded picks too. The two have to agree.
+    ...(handicapper.stats.totalPicks - handicapper.stats.pending < MIN_INDEXABLE_PICKS
+      ? { robots: { index: false, follow: true } }
+      : {}),
     openGraph: {
       type: "profile",
       title: `${handicapper.displayName} — verified record on Blitz.tips`,
@@ -68,15 +85,23 @@ export async function generateMetadata({
 
 export default async function HandicapperProfilePage({
   params,
+  searchParams,
 }: {
   params: Promise<{ handle: string }>;
+  searchParams: Promise<{ sport?: string; period?: string }>;
 }) {
   const { handle } = await params;
+  const query = await searchParams;
   const handicapper = await getHandicapperByHandle(handle);
   if (!handicapper) notFound();
 
   const session = await auth();
   const isOwner = session?.user.id && handicapper.userId === session.user.id;
+
+  // Paying the platform directly, when it is switched on and has details
+  // to show. Empty list means the option simply isn't offered.
+  const direct = await directPaymentSettings();
+  const directMethods = direct.enabled ? direct.methods : [];
 
   // Suspended profiles disappear from the public site; the owner and admins
   // can still open them (the owner sees the suspension notice below).
@@ -101,11 +126,47 @@ export default async function HandicapperProfilePage({
     isFollowing = Boolean(follow);
   }
 
-  const unlocked = isOwner || isSubscribed;
-    const showStake = await showStakeLinks();
-  const picks = await enrichPickCrests(handicapper.picksList);
+  // Admins who manage picks read them unlocked here, so the public profile
+  // agrees with what the admin Picks tab already shows them. Evaluated last, so
+  // `||` short-circuits it away for an owner or a subscriber; for everyone else
+  // it costs a session read, and the database lookup behind it only happens
+  // once that session turns out to exist.
+  const unlocked = isOwner || isSubscribed || (await canBypassPickPaywall());
+    const book = await sportsbookForVisitor();
+  const allPicks = await enrichPickCrests(handicapper.picksList);
+
+  // --- Sport and period filters over the record.
+  //
+  // Sport applies to everything on the page. Period applies only to the
+  // settled record, because a window is a claim about results and a pending
+  // pick has none: filtering "last 3 days" would silently drop tips on games
+  // that have not kicked off, which is the opposite of what the pending
+  // section is for.
+  const sport =
+    query.sport && query.sport in SPORT_LABELS ? (query.sport as PickSport) : undefined;
+  const period: PeriodKey = isPeriodKey(query.period) ? query.period : "all";
+  const window = periodWindow(period);
+
+  const picks = sport ? allPicks.filter((p) => p.sport === sport) : allPicks;
   const pendingPicks = picks.filter((p) => p.result === "PENDING");
-  const settledPicks = picks.filter((p) => p.result !== "PENDING");
+  const settledPicks = picks
+    .filter((p) => p.result !== "PENDING")
+    .filter(
+      (p) =>
+        !window ||
+        (p.settledAt !== null && p.settledAt >= window.start && p.settledAt < window.end)
+    );
+
+  // The headline figures describe whatever the filters select, so they are
+  // recomputed rather than read off the all-time summary.
+  const filtered = sport !== undefined || period !== "all";
+  const stats = filtered ? computeStats(settledPicks) : handicapper.stats;
+
+  // Tail/fade lives on the pending tips — the ones a reader can still act on.
+  const tails = await tailStates(pendingPicks, session?.user?.id ?? null, {
+    isOwner: Boolean(isOwner),
+    unlocked,
+  });
 
   // Reviews are display-only here (writing happens in the subscriber dashboard).
   // Only APPROVED reviews are loaded, so the summary reflects the public set.
@@ -123,38 +184,67 @@ export default async function HandicapperProfilePage({
   // subscribe box stay pinned above them.
   const sections: Record<string, ReactNode> = {
     stats: (
+      <div className="flex flex-col gap-4">
+      <ProfileRecordFilters
+        basePath={`/handicappers/${handicapper.handle}`}
+        sports={handicapper.sports}
+        sport={sport}
+        period={period}
+      />
+      <ClvBanner picks={settledPicks} />
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
-        <StatCard label="Record" value={handicapper.stats.record} />
+        <StatCard label="Record" value={stats.record} />
         <StatCard
           label="Win rate"
-          value={handicapper.stats.winRate ? `${handicapper.stats.winRate.toFixed(1)}%` : "—"}
+          value={stats.winRate ? `${stats.winRate.toFixed(1)}%` : "—"}
         />
         <StatCard
           label="Net units"
-          value={`${handicapper.stats.unitsNet >= 0 ? "+" : ""}${handicapper.stats.unitsNet.toFixed(1)}`}
-          tone={handicapper.stats.unitsNet >= 0 ? "accent" : "danger"}
+          value={`${stats.unitsNet >= 0 ? "+" : ""}${stats.unitsNet.toFixed(1)}`}
+          tone={stats.unitsNet >= 0 ? "accent" : "danger"}
         />
-        <StatCard label="ROI" value={handicapper.stats.roi !== null ? `${handicapper.stats.roi.toFixed(1)}%` : "—"} />
-        <StatCard
-          label="L10"
-          value={handicapper.last10Stats.totalPicks > 0 ? handicapper.last10Stats.record : "—"}
-          sub={
-            handicapper.last10Stats.totalPicks > 0
-              ? `${handicapper.last10Stats.unitsNet >= 0 ? "+" : ""}${handicapper.last10Stats.unitsNet.toFixed(1)}u`
-              : undefined
-          }
-          subTone={handicapper.last10Stats.unitsNet >= 0 ? "accent" : "danger"}
-        />
-        <StatCard
-          label="Last 30 days"
-          value={handicapper.last30Stats.totalPicks > 0 ? handicapper.last30Stats.record : "—"}
-          sub={
-            handicapper.last30Stats.totalPicks > 0
-              ? `${handicapper.last30Stats.unitsNet >= 0 ? "+" : ""}${handicapper.last30Stats.unitsNet.toFixed(1)}u`
-              : undefined
-          }
-          subTone={handicapper.last30Stats.unitsNet >= 0 ? "accent" : "danger"}
-        />
+        <StatCard label="ROI" value={stats.roi !== null ? `${stats.roi.toFixed(1)}%` : "—"} />
+        {filtered ? (
+          <>
+            {/* The sample behind the four figures to the left. A 2-0 over three
+                days and a 2-0 over a season read identically without it, and a
+                short window is exactly where that matters. */}
+            <StatCard
+              label="Settled"
+              value={String(settledPicks.length)}
+              sub={settledPicks.length === 1 ? "pick" : "picks"}
+            />
+            <StatCard
+              label="Showing"
+              value={periodLabel(period)}
+              sub={sport ? (SPORT_LABELS[sport] ?? sport) : "All sports"}
+            />
+          </>
+        ) : (
+          <>
+            <StatCard
+              label="L10"
+              value={handicapper.last10Stats.totalPicks > 0 ? handicapper.last10Stats.record : "—"}
+              sub={
+                handicapper.last10Stats.totalPicks > 0
+                  ? `${handicapper.last10Stats.unitsNet >= 0 ? "+" : ""}${handicapper.last10Stats.unitsNet.toFixed(1)}u`
+                  : undefined
+              }
+              subTone={handicapper.last10Stats.unitsNet >= 0 ? "accent" : "danger"}
+            />
+            <StatCard
+              label="Last 30 days"
+              value={handicapper.last30Stats.totalPicks > 0 ? handicapper.last30Stats.record : "—"}
+              sub={
+                handicapper.last30Stats.totalPicks > 0
+                  ? `${handicapper.last30Stats.unitsNet >= 0 ? "+" : ""}${handicapper.last30Stats.unitsNet.toFixed(1)}u`
+                  : undefined
+              }
+              subTone={handicapper.last30Stats.unitsNet >= 0 ? "accent" : "danger"}
+            />
+          </>
+        )}
+      </div>
       </div>
     ),
     pendingPlays: pendingPicks.length > 0 && (
@@ -167,7 +257,13 @@ export default async function HandicapperProfilePage({
         </h2>
         <div className="grid gap-4 sm:grid-cols-2">
           {pendingPicks.map((pick) => (
-            <PickCard key={pick.id} pick={pick} locked={isPickLocked(pick, unlocked)} showStake={showStake} />
+            <PickCard
+              key={pick.id}
+              pick={pick}
+              locked={isPickLocked(pick, unlocked)}
+              book={book}
+              tail={tails.get(pick.id)}
+            />
           ))}
         </div>
       </>
@@ -185,10 +281,14 @@ export default async function HandicapperProfilePage({
     trackRecord: (
       <>
         <h2 className="mb-4 text-xl font-bold">Track record</h2>
-        {picks.length === 0 ? (
+        {allPicks.length === 0 ? (
           <p className="text-muted">No picks posted yet.</p>
         ) : settledPicks.length === 0 ? (
-          <p className="text-muted">No settled picks yet — see the pending tips above.</p>
+          <p className="text-muted">
+            {filtered
+              ? "Nothing settled in this window. Try a longer period, or all sports."
+              : "No settled picks yet — see the pending tips above."}
+          </p>
         ) : (
           <PaginatedTrackRecord picks={settledPicks} unlocked={unlocked} />
         )}
@@ -201,14 +301,28 @@ export default async function HandicapperProfilePage({
   return (
     <div>
       {!handicapper.suspendedAt && (
-        <HandicapperJsonLd
-          handle={handicapper.handle}
-          displayName={handicapper.displayName}
-          bio={handicapper.bio}
-          avatarUrl={handicapper.avatarUrl}
-          ratingValue={ratingSummary.average}
-          reviewCount={ratingSummary.count}
-        />
+        <>
+          <HandicapperJsonLd
+            handle={handicapper.handle}
+            displayName={handicapper.displayName}
+            bio={handicapper.bio}
+            avatarUrl={handicapper.avatarUrl}
+            ratingValue={ratingSummary.average}
+            reviewCount={ratingSummary.count}
+            prices={{
+              weekly: handicapper.weeklyPriceCents,
+              monthly: handicapper.monthlyPriceCents,
+              annual: handicapper.annualPriceCents,
+            }}
+            currency={handicapper.priceCurrency}
+          />
+          <BreadcrumbJsonLd
+            items={[
+              { name: "Handicappers", path: "/handicappers" },
+              { name: handicapper.displayName, path: `/handicappers/${handicapper.handle}` },
+            ]}
+          />
+        </>
       )}
       <div className="relative h-40 w-full overflow-hidden bg-gradient-to-r from-accent/20 via-surface-raised to-gold/15 sm:h-56">
         {handicapper.coverUrl && (
@@ -227,6 +341,7 @@ export default async function HandicapperProfilePage({
           <Avatar
             src={handicapper.avatarUrl}
             name={handicapper.displayName}
+            fallback="logo"
             className="relative z-10 -mt-12 h-24 w-24 shrink-0 rounded-full border-4 border-surface text-2xl sm:-mt-16"
           />
           <div className="pt-2">
@@ -279,6 +394,7 @@ export default async function HandicapperProfilePage({
               isReady={handicapper.stripeAccountReady}
               isOwner={Boolean(isOwner)}
               cryptoEnabled={nowPaymentsConfigured()}
+              directMethods={directMethods}
               trialDays={handicapper.subscriptionTrialDays}
               currency={handicapper.priceCurrency}
             />

@@ -14,10 +14,13 @@ export function SportFilterSelect({
   basePath,
   sort,
   sport,
+  period,
 }: {
   basePath: string;
   sort: string;
   sport?: string;
+  /** Carried through so picking a sport doesn't silently reset the period. */
+  period?: string;
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -42,7 +45,10 @@ export function SportFilterSelect({
 
   function select(value: string) {
     setOpen(false);
-    router.push(`${basePath}?sort=${sort}${value !== "all" ? `&sport=${value}` : ""}`);
+    const q = new URLSearchParams({ sort });
+    if (value !== "all") q.set("sport", value);
+    if (period) q.set("period", period);
+    router.push(`${basePath}?${q.toString()}`);
   }
 
   const current = sport && sport in SPORT_LABELS ? (sport as PickSport) : null;

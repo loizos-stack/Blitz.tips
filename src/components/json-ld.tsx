@@ -109,6 +109,32 @@ export function ArticleJsonLd({
   );
 }
 
+/**
+ * Breadcrumb trail for a nested page.
+ *
+ * Google renders these in place of the raw URL in a result, which reads better
+ * and shows the section a page belongs to — worth having on anything more than
+ * one level deep.
+ */
+export function BreadcrumbJsonLd({ items }: { items: { name: string; path: string }[] }) {
+  if (items.length === 0) return null;
+  const base = siteUrl();
+  return (
+    <JsonLd
+      data={{
+        "@context": "https://schema.org",
+        "@type": "BreadcrumbList",
+        itemListElement: items.map((item, index) => ({
+          "@type": "ListItem",
+          position: index + 1,
+          name: item.name,
+          item: `${base}${item.path}`,
+        })),
+      }}
+    />
+  );
+}
+
 export function HandicapperJsonLd({
   handle,
   displayName,
@@ -116,6 +142,8 @@ export function HandicapperJsonLd({
   avatarUrl,
   ratingValue,
   reviewCount,
+  prices,
+  currency = "USD",
 }: {
   handle: string;
   displayName: string;
@@ -123,6 +151,9 @@ export function HandicapperJsonLd({
   avatarUrl: string | null;
   ratingValue: number | null;
   reviewCount: number;
+  /** Subscription prices in minor units; null/absent tiers are skipped. */
+  prices?: { weekly: number | null; monthly: number | null; annual: number | null };
+  currency?: string;
 }) {
   const base = siteUrl();
   const url = `${base}/handicappers/${handle}`;
@@ -143,13 +174,47 @@ export function HandicapperJsonLd({
       worstRating: 1,
     };
   }
-  return (
-    <JsonLd
-      data={{
-        "@context": "https://schema.org",
-        "@type": "ProfilePage",
-        mainEntity: person,
-      }}
-    />
-  );
+  // The subscription tiers, so a result can carry a price. Modelled as a
+  // Service rather than a Product — what's sold is access to someone's picks,
+  // not an object — with one Offer per tier the handicapper actually offers.
+  const offers = [
+    { period: "P1W", label: "Weekly", cents: prices?.weekly ?? null },
+    { period: "P1M", label: "Monthly", cents: prices?.monthly ?? null },
+    { period: "P1Y", label: "Annual", cents: prices?.annual ?? null },
+  ]
+    .filter((tier) => tier.cents != null && tier.cents > 0)
+    .map((tier) => ({
+      "@type": "Offer",
+      name: `${tier.label} subscription`,
+      price: (tier.cents! / 100).toFixed(2),
+      priceCurrency: currency,
+      url,
+      availability: "https://schema.org/InStock",
+      priceSpecification: {
+        "@type": "UnitPriceSpecification",
+        price: (tier.cents! / 100).toFixed(2),
+        priceCurrency: currency,
+        billingDuration: tier.period,
+      },
+    }));
+
+  const data: Record<string, unknown> = {
+    "@context": "https://schema.org",
+    "@type": "ProfilePage",
+    mainEntity: person,
+  };
+  if (offers.length > 0) {
+    data.mainEntity = {
+      ...person,
+      makesOffer: {
+        "@type": "Service",
+        name: `${displayName}'s premium sports picks`,
+        serviceType: "Sports handicapping subscription",
+        provider: { "@type": "Person", name: displayName, url },
+        offers,
+      },
+    };
+  }
+
+  return <JsonLd data={data} />;
 }

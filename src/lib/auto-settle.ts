@@ -1,6 +1,9 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
+import { notifyPickSettled } from "@/lib/notifications";
 import { oddsApiKey } from "@/lib/odds-api";
+import { ESPN_PREFIX, getEspnFinals, isEspnSourced } from "@/lib/espn-odds";
+import { parseMatchupSides } from "@/lib/utils";
 import {
   getFinalPeriodScores,
   getPlayerStats,
@@ -16,6 +19,35 @@ const API_BASE = process.env.ODDS_API_BASE ?? "https://api.the-odds-api.com/v4";
 // The Odds API's /scores endpoint covers at most the last 3 days; older
 // unsettled picks stay for manual grading.
 const DAYS_FROM = 3;
+
+/** How many league score requests are in flight at once. See the fetch loop. */
+const SCORES_CONCURRENCY = 6;
+
+/**
+ * Runs `fn` over `items` with at most `limit` in flight, returning results in
+ * the input's order.
+ *
+ * Promise.all would launch every request at once; a pool keeps a long list from
+ * turning into a burst against a single upstream. Results stay index-aligned so
+ * callers can rely on ordering even though completion order won't match.
+ */
+async function mapWithConcurrency<T, R>(
+  items: T[],
+  limit: number,
+  fn: (item: T) => Promise<R>
+): Promise<R[]> {
+  const results: R[] = new Array(items.length);
+  let cursor = 0;
+  const workers = Array.from({ length: Math.min(limit, items.length) }, async () => {
+    // Each worker claims the next index until the list runs out. `cursor++` is
+    // atomic here because JS won't interleave it with another worker's read.
+    for (let i = cursor++; i < items.length; i = cursor++) {
+      results[i] = await fn(items[i]!);
+    }
+  });
+  await Promise.all(workers);
+  return results;
+}
 
 interface ScoreEntry {
   id: string;
@@ -37,10 +69,21 @@ interface FinalScore {
  * be interpreted confidently — never guess a result on the record.
  */
 export function gradePick(
-  pick: { betType: string; selection: string },
+  pick: { betType: string; selection: string; sport?: PickSport },
   score: FinalScore
 ): PickResult | null {
   const { homeTeam, awayTeam, homeScore, awayScore } = score;
+
+  // Soccer's moneyline is three-way: home, draw, away are three separate
+  // selections at three prices. That changes what a level score means, in two
+  // ways the two-way logic below gets wrong — see both notes.
+  const threeWay = pick.sport === "SOCCER";
+
+  // "Draw ML" — a real selection in a three-way market, and one the team-name
+  // matching below can never resolve, so it used to stay pending forever.
+  if (pick.betType === "MONEYLINE" && /^draw\b/i.test(pick.selection.trim())) {
+    return homeScore === awayScore ? "WIN" : "LOSS";
+  }
 
   if (pick.betType === "TOTAL") {
     const m = pick.selection.match(/^(Over|Under)\s+(\d+(?:\.\d+)?)/i);
@@ -63,7 +106,11 @@ export function gradePick(
   const opp = side === "home" ? awayScore : homeScore;
 
   if (pick.betType === "MONEYLINE") {
-    if (own === opp) return "PUSH";
+    // A level score pushes a two-way moneyline — there was no third option to
+    // take. In soccer there was: backing a team and watching it draw is a
+    // LOSS, and grading it a push silently refunded a losing bet on the record
+    // of every handicapper who had one.
+    if (own === opp) return threeWay ? "LOSS" : "PUSH";
     return own > opp ? "WIN" : "LOSS";
   }
 
@@ -274,13 +321,14 @@ export interface AutoSettleReport {
  * that can't be parsed are left untouched.
  */
 export async function runAutoSettle(): Promise<AutoSettleReport> {
+  // Absent — or switched off — the paid feed, this run still does almost all of
+  // its job: ESPN publishes the finals, the linescores and the box scores, and
+  // all three are free. This used to return here instead, which meant turning
+  // the paid feed off stopped grading altogether, including for picks that
+  // never needed it. Grading is what the public record and the monthly prize
+  // are built on, so it degrades rather than stops.
   const apiKey = oddsApiKey();
   const report: AutoSettleReport = { candidates: 0, settled: 0, skipped: 0, errors: [] };
-
-  if (!apiKey) {
-    report.errors.push("THE_ODDS_API_KEY not configured");
-    return report;
-  }
 
   const cutoff = new Date(Date.now() - DAYS_FROM * 24 * 60 * 60 * 1000);
   const started = { lt: new Date(), gt: cutoff };
@@ -291,6 +339,11 @@ export async function runAutoSettle(): Promise<AutoSettleReport> {
         oddsApiEventId: { not: null },
         oddsApiSportKey: { not: null },
         eventStartsAt: started,
+      },
+      // The handicapper comes along so a graded pick can be announced without a
+      // second query per pick.
+      include: {
+        handicapper: { select: { id: true, userId: true, handle: true, displayName: true } },
       },
     }),
     // Contest picks are always board-sourced, so every pending one is gradable.
@@ -310,25 +363,93 @@ export async function runAutoSettle(): Promise<AutoSettleReport> {
   // One scores request per distinct league (2 credits each with daysFrom), and
   // both pick types share the results — grading contest picks adds no extra
   // upstream calls when the leagues overlap.
-  const sportKeys = [
-    ...new Set([
-      ...picks.map((p) => p.oddsApiSportKey!),
-      ...contestPicks.map((p) => p.oddsApiSportKey!),
-    ]),
-  ];
+  const allPicks = [...picks, ...contestPicks];
+  // ESPN-sourced keys are filtered out rather than requested: they are not Odds
+  // API league keys, so each one would be a guaranteed 404 on a billed
+  // endpoint. Their finals come free from ESPN, below.
+  // Without a key there is nothing to ask, and every one of these would be an
+  // unauthenticated request to a billed endpoint. Their games are graded from
+  // ESPN by name below instead.
+  const feedPicks = allPicks.filter((p) => !isEspnSourced(p.oddsApiSportKey!));
+  const sportKeys = apiKey ? [...new Set(feedPicks.map((p) => p.oddsApiSportKey!))] : [];
   const finals = new Map<string, FinalScore>();
 
-  for (const sportKey of sportKeys) {
+  // Picks made from the free board carry ESPN's own event id, so they are
+  // graded from ESPN's own finals — no name matching, no billed call. Without
+  // this they would be selected for settlement (their id is non-null), match
+  // nothing, and sit PENDING forever while appearing to be handled.
+  const espnSports = [
+    ...new Set(allPicks.filter((p) => isEspnSourced(p.oddsApiEventId)).map((p) => p.sport)),
+  ];
+  for (const sport of espnSports) {
+    for (const [espnId, final] of await getEspnFinals(sport)) {
+      finals.set(`${ESPN_PREFIX}${espnId}`, {
+        homeTeam: final.homeTeam,
+        awayTeam: final.awayTeam,
+        homeScore: final.homeScore,
+        awayScore: final.awayScore,
+      });
+    }
+  }
+
+  /**
+   * ESPN finals indexed by the two team names, for picks taken off the paid
+   * board while it was on.
+   *
+   * Their ids are Odds API ids, so with the feed off there is nothing to look
+   * them up by — they would be selected for settlement every run, match
+   * nothing, and sit PENDING forever. The two providers name the same game, so
+   * the names are the join: `parseMatchupSides` is the documented inverse of
+   * the label the pick was stored with, and `livePairKey` is the same
+   * normalisation the period-score matching already relies on.
+   *
+   * Only built when there is no key. With the feed on, nothing about grading
+   * changes — a pick's own event id remains an exact match, and a name match is
+   * a weaker claim that should not quietly take over from one.
+   */
+  const espnFinalsByPair = new Map<PickSport, Map<string, FinalScore>>();
+  if (!apiKey && feedPicks.length > 0) {
+    for (const sport of new Set(feedPicks.map((p) => p.sport))) {
+      const byPair = new Map<string, FinalScore>();
+      for (const final of (await getEspnFinals(sport)).values()) {
+        byPair.set(livePairKey(final.awayTeam, final.homeTeam), {
+          homeTeam: final.homeTeam,
+          awayTeam: final.awayTeam,
+          homeScore: final.homeScore,
+          awayScore: final.awayScore,
+        });
+      }
+      espnFinalsByPair.set(sport, byPair);
+    }
+  }
+
+  // Fetched with a small amount of concurrency rather than one at a time.
+  //
+  // Sequentially, this loop's wall time was the league count times upstream
+  // latency, and the league count is not a constant — it is however many
+  // distinct competitions have a pending pick, which grew when the board went
+  // from 30 soccer leagues to 45. It crossed the route's 60s maxDuration on the
+  // evening slate of 2026-08-11 and the run 504'd, after 29 consecutive
+  // successes. The work was always parallelisable: one independent request per
+  // league, all of them read-only.
+  //
+  // Bounded rather than a bare Promise.all over every key: these are billed API
+  // calls to one upstream, and firing forty at once is how you find out what
+  // their rate limit is. Six keeps the wall time flat in the range that matters
+  // while staying polite.
+  //
+  // Errors are collected per key and appended in the original order afterwards,
+  // so a parallel run still produces the same report a sequential one did.
+  const errorsByKey = await mapWithConcurrency(sportKeys, SCORES_CONCURRENCY, async (sportKey) => {
     try {
       const res = await fetch(
         `${API_BASE}/sports/${sportKey}/scores/?apiKey=${apiKey}&daysFrom=${DAYS_FROM}`,
         { cache: "no-store" }
       );
-      if (!res.ok) {
-        report.errors.push(`scores fetch failed for ${sportKey}: ${res.status}`);
-        continue;
-      }
+      if (!res.ok) return `scores fetch failed for ${sportKey}: ${res.status}`;
       const data = (await res.json()) as ScoreEntry[];
+      // Safe to write into the shared map from several tasks: each league
+      // returns its own events, and nothing here yields mid-write.
       for (const entry of data) {
         if (!entry.completed || !entry.scores) continue;
         const home = entry.scores.find((s) => s.name === entry.home_team);
@@ -341,9 +462,13 @@ export async function runAutoSettle(): Promise<AutoSettleReport> {
           awayScore: Number(away.score),
         });
       }
+      return null;
     } catch (error) {
-      report.errors.push(`scores fetch failed for ${sportKey}: ${String(error)}`);
+      return `scores fetch failed for ${sportKey}: ${String(error)}`;
     }
+  });
+  for (const message of errorsByKey) {
+    if (message !== null) report.errors.push(message);
   }
 
   // Period/half picks need ESPN's per-period linescores (the odds feed only
@@ -383,6 +508,7 @@ export async function runAutoSettle(): Promise<AutoSettleReport> {
   function resolveResult(pick: {
     betType: string;
     selection: string;
+    matchup: string;
     marketKey: string | null;
     side: string | null;
     linePoint: number | null;
@@ -390,7 +516,12 @@ export async function runAutoSettle(): Promise<AutoSettleReport> {
     sport: PickSport;
     oddsApiEventId: string | null;
   }): PickResult | null {
-    const score = finals.get(pick.oddsApiEventId!);
+    const sides = espnFinalsByPair.size > 0 ? parseMatchupSides(pick.matchup) : null;
+    const score =
+      finals.get(pick.oddsApiEventId!) ??
+      (sides
+        ? espnFinalsByPair.get(pick.sport)?.get(livePairKey(sides.awayTeam, sides.homeTeam))
+        : undefined);
     if (!score) return null; // game not finished, or no score available yet
 
     const espnGame = periodScores.get(pick.sport)?.get(livePairKey(score.awayTeam, score.homeTeam));
@@ -416,6 +547,17 @@ export async function runAutoSettle(): Promise<AutoSettleReport> {
     await prisma.pick.update({
       where: { id: pick.id },
       data: { result, settledAt: new Date(), settledBy: "auto" },
+    });
+    // Tell the followers. Awaited so a serverless invocation can't be frozen
+    // mid-send, but best-effort inside, so a failed channel never stops grading.
+    await notifyPickSettled({
+      id: pick.id,
+      matchup: pick.matchup,
+      selection: pick.selection,
+      odds: pick.odds,
+      units: pick.units,
+      result,
+      handicapper: pick.handicapper,
     });
     report.settled += 1;
   }

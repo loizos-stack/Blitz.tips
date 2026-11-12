@@ -4,10 +4,14 @@ import { prisma } from "@/lib/prisma";
 import { contestPhase, payoutSpotsForEntrants } from "@/lib/contest";
 import { formatCents } from "@/lib/utils";
 import { SupercapperLogo } from "@/components/contest/supercapper-logo";
+import { supercapperVisible } from "@/lib/supercapper-visibility";
 
 // Self-contained promo card for the live contest. Renders nothing once the
 // contest has ended or settled, so it disappears on its own.
 export async function ContestPromoBanner({ className }: { className?: string }) {
+  // Shown on both dashboards, so it is the contest's most-seen surface by
+  // signed-in users and the easiest one to forget while hiding the rest.
+  if (!supercapperVisible()) return null;
   const contest = await prisma.contest.findFirst({ where: { slug: "supercapper" } });
   if (!contest) return null;
   const phase = contestPhase(contest);
@@ -36,7 +40,7 @@ export async function ContestPromoBanner({ className }: { className?: string }) 
           </div>
           <p className="mt-2 text-sm text-white/70">
             Post your picks and compete for the{" "}
-            <span className="font-semibold text-accent">{formatCents(contest.prizePoolCents)} guaranteed</span> pool —
+            <span className="font-semibold text-[#eab308]">{formatCents(contest.prizePoolCents)} guaranteed</span> pool —
             free to enter, top {winners} paid by best ROI.
           </p>
         </div>

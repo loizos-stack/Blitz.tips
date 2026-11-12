@@ -1,17 +1,19 @@
 "use client";
 
+import { LocalTime } from "@/components/local-time";
 import { useCallback, useState } from "react";
 import { useRouter } from "next/navigation";
-import { format } from "date-fns";
+
 import { CalendarSearch, PencilLine, Plus, X } from "lucide-react";
 import { SPORT_LABELS, BET_TYPE_LABELS, cn, formatMatchup, usesVsSeparator } from "@/lib/utils";
-import { formatOdds } from "@/lib/odds";
+import { Odds } from "@/components/odds-format";
 import { getTeamNames } from "@/lib/team-logos";
 import { TeamLogo } from "@/components/team-logo";
 import { TeamCrest } from "@/components/team-crest";
 import { EventMarkets } from "@/components/event-markets";
 import { SoccerLeagueSections } from "@/components/soccer-league-sections";
 import type { MarketOption, UpcomingEvent } from "@/lib/odds-api";
+import { findBoardMatch } from "@/lib/board-match";
 import type { PickSport } from "@prisma/client";
 
 const sportKeys = Object.keys(SPORT_LABELS);
@@ -104,15 +106,32 @@ export function CreatePickForm({
 
   function switchMode(next: "schedule" | "manual") {
     setMode(next);
-    if (next === "schedule" && sport && feed.status === "idle") void loadFeed(sport);
+    // The board is loaded in manual mode too. Nothing renders it there — it is
+    // there so the form can notice that the game being typed by hand is
+    // already on the board and say so.
+    if (sport && feed.status === "idle") void loadFeed(sport);
   }
 
   function changeSport(next: string) {
     setSport(next);
     setSelectedEvent(null);
     setSelectedMarket(null);
-    if (mode === "schedule" && next) void loadFeed(next);
-    else if (!next) setFeed({ status: "idle" });
+    if (next) void loadFeed(next);
+    else setFeed({ status: "idle" });
+  }
+
+  /**
+   * Move a hand-typed game onto its board fixture, markets open.
+   *
+   * Not named useSomething: the `use` prefix makes ESLint read it as a React
+   * hook and reject the call inside the button handler.
+   */
+  function switchToBoardEvent(event: UpcomingEvent) {
+    setMode("schedule");
+    setSelectedEvent(event);
+    setSelectedMarket(null);
+    setAwayTeam("");
+    setHomeTeam("");
   }
 
   function chooseMarket(event: UpcomingEvent, market: MarketOption) {
@@ -204,6 +223,15 @@ export function CreatePickForm({
   const teamNames = getTeamNames(sport as PickSport);
   const vsSport = usesVsSeparator(sport);
 
+  // The board fixture matching what is being typed by hand, if there is one.
+  // A manual pick carries no event id, so the settler has to grade it from the
+  // selection text — which is where wrong and ungraded results come from. Most
+  // of the time the game was on the board and nobody looked.
+  const boardMatch =
+    mode === "manual" && feed.status === "ready"
+      ? findBoardMatch(feed.events, awayTeam, homeTeam)
+      : null;
+
   // One game row. Rendered flat for single-league sports and inside the
   // country → league headings for soccer, so it lives here rather than inline.
   function renderEvent(event: UpcomingEvent) {
@@ -239,7 +267,7 @@ export function CreatePickForm({
             <span className="truncate font-display font-medium">{event.matchup}</span>
           </span>
           <span className="ml-2 shrink-0 text-xs text-muted">
-            {format(new Date(event.commenceTime), "MMM d, h:mm a")}
+            <LocalTime iso={event.commenceTime} withZone />
           </span>
         </button>
 
@@ -350,7 +378,7 @@ export function CreatePickForm({
               </div>
               <p className="mt-0.5 text-muted">
                 {BET_TYPE_LABELS[selectedMarket.betType]} · {selectedMarket.selection} ·{" "}
-                <span className="tabular-nums">{formatOdds(selectedMarket.odds)}</span>
+                <span className="tabular-nums"><Odds value={selectedMarket.odds} /></span>
               </p>
             </div>
           )}
@@ -401,6 +429,30 @@ export function CreatePickForm({
                   Start typing to autocomplete — {vsSport ? "shown as “Home vs Away”" : "matching teams get their logo on the pick"}.
                 </p>
               )
+            )}
+
+            {/* The whole point of the manual/board distinction, said at the
+                only moment it can still be acted on. A pick posted off the
+                board grades itself against the real score; one typed by hand
+                is graded from its own wording, which is where wrong results
+                come from. Worth interrupting for. */}
+            {boardMatch && (
+              <div className="mt-2 rounded-lg border border-accent/50 bg-accent/10 p-3">
+                <p className="text-sm font-semibold">This game is on the board</p>
+                <p className="mt-0.5 text-xs text-muted">
+                  {boardMatch.event.matchup}
+                  {boardMatch.reversed && " — the board has the teams the other way round"}.
+                  Posting it from there locks in the real line and start time, and it grades
+                  itself when the game ends.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => switchToBoardEvent(boardMatch.event)}
+                  className="mt-2 rounded-lg bg-accent px-3 py-1.5 text-xs font-semibold text-accent-foreground hover:opacity-90"
+                >
+                  Use the board version
+                </button>
+              </div>
             )}
           </div>
           <datalist id="team-suggestions">

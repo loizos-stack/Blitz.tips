@@ -1,8 +1,8 @@
 "use client";
 
+import { LocalTime } from "@/components/local-time";
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { format } from "date-fns";
 import { ShieldAlert, Ban, Trash2, Fingerprint, Network, UserX, ListChecks } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { IntegrityOverview } from "@/lib/integrity";
@@ -93,7 +93,9 @@ export function IntegrityViewer({ overview }: { overview: IntegrityOverview }) {
                   <span className="rounded bg-surface-raised px-1.5 py-0.5 font-mono">{cluster.ip}</span>
                   <span className="text-muted">used by {cluster.entries.length} entries</span>
                   {cluster.lastSeen && (
-                    <span className="text-muted">· last seen {format(new Date(cluster.lastSeen), "MMM d, HH:mm")}</span>
+                    <span className="text-muted">
+                      · last seen <LocalTime iso={new Date(cluster.lastSeen).toISOString()} withZone />
+                    </span>
                   )}
                 </div>
                 <div className="mt-2 overflow-x-auto">
@@ -181,7 +183,7 @@ export function IntegrityViewer({ overview }: { overview: IntegrityOverview }) {
                 filtered.map((r) => (
                   <tr key={r.id} className="border-b border-border last:border-b-0">
                     <td className="whitespace-nowrap px-3 py-2 text-xs tabular-nums text-muted">
-                      {format(new Date(r.createdAt), "MMM d, HH:mm:ss")}
+                      <LocalTime iso={new Date(r.createdAt).toISOString()} withZone withSeconds />
                     </td>
                     <td className="px-3 py-2">
                       <span className={cn("font-medium", r.disqualified && "text-muted line-through")}>{r.entrantName}</span>

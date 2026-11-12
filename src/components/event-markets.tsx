@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { ChevronDown, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { formatOdds } from "@/lib/odds";
+import { Odds } from "@/components/odds-format";
 import type { MarketOption, UpcomingEvent } from "@/lib/odds-api";
 
 interface Section {
@@ -174,7 +174,7 @@ export function EventMarkets({
                                   >
                                     <span className="font-display">{market.selection}</span>
                                     <span className="shrink-0 font-display font-medium tabular-nums">
-                                      {formatOdds(market.odds)}
+                                      <Odds value={market.odds} />
                                     </span>
                                   </button>
                                 </li>
