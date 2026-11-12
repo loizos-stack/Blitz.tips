@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { contestPhase } from "@/lib/contest";
 import { formatCents } from "@/lib/utils";
 import { SupercapperLogo } from "@/components/contest/supercapper-logo";
+import { supercapperVisible } from "@/lib/supercapper-visibility";
 
 /**
  * Slim strips that point each product at the other.
@@ -17,6 +18,8 @@ import { SupercapperLogo } from "@/components/contest/supercapper-logo";
 
 /** Under the site hero: points at the contest. Hides once the contest is over. */
 export async function ContestPromoStrip() {
+  // Postponed: nothing about the contest appears on the home page.
+  if (!supercapperVisible()) return null;
   const contest = await prisma.contest.findFirst({ where: { slug: "supercapper" } });
   if (!contest) return null;
   const phase = contestPhase(contest);

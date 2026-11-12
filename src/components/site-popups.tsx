@@ -6,6 +6,7 @@ import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { ArrowRight, X } from "lucide-react";
 import { SupercapperLogo } from "@/components/contest/supercapper-logo";
+import { supercapperVisible } from "@/lib/supercapper-visibility";
 import { readConsent, writeConsent } from "@/lib/cookie-consent";
 
 /**
@@ -66,9 +67,11 @@ export function SitePopups({ cookieConsentRequired }: { cookieConsentRequired: b
     return () => clearTimeout(t);
   }, [cookieConsentRequired]);
 
-  // The promo is held back until consent is settled.
+  // The promo is held back until consent is settled — and skipped entirely
+  // while the contest is postponed, since the only thing it advertises is the
+  // contest. The cookie banner above is untouched.
   useEffect(() => {
-    if (!ready || needsCookies) return;
+    if (!ready || needsCookies || !supercapperVisible()) return;
     const key = onContest ? KEY_PROMO_SITE : KEY_PROMO_CONTEST;
     if (readFlag(key)) return;
     const t = setTimeout(() => setShowPromo(true), PROMO_DELAY_MS);

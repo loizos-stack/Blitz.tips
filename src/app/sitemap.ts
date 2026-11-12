@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { siteUrl } from "@/lib/site";
 import { publishedWhere } from "@/lib/blog";
 import { MIN_INDEXABLE_PICKS } from "@/lib/seo";
+import { supercapperVisible } from "@/lib/supercapper-visibility";
 
 // Generated at request time (not prerendered at build) so it can never fail the
 // build or ship a broken static copy; the DB read is best-effort and the route
@@ -18,13 +19,18 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     { url: `${base}/leaderboard`, lastModified: now, changeFrequency: "hourly", priority: 0.9 },
     { url: `${base}/handicappers`, lastModified: now, changeFrequency: "daily", priority: 0.9 },
     { url: `${base}/blog`, lastModified: now, changeFrequency: "weekly", priority: 0.7 },
-    // The contest is a whole product with five public pages; none of them were
-    // listed here, so nothing linked them to Google but the nav.
-    { url: `${base}/supercapper`, lastModified: now, changeFrequency: "daily", priority: 0.9 },
-    { url: `${base}/supercapper/standings`, lastModified: now, changeFrequency: "hourly", priority: 0.8 },
-    { url: `${base}/supercapper/consensus`, lastModified: now, changeFrequency: "hourly", priority: 0.7 },
-    { url: `${base}/supercapper/rules`, lastModified: now, changeFrequency: "monthly", priority: 0.6 },
-    { url: `${base}/supercapper/faq`, lastModified: now, changeFrequency: "monthly", priority: 0.6 },
+    // The contest is a whole product with five public pages. They are listed
+    // only while it is visible — a sitemap that advertises URLs now answering
+    // 404 is how a site teaches Google to distrust its sitemap.
+    ...(supercapperVisible()
+      ? ([
+          { url: `${base}/supercapper`, lastModified: now, changeFrequency: "daily", priority: 0.9 },
+          { url: `${base}/supercapper/standings`, lastModified: now, changeFrequency: "hourly", priority: 0.8 },
+          { url: `${base}/supercapper/consensus`, lastModified: now, changeFrequency: "hourly", priority: 0.7 },
+          { url: `${base}/supercapper/rules`, lastModified: now, changeFrequency: "monthly", priority: 0.6 },
+          { url: `${base}/supercapper/faq`, lastModified: now, changeFrequency: "monthly", priority: 0.6 },
+        ] satisfies MetadataRoute.Sitemap)
+      : []),
     { url: `${base}/buy-picks`, lastModified: now, changeFrequency: "monthly", priority: 0.7 },
     { url: `${base}/about`, lastModified: now, changeFrequency: "monthly", priority: 0.6 },
     { url: `${base}/pricing`, lastModified: now, changeFrequency: "monthly", priority: 0.6 },

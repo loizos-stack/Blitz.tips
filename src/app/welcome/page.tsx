@@ -6,6 +6,7 @@ import { ArrowRight } from "lucide-react";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { SupercapperLogo } from "@/components/contest/supercapper-logo";
+import { supercapperVisible } from "@/lib/supercapper-visibility";
 
 export const dynamic = "force-dynamic";
 
@@ -50,7 +51,15 @@ export default async function WelcomePage() {
         <p className="mt-2 text-muted">You&apos;re in the contest, so you have two places to be.</p>
       </div>
 
-      <div className="mx-auto mt-10 grid max-w-4xl gap-6 sm:grid-cols-2">
+      {/* Two tiles side by side normally; one centred tile while the contest
+          is hidden, rather than a half-width card stranded on the left. */}
+      <div
+        className={
+          supercapperVisible()
+            ? "mx-auto mt-10 grid max-w-4xl gap-6 sm:grid-cols-2"
+            : "mx-auto mt-10 grid max-w-xl gap-6"
+        }
+      >
         <Link
           href={siteDashboard}
           className="card group flex min-h-[18rem] flex-col items-center justify-center gap-5 p-10 text-center transition hover:border-accent sm:p-12"
@@ -77,6 +86,7 @@ export default async function WelcomePage() {
         {/* Not the `card` class here: its own background wins over an arbitrary
             bg-* utility, which leaves the dark mark's white text on a white
             card — the "uper" disappears and it reads "capper". */}
+        {supercapperVisible() && (
         <Link
           href="/supercapper/dashboard"
           className="group flex min-h-[18rem] flex-col items-center justify-center gap-5 rounded-xl border border-white/10 bg-[#0b0f14] p-10 text-center text-white shadow-sm transition hover:border-[#eab308]/50 sm:p-12"
@@ -88,6 +98,7 @@ export default async function WelcomePage() {
             <ArrowRight className="h-5 w-5 transition group-hover:translate-x-0.5" />
           </span>
         </Link>
+        )}
       </div>
     </div>
   );

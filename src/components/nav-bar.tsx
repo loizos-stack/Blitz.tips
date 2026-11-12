@@ -9,6 +9,7 @@ import { Menu, X, UserCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { NotificationBell } from "@/components/notification-bell";
 import { SupercapperLogo } from "@/components/contest/supercapper-logo";
+import { supercapperVisible } from "@/lib/supercapper-visibility";
 import { useOddsFormat, useSetOddsFormat } from "@/components/odds-format";
 import { ODDS_FORMATS, ODDS_FORMAT_HINTS, ODDS_FORMAT_LABELS } from "@/lib/odds-format";
 
@@ -83,7 +84,11 @@ export function NavBar() {
 
   // Every contest route — the public page, standings, entrant pages and the
   // entrant dashboard — carries the Supercapper mark instead of the site one.
-  const onSupercapper = pathname === "/supercapper" || pathname.startsWith("/supercapper/");
+  const showContest = supercapperVisible();
+  // Stays false while the contest is hidden, so the header keeps the site's
+  // own mark rather than swapping to the Supercapper one.
+  const onSupercapper =
+    showContest && (pathname === "/supercapper" || pathname.startsWith("/supercapper/"));
 
   // Highlight the current page. Query strings are part of the href for the
   // contest's contact link, so compare on the path only — otherwise
@@ -247,29 +252,33 @@ export function NavBar() {
             ))}
           </div>
 
-          {/* Supercapper contest */}
-          <Link
-            href="/supercapper"
-            onClick={() => setOpen(false)}
-            className="flex rounded-lg px-2 py-2 text-white hover:bg-white/5"
-          >
-            <SupercapperLogo withContest onDark className="text-lg" />
-          </Link>
-          <div className="flex flex-col gap-0.5 border-l border-white/10 pl-3">
-            {contestLinks.map((link) => (
+          {/* Supercapper contest — hidden while it's postponed. */}
+          {showContest && (
+            <>
               <Link
-                key={link.href}
-                href={link.href}
-                className={cn(
-                  "rounded-lg px-2 py-2 text-sm font-semibold hover:bg-white/5 hover:text-white",
-                  isActive(link.href) ? "bg-white/5 text-white" : "text-white/80"
-                )}
+                href="/supercapper"
                 onClick={() => setOpen(false)}
+                className="flex rounded-lg px-2 py-2 text-white hover:bg-white/5"
               >
-                {link.label}
+                <SupercapperLogo withContest onDark className="text-lg" />
               </Link>
-            ))}
-          </div>
+              <div className="flex flex-col gap-0.5 border-l border-white/10 pl-3">
+                {contestLinks.map((link) => (
+                  <Link
+                    key={link.href}
+                    href={link.href}
+                    className={cn(
+                      "rounded-lg px-2 py-2 text-sm font-semibold hover:bg-white/5 hover:text-white",
+                      isActive(link.href) ? "bg-white/5 text-white" : "text-white/80"
+                    )}
+                    onClick={() => setOpen(false)}
+                  >
+                    {link.label}
+                  </Link>
+                ))}
+              </div>
+            </>
+          )}
           <OddsFormatPicker />
 
           <div className="mt-2 flex flex-col gap-2 border-t border-white/10 pt-3 md:hidden">
