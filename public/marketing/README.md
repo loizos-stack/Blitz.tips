@@ -1,8 +1,64 @@
-# Contest marketing graphics
+# Marketing graphics
 
-Rendered by `scripts/build-marketing-graphics.mjs`. Don't hand-edit the PNGs —
-change the script and re-run, so the exports stay in step with the site's own
-logo and colours.
+Don't hand-edit the PNGs — change the script and re-run, so the exports stay in
+step with the site's own logo and colours.
+
+Two sets live here. **The Telegram ad set below is site branding** and is the
+one to reach for right now; everything else on this page is Supercapper, and
+**the contest is currently hidden from the public site**
+(`NEXT_PUBLIC_SUPERCAPPER_VISIBLE` is unset), so an ad pointing at
+`/supercapper` lands on a 404. Don't post the contest artwork until that flag is
+back on.
+
+## Telegram ads
+
+Rendered by `scripts/build-telegram-graphics.mjs`.
+
+```bash
+PLAYWRIGHT_CHROMIUM=/path/to/chromium \
+  node scripts/build-telegram-graphics.mjs      # env var optional
+```
+
+Unlike the contest set, this one **does not need `npm run build` first**. It
+falls back to `fonts/space-grotesk-latin.woff2`, committed beside these images —
+the same Google Fonts latin subset `next/font` downloads, so there's no
+rendering drift. A build is a fifteen-minute detour for a 22 KB file that
+doesn't change.
+
+| File | Size | Use |
+|---|---|---|
+| `blitz-telegram-ad-1280x720.png` | 1280×720 | **The default.** 16:9 renders full-width in a channel post and in a link preview |
+| `blitz-telegram-ad-1080x1080.png` | 1080×1080 | Square — takes more height in a phone feed, and closest to how Telegram's own ad slots crop |
+| `blitz-telegram-cappers-1280x720.png` | 1280×720 | Recruiting handicappers rather than bettors — leads with the $500/month leaderboard |
+
+All three ship at their named size (rendered at 2× and downscaled with lanczos,
+so the type is supersampled rather than rasterised small).
+
+**Every figure on these is checked against code, not copy.** `$500 / $250 /
+$150 / $100` and the ten-pick qualifying floor are `PRIZE_CENTS` and
+`MIN_SETTLED_PICKS` in `src/lib/monthly-prizes.ts`; "keep 80–90%" is the
+`commissionPercent` spread across Free/Silver/Gold in `src/lib/plans.ts`. Change
+either file and these need re-rendering by hand — the script can't import a
+`server-only` module, so the constants are mirrored at the top of it.
+
+There is **no subscriber count, no "join 10,000 bettors", no win rate**, and
+that is deliberate rather than an omission to fill in later. The site's entire
+pitch is verified records; an unverifiable number in the advert is the one thing
+that can't be walked back.
+
+The bet slip is **illustrative and carries no handle**. It shows the mechanism —
+a price, a stake, a timestamp before kick-off, a result that can't be softened —
+without pinning an invented record on a real handicapper.
+
+"Never editable after" is literal: `src/app/api/picks/[id]/route.ts` exposes no
+way for a handicapper to change a pick's terms at all, refuses a re-grade once
+`result !== "PENDING"`, and `src/app/api/picks/route.ts` rejects anything posted
+at or after `eventStartsAt`. Corrections go through an admin.
+
+## Contest marketing graphics
+
+Rendered by `scripts/build-marketing-graphics.mjs`. **Contest branding — see the
+visibility warning at the top of this file before posting any of it.**
 
 ```bash
 npm run build                                    # supplies the brand webfont
