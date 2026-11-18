@@ -1,7 +1,8 @@
+import { cache } from "react";
 import { unstable_cache } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { computeStats, type HandicapperStats } from "@/lib/odds";
-import { computeStreaks, lastNStats } from "@/lib/analytics";
+import { currentStreakFrom, isDecided, isSettled, pickDate } from "@/lib/analytics";
 import { isFeaturedHandicapper } from "@/lib/plans";
 import { SPORT_LABELS } from "@/lib/utils";
 import type { HandicapperProfile, Pick as PickModel, Review, ParlayLeg, PickSport } from "@prisma/client";
@@ -89,10 +90,38 @@ const APPROVED_REVIEW_RATINGS = {
   reviews: { where: { status: "APPROVED" as const }, select: { rating: true } },
 } as const;
 
+/**
+ * The only pick columns a summary is derived from.
+ *
+ * `odds`/`units`/`result` feed computeStats, `sport` feeds sportsFromPicks,
+ * `createdAt` picks out the 30-day window, and `settledAt`/`eventStartsAt` are
+ * what pickDate orders the streak and L10 by. Nothing else is read.
+ *
+ * Selecting them explicitly rather than taking the whole row matters more than
+ * it looks. These queries fetch every pick of every handicapper, and the
+ * columns left out are the big ones — `analysis` is free text that can run to
+ * paragraphs, and `matchup`/`selection`/`league` are carried on every row too.
+ * Pulling them costs database transfer, JSON deserialization and heap on every
+ * cache miss, and then costs again on the way into the cache entry, which
+ * unstable_cache stringifies whole. None of it is ever read.
+ *
+ * The directory and the profile page deliberately do NOT use this — they
+ * render pick text, so they need the full rows.
+ */
+const SUMMARY_PICK_COLUMNS = {
+  odds: true,
+  units: true,
+  result: true,
+  sport: true,
+  createdAt: true,
+  settledAt: true,
+  eventStartsAt: true,
+} as const;
+
 async function loadHandicapperSummaries(): Promise<HandicapperSummary[]> {
   const handicappers = await prisma.handicapperProfile.findMany({
     where: { suspendedAt: null },
-    include: { picks: true, ...APPROVED_REVIEW_RATINGS },
+    include: { picks: { select: SUMMARY_PICK_COLUMNS }, ...APPROVED_REVIEW_RATINGS },
     orderBy: { createdAt: "asc" },
   });
 
@@ -124,7 +153,10 @@ async function loadSummariesInWindow(start: Date, end: Date): Promise<Handicappe
   const handicappers = await prisma.handicapperProfile.findMany({
     where: { suspendedAt: null },
     include: {
-      picks: { where: { settledAt: { gte: start, lt: end }, result: { not: "PENDING" } } },
+      picks: {
+        where: { settledAt: { gte: start, lt: end }, result: { not: "PENDING" } },
+        select: SUMMARY_PICK_COLUMNS,
+      },
       ...APPROVED_REVIEW_RATINGS,
     },
     orderBy: { createdAt: "asc" },
@@ -318,7 +350,7 @@ export async function listHandicapperSummariesByIds(ids: string[]): Promise<Hand
   return handicappers.map(toSummary);
 }
 
-export async function getHandicapperByHandle(
+async function loadHandicapperByHandle(
   handle: string
 ): Promise<(HandicapperSummary & { picksList: PickWithLegs[]; reviews: ReviewWithAuthor[] }) | null> {
   const handicapper = await prisma.handicapperProfile.findUnique({
@@ -344,6 +376,24 @@ export async function getHandicapperByHandle(
     reviews: handicapper.reviews,
   };
 }
+
+/**
+ * A profile with everything its page renders, memoised for the request.
+ *
+ * The profile route loads this twice: once in generateMetadata and once in the
+ * component, which in the App Router are two calls in the same request. It is
+ * the heaviest query on the site — every pick with its parlay legs, plus every
+ * approved review with its author — so doing it twice was doubling the cost of
+ * the most-crawled page on the site. Prisma calls are not deduplicated the way
+ * fetch is, so this needs saying explicitly.
+ *
+ * React's `cache` and not `unstable_cache` on purpose: this is per-request
+ * memoisation, not a stored entry, so it adds no staleness at all. A
+ * handicapper still sees a pick the instant they post it, which a TTL here
+ * would have delayed — and on a page whose whole promise is a record you can
+ * check, "wait a minute" is the wrong trade for a second query.
+ */
+export const getHandicapperByHandle = cache(loadHandicapperByHandle);
 
 export type HotHandicapper = HandicapperSummary & {
   /** Stats over picks settled within the lookback window (default last 7 days). */
@@ -379,13 +429,36 @@ export async function listHottestHandicappers({
   return ranked.slice(0, limit);
 }
 
+/**
+ * What toSummary needs from a pick — see SUMMARY_PICK_COLUMNS.
+ *
+ * Declared structurally rather than as the full `PickModel` so the listing
+ * queries can select only these seven columns. A caller holding whole pick
+ * rows still satisfies it, which is why the directory and profile paths keep
+ * working unchanged.
+ */
+type SummaryPick = Pick<
+  PickModel,
+  "odds" | "units" | "result" | "sport" | "createdAt" | "settledAt" | "eventStartsAt"
+>;
+
 function toSummary(
-  handicapper: HandicapperProfile & { picks: PickModel[]; reviews?: { rating: number }[] }
+  handicapper: HandicapperProfile & { picks: SummaryPick[]; reviews?: { rating: number }[] }
 ): HandicapperSummary {
   const cutoff = new Date();
   cutoff.setDate(cutoff.getDate() - STATS_LOOKBACK_DAYS);
 
   const recentPicks = handicapper.picks.filter((p) => p.createdAt >= cutoff);
+
+  // Sorted once and shared. lastNStats and computeStreaks each used to filter
+  // and sort the whole pick list themselves, so a summary paid for two full
+  // sorts; this pays for one. `decided` reuses that order rather than sorting
+  // again, which it can because decided picks are a subset of settled ones and
+  // filtering preserves order.
+  const settledChronological = handicapper.picks
+    .filter((p) => isSettled(p.result))
+    .sort((a, b) => pickDate(a).getTime() - pickDate(b).getTime());
+  const decidedChronological = settledChronological.filter((p) => isDecided(p.result));
 
   const ratings = handicapper.reviews ?? [];
   const reviewsCount = ratings.length;
@@ -403,8 +476,10 @@ function toSummary(
     sports: sportsFromPicks(handicapper.picks),
     stats: computeStats(handicapper.picks),
     last30Stats: computeStats(recentPicks),
-    last10Stats: lastNStats(handicapper.picks, 10),
-    currentStreak: computeStreaks(handicapper.picks).current,
+    // Same results as lastNStats(picks, 10) and computeStreaks(picks).current,
+    // off the one shared ordering above.
+    last10Stats: computeStats(settledChronological.slice(-10)),
+    currentStreak: currentStreakFrom(decidedChronological),
     isFeatured: isFeaturedHandicapper(handicapper.plan, handicapper.planStatus),
     reviewsCount,
     reviewsAverage,

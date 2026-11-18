@@ -1,4 +1,5 @@
 import "server-only";
+import { unstable_cache } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { computeStats, type HandicapperStats } from "@/lib/odds";
 
@@ -137,7 +138,7 @@ export interface MonthlyStanding {
  * frozen result lives in MonthlyPrizeAward once an admin records it, so a
  * later correction to a pick cannot silently rewrite who won.
  */
-export async function monthlyStandings(month: string): Promise<MonthlyStanding[]> {
+async function loadMonthlyStandings(month: string): Promise<MonthlyStanding[]> {
   const { start, end } = monthWindow(month);
 
   const handicappers = await prisma.handicapperProfile.findMany({
@@ -203,6 +204,29 @@ export async function monthlyStandings(month: string): Promise<MonthlyStanding[]
 
   return rows;
 }
+
+/**
+ * Cached per month, like the leaderboard's own summaries.
+ *
+ * This runs on every single /leaderboard render while a prize month is live,
+ * and it is a full scan: every unsuspended handicapper joined to their settled
+ * picks for the month, then stats and a sort. Uncached, it was doing that
+ * again for each of the ~180 sort/period/sport permutations of the page, and
+ * for every crawler that walked them.
+ *
+ * 60 seconds, matching listHandicapperSummaries, so the prize board and the
+ * table beneath it cannot disagree about the same month by more than the same
+ * drift. The month is an argument, so each month caches separately and a
+ * rollover cannot serve the previous month's race.
+ *
+ * Tagged "handicappers" so posting or regrading a pick clears this with
+ * everything else rather than leaving the prize board a minute behind the
+ * record it is ranking.
+ */
+export const monthlyStandings = unstable_cache(loadMonthlyStandings, ["monthly-standings-v1"], {
+  revalidate: 60,
+  tags: ["handicappers"],
+});
 
 export interface RecordedAward {
   rank: number;

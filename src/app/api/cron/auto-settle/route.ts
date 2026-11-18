@@ -1,3 +1,4 @@
+import { revalidateTag } from "next/cache";
 import { NextResponse } from "next/server";
 import { runAutoSettle } from "@/lib/auto-settle";
 import { requirePermission } from "@/lib/permissions";
@@ -29,5 +30,14 @@ export async function GET(request: Request) {
   }
 
   const report = await runAutoSettle();
+
+  // Grading a pick changes every public record on the site — the leaderboard
+  // rows, the directory and the monthly prize standings are all cached under
+  // this tag. Without this they stay up to a minute behind the result that has
+  // just been written, which is the one kind of staleness a site selling
+  // verified records should not ship. `expire: 0` makes the next read see the
+  // new figures rather than serving stale while it refreshes.
+  if (report.settled > 0) revalidateTag("handicappers", { expire: 0 });
+
   return NextResponse.json(report);
 }
