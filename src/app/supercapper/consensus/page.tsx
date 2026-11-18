@@ -8,21 +8,37 @@ import {
   type ConsensusGame,
   type ConsensusMarket,
 } from "@/lib/contest-consensus";
-import { formatOdds } from "@/lib/odds";
+import { Odds } from "@/components/odds-format";
 import { SportIcon } from "@/components/sport-icon";
 import { LocalTime } from "@/components/local-time";
 import { MatchupTeams } from "@/components/matchup-teams";
+import { supercapperVisible } from "@/lib/supercapper-visibility";
+import { notFound } from "next/navigation";
 
 export const dynamic = "force-dynamic";
 
-export const metadata: Metadata = {
+/**
+ * Metadata is resolved separately from the component, so the page's
+ * notFound() does not suppress it: while the contest was hidden the
+ * title, description and canonical for a $10,000 contest were still
+ * being served in the payload of a 404.
+ */
+export async function generateMetadata(): Promise<Metadata> {
+  if (!supercapperVisible()) return {};
+  return {
   title: "Supercapper Contest — Consensus",
   description:
     "Every pick the Supercapper Contest field has live, by league and match: pick and unit splits on each market, plus what the qualified entrants are on.",
   alternates: { canonical: "/supercapper/consensus" },
 };
+}
 
 export default async function SupercapperConsensusPage() {
+  // The layout's gate returns the 404, but a layout and its page render
+  // together: without this the page still ran and its whole output — title,
+  // prize pool, standings, contest id — was serialised into the Flight payload
+  // of a page that claims not to exist. Checked here so nothing renders.
+  if (!supercapperVisible()) notFound();
   const data = await contestConsensus();
   if (!data) redirect("/supercapper");
 
@@ -148,7 +164,7 @@ function MarketCard({ market }: { market: ConsensusMarket }) {
           <div key={side.selection}>
             <div className="flex items-baseline justify-between gap-2 text-xs">
               <span className="min-w-0 truncate">
-                {side.selection} <span className="text-muted">{formatOdds(side.odds)}</span>
+                {side.selection} <span className="text-muted"><Odds value={side.odds} /></span>
               </span>
               <span className="shrink-0 font-semibold tabular-nums">{side.pickShare}%</span>
             </div>

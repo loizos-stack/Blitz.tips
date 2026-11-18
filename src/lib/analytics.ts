@@ -67,16 +67,31 @@ export function computeStreaks(picks: TimedPick[]): StreakInfo {
     worstLoss = Math.min(worstLoss, run);
   }
 
+  return { current: currentStreakFrom(decided), bestWin, worstLoss: Math.abs(worstLoss) };
+}
+
+/**
+ * The trailing run, from decided picks ALREADY in chronological order.
+ *
+ * Split out of computeStreaks so a caller that has sorted its picks once can
+ * reuse that order instead of paying for a second filter-and-sort. The whole
+ * reason it takes pre-sorted input is to make that saving possible, so the
+ * order is the caller's promise to keep — hand it an unsorted array and it
+ * will cheerfully report a streak that never happened.
+ *
+ * computeStreaks still calls it, so there is one definition of what a current
+ * streak is rather than two that can drift apart.
+ */
+export function currentStreakFrom(decidedChronological: readonly { result: PickResult }[]): number {
   let current = 0;
-  for (let i = decided.length - 1; i >= 0; i--) {
-    const isWin = decided[i].result === "WIN";
+  for (let i = decidedChronological.length - 1; i >= 0; i--) {
+    const isWin = decidedChronological[i].result === "WIN";
     if (current === 0) current = isWin ? 1 : -1;
     else if (current > 0 && isWin) current += 1;
     else if (current < 0 && !isWin) current -= 1;
     else break;
   }
-
-  return { current, bestWin, worstLoss: Math.abs(worstLoss) };
+  return current;
 }
 
 /** Running units P/L after each settled pick, oldest-to-newest — for a sparkline. */

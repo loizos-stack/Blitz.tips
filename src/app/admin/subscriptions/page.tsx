@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { AdminButton } from "@/components/admin/admin-actions";
 import { GrantSubscriptionForm } from "@/components/admin/grant-subscription-form";
 import { guardAdminPage } from "@/lib/permissions";
+import { formatDate } from "@/lib/date-format";
 import { markAdminTabSeen } from "@/lib/admin-badges";
 
 export const dynamic = "force-dynamic";
@@ -61,10 +62,10 @@ export default async function AdminSubscriptionsPage() {
                   </span>
                 </td>
                 <td className="px-4 py-2.5 text-muted">
-                  {s.currentPeriodEnd ? s.currentPeriodEnd.toLocaleDateString() : "—"}
+                  {s.currentPeriodEnd ? formatDate(s.currentPeriodEnd) : "—"}
                 </td>
                 <td className="px-4 py-2.5">{s.cancelAtPeriodEnd ? "Yes" : "—"}</td>
-                <td className="px-4 py-2.5 text-muted">{s.createdAt.toLocaleDateString()}</td>
+                <td className="px-4 py-2.5 text-muted">{formatDate(s.createdAt)}</td>
                 <td className="px-4 py-2.5 text-right">
                   {s.stripeSubscriptionId && (
                     <div className="flex justify-end gap-1.5">

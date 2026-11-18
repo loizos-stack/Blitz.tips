@@ -66,6 +66,7 @@ export function ContestStandings({
   myEntryId,
   linkBase = "/supercapper/entrant",
   showPrize = true,
+  limit,
 }: {
   overall: OverallStanding[];
   entries: StandingEntry[];
@@ -73,6 +74,12 @@ export function ContestStandings({
   myEntryId?: string;
   linkBase?: string;
   showPrize?: boolean;
+  /**
+   * Truncate to the first N rows. The contest home page uses it to show the
+   * paid places only — the full field belongs on the standings page, and a
+   * hundred rows at the bottom of a landing page buries the call to action.
+   */
+  limit?: number;
 }) {
   const [window, setWindow] = useState<ContestWindowKey>("overall");
 
@@ -133,6 +140,8 @@ export function ContestStandings({
     return [...ranked, ...rest];
   }, [window, overall, entries, minPicks]);
 
+  const visibleRows = limit != null ? rows.slice(0, limit) : rows;
+
   const hasRankedRows = rows.some((r) => r.rank != null);
 
   return (
@@ -159,7 +168,10 @@ export function ContestStandings({
       {rows.length === 0 ? (
         <div className="card p-8 text-center text-muted">No entries yet — be the first to set the pace.</div>
       ) : (
-        <div className="card overflow-x-auto p-0">
+        // min-w-0: as a grid/flex child this defaults to min-width:auto, which
+        // makes it grow to the table's 48rem instead of scrolling — the page
+        // then overflows horizontally at every width below that.
+        <div className="card min-w-0 max-w-full overflow-x-auto p-0">
           <table className="w-full min-w-[48rem] text-sm">
             <thead>
               <tr className="border-b border-border text-left text-xs uppercase tracking-wide text-muted">
@@ -176,7 +188,7 @@ export function ContestStandings({
               </tr>
             </thead>
             <tbody>
-              {rows.map((r) => (
+              {visibleRows.map((r) => (
                 <tr
                   key={r.entryId}
                   className={cn(

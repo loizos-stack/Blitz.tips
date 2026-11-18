@@ -1,6 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useVisibleInterval } from "@/lib/use-visible-interval";
+import { LocalTime } from "@/components/local-time";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Mail, Send, Trash2, CheckCircle2, RotateCcw } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -30,12 +32,13 @@ function ref(id: string) {
   return id.slice(-8).toUpperCase();
 }
 function when(iso: string) {
-  return new Date(iso).toLocaleString();
+  return <LocalTime iso={iso} withZone />;
 }
 
 // How often to reload tickets so new customer replies (threaded in from inbound
 // email) surface without a manual refresh.
-const REFRESH_MS = 15_000;
+// Widened from 15s. Support replies arrive by email minutes apart, not seconds.
+const REFRESH_MS = 30_000;
 
 export function TicketsManager({ initialTickets }: { initialTickets: Ticket[] }) {
   const router = useRouter();
@@ -47,11 +50,9 @@ export function TicketsManager({ initialTickets }: { initialTickets: Ticket[] })
   const [error, setError] = useState<string | null>(null);
 
   // Auto-refresh so replies appear on their own. Your reply draft and which
-  // ticket is selected are client state, so they survive the refresh.
-  useEffect(() => {
-    const id = setInterval(() => router.refresh(), REFRESH_MS);
-    return () => clearInterval(id);
-  }, [router]);
+  // ticket is selected are client state, so they survive the refresh. Paused
+  // while the tab is hidden — see useVisibleInterval.
+  useVisibleInterval(() => router.refresh(), REFRESH_MS);
 
   const selected = tickets.find((t) => t.id === selectedId) ?? null;
 

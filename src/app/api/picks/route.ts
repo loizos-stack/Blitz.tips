@@ -1,33 +1,18 @@
 import { NextResponse, after } from "next/server";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
-import { createPickSchema, createParlaySchema } from "@/lib/validations";
+import { createPickSchema, createParlaySchema, firstValidationError } from "@/lib/validations";
 import { isEmailVerified } from "@/lib/verification";
 import { logActivity } from "@/lib/audit";
 import { notifyNewPick } from "@/lib/notifications";
 import { combineParlayOdds } from "@/lib/odds";
 import type { BetType, PickSport } from "@prisma/client";
 
-// Keep a handicapper searchable/rankable for every sport they actually post in:
-// if a tip (or parlay leg) covers a sport that isn't yet on their profile, add
-// it. Best-effort — a failure here must never block the pick from being saved.
-async function ensureProfileSports(
-  handicapperId: string,
-  current: PickSport[],
-  incoming: (PickSport | null | undefined)[]
-) {
-  const have = new Set(current);
-  const toAdd = [...new Set(incoming.filter((s): s is PickSport => s != null && !have.has(s)))];
-  if (toAdd.length === 0) return;
-  try {
-    await prisma.handicapperProfile.update({
-      where: { id: handicapperId },
-      data: { sports: { push: toAdd } },
-    });
-  } catch {
-    // Non-fatal: the pick is already created; the sport just won't be added.
-  }
-}
+// There is no longer a profile `sports` column to keep in step: the sports a
+// handicapper covers are read straight off their picks at render time (see
+// lib/handicappers → sportsFromPicks). This used to push each new sport onto
+// the profile, which only ever added — a sport posted once and abandoned, or a
+// pick later deleted, stayed on the profile and in the filters forever.
 
 export async function POST(request: Request) {
   const session = await auth();
@@ -54,7 +39,7 @@ export async function POST(request: Request) {
 
   const parsed = createPickSchema.safeParse(body);
   if (!parsed.success) {
-    return NextResponse.json({ error: parsed.error.issues[0]?.message ?? "Invalid input" }, { status: 400 });
+    return NextResponse.json({ error: firstValidationError(parsed.error) }, { status: 400 });
   }
 
   const eventStartsAt = new Date(parsed.data.eventStartsAt);
@@ -92,8 +77,6 @@ export async function POST(request: Request) {
     },
   });
 
-  await ensureProfileSports(handicapper.id, handicapper.sports, [parsed.data.sport as PickSport]);
-
   await logActivity({
     actorId: session.user.id,
     actorEmail: session.user.email,
@@ -127,14 +110,17 @@ export async function POST(request: Request) {
 // combined (multiplied) American odds.
 async function createParlay(
   body: unknown,
-  handicapper: { id: string; userId: string; handle: string; displayName: string; sports: PickSport[] },
+  handicapper: { id: string; userId: string; handle: string; displayName: string },
   actorEmail: string | null | undefined
 ) {
   const handicapperId = handicapper.id;
   const actorId = handicapper.userId;
   const parsed = createParlaySchema.safeParse(body);
   if (!parsed.success) {
-    return NextResponse.json({ error: parsed.error.issues[0]?.message ?? "Invalid parlay" }, { status: 400 });
+    return NextResponse.json(
+      { error: firstValidationError(parsed.error, "Check the parlay and try again.") },
+      { status: 400 }
+    );
   }
 
   const eventStartsAt = new Date(parsed.data.eventStartsAt);
@@ -176,12 +162,6 @@ async function createParlay(
     },
     include: { parlayLegs: { orderBy: { order: "asc" } } },
   });
-
-  // Cover the parlay's own sport tag plus any per-leg sports.
-  await ensureProfileSports(handicapperId, handicapper.sports, [
-    sport as PickSport,
-    ...legs.map((l) => (l.sport as PickSport | undefined) ?? null),
-  ]);
 
   await logActivity({
     actorId,

@@ -1,4 +1,5 @@
 import { Avatar } from "@/components/avatar";
+import { formatDate } from "@/lib/date-format";
 import { Stars } from "@/components/stars";
 
 export interface ReviewItem {
@@ -8,10 +9,6 @@ export interface ReviewItem {
   createdAt: string;
   authorName: string;
   authorAvatarUrl: string | null;
-}
-
-function formatDate(iso: string): string {
-  return new Date(iso).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
 }
 
 // Display-only list of approved reviews shown on the public profile. Writing a

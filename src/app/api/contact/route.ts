@@ -1,6 +1,7 @@
 import { NextResponse, after } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { sendEmail } from "@/lib/email";
+import { notifyAdmins } from "@/lib/admin-alerts";
 import { emailWrapper, escapeHtml } from "@/lib/email-template";
 import { ticketReplyAddress } from "@/lib/tickets";
 import { isTicketCategory, DEFAULT_TICKET_CATEGORY } from "@/lib/ticket-categories";
@@ -99,6 +100,21 @@ export async function POST(request: Request) {
       // confirmation threads straight back into the ticket (and still reaches the
       // team) — the From address is a no-reply mailbox.
       sendEmail({ to: email, subject: `We received your message — Blitz.tips (#${ticketRef})`, html: customerHtml, text: customerText, replyTo: ticketReplyAddress() }),
+      // Telegram as well, so a ticket arriving out of hours reaches a phone
+      // rather than sitting in an inbox. Email is still the one you reply to —
+      // this is the nudge, not the copy.
+      notifyAdmins({
+        kind: "ticket.opened",
+        title: `Support ticket #${ticketRef}`,
+        details: [
+          ["From", `${name} <${email}>`],
+          ["Category", category],
+          ...(subject ? ([["Subject", subject]] as [string, string][]) : []),
+          // Enough to judge urgency without turning the message into a wall.
+          ["Message", message.length > 300 ? `${message.slice(0, 300)}…` : message],
+        ],
+        path: "/admin/tickets",
+      }),
     ]);
   });
 

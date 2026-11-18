@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { stakeUrl } from "@/lib/stake";
-import { showStakeLinks } from "@/lib/stake-server";
+import { sportsbookForVisitor } from "@/lib/sportsbooks";
 
 export const dynamic = "force-dynamic";
 
@@ -13,7 +13,10 @@ export const dynamic = "force-dynamic";
  * later closes this route too — a leaked or crawled URL can't outlive it.
  */
 export async function GET(request: Request) {
-  if (!(await showStakeLinks())) {
+  // The shared resolver, not showStakeLinks — otherwise a visitor in a 1win
+  // market (who is outside the US, so the old gate passes) could still be
+  // redirected here and land on a book they were never shown.
+  if ((await sportsbookForVisitor()) !== "stake") {
     return NextResponse.redirect(new URL("/", request.url), 302);
   }
 

@@ -15,8 +15,10 @@ export default async function AdminEmailsPage() {
   return (
     <div>
       <p className="mb-4 max-w-2xl text-sm text-muted">
-        Send an announcement to your users via Resend. Choose the audience, write the message, and
-        it goes out wrapped in the Blitz.tips email template with an unsubscribe-style footer.
+        Send an announcement to your users via Resend, or write to one person. Choose the audience,
+        write the message, and it goes out wrapped in the Blitz.tips email template. A broadcast
+        skips anyone who has unsubscribed and carries an unsubscribe footer; a message to one
+        person is ordinary correspondence and carries neither.
       </p>
       <EmailComposer
         counts={{

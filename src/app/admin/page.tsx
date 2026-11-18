@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { StatCard } from "@/components/stat-card";
 import { formatCents } from "@/lib/utils";
 import { guardAdminPage } from "@/lib/permissions";
+import { formatDate, formatDayMonth } from "@/lib/date-format";
 
 export const dynamic = "force-dynamic";
 
@@ -14,7 +15,7 @@ function weeklyBuckets(dates: Date[], now: number): { label: string; count: numb
     const end = now - (TREND_WEEKS - 1 - i) * week;
     const start = end - week;
     const count = dates.filter((d) => d.getTime() > start && d.getTime() <= end).length;
-    const label = new Date(end).toLocaleDateString(undefined, { month: "short", day: "numeric" });
+    const label = formatDayMonth(end);
     return { label, count };
   });
 }
@@ -157,7 +158,7 @@ export default async function AdminOverviewPage() {
                 <td className="px-4 py-2.5">{u.name ?? "—"}</td>
                 <td className="px-4 py-2.5">{u.role}</td>
                 <td className="px-4 py-2.5">{u.emailVerified ? "✓" : "—"}</td>
-                <td className="px-4 py-2.5 text-muted">{u.createdAt.toLocaleDateString()}</td>
+                <td className="px-4 py-2.5 text-muted">{formatDate(u.createdAt)}</td>
               </tr>
             ))}
           </tbody>

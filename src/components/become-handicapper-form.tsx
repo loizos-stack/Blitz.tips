@@ -2,10 +2,8 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { SPORT_LABELS } from "@/lib/utils";
-import { SportIcon } from "@/components/sport-icon";
 import { PlanPicker } from "@/components/plan-picker";
-import type { BillingInterval, HandicapperPlan, PickSport } from "@prisma/client";
+import type { BillingInterval, HandicapperPlan } from "@prisma/client";
 
 export function BecomeHandicapperForm() {
   const router = useRouter();
@@ -14,16 +12,11 @@ export function BecomeHandicapperForm() {
   const [handle, setHandle] = useState("");
   const [displayName, setDisplayName] = useState("");
   const [bio, setBio] = useState("");
-  const [sports, setSports] = useState<string[]>([]);
   const [price, setPrice] = useState("29.99");
   const [weeklyPrice, setWeeklyPrice] = useState("");
   const [annualPrice, setAnnualPrice] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-
-  function toggleSport(sport: string) {
-    setSports((prev) => (prev.includes(sport) ? prev.filter((s) => s !== sport) : [...prev, sport]));
-  }
 
   function handleDetailsSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -41,7 +34,6 @@ export function BecomeHandicapperForm() {
         handle,
         displayName,
         bio,
-        sports,
         monthlyPriceCents: Math.round(parseFloat(price || "0") * 100),
         weeklyPriceCents: weeklyPrice ? Math.round(parseFloat(weeklyPrice) * 100) : null,
         annualPriceCents: annualPrice ? Math.round(parseFloat(annualPrice) * 100) : null,
@@ -145,26 +137,10 @@ export function BecomeHandicapperForm() {
           />
         </div>
 
-        <div>
-          <label className="text-sm font-medium">Sports you cover</label>
-          <div className="mt-2 flex flex-wrap gap-2">
-            {Object.entries(SPORT_LABELS).map(([value, label]) => (
-              <button
-                type="button"
-                key={value}
-                onClick={() => toggleSport(value)}
-                className={`flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium ${
-                  sports.includes(value)
-                    ? "border-accent bg-accent/10 text-accent"
-                    : "border-border text-muted hover:text-foreground"
-                }`}
-              >
-                <SportIcon sport={value as PickSport} className="h-3.5 w-3.5" />
-                {label}
-              </button>
-            ))}
-          </div>
-        </div>
+        <p className="rounded-lg border border-border bg-surface-raised px-3 py-2 text-xs text-muted">
+          You don&apos;t pick the sports you cover — your profile shows a sport once you have
+          posted a tip in it, so the badges on your card are always your actual record.
+        </p>
 
         <div>
           <label className="text-sm font-medium">Subscription packages (USD)</label>
@@ -215,7 +191,6 @@ export function BecomeHandicapperForm() {
 
         <button
           type="submit"
-          disabled={sports.length === 0}
           className="mt-2 w-full rounded-lg bg-accent py-2.5 text-sm font-semibold text-accent-foreground hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
         >
           Continue to plan selection

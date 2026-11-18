@@ -3,6 +3,7 @@ import Link from "next/link";
 import { OnboardingStepper } from "@/components/onboarding/stepper";
 import { ConnectOnboardingBanner, StripePayoutsCard } from "@/components/connect-onboarding-banner";
 import { PayoutWalletsCard } from "@/components/payout-wallets-card";
+import { connectBannerState } from "@/lib/connect";
 import { requireOnboardingProfile, HANDICAPPER_WIZARD_STEPS } from "@/lib/handicapper-onboarding";
 
 export const dynamic = "force-dynamic";
@@ -10,6 +11,9 @@ export const metadata: Metadata = { title: "Set up payments" };
 
 export default async function PaymentsStep() {
   const profile = await requireOnboardingProfile();
+  // Same state the dashboard's payouts section uses, so the country the picker
+  // starts on is the same wherever the handicapper happens to click Connect.
+  const connect = await connectBannerState(profile);
 
   return (
     <div className="container-page py-12">
@@ -24,7 +28,15 @@ export default async function PaymentsStep() {
         </div>
 
         <div className="flex flex-col gap-4">
-          {profile.stripeAccountReady ? <StripePayoutsCard /> : <ConnectOnboardingBanner resume={Boolean(profile.stripeAccountId)} />}
+          {connect.ready ? (
+            <StripePayoutsCard />
+          ) : (
+            <ConnectOnboardingBanner
+              resume={connect.resume}
+              defaultCountry={connect.defaultCountry}
+              unsupportedCountry={connect.unsupportedCountry}
+            />
+          )}
           <PayoutWalletsCard
             payoutEthAddress={profile.payoutEthAddress}
             payoutBtcAddress={profile.payoutBtcAddress}
