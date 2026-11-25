@@ -6,6 +6,7 @@ import { formatOdds, unitProfit } from "@/lib/odds";
 import { requirePermission } from "@/lib/permissions";
 import { logAdmin } from "@/lib/audit";
 import { correctPickSchema, settlePickSchema } from "@/lib/validations";
+import { resolvePlayer } from "@/lib/player-lookup";
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const ctx = await requirePermission("picks");
@@ -72,6 +73,8 @@ async function correctPick(session: Session, id: string, body: unknown) {
       matchup: true,
       selection: true,
       playerName: true,
+      // Needed to re-resolve a corrected player against the right league.
+      sport: true,
       linePoint: true,
       odds: true,
       // Not editable here, but both feed the profit this correction moves.
@@ -107,7 +110,24 @@ async function correctPick(session: Session, id: string, body: unknown) {
   );
   if (changed.length === 0) return NextResponse.json({ ok: true, unchanged: true });
 
-  await prisma.pick.update({ where: { id }, data });
+  // Correcting WHO the prop is on has to re-resolve the photo and the club.
+  // The pick froze both when it was written, which is right until the name
+  // itself turns out to be wrong — and then the frozen answer belongs to a
+  // different person. Leaving it would put the previous player's face above
+  // the new player's bet, which is the exact failure the resolver's refusal to
+  // guess exists to prevent, arriving through the back door.
+  //
+  // An unmatched new name clears both rather than keeping the old ones: no
+  // photo is always better than someone else's.
+  const playerChanged = changed.includes("playerName");
+  const resolved = playerChanged ? await resolvePlayer(before.sport, after.playerName) : null;
+
+  await prisma.pick.update({
+    where: { id },
+    data: playerChanged
+      ? { ...data, playerEspnId: resolved?.espnId ?? null, playerTeamAbbr: resolved?.teamAbbr ?? null }
+      : data,
+  });
 
   // What the price change actually did to the record. Units won is computed
   // from odds on every read, so this is not a second write — it is the same
