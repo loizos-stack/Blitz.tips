@@ -36,7 +36,7 @@ for (const sport of sports) {
   try {
     const r = await syncPlayersForSport(sport as PickSport);
     console.log(
-      `${r.teams} teams, ${r.written} players, ${r.ambiguous} ambiguous name(s) will show no photo`
+      `${r.teams} teams, ${r.written} players, ${r.ambiguous} ambiguous, ${r.backfilled} existing pick(s) backfilled`
     );
   } catch (error) {
     console.error(`failed: ${error instanceof Error ? error.message : error}`);

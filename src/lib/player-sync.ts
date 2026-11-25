@@ -36,6 +36,8 @@ export type SyncReport = {
   written: number;
   /** Names shared by more than one player — these will never show a photo. */
   ambiguous: number;
+  /** Existing picks that gained a photo from this sync. */
+  backfilled: number;
 };
 
 type RosterPlayer = { espnId: string; fullName: string; teamAbbr: string; teamName: string };
@@ -133,7 +135,7 @@ export async function syncPlayersForSport(sport: PickSport): Promise<SyncReport>
 
   if (rows.length === 0) {
     const existing = await prisma.player.count({ where: { sport } });
-    return { sport, teams: teams.length, written: existing, ambiguous: 0 };
+    return { sport, teams: teams.length, written: existing, ambiguous: 0, backfilled: 0 };
   }
 
   await prisma.$transaction([
@@ -151,5 +153,54 @@ export async function syncPlayersForSport(sport: PickSport): Promise<SyncReport>
     }),
   ]);
 
-  return { sport, teams: teams.length, written, ambiguous: dupes.length };
+  const backfilled = await backfillPickPlayers(sport);
+
+  return { sport, teams: teams.length, written, ambiguous: dupes.length, backfilled };
+}
+
+/**
+ * Give already-posted picks the photo they could not get at the time.
+ *
+ * A pick resolves its player once, when it is written. Anything posted before
+ * this league was first synced therefore has a playerName and no id — frozen
+ * that way forever, which is wrong when the only reason it failed was that the
+ * table was empty. The same applies after a roster sync adds a rookie.
+ *
+ * Only ever fills in blanks: picks that already resolved keep what they were
+ * written with, because a trade should not rewrite a published pick's team.
+ * That is also what makes this safe to run on every sync.
+ *
+ * Resolution is per distinct NAME rather than per pick — ten picks on the same
+ * player are one lookup and one update, not twenty queries.
+ */
+export async function backfillPickPlayers(sport: PickSport): Promise<number> {
+  const pending = await prisma.pick.findMany({
+    where: { sport, playerEspnId: null, playerName: { not: null } },
+    select: { playerName: true },
+    distinct: ["playerName"],
+  });
+
+  let filled = 0;
+  for (const { playerName } of pending) {
+    if (!playerName) continue;
+    const normalizedName = normalizePlayerName(playerName);
+    if (!normalizedName) continue;
+
+    // Two, so a shared name is recognised as ambiguous and skipped rather than
+    // silently resolved to whichever row came back first.
+    const matches = await prisma.player.findMany({
+      where: { sport, normalizedName },
+      select: { espnId: true, teamAbbr: true },
+      take: 2,
+    });
+    if (matches.length !== 1) continue;
+
+    const { count } = await prisma.pick.updateMany({
+      where: { sport, playerName, playerEspnId: null },
+      data: { playerEspnId: matches[0].espnId, playerTeamAbbr: matches[0].teamAbbr },
+    });
+    filled += count;
+  }
+
+  return filled;
 }

@@ -502,7 +502,7 @@ export function CreatePickForm({
             */}
             {isPlayerProp ? (
               <div>
-                <label className="text-xs font-medium text-muted">Player</label>
+                <label className="text-xs font-medium text-muted">Player name</label>
                 <input
                   value={playerName}
                   onChange={(e) => setPlayerName(e.target.value)}
