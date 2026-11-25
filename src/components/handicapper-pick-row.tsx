@@ -7,6 +7,7 @@ import { Lock, Clock } from "lucide-react";
 import type { Pick as PickModel, PickResult } from "@prisma/client";
 import { ResultPill } from "@/components/result-pill";
 import { TeamLogo } from "@/components/team-logo";
+import { PlayerTag } from "@/components/player-tag";
 import { PickShareButton } from "@/components/pick-share-button";
 import { isPickLocked, isGradableByHandicapper } from "@/lib/pick-visibility";
 import { pickShareInfo } from "@/lib/pick-share";
@@ -88,6 +89,7 @@ export function HandicapperPickRow({
 
       <div className="mt-2 flex flex-wrap items-center gap-3 text-sm">
         <span className="rounded-full bg-surface-raised px-2.5 py-1">{BET_TYPE_LABELS[pick.betType]}</span>
+        <PlayerTag sport={pick.sport} playerName={pick.playerName} playerEspnId={pick.playerEspnId} />
         {pick.betType !== "PARLAY" && <span className="font-display font-semibold">{pick.selection}</span>}
         <span className="font-semibold tabular-nums"><Odds value={pick.odds} /></span>
         <span className="inline-flex items-baseline gap-1 rounded-lg border border-accent/30 bg-accent/10 px-2 py-0.5">
