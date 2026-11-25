@@ -396,6 +396,16 @@ model Pick {
   /// normal case for most sports — the card simply shows no photo.
   playerEspnId    String?
 
+  /// The player's photo, resolved once when the pick was posted.
+  ///
+  /// A URL rather than an id because the two sources do not share a shape.
+  /// ESPN's is built from an athlete id, but TheSportsDB — which is where
+  /// soccer and EuroLeague faces come from, since ESPN has neither — returns
+  /// an opaque CDN path that cannot be reconstructed from anything. Storing
+  /// the answer keeps both sources behind one field and keeps the card from
+  /// caring which one it came from.
+  playerPhotoUrl  String?
+
   /// The player's club when the pick was posted, e.g. "HOU".
   ///
   /// Frozen alongside the photo id and for the same reason: a trade later

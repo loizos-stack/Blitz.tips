@@ -86,6 +86,7 @@ export async function POST(request: Request) {
       linePoint: parsed.data.linePoint,
       playerName: parsed.data.playerName,
       playerEspnId: resolvedPlayer?.espnId ?? null,
+      playerPhotoUrl: resolvedPlayer?.photoUrl ?? null,
       playerTeamAbbr: resolvedPlayer?.teamAbbr ?? null,
     },
   });

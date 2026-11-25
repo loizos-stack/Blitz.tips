@@ -1,8 +1,6 @@
 "use client";
 
 import { PlayerHeadshot } from "@/components/player-headshot";
-import { espnHeadshotUrl } from "@/lib/player-photos";
-import type { PickSport } from "@prisma/client";
 
 /**
  * Who a player prop is on: the face, then the name.
@@ -20,26 +18,21 @@ import type { PickSport } from "@prisma/client";
  * never the information.
  */
 export function PlayerTag({
-  sport,
   playerName,
-  playerEspnId,
+  photoUrl,
   teamAbbr,
 }: {
-  sport: PickSport;
   playerName: string | null;
-  playerEspnId: string | null;
-  /** The player's club, when the roster sync knew it. */
+  /** Resolved when the pick was written — ESPN or TheSportsDB, it doesn't matter here. */
+  photoUrl?: string | null;
+  /** The player's club, when the source knew it. */
   teamAbbr?: string | null;
 }) {
   if (!playerName) return null;
 
   return (
     <span className="inline-flex items-center gap-1.5">
-      <PlayerHeadshot
-        src={playerEspnId ? espnHeadshotUrl(sport, playerEspnId) : null}
-        name={playerName}
-        className="h-7 w-7"
-      />
+      <PlayerHeadshot src={photoUrl ?? null} name={playerName} className="h-7 w-7" />
       <span className="font-display font-semibold">{playerName}</span>
       {teamAbbr && (
         // Which side of the matchup he is on. The fixture is printed directly

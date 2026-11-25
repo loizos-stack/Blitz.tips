@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { normalizePlayerName } from "@/lib/player-photos";
+import { resolvePlayer } from "@/lib/player-lookup";
 import type { PickSport } from "@prisma/client";
 
 /**
@@ -174,8 +175,11 @@ export async function syncPlayersForSport(sport: PickSport): Promise<SyncReport>
  * player are one lookup and one update, not twenty queries.
  */
 export async function backfillPickPlayers(sport: PickSport): Promise<number> {
+  // Keyed on the photo, not the ESPN id: a soccer player resolved through
+  // TheSportsDB has a photo and no id, and looking for a missing id would
+  // retry them forever.
   const pending = await prisma.pick.findMany({
-    where: { sport, playerEspnId: null, playerName: { not: null } },
+    where: { sport, playerPhotoUrl: null, playerName: { not: null } },
     select: { playerName: true },
     distinct: ["playerName"],
   });
@@ -183,21 +187,19 @@ export async function backfillPickPlayers(sport: PickSport): Promise<number> {
   let filled = 0;
   for (const { playerName } of pending) {
     if (!playerName) continue;
-    const normalizedName = normalizePlayerName(playerName);
-    if (!normalizedName) continue;
 
-    // Two, so a shared name is recognised as ambiguous and skipped rather than
-    // silently resolved to whichever row came back first.
-    const matches = await prisma.player.findMany({
-      where: { sport, normalizedName },
-      select: { espnId: true, teamAbbr: true },
-      take: 2,
-    });
-    if (matches.length !== 1) continue;
+    // The same resolver the write path uses, so a backfilled pick and a freshly
+    // posted one cannot disagree about who a name belongs to.
+    const resolved = await resolvePlayer(sport, playerName);
+    if (!resolved) continue;
 
     const { count } = await prisma.pick.updateMany({
-      where: { sport, playerName, playerEspnId: null },
-      data: { playerEspnId: matches[0].espnId, playerTeamAbbr: matches[0].teamAbbr },
+      where: { sport, playerName, playerPhotoUrl: null },
+      data: {
+        playerEspnId: resolved.espnId,
+        playerPhotoUrl: resolved.photoUrl,
+        playerTeamAbbr: resolved.teamAbbr,
+      },
     });
     filled += count;
   }

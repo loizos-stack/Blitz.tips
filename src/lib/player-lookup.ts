@@ -1,6 +1,7 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
-import { normalizePlayerName, sportHasPhotos } from "@/lib/player-photos";
+import { espnHeadshotUrl, normalizePlayerName, sportHasPhotos } from "@/lib/player-photos";
+import { sportsDbPlayerPhoto } from "@/lib/player-photo-sportsdb";
 import type { PickSport } from "@prisma/client";
 
 /**
@@ -22,8 +23,8 @@ import type { PickSport } from "@prisma/client";
 export async function resolvePlayer(
   sport: PickSport,
   playerName: string | null | undefined
-): Promise<{ espnId: string; teamAbbr: string | null } | null> {
-  if (!playerName?.trim() || !sportHasPhotos(sport)) return null;
+): Promise<{ espnId: string | null; photoUrl: string; teamAbbr: string | null } | null> {
+  if (!playerName?.trim()) return null;
 
   const normalizedName = normalizePlayerName(playerName);
   if (!normalizedName) return null;
@@ -31,11 +32,25 @@ export async function resolvePlayer(
   // Two rows, not one: the second row is what tells us the name is ambiguous.
   // Taking the first of several would be the guess this function exists to
   // avoid.
-  const matches = await prisma.player.findMany({
-    where: { sport, normalizedName },
-    select: { espnId: true, teamAbbr: true },
-    take: 2,
-  });
+  // The synced leagues first: a local index lookup, no network.
+  if (sportHasPhotos(sport)) {
+    const matches = await prisma.player.findMany({
+      where: { sport, normalizedName },
+      select: { espnId: true, teamAbbr: true },
+      take: 2,
+    });
+    if (matches.length === 1) {
+      const url = espnHeadshotUrl(sport, matches[0].espnId);
+      if (url) return { espnId: matches[0].espnId, photoUrl: url, teamAbbr: matches[0].teamAbbr };
+    }
+    // Two rows share the name — ambiguous, and asking a second source would be
+    // looking for a yes rather than an answer.
+    if (matches.length > 1) return null;
+  }
 
-  return matches.length === 1 ? { espnId: matches[0].espnId, teamAbbr: matches[0].teamAbbr } : null;
+  // Everything else, and anyone the synced rosters missed: soccer and
+  // EuroLeague live here, because ESPN has no usable data for either.
+  const fallback = await sportsDbPlayerPhoto(sport, playerName);
+  if (!fallback) return null;
+  return { espnId: null, photoUrl: fallback.photoUrl, teamAbbr: fallback.team };
 }

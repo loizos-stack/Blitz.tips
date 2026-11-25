@@ -125,7 +125,12 @@ async function correctPick(session: Session, id: string, body: unknown) {
   await prisma.pick.update({
     where: { id },
     data: playerChanged
-      ? { ...data, playerEspnId: resolved?.espnId ?? null, playerTeamAbbr: resolved?.teamAbbr ?? null }
+      ? {
+          ...data,
+          playerEspnId: resolved?.espnId ?? null,
+          playerPhotoUrl: resolved?.photoUrl ?? null,
+          playerTeamAbbr: resolved?.teamAbbr ?? null,
+        }
       : data,
   });
 
