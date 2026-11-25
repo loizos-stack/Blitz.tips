@@ -64,6 +64,7 @@ export function CreatePickForm({
   const [homeTeam, setHomeTeam] = useState("");
   const [betType, setBetType] = useState(betTypeKeys[0]);
   const [selection, setSelection] = useState("");
+  const [playerName, setPlayerName] = useState("");
   const [odds, setOdds] = useState("-110");
   const [units, setUnits] = useState("1");
   const [analysis, setAnalysis] = useState("");
@@ -184,7 +185,12 @@ export function CreatePickForm({
         marketKey: mode === "schedule" ? selectedMarket?.marketKey : undefined,
         side: mode === "schedule" ? selectedMarket?.side : undefined,
         linePoint: mode === "schedule" ? selectedMarket?.point : undefined,
-        playerName: mode === "schedule" ? selectedMarket?.player : undefined,
+        playerName:
+          mode === "schedule"
+            ? selectedMarket?.player
+            : isPlayerProp
+              ? playerName.trim() || undefined
+              : undefined,
       }),
     });
 
@@ -218,6 +224,10 @@ export function CreatePickForm({
       </button>
     );
   }
+
+  // Player props are the only bet type that names a person, so they are the
+  // only one that gets a Player field or a photo.
+  const isPlayerProp = mode === "manual" && betType === "PROP";
 
   const readyToSubmit = Boolean(sport) && (mode === "manual" || (selectedEvent && selectedMarket));
   const teamNames = getTeamNames(sport as PickSport);
@@ -482,11 +492,34 @@ export function CreatePickForm({
                 required
                 value={selection}
                 onChange={(e) => setSelection(e.target.value)}
-                placeholder="e.g. Bills -2.5, Over 44.5"
+                placeholder={isPlayerProp ? "e.g. Over 24.5 points" : "e.g. Bills -2.5, Over 44.5"}
                 className="mt-1 w-full rounded-lg border border-border bg-surface-raised px-3 py-2 text-sm outline-none focus:border-accent"
               />
             </div>
           </div>
+
+          {/*
+            The player, as its own field rather than buried in the selection
+            text. A board-sourced prop has always carried the name separately —
+            it is what the auto-settler grades on — while a hand-typed one put
+            everything in one string, so the settler had nothing to read and the
+            card had no one to show. This closes that gap for manual entry.
+          */}
+          {isPlayerProp && (
+            <div>
+              <label className="text-xs font-medium text-muted">Player</label>
+              <input
+                value={playerName}
+                onChange={(e) => setPlayerName(e.target.value)}
+                placeholder="e.g. Josh Allen"
+                className="mt-1 w-full rounded-lg border border-border bg-surface-raised px-3 py-2 text-sm outline-none focus:border-accent"
+              />
+              <p className="mt-1 text-[0.7rem] text-muted">
+                Spell it as the league does — it&apos;s matched against the roster to grade the
+                pick and show the player&apos;s photo. Leave it blank if you&apos;re unsure.
+              </p>
+            </div>
+          )}
 
           <div className="grid grid-cols-2 gap-3">
             <div>

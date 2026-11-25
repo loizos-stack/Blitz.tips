@@ -383,6 +383,19 @@ model Pick {
   linePoint       Float?
   playerName      String?
 
+  /// ESPN athlete id for `playerName`, resolved once when the pick is written.
+  ///
+  /// Resolved at write time rather than looked up on render, deliberately. The
+  /// match is a name comparison against the Player table, and doing that on
+  /// every card of every page is exactly the per-render work that put this site
+  /// over its CPU allowance in November. Writing it down once also freezes the
+  /// answer: a pick keeps the face it was posted with even if the table later
+  /// gains a second player of the same name.
+  ///
+  /// Null whenever the name could not be matched confidently, which is the
+  /// normal case for most sports — the card simply shows no photo.
+  playerEspnId    String?
+
   // For a PARLAY bet: the individual legs. `odds` on the parent Pick holds the
   // combined (multiplied) American odds; each leg keeps its own line.
   parlayLegs ParlayLeg[]
@@ -1660,4 +1673,48 @@ model TikTokAccount {
   connectedAt DateTime @default(now())
   connectedBy String
   updatedAt   DateTime @updatedAt
+}
+
+/// An athlete we can show a photo for, synced from ESPN by
+/// `scripts/sync-players.mjs`.
+///
+/// The table exists because a pick stores a player's NAME and nothing else —
+/// there is no athlete id anywhere in the pick pipeline, and ESPN's headshot
+/// URL is built from one. So a name has to be turned into an id somewhere, and
+/// a local table is the only way to do that without an HTTP call on the write
+/// path.
+///
+/// Deliberately pro leagues only. ESPN's athlete lists are historical archives
+/// rather than current rosters — college football alone returns 254,099 people,
+/// and the soccer lists carry 7,000+ per league with not one marked active and
+/// no working headshots. Those are not worth storing to put a face on a bet.
+model Player {
+  id String @id @default(cuid())
+
+  sport PickSport
+
+  /// ESPN's athlete id. The headshot URL is built from this and the sport.
+  espnId String
+
+  /// As ESPN spells it, for display and for debugging a bad match.
+  fullName String
+
+  /// Lowercased, unaccented, punctuation-free — what a pick's playerName is
+  /// matched against. See normalizePlayerName in lib/player-photos.ts.
+  normalizedName String
+
+  /// ESPN's own flag. Retired players are kept out of the table at sync time;
+  /// this records what the feed claimed when the row was written.
+  active Boolean @default(true)
+
+  updatedAt DateTime @updatedAt
+
+  /// One row per athlete per sport. A player who appears in two sports (rare,
+  /// but ESPN does carry some) gets a row in each, which is correct — the
+  /// headshot path differs by sport.
+  @@unique([sport, espnId])
+  /// The lookup the write path does. Not unique: two players genuinely share a
+  /// name often enough that the resolver has to handle it, and it handles it by
+  /// declining to guess.
+  @@index([sport, normalizedName])
 }

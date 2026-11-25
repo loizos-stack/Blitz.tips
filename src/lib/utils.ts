@@ -60,7 +60,7 @@ export const BET_TYPE_LABELS: Record<string, string> = {
   SPREAD: "Spread",
   MONEYLINE: "Moneyline",
   TOTAL: "Total",
-  PROP: "Prop",
+  PROP: "Player Props",
   PARLAY: "Parlay",
   FUTURES: "Futures",
 };

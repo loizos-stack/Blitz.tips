@@ -1,6 +1,7 @@
 import { NextResponse, after } from "next/server";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
+import { resolvePlayerEspnId } from "@/lib/player-lookup";
 import { createPickSchema, createParlaySchema, firstValidationError } from "@/lib/validations";
 import { isEmailVerified } from "@/lib/verification";
 import { logActivity } from "@/lib/audit";
@@ -53,6 +54,16 @@ export async function POST(request: Request) {
     );
   }
 
+  // The player's face, decided once, here. A name match on every render is the
+  // shape of per-request work that put this site over its CPU allowance, and
+  // freezing the answer also means a pick keeps the photo it was posted with.
+  // Null is the ordinary outcome — most sports have no photos, and an ambiguous
+  // name deliberately resolves to nothing rather than a guess.
+  const playerEspnId = await resolvePlayerEspnId(
+    parsed.data.sport as PickSport,
+    parsed.data.playerName
+  );
+
   const pick = await prisma.pick.create({
     data: {
       handicapperId: handicapper.id,
@@ -74,6 +85,7 @@ export async function POST(request: Request) {
       side: parsed.data.side,
       linePoint: parsed.data.linePoint,
       playerName: parsed.data.playerName,
+      playerEspnId,
     },
   });
 

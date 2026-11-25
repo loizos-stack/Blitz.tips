@@ -1,5 +1,7 @@
 import { Lock, Layers } from "lucide-react";
 import { TailButtons } from "@/components/tail-buttons";
+import { PlayerHeadshot } from "@/components/player-headshot";
+import { espnHeadshotUrl } from "@/lib/player-photos";
 import { LocalTime } from "@/components/local-time";
 import type { Pick as PickModel, ParlayLeg } from "@prisma/client";
 import { ResultPill } from "@/components/result-pill";
@@ -200,6 +202,18 @@ export function PickCard({
           </div>
           <div className="mt-2 flex flex-wrap items-center gap-3 text-sm">
             <span className="rounded-full bg-surface-raised px-2.5 py-1">{BET_TYPE_LABELS[pick.betType]}</span>
+            {/*
+              The player's face, on props where the name resolved to a roster.
+              playerEspnId was decided when the pick was written, so nothing is
+              matched here — this is a URL built from an id.
+            */}
+            {pick.playerEspnId && pick.playerName && (
+              <PlayerHeadshot
+                src={espnHeadshotUrl(pick.sport, pick.playerEspnId)}
+                name={pick.playerName}
+                className="h-7 w-7"
+              />
+            )}
             <span className="font-display font-semibold">{pick.selection}</span>
             <span className="font-semibold tabular-nums"><Odds value={pick.odds} /></span>
             <UnitsBadge units={pick.units} />
