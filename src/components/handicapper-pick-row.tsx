@@ -89,7 +89,7 @@ export function HandicapperPickRow({
 
       <div className="mt-2 flex flex-wrap items-center gap-3 text-sm">
         <span className="rounded-full bg-surface-raised px-2.5 py-1">{BET_TYPE_LABELS[pick.betType]}</span>
-        <PlayerTag sport={pick.sport} playerName={pick.playerName} playerEspnId={pick.playerEspnId} />
+        <PlayerTag sport={pick.sport} playerName={pick.playerName} playerEspnId={pick.playerEspnId} teamAbbr={pick.playerTeamAbbr} />
         {pick.betType !== "PARLAY" && <span className="font-display font-semibold">{pick.selection}</span>}
         <span className="font-semibold tabular-nums"><Odds value={pick.odds} /></span>
         <span className="inline-flex items-baseline gap-1 rounded-lg border border-accent/30 bg-accent/10 px-2 py-0.5">

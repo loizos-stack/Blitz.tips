@@ -471,6 +471,12 @@ export function CreatePickForm({
             ))}
           </datalist>
 
+          {/*
+            Bet type sits beside Selection normally, but a player prop puts the
+            Player field in that slot and drops Selection to its own row below.
+            The order matters: you pick the player, then the line on him, which
+            is the order the bet is thought of in.
+          */}
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="text-xs font-medium text-muted">Bet type</label>
@@ -486,37 +492,51 @@ export function CreatePickForm({
                 ))}
               </select>
             </div>
+
+            {/*
+              The player, as its own field rather than buried in the selection
+              text. A board-sourced prop has always carried the name separately
+              — it is what the auto-settler grades on — while a hand-typed one
+              put everything in one string, so the settler had nothing to read
+              and the card had nobody to show.
+            */}
+            {isPlayerProp ? (
+              <div>
+                <label className="text-xs font-medium text-muted">Player</label>
+                <input
+                  value={playerName}
+                  onChange={(e) => setPlayerName(e.target.value)}
+                  placeholder="e.g. Kevin Durant"
+                  className="mt-1 w-full rounded-lg border border-border bg-surface-raised px-3 py-2 text-sm outline-none focus:border-accent"
+                />
+              </div>
+            ) : (
+              <div>
+                <label className="text-xs font-medium text-muted">Selection</label>
+                <input
+                  required
+                  value={selection}
+                  onChange={(e) => setSelection(e.target.value)}
+                  placeholder="e.g. Bills -2.5, Over 44.5"
+                  className="mt-1 w-full rounded-lg border border-border bg-surface-raised px-3 py-2 text-sm outline-none focus:border-accent"
+                />
+              </div>
+            )}
+          </div>
+
+          {isPlayerProp && (
             <div>
               <label className="text-xs font-medium text-muted">Selection</label>
               <input
                 required
                 value={selection}
                 onChange={(e) => setSelection(e.target.value)}
-                placeholder={isPlayerProp ? "e.g. Over 24.5 points" : "e.g. Bills -2.5, Over 44.5"}
-                className="mt-1 w-full rounded-lg border border-border bg-surface-raised px-3 py-2 text-sm outline-none focus:border-accent"
-              />
-            </div>
-          </div>
-
-          {/*
-            The player, as its own field rather than buried in the selection
-            text. A board-sourced prop has always carried the name separately —
-            it is what the auto-settler grades on — while a hand-typed one put
-            everything in one string, so the settler had nothing to read and the
-            card had no one to show. This closes that gap for manual entry.
-          */}
-          {isPlayerProp && (
-            <div>
-              <label className="text-xs font-medium text-muted">Player</label>
-              <input
-                value={playerName}
-                onChange={(e) => setPlayerName(e.target.value)}
-                placeholder="e.g. Josh Allen"
+                placeholder="e.g. Over 29.5 points + rebounds + assists"
                 className="mt-1 w-full rounded-lg border border-border bg-surface-raised px-3 py-2 text-sm outline-none focus:border-accent"
               />
               <p className="mt-1 text-[0.7rem] text-muted">
-                Spell it as the league does — it&apos;s matched against the roster to grade the
-                pick and show the player&apos;s photo. Leave it blank if you&apos;re unsure.
+                Spell the player as the league does — the name is matched against the roster to
+                grade the pick and show their photo and team. Leave it blank if you&apos;re unsure.
               </p>
             </div>
           )}

@@ -13,16 +13,16 @@ import type { PickSport } from "@prisma/client";
  */
 
 /**
- * The ESPN id for a player name, or null when there isn't exactly one.
+ * The ESPN id and club for a player name, or null when there is not exactly one.
  *
  * Called on the write path only — see the note on Pick.playerEspnId. Returning
  * null is an ordinary outcome, not a failure: most sports have no photos at
  * all, and an unmatched name simply renders without one.
  */
-export async function resolvePlayerEspnId(
+export async function resolvePlayer(
   sport: PickSport,
   playerName: string | null | undefined
-): Promise<string | null> {
+): Promise<{ espnId: string; teamAbbr: string | null } | null> {
   if (!playerName?.trim() || !sportHasPhotos(sport)) return null;
 
   const normalizedName = normalizePlayerName(playerName);
@@ -33,9 +33,9 @@ export async function resolvePlayerEspnId(
   // avoid.
   const matches = await prisma.player.findMany({
     where: { sport, normalizedName },
-    select: { espnId: true },
+    select: { espnId: true, teamAbbr: true },
     take: 2,
   });
 
-  return matches.length === 1 ? matches[0].espnId : null;
+  return matches.length === 1 ? { espnId: matches[0].espnId, teamAbbr: matches[0].teamAbbr } : null;
 }

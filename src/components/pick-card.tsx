@@ -205,7 +205,7 @@ export function PickCard({
               Who the prop is on. playerEspnId was decided when the pick was
               written, so nothing is matched here.
             */}
-            <PlayerTag sport={pick.sport} playerName={pick.playerName} playerEspnId={pick.playerEspnId} />
+            <PlayerTag sport={pick.sport} playerName={pick.playerName} playerEspnId={pick.playerEspnId} teamAbbr={pick.playerTeamAbbr} />
             <span className="font-display font-semibold">{pick.selection}</span>
             <span className="font-semibold tabular-nums"><Odds value={pick.odds} /></span>
             <UnitsBadge units={pick.units} />

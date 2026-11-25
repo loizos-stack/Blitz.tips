@@ -396,6 +396,13 @@ model Pick {
   /// normal case for most sports — the card simply shows no photo.
   playerEspnId    String?
 
+  /// The player's club when the pick was posted, e.g. "HOU".
+  ///
+  /// Frozen alongside the photo id and for the same reason: a trade later
+  /// should not silently rewrite which team a published pick says the player
+  /// was on. The record is what it was at the time.
+  playerTeamAbbr  String?
+
   // For a PARLAY bet: the individual legs. `odds` on the parent Pick holds the
   // combined (multiplied) American odds; each leg keeps its own line.
   parlayLegs ParlayLeg[]
@@ -1698,6 +1705,12 @@ model Player {
 
   /// As ESPN spells it, for display and for debugging a bad match.
   fullName String
+
+  /// The club, for the card. A photo and a name still leave "which of these
+  /// two teams is he on", which is the question a reader of a prop actually
+  /// has — the matchup is right there above it.
+  teamAbbr String?
+  teamName String?
 
   /// Lowercased, unaccented, punctuation-free — what a pick's playerName is
   /// matched against. See normalizePlayerName in lib/player-photos.ts.

@@ -23,10 +23,13 @@ export function PlayerTag({
   sport,
   playerName,
   playerEspnId,
+  teamAbbr,
 }: {
   sport: PickSport;
   playerName: string | null;
   playerEspnId: string | null;
+  /** The player's club, when the roster sync knew it. */
+  teamAbbr?: string | null;
 }) {
   if (!playerName) return null;
 
@@ -38,6 +41,12 @@ export function PlayerTag({
         className="h-7 w-7"
       />
       <span className="font-display font-semibold">{playerName}</span>
+      {teamAbbr && (
+        // Which side of the matchup he is on. The fixture is printed directly
+        // above, so the abbreviation is enough to place him and short enough
+        // not to crowd the line.
+        <span className="text-xs font-semibold uppercase tracking-wide text-muted">{teamAbbr}</span>
+      )}
     </span>
   );
 }
