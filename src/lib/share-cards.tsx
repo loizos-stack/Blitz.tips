@@ -258,6 +258,21 @@ export interface PickCardData {
   // A still-locked premium pick renders a teaser that reveals nothing about the
   // play (no matchup/selection/odds) — just that a premium pick is live.
   locked?: boolean;
+
+  // Everything below mirrors the card on the site. All optional: a pick with no
+  // player, no league or no crest draws without that part rather than failing.
+  /** "NFL", "EuroLeague" — the competition under the sport. */
+  league?: string | null;
+  /** Kickoff, already formatted by the caller. Satori has no Intl. */
+  kickoff?: string | null;
+  /** "Player Props", "Moneyline" — the chip beside the player. */
+  betTypeLabel?: string | null;
+  playerName?: string | null;
+  playerTeam?: string | null;
+  /** Pre-fetched by the route; see lib/og-image. */
+  playerPhotoDataUri?: string | null;
+  awayLogoDataUri?: string | null;
+  homeLogoDataUri?: string | null;
 }
 
 const GOLD = "#b45309";
@@ -322,9 +337,76 @@ const RESULT_STYLE: Record<PickResult, { label: string; color: string; bg: strin
   PENDING: { label: "PENDING", color: "#b45309", bg: "rgba(180,83,9,0.10)", border: "rgba(180,83,9,0.35)" },
 };
 
+/** The round player portrait, or their initials when no photo resolved. */
+function PlayerAvatar({ src, name }: { src?: string | null; name: string }): ReactElement {
+  // 88, not larger. The body is 430px tall once the header and frame padding
+  // are taken out, and at 104 the selection and the odds row below it were
+  // squeezed into each other by flex rather than overflowing visibly.
+  const size = 88;
+  if (src) {
+    return (
+      // eslint-disable-next-line @next/next/no-img-element -- Satori (next/og); data URI, no network
+      <img
+        src={src}
+        alt=""
+        width={size}
+        height={size}
+        style={{ width: size, height: size, borderRadius: size / 2, objectFit: "cover", background: RAISED }}
+      />
+    );
+  }
+  const initials = name
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((w) => w[0]?.toUpperCase() ?? "")
+    .join("");
+  return (
+    <div
+      style={{
+        display: "flex",
+        width: size,
+        height: size,
+        borderRadius: size / 2,
+        background: RAISED,
+        border: `1px solid ${BORDER}`,
+        alignItems: "center",
+        justifyContent: "center",
+        fontSize: 32,
+        fontWeight: 800,
+        color: MUTED,
+      }}
+    >
+      {initials}
+    </div>
+  );
+}
+
+function Crest({ src }: { src?: string | null }): ReactElement | null {
+  if (!src) return null;
+  return (
+    // eslint-disable-next-line @next/next/no-img-element -- Satori (next/og); data URI, no network
+    <img src={src} alt="" width={44} height={44} style={{ width: 44, height: 44, objectFit: "contain" }} />
+  );
+}
+
+/**
+ * The pick, drawn the way the site draws it.
+ *
+ * This used to be a headline and two stat tiles — accurate, and nothing like
+ * the card people actually see. It now follows the on-site order: league and
+ * kickoff, the fixture with both crests, the player with their photo and club,
+ * then the selection with its price and stake.
+ *
+ * Still 1200×630. That is not laziness about the card's real proportions: it is
+ * the aspect ratio every social preview expects, and a portrait image posted to
+ * X or Telegram gets letterboxed or cropped. The layout is the card's; the
+ * frame is the one the destination requires.
+ */
 export function pickCard(d: PickCardData): ReactElement {
   if (d.locked) return lockedPickCard(d);
   const r = RESULT_STYLE[d.result];
+  const hasPlayer = Boolean(d.playerName);
 
   return (
     <CardFrame>
@@ -360,23 +442,109 @@ export function pickCard(d: PickCardData): ReactElement {
         </div>
       </div>
 
-      {/* Body */}
-      <div style={{ display: "flex", flexDirection: "column", flex: 1, padding: "40px 60px 52px 60px" }}>
-        <span style={{ display: "flex", fontSize: 26, color: MUTED }}>
-          {d.displayName} · @{d.handle} · {d.sportLabel}
-        </span>
-        <span style={{ display: "flex", fontSize: 38, fontWeight: 700, color: MUTED, marginTop: 16 }}>{d.matchup}</span>
-        <span style={{ display: "flex", fontSize: 66, fontWeight: 800, color: FG, lineHeight: 1.08, marginTop: 8 }}>
-          {d.selection}
-        </span>
-
-        <div style={{ display: "flex", gap: 12, marginTop: 36 }}>
-          <StatTile label="Odds" value={americanOdds(d.odds)} />
-          <StatTile label="Units" value={`${d.units}u`} />
+      <div style={{ display: "flex", flexDirection: "column", flex: 1, padding: "28px 60px 34px 60px" }}>
+        {/* League on the left, kickoff on the right — the card's top line */}
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <span style={{ display: "flex", fontSize: 24, fontWeight: 700, color: ACCENT }}>
+            {d.league || d.sportLabel}
+          </span>
+          {d.kickoff && <span style={{ display: "flex", fontSize: 24, color: MUTED }}>{d.kickoff}</span>}
         </div>
 
-        <div style={{ display: "flex", marginTop: "auto", fontSize: 22, color: MUTED }}>
-          <span>Posted before kickoff · tracked &amp; graded on Blitz.tips</span>
+        {/* The fixture, with a crest either side */}
+        <div style={{ display: "flex", alignItems: "center", marginTop: 14 }}>
+          <Crest src={d.awayLogoDataUri} />
+          <span
+            style={{
+              display: "flex",
+              fontSize: 36,
+              fontWeight: 700,
+              color: FG,
+              marginLeft: d.awayLogoDataUri ? 14 : 0,
+              marginRight: 14,
+            }}
+          >
+            {d.matchup}
+          </span>
+          <Crest src={d.homeLogoDataUri} />
+        </div>
+
+        {/* The player, when it is a player prop */}
+        {hasPlayer && (
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 18 }}>
+            <div style={{ display: "flex", alignItems: "center" }}>
+              <PlayerAvatar src={d.playerPhotoDataUri} name={d.playerName ?? ""} />
+              <div style={{ display: "flex", flexDirection: "column", marginLeft: 22 }}>
+                <span style={{ display: "flex", fontSize: 38, fontWeight: 700, color: FG }}>{d.playerName}</span>
+                {d.playerTeam && (
+                  <span style={{ display: "flex", fontSize: 24, color: MUTED, marginTop: 4 }}>{d.playerTeam}</span>
+                )}
+              </div>
+            </div>
+            {d.betTypeLabel && (
+              <div
+                style={{
+                  display: "flex",
+                  background: RAISED,
+                  border: `1px solid ${BORDER}`,
+                  borderRadius: 999,
+                  padding: "8px 20px",
+                  fontSize: 22,
+                  color: MUTED,
+                }}
+              >
+                {d.betTypeLabel}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/*
+          The bet on one line — selection, price, stake — because that is how
+          the site card reads it, and because stacking them cost a whole row of
+          a 430px body and left the bottom three lines squeezed together.
+          flexWrap is the safety net for a selection long enough to need it.
+        */}
+        <div
+          style={{
+            display: "flex",
+            flexWrap: "wrap",
+            alignItems: "center",
+            marginTop: hasPlayer ? 24 : 28,
+          }}
+        >
+          <span
+            style={{
+              display: "flex",
+              fontSize: hasPlayer ? 50 : 58,
+              fontWeight: 800,
+              color: FG,
+              lineHeight: 1.1,
+              marginRight: 24,
+            }}
+          >
+            {d.selection}
+          </span>
+          <span style={{ display: "flex", fontSize: 38, fontWeight: 800, color: FG, marginRight: 20 }}>
+            {americanOdds(d.odds)}
+          </span>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "baseline",
+              background: "rgba(22,163,74,0.10)",
+              border: "1px solid rgba(22,163,74,0.35)",
+              borderRadius: 12,
+              padding: "6px 16px",
+            }}
+          >
+            <span style={{ display: "flex", fontSize: 32, fontWeight: 800, color: ACCENT }}>{`${d.units}u`}</span>
+            <span style={{ display: "flex", fontSize: 19, fontWeight: 700, color: ACCENT, marginLeft: 8 }}>RISK</span>
+          </div>
+        </div>
+
+        <div style={{ display: "flex", marginTop: "auto", paddingTop: 18, fontSize: 22, color: MUTED }}>
+          <span>{`${d.displayName} · @${d.handle} · tracked & graded on Blitz.tips`}</span>
         </div>
       </div>
     </CardFrame>

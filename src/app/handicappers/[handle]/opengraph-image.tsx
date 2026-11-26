@@ -4,6 +4,7 @@ import { computeStats } from "@/lib/odds";
 import { computeStreaks, lastNStats } from "@/lib/analytics";
 import { sportsFromPicks } from "@/lib/handicappers";
 import { SPORT_LABELS } from "@/lib/utils";
+import { toDataUri } from "@/lib/og-image";
 import { recordCard, SHARE_CARD_SIZE } from "@/lib/share-cards";
 
 // A handicapper's verified-record card, doubling as the profile's social-share
@@ -19,25 +20,6 @@ export const contentType = "image/png";
 // pre-cached image is far more reliable than a per-request dynamic render.
 // Records only move as picks settle, so an hour is plenty fresh.
 export const revalidate = 3600;
-
-// Fetch an image (avatar/cover) and inline it as a data URI so Satori never has
-// to fetch it itself (a failed Satori fetch throws and breaks the whole card).
-// Any failure — bad URL, non-image, oversized, network — degrades to null so the
-// card falls back to the monogram/gradient.
-async function toDataUri(url: string | null): Promise<string | null> {
-  if (!url) return null;
-  try {
-    const res = await fetch(url);
-    if (!res.ok) return null;
-    const type = res.headers.get("content-type") ?? "";
-    if (!type.startsWith("image/")) return null;
-    const buf = Buffer.from(await res.arrayBuffer());
-    if (buf.byteLength === 0 || buf.byteLength > 3_000_000) return null;
-    return `data:${type};base64,${buf.toString("base64")}`;
-  } catch {
-    return null;
-  }
-}
 
 const fallback = {
   displayName: "Blitz.tips",
