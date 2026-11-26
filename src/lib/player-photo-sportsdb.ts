@@ -117,8 +117,27 @@ export async function sportsDbPlayerPhoto(
     return !expectedSport || p.strSport === expectedSport;
   });
 
-  // Same rule as the ESPN resolver: exactly one, or nothing. Two players really
-  // do share a name, and picking either is guessing.
+  // Exactly one, or nothing — but be clear about what this does and does not
+  // catch, because it reads like a stronger guarantee than it is.
+  //
+  // TheSportsDB's search returns AT MOST ONE row, whatever is asked of it.
+  // "Josh Allen" comes back as the Buffalo quarterback alone, with no sign
+  // that the Jacksonville linebacker exists. So the length check cannot fire
+  // on genuine ambiguity here; what actually protects a pick is the name and
+  // sport comparison above, which rejects a row for somebody else.
+  //
+  // For the five synced leagues that is enough, because resolvePlayer asks the
+  // Player table first and refuses outright when two rows share a name — so an
+  // ambiguous NFL name never reaches this function. Soccer and EuroLeague have
+  // no such rung, and for them this returns whichever single player the search
+  // decided to surface.
+  //
+  // Mohamed Salah is the worked example. Asking for "Mohamed Salah" returns
+  // "Omar Mohamed Salah Mohamed" of Petrojet, which the name check rejects, so
+  // a Salah prop gets no photo. That is the correct outcome and not a bug to
+  // fix: the only "Mohamed Salah" the service does hold plays for Trabzonspor,
+  // so making the lookup succeed would put a stranger's face above a Liverpool
+  // prop. No photo beats the wrong photo.
   if (matches.length !== 1) return null;
 
   const hit = matches[0];

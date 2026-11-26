@@ -43,3 +43,6 @@ next-env.d.ts
 
 # Local dev image uploads (BLOB_LOCAL_DIR); prod uses Vercel Blob
 /public/uploads
+
+# Local backup dumps
+backups/

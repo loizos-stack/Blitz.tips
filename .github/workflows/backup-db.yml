@@ -1,0 +1,88 @@
+name: Database backup
+
+# A nightly restorable dump of the production database.
+#
+# Added after 2026-11-26, when Neon suspended the compute for exhausting its
+# monthly CU-hours. The data was fine, but unreachable — and that made the real
+# gap obvious: there was no backup, and none could be taken, because a
+# suspended compute accepts no connections. Even migrating away was impossible
+# for the same reason. Everything lived in exactly one place.
+#
+# Runs here rather than as a Vercel cron because a dump is not a web request:
+# it wants a long-lived connection, pg_dump on the machine, and somewhere to
+# put a file. A runner has all three and the function runtime has none of them.
+#
+# SETUP — one secret, which has to be added by hand:
+#
+#   DIRECT_URL = the Neon connection string, UNPOOLED
+#
+# It cannot be read out of Vercel: DIRECT_URL is marked sensitive there, which
+# means write-only. Copy it from the Neon console instead (the "direct"
+# connection, not the pooled one — pg_dump holds a session open and a pooler
+# will cut it).
+#
+# WHERE THE BACKUPS GO: an Actions artifact on each run, kept 30 days. They
+# contain real user data — email addresses, subscriptions, picks — so they are
+# readable only by people with access to this repository. Do not move them
+# anywhere with a public URL.
+#
+# TO RESTORE: download the artifact, then
+#   pg_restore --no-owner --no-acl -d "$TARGET_URL" blitz-<stamp>.dump
+# Verified end to end on 2026-11-26: a dump of 51 tables restored into an empty
+# database as 51 tables with all 68 migrations recorded.
+
+on:
+  schedule:
+    # 03:17 UTC — off the hour, because everything else in the world runs at :00.
+    - cron: "17 3 * * *"
+  workflow_dispatch:
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install a current pg_dump
+        # The runner ships the PostgreSQL 16 client. pg_dump refuses to dump a
+        # server newer than itself, so a Neon upgrade to 17 would break this
+        # with a version-mismatch error rather than anything obvious. Installing
+        # 17 from PGDG covers both, and costs about fifteen seconds.
+        run: |
+          sudo install -d /usr/share/postgresql-common/pgdg
+          sudo curl -fsSL -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc \
+            https://www.postgresql.org/media/keys/ACCC4CF8.asc
+          echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" \
+            | sudo tee /etc/apt/sources.list.d/pgdg.list >/dev/null
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq postgresql-client-17
+          echo "/usr/lib/postgresql/17/bin" >> "$GITHUB_PATH"
+
+      - name: Dump
+        id: dump
+        env:
+          DIRECT_URL: ${{ secrets.DIRECT_URL }}
+        run: |
+          if [ -z "$DIRECT_URL" ]; then
+            echo "::error::DIRECT_URL repository secret is not set — see the header of this file."
+            exit 1
+          fi
+          pg_dump --version
+          FILE=$(bash scripts/backup-db.sh backups | tail -1)
+          echo "file=$FILE" >> "$GITHUB_OUTPUT"
+          {
+            echo "### Database backup"
+            echo ""
+            echo "- file: \`$(basename "$FILE")\`"
+            echo "- size: $(( $(stat -c%s "$FILE") / 1024 )) KB"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload
+        uses: actions/upload-artifact@v4
+        with:
+          name: db-backup-${{ github.run_id }}
+          path: ${{ steps.dump.outputs.file }}
+          # Long enough to cover a problem noticed late, short enough that
+          # copies of the user table are not kept indefinitely.
+          retention-days: 30
+          if-no-files-found: error
