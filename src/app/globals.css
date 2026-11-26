@@ -68,6 +68,16 @@ h3,
   box-shadow: 0 1px 2px rgba(16, 24, 40, 0.04);
 }
 
+/* A premium pick, tinted so it reads as the paid thing on a page of free ones.
+   Deliberately faint: a feed is mostly cards, and a tint strong enough to look
+   like a highlight at one card looks like a warning at ten. color-mix keeps it
+   derived from the theme's own accent and surface, so it follows a palette
+   change instead of hard-coding a second green. */
+.card-premium {
+  background: color-mix(in srgb, var(--accent) 5%, var(--surface));
+  border-color: color-mix(in srgb, var(--accent) 22%, var(--border));
+}
+
 .result-pill {
   display: inline-flex;
   align-items: center;

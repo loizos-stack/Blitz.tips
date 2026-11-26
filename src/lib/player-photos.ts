@@ -90,9 +90,11 @@ export function normalizePlayerName(name: string): string {
  * combiner at 96px. Putting a dozen 206KB portraits on a board would undo every
  * byte the lazy-loaded crests save.
  *
- * 96px for a 48px avatar, so it stays sharp on a 2x screen.
+ * 160px by default: the card draws the player at 48px and a 2x screen wants
+ * 96 of those, so 160 leaves room to grow the avatar without another backfill.
+ * It is still ~14KB, nowhere near the 206KB the un-resized path serves.
  */
-export function espnHeadshotUrl(sport: PickSport, espnId: string, size = 96): string | null {
+export function espnHeadshotUrl(sport: PickSport, espnId: string, size = 160): string | null {
   const path = ESPN_HEADSHOT_PATH[sport];
   if (!path) return null;
   return `https://a.espncdn.com/combiner/i?img=/i/headshots/${path}/players/full/${espnId}.png&w=${size}&h=${size}`;

@@ -11,7 +11,7 @@ import { TeamLogo } from "@/components/team-logo";
 import { getTeamLogoUrl } from "@/lib/team-logos";
 import { Odds } from "@/components/odds-format";
 import { TranslateAnalysis } from "@/components/translate-analysis";
-import { SPORT_LABELS, BET_TYPE_LABELS, usesVsSeparator } from "@/lib/utils";
+import { SPORT_LABELS, BET_TYPE_LABELS, usesVsSeparator, cn } from "@/lib/utils";
 import type { PickSport } from "@prisma/client";
 
 // Synchronous ESPN fallback for the away/home crests from a matchup string —
@@ -118,7 +118,7 @@ export function PickCard({
 
   if (locked) {
     return (
-      <div className="card relative overflow-hidden p-5">
+      <div className={cn("card relative overflow-hidden p-5", pick.isPremium && "card-premium")}>
         <div className="flex items-center justify-between text-sm text-muted">
           <span className="flex items-center gap-1.5">
             {isParlay ? <Layers className="h-4 w-4" /> : <SportIcon sport={pick.sport} className="h-4 w-4" />}
@@ -143,7 +143,7 @@ export function PickCard({
   }
 
   return (
-    <div className="card p-5">
+    <div className={cn("card p-5", pick.isPremium && "card-premium")}>
       <div className="flex items-center justify-between text-sm text-muted">
         <span className="flex items-center gap-1.5">
           {isParlay ? <Layers className="h-4 w-4" /> : <SportIcon sport={pick.sport} className="h-4 w-4" />}
@@ -199,18 +199,40 @@ export function PickCard({
               <TeamLogo sport={pick.sport} logoUrl={endLogo} className="h-6 w-6 shrink-0 rounded-full ring-2 ring-surface" />
             )}
           </div>
-          <div className="mt-2 flex flex-wrap items-center gap-3 text-sm">
-            <span className="rounded-full bg-surface-raised px-2.5 py-1">{BET_TYPE_LABELS[pick.betType]}</span>
-            {/*
-              Who the prop is on. playerEspnId was decided when the pick was
-              written, so nothing is matched here.
-            */}
-            <PlayerTag playerName={pick.playerName} photoUrl={pick.playerPhotoUrl} teamAbbr={pick.playerTeamAbbr} />
-            <span className="font-display font-semibold">{pick.selection}</span>
-            <span className="font-semibold tabular-nums"><Odds value={pick.odds} /></span>
-            <UnitsBadge units={pick.units} />
-            {betCta}
-          </div>
+          {pick.playerName ? (
+            <>
+              {/*
+                A prop is about a person, so the person leads. Everything here
+                was resolved when the pick was written; nothing is matched at
+                render time.
+              */}
+              <div className="mt-3 flex items-center gap-3">
+                <PlayerTag
+                  size="lg"
+                  playerName={pick.playerName}
+                  photoUrl={pick.playerPhotoUrl}
+                  teamAbbr={pick.playerTeamAbbr}
+                />
+                <span className="ml-auto shrink-0 self-start rounded-full bg-surface-raised px-2.5 py-1 text-xs">
+                  {BET_TYPE_LABELS[pick.betType]}
+                </span>
+              </div>
+              <div className="mt-3 flex flex-wrap items-center gap-3 text-sm">
+                <span className="font-display font-semibold">{pick.selection}</span>
+                <span className="font-semibold tabular-nums"><Odds value={pick.odds} /></span>
+                <UnitsBadge units={pick.units} />
+                {betCta}
+              </div>
+            </>
+          ) : (
+            <div className="mt-2 flex flex-wrap items-center gap-3 text-sm">
+              <span className="rounded-full bg-surface-raised px-2.5 py-1">{BET_TYPE_LABELS[pick.betType]}</span>
+              <span className="font-display font-semibold">{pick.selection}</span>
+              <span className="font-semibold tabular-nums"><Odds value={pick.odds} /></span>
+              <UnitsBadge units={pick.units} />
+              {betCta}
+            </div>
+          )}
         </>
       )}
 

@@ -12,7 +12,8 @@ import { PickShareButton } from "@/components/pick-share-button";
 import { isPickLocked, isGradableByHandicapper } from "@/lib/pick-visibility";
 import { pickShareInfo } from "@/lib/pick-share";
 import { Odds } from "@/components/odds-format";
-import { SPORT_LABELS, BET_TYPE_LABELS, usesVsSeparator } from "@/lib/utils";
+import { SPORT_LABELS, BET_TYPE_LABELS, usesVsSeparator, cn } from "@/lib/utils";
+import { UnitsRisk } from "@/components/units-risk";
 
 const SETTLE_OPTIONS: PickResult[] = ["WIN", "LOSS", "PUSH", "VOID"];
 
@@ -67,8 +68,13 @@ export function HandicapperPickRow({
     ? pickShareInfo({ ...share, pick, locked: isPickLocked(pick, false) })
     : null;
 
+  // A prop is about a person; everything else is about a fixture. Giving the
+  // two the same flat row of chips was what made the photo look like a stray
+  // favicon next to the bet type.
+  const isPlayerPick = Boolean(pick.playerName);
+
   return (
-    <div className="card p-5">
+    <div className={cn("card p-5", pick.isPremium && "card-premium")}>
       <div className="flex items-center justify-between text-sm text-muted">
         <span>
           {SPORT_LABELS[pick.sport]}
@@ -87,17 +93,35 @@ export function HandicapperPickRow({
         )}
       </div>
 
-      <div className="mt-2 flex flex-wrap items-center gap-3 text-sm">
-        <span className="rounded-full bg-surface-raised px-2.5 py-1">{BET_TYPE_LABELS[pick.betType]}</span>
-        <PlayerTag playerName={pick.playerName} photoUrl={pick.playerPhotoUrl} teamAbbr={pick.playerTeamAbbr} />
-        {pick.betType !== "PARLAY" && <span className="font-display font-semibold">{pick.selection}</span>}
-        <span className="font-semibold tabular-nums"><Odds value={pick.odds} /></span>
-        <span className="inline-flex items-baseline gap-1 rounded-lg border border-accent/30 bg-accent/10 px-2 py-0.5">
-          <span className="font-bold tabular-nums text-accent">{pick.units}u</span>
-          <span className="text-[10px] font-semibold uppercase tracking-wide text-accent/80">risk</span>
-        </span>
-        {pick.isPremium && <span className="text-xs text-muted">Premium</span>}
-      </div>
+      {isPlayerPick ? (
+        <>
+          <div className="mt-3 flex items-center gap-3">
+            <PlayerTag
+              size="lg"
+              playerName={pick.playerName}
+              photoUrl={pick.playerPhotoUrl}
+              teamAbbr={pick.playerTeamAbbr}
+            />
+            <span className="ml-auto shrink-0 self-start rounded-full bg-surface-raised px-2.5 py-1 text-xs">
+              {BET_TYPE_LABELS[pick.betType]}
+            </span>
+          </div>
+          <div className="mt-3 flex flex-wrap items-center gap-3 text-sm">
+            <span className="font-display font-semibold">{pick.selection}</span>
+            <span className="font-semibold tabular-nums"><Odds value={pick.odds} /></span>
+            <UnitsRisk units={pick.units} />
+            {pick.isPremium && <span className="text-xs text-muted">Premium</span>}
+          </div>
+        </>
+      ) : (
+        <div className="mt-2 flex flex-wrap items-center gap-3 text-sm">
+          <span className="rounded-full bg-surface-raised px-2.5 py-1">{BET_TYPE_LABELS[pick.betType]}</span>
+          {pick.betType !== "PARLAY" && <span className="font-display font-semibold">{pick.selection}</span>}
+          <span className="font-semibold tabular-nums"><Odds value={pick.odds} /></span>
+          <UnitsRisk units={pick.units} />
+          {pick.isPremium && <span className="text-xs text-muted">Premium</span>}
+        </div>
+      )}
 
       <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-border pt-4">
         <ResultPill result={pick.result} />

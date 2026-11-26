@@ -66,7 +66,12 @@ export function PlayerHeadshot({
       loading="lazy"
       decoding="async"
       onError={() => setFailed(true)}
-      className={cn("shrink-0 rounded-full object-cover", className)}
+      // A disc behind the image, not decoration. Both sources hand back
+      // cut-out portraits on a transparent background, so on a white card the
+      // player floats with no edge — and the ring that should define him is
+      // white-on-white. The tinted disc gives every headshot the same silhouette
+      // whatever the source did with its background.
+      className={cn("shrink-0 rounded-full bg-surface-raised object-cover", className)}
     />
   );
 }
