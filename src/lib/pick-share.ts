@@ -20,7 +20,13 @@ export function pickShareInfo(opts: {
 
   return {
     text,
-    url: `${baseUrl}/handicappers/${handle}`,
+    // The pick's own page, not the handicapper's profile.
+    //
+    // This used to be `/handicappers/${handle}`, which meant every network
+    // previewed the PROFILE card — the capper's overall record — whatever pick
+    // was being shared. The pick's card was rendered and shown to nobody. The
+    // share image below has always been per-pick; now the link agrees with it.
+    url: `${baseUrl}/p/${pick.id}`,
     imageUrl: `${baseUrl}/api/share/pick/${pick.id}`,
     downloadName: `${handle}-${pick.id}.png`,
   };
