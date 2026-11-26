@@ -1,7 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { normalizePlayerName } from "@/lib/player-photos";
 import { resolvePlayer } from "@/lib/player-lookup";
-import { SPORTSDB_CUTOUT_MARKER } from "@/lib/player-photo-sportsdb";
 import type { PickSport } from "@prisma/client";
 
 /**
@@ -199,7 +198,7 @@ export async function backfillPickPlayers(sport: PickSport): Promise<number> {
       data: {
         playerEspnId: resolved.espnId,
         playerPhotoUrl: resolved.photoUrl,
-        playerTeamAbbr: resolved.teamAbbr,
+        playerTeam: resolved.team,
       },
     });
     filled += count;
@@ -237,9 +236,12 @@ const REFRESH_LIMIT = 40;
  * padded portrait, and above TheSportsDB's own match photos, and this applies
  * that ranking to what is already stored.
  *
- * Candidates are picks whose photo is not already a cutout — which covers both
- * the ESPN URLs and the older TheSportsDB thumbs, since the same re-resolve
- * fixes either.
+ * Every pick with a player name is a candidate, not just the ones with an
+ * obviously stale photo. Filtering on the photo URL missed the case that
+ * prompted this: a pick already holding the right cut-out but still showing
+ * "CHI" where the club is now written out as "Chicago Bears". Resolving is
+ * cheap, the write is skipped when nothing differs, and the cap bounds the
+ * work either way.
  *
  * Idempotent, and safe to run repeatedly. A player with no cutout re-resolves
  * to exactly the photo already stored, so the write is skipped and nothing
@@ -254,16 +256,8 @@ const REFRESH_LIMIT = 40;
  */
 export async function refreshPlayerPhotos(): Promise<RefreshReport> {
   const pending = await prisma.pick.findMany({
-    where: {
-      playerName: { not: null },
-      OR: [
-        // A pick that never resolved at all is worth another try too: the
-        // write may have happened while TheSportsDB was timing out.
-        { playerPhotoUrl: null },
-        { NOT: { playerPhotoUrl: { contains: SPORTSDB_CUTOUT_MARKER } } },
-      ],
-    },
-    select: { sport: true, playerName: true, playerPhotoUrl: true },
+    where: { playerName: { not: null } },
+    select: { sport: true, playerName: true, playerPhotoUrl: true, playerTeam: true },
     distinct: ["sport", "playerName"],
     orderBy: { createdAt: "desc" },
   });
@@ -271,22 +265,26 @@ export async function refreshPlayerPhotos(): Promise<RefreshReport> {
   const batch = pending.slice(0, REFRESH_LIMIT);
   let updated = 0;
 
-  for (const { sport, playerName, playerPhotoUrl } of batch) {
+  for (const { sport, playerName, playerPhotoUrl, playerTeam } of batch) {
     if (!playerName) continue;
 
     const resolved = await resolvePlayer(sport, playerName);
-    // Nothing matched, or the same photo came back because this player has no
-    // cutout: either way there is nothing better to store.
-    if (!resolved || resolved.photoUrl === playerPhotoUrl) continue;
+    if (!resolved) continue;
+
+    // Write only on a real difference. A player with no cutout resolves to the
+    // photo already stored and is left alone, so re-running churns nothing.
+    const samePhoto = resolved.photoUrl === playerPhotoUrl;
+    const sameTeam = (resolved.team ?? null) === (playerTeam ?? null);
+    if (samePhoto && sameTeam) continue;
 
     const { count } = await prisma.pick.updateMany({
-      // Still scoped to the photo this row had when it was read, so a pick an
-      // admin corrected while this was running keeps the correction.
-      where: { sport, playerName, playerPhotoUrl },
+      // Scoped to the values this row had when it was read, so a pick an admin
+      // corrected while this was running keeps the correction.
+      where: { sport, playerName, playerPhotoUrl, playerTeam },
       data: {
         playerEspnId: resolved.espnId,
         playerPhotoUrl: resolved.photoUrl,
-        playerTeamAbbr: resolved.teamAbbr,
+        playerTeam: resolved.team,
       },
     });
     updated += count;

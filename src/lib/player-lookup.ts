@@ -23,9 +23,8 @@ import type { PickSport } from "@prisma/client";
  * Both sources are consulted, because each is better at a different thing.
  *
  * ESPN owns the FACTS. The Player table is synced from its rosters, so a match
- * there is by athlete id and carries the short club abbreviation the card
- * wants — "HOU", where TheSportsDB says "Houston Rockets" and overflows the
- * line.
+ * there is by athlete id and carries the club, in both the short and the full
+ * form. The full one is what the card shows.
  *
  * TheSportsDB owns the better PICTURE, when it has one. Its cutouts are
  * front-facing studio portraits framed for a circle, while ESPN's originals
@@ -53,13 +52,13 @@ import type { PickSport } from "@prisma/client";
 export async function resolvePlayer(
   sport: PickSport,
   playerName: string | null | undefined
-): Promise<{ espnId: string | null; photoUrl: string; teamAbbr: string | null } | null> {
+): Promise<{ espnId: string | null; photoUrl: string; team: string | null } | null> {
   if (!playerName?.trim()) return null;
 
   const normalizedName = normalizePlayerName(playerName);
   if (!normalizedName) return null;
 
-  let espn: { espnId: string; teamAbbr: string | null; photoUrl: string } | null = null;
+  let espn: { espnId: string; team: string | null; photoUrl: string } | null = null;
 
   if (sportHasPhotos(sport)) {
     // Two rows, not one: the second row is what tells us the name is
@@ -67,7 +66,7 @@ export async function resolvePlayer(
     // exists to avoid.
     const matches = await prisma.player.findMany({
       where: { sport, normalizedName },
-      select: { espnId: true, teamAbbr: true },
+      select: { espnId: true, teamName: true },
       take: 2,
     });
 
@@ -79,7 +78,7 @@ export async function resolvePlayer(
     if (matches.length === 1) {
       const url = espnHeadshotUrl(sport, matches[0].espnId);
       if (url) {
-        espn = { espnId: matches[0].espnId, teamAbbr: matches[0].teamAbbr, photoUrl: url };
+        espn = { espnId: matches[0].espnId, team: matches[0].teamName, photoUrl: url };
       }
     }
   }
@@ -92,8 +91,11 @@ export async function resolvePlayer(
   return {
     espnId: espn?.espnId ?? null,
     photoUrl,
-    // ESPN's abbreviation wins when we have it; TheSportsDB's full club name
-    // is the fallback for the sports ESPN cannot answer for.
-    teamAbbr: espn?.teamAbbr ?? sportsDb?.team ?? null,
+    // The full club name from whichever source answered. ESPN's roster sync
+    // stores both forms; this takes teamName ("Chicago Bears") rather than
+    // teamAbbr ("CHI"), so the card can name the club instead of making the
+    // reader decode three letters. TheSportsDB only ever gives the full name,
+    // so the two sources now agree in shape as well as in meaning.
+    team: espn?.team ?? sportsDb?.team ?? null,
   };
 }

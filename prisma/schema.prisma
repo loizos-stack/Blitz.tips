@@ -411,7 +411,9 @@ model Pick {
   /// Frozen alongside the photo id and for the same reason: a trade later
   /// should not silently rewrite which team a published pick says the player
   /// was on. The record is what it was at the time.
-  playerTeamAbbr  String?
+  /// The player's club, as a full name ("Chicago Bears"). Column keeps its
+  /// original name so this stayed a code change with no migration.
+  playerTeam      String?  @map("playerTeamAbbr")
 
   // For a PARLAY bet: the individual legs. `odds` on the parent Pick holds the
   // combined (multiplied) American odds; each leg keeps its own line.

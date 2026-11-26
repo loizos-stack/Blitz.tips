@@ -211,7 +211,7 @@ export function PickCard({
                   size="lg"
                   playerName={pick.playerName}
                   photoUrl={pick.playerPhotoUrl}
-                  teamAbbr={pick.playerTeamAbbr}
+                  team={pick.playerTeam}
                 />
                 <span className="ml-auto shrink-0 self-start rounded-full bg-surface-raised px-2.5 py-1 text-xs">
                   {BET_TYPE_LABELS[pick.betType]}

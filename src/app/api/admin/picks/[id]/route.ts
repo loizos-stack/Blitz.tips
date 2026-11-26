@@ -129,7 +129,7 @@ async function correctPick(session: Session, id: string, body: unknown) {
           ...data,
           playerEspnId: resolved?.espnId ?? null,
           playerPhotoUrl: resolved?.photoUrl ?? null,
-          playerTeamAbbr: resolved?.teamAbbr ?? null,
+          playerTeam: resolved?.team ?? null,
         }
       : data,
   });

@@ -20,14 +20,14 @@ import { PlayerHeadshot } from "@/components/player-headshot";
 export function PlayerTag({
   playerName,
   photoUrl,
-  teamAbbr,
+  team,
   size = "sm",
 }: {
   playerName: string | null;
   /** Resolved when the pick was written — ESPN or TheSportsDB, it doesn't matter here. */
   photoUrl?: string | null;
-  /** The player's club, when the source knew it. */
-  teamAbbr?: string | null;
+  /** The player's club, full name, when the source knew it. */
+  team?: string | null;
   /**
    * "lg" makes the player the subject of the card rather than one chip in a
    * row of them. 48px and not larger on purpose: the stored ESPN URL asks the
@@ -49,10 +49,11 @@ export function PlayerTag({
         />
         <span className="flex min-w-0 flex-col leading-tight">
           <span className="truncate font-display text-base font-semibold">{playerName}</span>
-          {teamAbbr && (
-            <span className="truncate text-xs font-semibold uppercase tracking-wide text-muted">
-              {teamAbbr}
-            </span>
+          {team && (
+            // Not uppercased. "CHI" was a label and read fine shouted; the
+            // club's actual name is prose, and "CHICAGO BEARS" under a
+            // player's name reads as a sign rather than a caption.
+            <span className="truncate text-xs font-medium text-muted">{team}</span>
           )}
         </span>
       </span>
@@ -63,11 +64,11 @@ export function PlayerTag({
     <span className="inline-flex items-center gap-1.5">
       <PlayerHeadshot src={photoUrl ?? null} name={playerName} className="h-7 w-7" />
       <span className="font-display font-semibold">{playerName}</span>
-      {teamAbbr && (
+      {team && (
         // Which side of the matchup he is on. The fixture is printed directly
-        // above, so the abbreviation is enough to place him and short enough
-        // not to crowd the line.
-        <span className="text-xs font-semibold uppercase tracking-wide text-muted">{teamAbbr}</span>
+        // above, so this is confirmation rather than new information — hence
+        // muted, and truncated rather than allowed to crowd the line.
+        <span className="truncate text-xs font-medium text-muted">{team}</span>
       )}
     </span>
   );
