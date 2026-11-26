@@ -43,7 +43,7 @@ function defaultOpen(groups: Group[]) {
 }
 
 /**
- * Nested market picker shown under an expanded game: Game Lines / Player Props
+ * Nested market picker shown under an expanded game: Game Lines / Player Prop
  * → per-market subsection → individual lines. The board's game lines render
  * instantly; opening the game fetches the full per-event set (props for US
  * sports, non-player markets for soccer) and replaces the tree.

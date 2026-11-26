@@ -12,7 +12,7 @@ import { BET_TYPE_LABELS } from "@/lib/utils";
 // and always form the first "Game Lines" group.
 //
 // The result is a two-level tree the pick form renders as a nested accordion:
-//   Group ("Game Lines" | "Player Props") → Section (one per market) → lines.
+//   Group ("Game Lines" | "Player Prop") → Section (one per market) → lines.
 
 export interface MarketSection {
   key: string;
@@ -43,7 +43,7 @@ interface MarketDef {
 }
 
 // Additional markets per sport group. For the US sports these are all player
-// props (each its own subsection under "Player Props"); for soccer they're the
+// props (each its own subsection under "Player Prop"); for soccer they're the
 // non-player markets, which sit as subsections under "Game Lines".
 const CATALOG: Record<OddsGroup, MarketDef[]> = {
   football: [
@@ -109,7 +109,7 @@ const CATALOG: Record<OddsGroup, MarketDef[]> = {
 
 // Alternate lines and period/half markets — the rest of what the books offer.
 // These are team (not player) markets, so they get their own "Alternates &
-// Periods" group rather than sitting under Player Props. Every key here is a
+// Periods" group rather than sitting under Player Prop. Every key here is a
 // documented Odds API market; the per-event fetch degrades in tiers if a book
 // or sport doesn't carry one (see getEventMarkets), so a miss never blanks the
 // whole game.
@@ -321,6 +321,6 @@ export function buildGroups(sportKey: string, markets: RawMarket[]): MarketGroup
   if (gameSections.length) groups.push({ key: "game", label: "Game Lines", sections: gameSections });
   if (extraSections.length)
     groups.push({ key: "extras", label: "Alternates & Periods", sections: extraSections });
-  if (propSections.length) groups.push({ key: "props", label: "Player Props", sections: propSections });
+  if (propSections.length) groups.push({ key: "props", label: "Player Prop", sections: propSections });
   return groups;
 }

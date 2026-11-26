@@ -248,7 +248,7 @@ export default async function HandicapperProfilePage({
             {pendingPicks.length} pending
           </span>
         </h2>
-        <div className="grid gap-4 sm:grid-cols-2">
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {pendingPicks.map((pick) => {
             // Redacted here, not in the card. A locked pick's real matchup,
             // selection and price must never reach the browser at all — the

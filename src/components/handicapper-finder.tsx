@@ -24,7 +24,7 @@ const SPECIAL_CHIPS = [
   { key: "silver", label: "Silver", Icon: Medal, iconClass: "text-zinc-400" },
   { key: "followed", label: "Most followed", Icon: Heart, iconClass: "text-danger" },
   { key: "reviewed", label: "Most reviewed", Icon: Star, iconClass: "text-yellow-400" },
-  { key: "props", label: "Player Props", Icon: Target, iconClass: "text-sky-500" },
+  { key: "props", label: "Player Prop", Icon: Target, iconClass: "text-sky-500" },
   { key: "parlays", label: "Parlays", Icon: BookText, iconClass: "text-accent" },
 ] as const;
 

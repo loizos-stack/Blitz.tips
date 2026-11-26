@@ -13,6 +13,7 @@ import { SportsbookCta } from "@/components/sportsbook-cta";
 import type { Sportsbook } from "@/lib/sportsbooks";
 import { SportIcon } from "@/components/sport-icon";
 import { TeamLogo } from "@/components/team-logo";
+import { UnitsRisk } from "@/components/units-risk";
 import { getTeamLogoUrl } from "@/lib/team-logos";
 import { Odds } from "@/components/odds-format";
 import { SPORT_LABELS, BET_TYPE_LABELS, usesVsSeparator, cn } from "@/lib/utils";
@@ -56,16 +57,6 @@ function CrestPair({
     <span className="flex shrink-0 items-center -space-x-1.5">
       {first && <TeamLogo sport={sport} logoUrl={first} className={`${size} rounded-full ring-2 ring-surface`} />}
       {second && <TeamLogo sport={sport} logoUrl={second} className={`${size} rounded-full ring-2 ring-surface`} />}
-    </span>
-  );
-}
-
-// The stake on a bet, emphasized so followers can size their own play.
-function UnitsBadge({ units }: { units: number }) {
-  return (
-    <span className="inline-flex items-baseline gap-1 rounded-lg border border-accent/30 bg-accent/10 px-2.5 py-1">
-      <span className="text-base font-bold tabular-nums text-accent">{units}u</span>
-      <span className="text-[10px] font-semibold uppercase tracking-wide text-accent/80">risk</span>
     </span>
   );
 }
@@ -134,7 +125,7 @@ export function PickCard({
     // below are placeholders standing in for text that does not exist on this
     // object, rather than the pick's own words under a blur.
     return (
-      <div className={cn("card p-5", pick.isPremium && "card-premium")}>
+      <div className={cn("card flex flex-col p-5", pick.isPremium && "card-premium")}>
         <PickHeader
           sportIcon={
             isParlay ? <Layers className="h-4 w-4" /> : <SportIcon sport={pick.sport} className="h-4 w-4" />
@@ -149,8 +140,13 @@ export function PickCard({
         />
         {/* The overlay covers the redacted body only. Over the whole card it
             also washed out the sport and kickoff, which are the two things a
-            teaser is meant to tell a reader. */}
-        <div className="relative mt-4">
+            teaser is meant to tell a reader.
+
+            The body grows to fill the card (flex-1) and centres what it holds,
+            because a locked card sits in a grid row sized by the unlocked cards
+            beside it — pinned to the top, the lock floated in the upper third
+            of a tall green box and the rest read as a rendering fault. */}
+        <div className="relative mt-4 flex flex-1 flex-col justify-center">
           <div aria-hidden className="space-y-3">
             <div className="mx-auto h-5 w-2/3 rounded bg-surface-raised" />
             <div className="h-4 w-1/2 rounded bg-surface-raised" />
@@ -251,7 +247,7 @@ export function PickCard({
           <span className="font-semibold tabular-nums"><Odds value={pick.odds} /></span>
         </PickDetailRow>
         <PickDetailRow label="Units">
-          <UnitsBadge units={pick.units} />
+          <UnitsRisk units={pick.units} />
         </PickDetailRow>
         {pick.analysis && (
           // Inside the group, not after it: as its own bordered block it sat

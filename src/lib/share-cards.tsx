@@ -265,7 +265,7 @@ export interface PickCardData {
   league?: string | null;
   /** Kickoff, already formatted by the caller. Satori has no Intl. */
   kickoff?: string | null;
-  /** "Player Props", "Moneyline" — the chip beside the player. */
+  /** "Player Prop", "Moneyline" — the chip beside the player. */
   betTypeLabel?: string | null;
   playerName?: string | null;
   playerTeam?: string | null;
