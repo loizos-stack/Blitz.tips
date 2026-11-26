@@ -23,6 +23,31 @@ import { cn } from "@/lib/utils";
  * its own roster lists — so onError is the normal path, not an edge case, and
  * it falls back to initials rather than a broken-image icon.
  */
+/**
+ * ESPN pads; TheSportsDB does not.
+ *
+ * Measured over five NBA headshots, the player occupies 64-82% of an ESPN
+ * frame but 79-92% of a TheSportsDB cutout, because ESPN's originals are not
+ * square (Durant's is 600x436) and the combiner pads them to fit. Drawn in the
+ * same 48px circle, the same player therefore looks smaller when ESPN answered
+ * than when TheSportsDB did, and a board mixing the two sources looks like the
+ * avatars are different sizes.
+ *
+ * Asking ESPN for `&scale=crop` is the obvious fix and the wrong one: it keeps
+ * the subject's height and widens it by about 30%, which is a horizontal
+ * stretch, not a crop. Everyone comes out broader in the face.
+ *
+ * So the image is zoomed uniformly inside the circle instead — same aspect
+ * ratio, no distortion, and the padding is what gets clipped. 1.12 was chosen
+ * to bring the ESPN band up to the cutout band without eating into the
+ * players who were already well framed.
+ */
+const ESPN_PAD_COMPENSATION = "scale-[1.12]";
+
+function isEspnHeadshot(src: string): boolean {
+  return src.includes("espncdn.com");
+}
+
 export function PlayerHeadshot({
   src,
   name,
@@ -57,25 +82,34 @@ export function PlayerHeadshot({
   }
 
   return (
-    // eslint-disable-next-line @next/next/no-img-element -- see the note above: optimizing sports images is what blew the image quota.
-    <img
-      src={src}
-      // Empty on purpose. The player's name is already written next to this in
-      // the selection text, so announcing it again is noise to a screen reader.
-      alt=""
-      loading="lazy"
-      decoding="async"
-      onError={() => setFailed(true)}
-      // A disc behind the image, not decoration. The portraits are cut out on
-      // a transparent background, so on a white card the player would float
-      // with no edge and the ring that should define him would be
-      // white-on-white. The tinted disc gives every headshot the same
-      // silhouette whatever the source did with its background.
-      //
-      // It only helps where the source actually is transparent, which is why
-      // player-photo-sportsdb prefers strCutout over strThumb: an opaque JPEG
-      // covers this disc completely and brings its own background with it.
-      className={cn("shrink-0 rounded-full bg-surface-raised object-cover", className)}
-    />
+    // The circle is the wrapper, not the image. A transform on the image
+    // itself would scale its own border-radius too and simply draw a bigger
+    // circle; clipping has to happen on a parent that is not being scaled.
+    <span
+      className={cn(
+        // A tinted disc, not decoration. The portraits are cut out on a
+        // transparent background, so on a white card the player would float
+        // with no edge and the ring that should define him would be
+        // white-on-white.
+        "relative block shrink-0 overflow-hidden rounded-full bg-surface-raised",
+        className
+      )}
+    >
+      {/* eslint-disable-next-line @next/next/no-img-element -- see the note above: optimizing sports images is what blew the image quota. */}
+      <img
+        src={src}
+        // Empty on purpose. The player's name is already written next to this
+        // in the selection text, so announcing it again is noise to a screen
+        // reader.
+        alt=""
+        loading="lazy"
+        decoding="async"
+        onError={() => setFailed(true)}
+        className={cn(
+          "h-full w-full object-cover",
+          isEspnHeadshot(src) && ESPN_PAD_COMPENSATION
+        )}
+      />
+    </span>
   );
 }
