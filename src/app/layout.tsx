@@ -8,6 +8,7 @@ import "./globals.css";
 import { Providers } from "./providers";
 import { NavBar } from "@/components/nav-bar";
 import { Footer } from "@/components/footer";
+import { PaymentMethods } from "@/components/payment-methods";
 import { AnnouncementBanner } from "@/components/announcement-banner";
 import { getCachedAnnouncement } from "@/lib/settings";
 import { RegisterServiceWorker } from "@/components/register-service-worker";
@@ -114,6 +115,7 @@ export default async function RootLayout({
             <AnnouncementBanner initialMessage={announcement} />
             <NavBar />
             <main className="flex-1">{children}</main>
+            <PaymentMethods />
             <Footer />
             <DeferredWidgets />
             <SitePopups cookieConsentRequired={consentRequired} />
