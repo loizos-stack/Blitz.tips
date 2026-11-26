@@ -3,11 +3,13 @@ import {
   getUpcomingEvents,
   getAllUpcomingEvents,
   getAvailableHomepageSports,
+  mergeFeeds,
   HOMEPAGE_SPORTS,
 } from "@/lib/odds-api";
 import { espnCoveredSports } from "@/lib/espn-odds";
 import { sportsbookForVisitor } from "@/lib/sportsbooks";
 import { SPORT_LABELS } from "@/lib/utils";
+import type { OddsFeedResult } from "@/lib/odds-api";
 import type { PickSport } from "@prisma/client";
 
 /**
@@ -26,16 +28,41 @@ import type { PickSport } from "@prisma/client";
  * grid render and stream immediately, and the board drops in when it's ready.
  */
 export async function HomeBoard({ sportParam }: { sportParam?: string }) {
+  // Which sports have games is itself answered by the paid API, so a dead key
+  // (or ODDS_API_DISABLED) empties this and we fall through to the free board.
   const discovered = await getAvailableHomepageSports();
 
-  // Which sports have games is itself answered by the paid API, so a dead key
-  // empties this list and hides the whole section — including the free board
-  // that exists precisely for that case. Fall back to what ESPN covers.
-  const unsortedSports =
-    discovered.length > 0 ? discovered : espnCoveredSports().filter((s) => HOMEPAGE_SPORTS.includes(s));
+  // The free path's pill list, and the merged board that goes with it.
+  //
+  // This used to be `espnCoveredSports()` — a STATIC list of the sports ESPN
+  // covers, with nothing checking whether any of them had a game. With the paid
+  // feed off that is the list every visitor sees, so the homepage printed an MLB
+  // pill and a WNBA pill in November, six months before either plays again, each
+  // over an empty board. A pill is a claim that there is something under it.
+  //
+  // So the sports are now read off the boards themselves: fetch each covered
+  // sport's feed and keep the ones that came back with games. The feeds aren't
+  // wasted — the merged "all" view is built from the same results rather than
+  // asking for them again, and they're cached (ESPN's board revalidates on its
+  // own window), so this costs no extra upstream requests in the warm case and
+  // nothing billed in any case, the free board being free.
+  let availableSports: PickSport[];
+  let freeBoard: OddsFeedResult | null = null;
+
+  if (discovered.length > 0) {
+    availableSports = discovered;
+  } else {
+    const candidates = espnCoveredSports().filter((s) => HOMEPAGE_SPORTS.includes(s));
+    const feeds = await Promise.all(
+      candidates.map(async (s) => [s, await getUpcomingEvents(s, { windowOnly: true })] as const)
+    );
+    const withGames = feeds.filter(([, feed]) => feed.events.length > 0);
+    availableSports = withGames.map(([s]) => s);
+    freeBoard = mergeFeeds(withGames.map(([, feed]) => feed));
+  }
 
   // Alphabetized by display label so the tab order is predictable.
-  const availableSports = [...unsortedSports].sort((a, b) =>
+  availableSports = [...availableSports].sort((a, b) =>
     (SPORT_LABELS[a] ?? a).localeCompare(SPORT_LABELS[b] ?? b)
   );
 
@@ -48,7 +75,7 @@ export async function HomeBoard({ sportParam }: { sportParam?: string }) {
 
   const oddsFeed = sport
     ? await getUpcomingEvents(sport, { windowOnly: true })
-    : await getAllUpcomingEvents(availableSports);
+    : (freeBoard ?? (await getAllUpcomingEvents(availableSports)));
 
   return (
     <UpcomingGames

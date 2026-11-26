@@ -692,16 +692,19 @@ export async function getAvailableHomepageSports(): Promise<PickSport[]> {
     })
   );
 
-  // Prefer sports with a game inside the board's window; if none, fall back to
-  // sports with any upcoming game rather than leave the tab bar empty; if truly
-  // nothing anywhere, fall back to the full static list. That second fallback
-  // can show a pill whose board is empty (the board is window-only, the pill
-  // isn't) — a tab bar with a "no games" message beats no tab bar at all.
+  // Prefer sports with a game inside the board's window; if none has one, fall
+  // back to sports with any upcoming game rather than leave the tab bar empty.
+  //
+  // There is deliberately no third fallback to the full static list. It used to
+  // end `: HOMEPAGE_SPORTS`, on the reasoning that a tab bar saying "no games"
+  // beats no tab bar — but out of season that prints a pill for every sport we
+  // have ever covered and an empty board under each. In November, MLB and WNBA
+  // are six months from their next game. A pill is a claim that there is
+  // something to look at.
   const soonSports = results.filter((r) => r.hasSoon).map((r) => r.sport);
   if (soonSports.length > 0) return soonSports;
 
-  const upcomingSports = results.filter((r) => r.hasUpcoming).map((r) => r.sport);
-  return upcomingSports.length > 0 ? upcomingSports : HOMEPAGE_SPORTS;
+  return results.filter((r) => r.hasUpcoming).map((r) => r.sport);
 }
 
 interface OddsApiOutcome {
@@ -1143,19 +1146,22 @@ export async function getSoccerFeedDiagnostics(): Promise<{
   };
 }
 
-export async function getAllUpcomingEvents(sports: PickSport[]): Promise<OddsFeedResult> {
-  // No `apiKey` guard: getUpcomingEvents falls back to the free ESPN board per
-  // sport, and bailing out here would skip it for the merged view only — the
-  // one view most visitors actually land on.
-  if (sports.length === 0) return { configured: true, supported: true, events: [] };
-
-  const feeds = await Promise.all(sports.map((s) => getUpcomingEvents(s, { windowOnly: true })));
+export function mergeFeeds(feeds: OddsFeedResult[]): OddsFeedResult {
   const events = feeds
     .flatMap((f) => (f.configured && f.supported ? f.events : []))
     .sort((a, b) => new Date(a.commenceTime).getTime() - new Date(b.commenceTime).getTime())
     .slice(0, 16);
 
   return { configured: true, supported: true, events };
+}
+
+export async function getAllUpcomingEvents(sports: PickSport[]): Promise<OddsFeedResult> {
+  // No `apiKey` guard: getUpcomingEvents falls back to the free ESPN board per
+  // sport, and bailing out here would skip it for the merged view only — the
+  // one view most visitors actually land on.
+  if (sports.length === 0) return { configured: true, supported: true, events: [] };
+
+  return mergeFeeds(await Promise.all(sports.map((s) => getUpcomingEvents(s, { windowOnly: true }))));
 }
 
 interface OddsApiScoreEntry {
