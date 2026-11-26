@@ -5,6 +5,7 @@ import Link from "next/link";
 import { formatDistanceToNowStrict } from "date-fns";
 import { Bell } from "lucide-react";
 import { pushSupported, isPushSubscribed, subscribePush, unsubscribePush } from "@/lib/push-client";
+import { useVisibleInterval } from "@/lib/use-visible-interval";
 
 interface NotificationItem {
   id: string;
@@ -33,16 +34,24 @@ export function NotificationBell() {
     }
   }, []);
 
-  // Poll for new notifications; the browser cache keeps this cheap. The initial
-  // load is deferred so the effect doesn't set state synchronously.
+  // The initial load is deferred so the effect doesn't set state synchronously.
   useEffect(() => {
     const first = setTimeout(() => void load(), 0);
-    const t = setInterval(load, 60000);
-    return () => {
-      clearTimeout(first);
-      clearInterval(t);
-    };
+    return () => clearTimeout(first);
   }, [load]);
+
+  /**
+   * Poll for new notifications, but only while the tab is being looked at.
+   *
+   * This bell lives in the nav bar, so it renders for every signed-in user on
+   * every page. On a plain setInterval it kept polling in hidden tabs, which
+   * meant one forgotten tab was 1,440 requests a day, each of them two Prisma
+   * queries. That is enough to stop Neon's compute ever suspending, and a
+   * compute that never suspends bills around the clock: on 2026-11-26 it
+   * exhausted the whole monthly CU-hour allowance and took the site down with
+   * it. Nobody reads a notification badge in a tab they cannot see.
+   */
+  useVisibleInterval(load, 60000);
 
   // One-time capability + preference probe.
   useEffect(() => {
