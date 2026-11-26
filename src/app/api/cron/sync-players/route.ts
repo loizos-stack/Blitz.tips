@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { requirePermission } from "@/lib/permissions";
 import {
   SYNC_LEAGUES,
-  refreshSportsDbPhotos,
+  refreshPlayerPhotos,
   syncPlayersForSport,
   type SyncReport,
 } from "@/lib/player-sync";
@@ -43,7 +43,7 @@ export async function GET(request: Request) {
   const params = new URL(request.url).searchParams;
 
   if (params.get("refresh") === "sportsdb") {
-    return NextResponse.json({ refresh: await refreshSportsDbPhotos() });
+    return NextResponse.json({ refresh: await refreshPlayerPhotos() });
   }
 
   const requested = params.get("sport")?.toUpperCase();

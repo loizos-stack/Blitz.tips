@@ -24,7 +24,7 @@ on:
         type: choice
         options: ["", "NFL", "NBA", "WNBA", "MLB", "NHL"]
       refresh_sportsdb:
-        description: "Instead, move soccer/EuroLeague picks onto cut-out portraits"
+        description: "Instead, move existing picks onto cut-out portraits"
         required: false
         default: false
         type: boolean

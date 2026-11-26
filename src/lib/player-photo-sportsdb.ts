@@ -26,6 +26,9 @@ const DEFAULT_BASE = "https://www.thesportsdb.com/api/v1/json";
  */
 export const SPORTSDB_THUMB_MARKER = "/images/media/player/thumb/";
 
+/** The same, for the cut-out portraits that are now preferred everywhere. */
+export const SPORTSDB_CUTOUT_MARKER = "/images/media/player/cutout/";
+
 /** The `strSport` a result must carry to be accepted for one of our sports. */
 const EXPECTED_SPORT: Partial<Record<PickSport, string>> = {
   SOCCER: "Soccer",
@@ -44,7 +47,18 @@ const EXPECTED_SPORT: Partial<Record<PickSport, string>> = {
   // on the name having to match exactly, which is the stronger guard anyway.
 };
 
-export type SportsDbPhoto = { photoUrl: string; team: string | null };
+/**
+ * Both images a player may have, kept apart rather than resolved here.
+ *
+ * The caller needs them separately because they rank differently against
+ * ESPN's portrait: a cutout beats it, a thumb does not. Collapsing them to one
+ * URL here would throw away the distinction the ordering depends on.
+ */
+export type SportsDbPhoto = {
+  cutoutUrl: string | null;
+  thumbUrl: string | null;
+  team: string | null;
+};
 
 interface SearchResult {
   strPlayer?: string;
@@ -54,32 +68,6 @@ interface SearchResult {
   strCutout?: string;
   /** Usually a match photograph, background and all. The fallback. */
   strThumb?: string;
-}
-
-/**
- * The small variant of a TheSportsDB image, and which field to take it from.
- *
- * `strCutout` first, and not as a matter of taste. The two fields are
- * different KINDS of picture: a cutout is a front-facing studio portrait with
- * the background removed, the same thing ESPN serves, while `strThumb` is
- * typically an in-game action shot — Durant's is him mid-game, looking off to
- * one side, against a blurred arena. Clipped into the card's 48px circle that
- * becomes a fragment of crowd and stadium lighting sitting next to the clean
- * cutouts on the NBA picks, and the tinted disc behind the avatar cannot help
- * because the background is baked into the JPEG.
- *
- * The cost of preferring it, measured on Durant: 40.6KB for the cutout against
- * 16.9KB for the thumb. Both are far below the un-resized originals, which are
- * 234KB and 166KB — the "/preview" suffix is what keeps either affordable, and
- * it is why a board of props is not megabytes of portraits.
- *
- * `strThumb` remains the fallback because a player can have one and not the
- * other. Of nine soccer and EuroLeague players checked, every one had both,
- * so this path should be rare.
- */
-function previewUrl(hit: SearchResult): string | null {
-  const image = hit.strCutout || hit.strThumb;
-  return image ? `${image}/preview` : null;
 }
 
 /**
@@ -134,7 +122,9 @@ export async function sportsDbPlayerPhoto(
   if (matches.length !== 1) return null;
 
   const hit = matches[0];
-  const photoUrl = previewUrl(hit);
-  if (!photoUrl) return null;
-  return { photoUrl, team: hit.strTeam?.trim() || null };
+  return {
+    cutoutUrl: hit.strCutout ? `${hit.strCutout}/preview` : null,
+    thumbUrl: hit.strThumb ? `${hit.strThumb}/preview` : null,
+    team: hit.strTeam?.trim() || null,
+  };
 }
