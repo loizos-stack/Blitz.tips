@@ -1,6 +1,12 @@
-import { Lock, Layers } from "lucide-react";
+import { Lock, Layers, Clock } from "lucide-react";
 import { TailButtons } from "@/components/tail-buttons";
 import { PlayerTag } from "@/components/player-tag";
+import {
+  PickDetails,
+  PickDetailRow,
+  PickHeader,
+  PickMatchup,
+} from "@/components/pick-details";
 import { LocalTime } from "@/components/local-time";
 import type { Pick as PickModel, ParlayLeg } from "@prisma/client";
 import { ResultPill } from "@/components/result-pill";
@@ -64,6 +70,20 @@ function UnitsBadge({ units }: { units: number }) {
       <span className="text-[10px] font-semibold uppercase tracking-wide text-accent/80">risk</span>
     </span>
   );
+}
+
+/**
+ * "NFL", or "Basketball · EuroLeague".
+ *
+ * The league is only worth printing when it says something the sport does not.
+ * For the US leagues the two strings are identical, and the header read
+ * "NFL · NFL".
+ */
+function sportLine(sport: PickSport, league: string | null): string {
+  const label = SPORT_LABELS[sport] ?? sport;
+  const extra = league?.trim();
+  if (!extra || extra.toLowerCase() === label.toLowerCase()) return label;
+  return `${label} · ${extra}`;
 }
 
 export function PickCard({
@@ -144,110 +164,114 @@ export function PickCard({
 
   return (
     <div className={cn("card p-5", pick.isPremium && "card-premium")}>
-      <div className="flex items-center justify-between text-sm text-muted">
-        <span className="flex items-center gap-1.5">
-          {isParlay ? <Layers className="h-4 w-4" /> : <SportIcon sport={pick.sport} className="h-4 w-4" />}
-          {isParlay ? "Parlay" : SPORT_LABELS[pick.sport]}
-          {!isParlay && pick.league ? ` · ${pick.league}` : ""}
-        </span>
-        <LocalTime iso={new Date(pick.eventStartsAt).toISOString()} withZone />
-      </div>
+      <PickHeader
+        sportIcon={
+          isParlay ? <Layers className="h-4 w-4" /> : <SportIcon sport={pick.sport} className="h-4 w-4" />
+        }
+        sportLabel={
+          isParlay
+            ? `${legs.length}-leg parlay`
+            : sportLine(pick.sport, pick.league)
+        }
+        time={
+          <>
+            <Clock className="h-4 w-4" />
+            <LocalTime iso={new Date(pick.eventStartsAt).toISOString()} withZone />
+          </>
+        }
+      />
 
-      {isParlay ? (
-        <>
-          <div className="mt-3 flex items-center justify-between">
-            <p className="font-semibold">{legs.length}-leg parlay</p>
-            <span className="rounded-full bg-accent/10 px-2.5 py-1 text-sm font-semibold tabular-nums text-accent">
-              <Odds value={pick.odds} />
-            </span>
-          </div>
-          <ul className="mt-3 divide-y divide-border rounded-lg border border-border">
-            {legs.map((leg) => {
-              const legSync = matchupCrests(pick.sport, leg.matchup);
-              return (
-                <li key={leg.id} className="flex items-center justify-between gap-3 px-3 py-2 text-sm">
-                  <span className="flex min-w-0 items-center gap-2">
-                    <CrestPair
-                      sport={pick.sport}
-                      awayLogo={leg.awayTeamLogo ?? legSync.awayLogo ?? null}
-                      homeLogo={leg.homeTeamLogo ?? legSync.homeLogo ?? null}
-                      size="h-5 w-5"
-                    />
-                    <span className="min-w-0">
-                      <span className="block truncate font-display font-medium">{leg.selection}</span>
-                      <span className="block truncate font-display text-xs text-muted">{leg.matchup}</span>
-                    </span>
-                  </span>
-                  <span className="shrink-0 tabular-nums text-muted"><Odds value={leg.odds} /></span>
-                </li>
-              );
-            })}
-          </ul>
-          <div className="mt-3 flex flex-wrap items-center gap-3">
-            <UnitsBadge units={pick.units} />
-            {betCta}
-          </div>
-        </>
-      ) : (
-        <>
-          <div className="mt-3 flex items-center gap-2">
-            {startLogo && (
+      {!isParlay && (
+        <PickMatchup
+          startLogo={
+            startLogo ? (
               <TeamLogo sport={pick.sport} logoUrl={startLogo} className="h-6 w-6 shrink-0 rounded-full ring-2 ring-surface" />
-            )}
-            <p className="font-display font-semibold">{pick.matchup}</p>
-            {endLogo && (
+            ) : undefined
+          }
+          endLogo={
+            endLogo ? (
               <TeamLogo sport={pick.sport} logoUrl={endLogo} className="h-6 w-6 shrink-0 rounded-full ring-2 ring-surface" />
-            )}
-          </div>
-          {pick.playerName ? (
-            <>
-              {/*
-                A prop is about a person, so the person leads. Everything here
-                was resolved when the pick was written; nothing is matched at
-                render time.
-              */}
-              <div className="mt-3 flex items-center gap-3">
-                <PlayerTag
-                  size="lg"
-                  playerName={pick.playerName}
-                  photoUrl={pick.playerPhotoUrl}
-                  team={pick.playerTeam}
-                />
-                <span className="ml-auto shrink-0 self-start rounded-full bg-surface-raised px-2.5 py-1 text-xs">
-                  {BET_TYPE_LABELS[pick.betType]}
-                </span>
-              </div>
-              <div className="mt-3 flex flex-wrap items-center gap-3 text-sm">
-                <span className="font-display font-semibold">{pick.selection}</span>
-                <span className="font-semibold tabular-nums"><Odds value={pick.odds} /></span>
-                <UnitsBadge units={pick.units} />
-                {betCta}
-              </div>
-            </>
-          ) : (
-            <div className="mt-2 flex flex-wrap items-center gap-3 text-sm">
-              <span className="rounded-full bg-surface-raised px-2.5 py-1">{BET_TYPE_LABELS[pick.betType]}</span>
-              <span className="font-display font-semibold">{pick.selection}</span>
-              <span className="font-semibold tabular-nums"><Odds value={pick.odds} /></span>
-              <UnitsBadge units={pick.units} />
-              {betCta}
-            </div>
-          )}
-        </>
+            ) : undefined
+          }
+        >
+          {pick.matchup}
+        </PickMatchup>
       )}
 
-      {pick.analysis && (
-        <TranslateAnalysis
-          pickId={pick.id}
-          analysis={pick.analysis}
-          analysisLang={pick.analysisLang}
-        />
+      {/* A prop is about a person, so the person sits under the fixture and
+          above the numbers, centred to match it. */}
+      {pick.playerName && (
+        <div className="mt-4 flex justify-center">
+          <PlayerTag
+            size="lg"
+            playerName={pick.playerName}
+            photoUrl={pick.playerPhotoUrl}
+            team={pick.playerTeam}
+          />
+        </div>
       )}
+
+      <PickDetails>
+        <PickDetailRow label="Bet Type">{BET_TYPE_LABELS[pick.betType]}</PickDetailRow>
+        <PickDetailRow label="Selection">
+          {isParlay ? (
+            // A parlay's "selection" is its legs, so they are the value of this
+            // row rather than a block floating outside the labelled list.
+            <ul className="divide-y divide-border rounded-lg border border-border">
+              {legs.map((leg) => {
+                const legSync = matchupCrests(pick.sport, leg.matchup);
+                return (
+                  <li key={leg.id} className="flex items-center justify-between gap-3 px-3 py-2">
+                    <span className="flex min-w-0 items-center gap-2">
+                      <CrestPair
+                        sport={pick.sport}
+                        awayLogo={leg.awayTeamLogo ?? legSync.awayLogo ?? null}
+                        homeLogo={leg.homeTeamLogo ?? legSync.homeLogo ?? null}
+                        size="h-5 w-5"
+                      />
+                      <span className="min-w-0">
+                        <span className="block truncate font-display font-medium">{leg.selection}</span>
+                        <span className="block truncate font-display text-xs text-muted">{leg.matchup}</span>
+                      </span>
+                    </span>
+                    <span className="shrink-0 tabular-nums text-muted"><Odds value={leg.odds} /></span>
+                  </li>
+                );
+              })}
+            </ul>
+          ) : (
+            <span className="font-display font-semibold">{pick.selection}</span>
+          )}
+        </PickDetailRow>
+        <PickDetailRow label="Odds">
+          <span className="font-semibold tabular-nums"><Odds value={pick.odds} /></span>
+        </PickDetailRow>
+        <PickDetailRow label="Units">
+          <UnitsBadge units={pick.units} />
+        </PickDetailRow>
+        {pick.analysis && (
+          // Inside the group, not after it: as its own bordered block it sat
+          // against PickDetails' closing rule and drew two lines a few pixels
+          // apart.
+          <PickDetailRow label="Analysis">
+            <TranslateAnalysis
+              flush
+              pickId={pick.id}
+              analysis={pick.analysis}
+              analysisLang={pick.analysisLang}
+            />
+          </PickDetailRow>
+        )}
+      </PickDetails>
+
+      {betCta && <div className="mt-4 flex">{betCta}</div>}
 
       {/* Under the analysis, above the result: it belongs with the decision,
-          not with the outcome. */}
+          not with the outcome. No top border — the detail group above already
+          closes with one, and the two drew as a pair of rules a few pixels
+          apart. */}
       {tail && (
-        <div className="mt-3 border-t border-border pt-3">
+        <div className="mt-4">
           <TailButtons
             pickId={pick.id}
             tails={tail.tails}
@@ -259,7 +283,11 @@ export function PickCard({
         </div>
       )}
 
-      <div className="mt-4 flex items-center justify-between">
+      <div className="mt-4 flex items-center justify-between gap-3">
+        {/* No grading state here: the pill already says PENDING or the result,
+            and printing "Pending" twice side by side said nothing twice. The
+            handicapper's own row keeps it, because there it replaces the
+            "Gradable after kickoff" line rather than repeating the pill. */}
         <ResultPill result={pick.result} />
         {pick.isPremium ? (
           <span className="rounded-full bg-gold/15 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-gold">

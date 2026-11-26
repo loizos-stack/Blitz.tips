@@ -38,10 +38,13 @@ export function TranslateAnalysis({
   analysis,
   /** The language the write-up is in, where we have learned it. */
   analysisLang,
+  /** Drop the top margin when the caller already spaces this (a labelled row). */
+  flush = false,
 }: {
   pickId: string;
   analysis: string;
   analysisLang?: string | null;
+  flush?: boolean;
 }) {
   const viewerLang = useSyncExternalStore<string | null>(
     noopSubscribe,
@@ -86,7 +89,7 @@ export function TranslateAnalysis({
   const offer = viewerLang !== null && analysisLang !== viewerLang && !sameLanguage;
 
   return (
-    <div className="mt-3">
+    <div className={flush ? undefined : "mt-3"}>
       <p className="text-sm text-muted">{showing && translated ? translated : analysis}</p>
 
       {offer && (
