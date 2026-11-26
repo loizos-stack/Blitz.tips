@@ -129,25 +129,37 @@ export function PickCard({
     ) : null;
 
   if (locked) {
+    // Nothing real is drawn here, and nothing real is received: the caller
+    // redacts a locked pick before it is passed (redactLockedPick). The bars
+    // below are placeholders standing in for text that does not exist on this
+    // object, rather than the pick's own words under a blur.
     return (
-      <div className={cn("card relative overflow-hidden p-5", pick.isPremium && "card-premium")}>
-        <div className="flex items-center justify-between text-sm text-muted">
-          <span className="flex items-center gap-1.5">
-            {isParlay ? <Layers className="h-4 w-4" /> : <SportIcon sport={pick.sport} className="h-4 w-4" />}
-            {isParlay ? `${legs.length}-leg parlay` : SPORT_LABELS[pick.sport]}
-          </span>
-          <LocalTime iso={new Date(pick.eventStartsAt).toISOString()} withZone />
-        </div>
-        <div className="mt-3 flex items-center gap-2 blur-sm select-none">
-          <p className="font-display font-semibold">{pick.matchup}</p>
-        </div>
-        <div className="mt-3 flex items-center gap-2 blur-sm select-none">
-          <span className="text-sm">{BET_TYPE_LABELS[pick.betType]}</span>
-          <span className="text-sm font-semibold"><Odds value={pick.odds} /></span>
-        </div>
-        <div className="absolute inset-0 flex items-center justify-center bg-surface/70 backdrop-blur-[2px]">
-          <div className="flex items-center gap-2 rounded-full border border-border bg-surface px-4 py-2 text-sm font-medium">
-            <Lock className="h-4 w-4" /> Subscribe to unlock
+      <div className={cn("card p-5", pick.isPremium && "card-premium")}>
+        <PickHeader
+          sportIcon={
+            isParlay ? <Layers className="h-4 w-4" /> : <SportIcon sport={pick.sport} className="h-4 w-4" />
+          }
+          sportLabel={isParlay ? "Parlay" : SPORT_LABELS[pick.sport]}
+          time={
+            <>
+              <Clock className="h-4 w-4" />
+              <LocalTime iso={new Date(pick.eventStartsAt).toISOString()} withZone />
+            </>
+          }
+        />
+        {/* The overlay covers the redacted body only. Over the whole card it
+            also washed out the sport and kickoff, which are the two things a
+            teaser is meant to tell a reader. */}
+        <div className="relative mt-4">
+          <div aria-hidden className="space-y-3">
+            <div className="mx-auto h-5 w-2/3 rounded bg-surface-raised" />
+            <div className="h-4 w-1/2 rounded bg-surface-raised" />
+            <div className="h-4 w-1/3 rounded bg-surface-raised" />
+          </div>
+          <div className="absolute inset-0 -m-2 flex items-center justify-center bg-surface/60">
+            <div className="flex items-center gap-2 rounded-full border border-border bg-surface px-4 py-2 text-sm font-medium">
+              <Lock className="h-4 w-4" /> Subscribe to unlock
+            </div>
           </div>
         </div>
       </div>

@@ -390,6 +390,25 @@ function Crest({ src }: { src?: string | null }): ReactElement | null {
   );
 }
 
+
+/**
+ * A named value, as the site card now prints them.
+ *
+ * Label above value rather than beside it. Beside it is what the site does,
+ * but the site card is a narrow column and this is 1200x630 — in a two-column
+ * body a side label would leave the values on a ragged edge halfway across.
+ */
+function ShareDetail({ label, children }: { label: string; children: ReactElement | string }): ReactElement {
+  return (
+    <div style={{ display: "flex", flexDirection: "column", marginBottom: 16 }}>
+      <span style={{ display: "flex", fontSize: 18, fontWeight: 700, letterSpacing: 1, color: MUTED }}>
+        {label.toUpperCase()}
+      </span>
+      <span style={{ display: "flex", fontSize: 30, fontWeight: 700, color: FG, marginTop: 2 }}>{children}</span>
+    </div>
+  );
+}
+
 /**
  * The pick, drawn the way the site draws it.
  *
@@ -442,26 +461,26 @@ export function pickCard(d: PickCardData): ReactElement {
         </div>
       </div>
 
-      <div style={{ display: "flex", flexDirection: "column", flex: 1, padding: "28px 60px 34px 60px" }}>
+      <div style={{ display: "flex", flexDirection: "column", flex: 1, padding: "26px 56px 30px 56px" }}>
         {/* League on the left, kickoff on the right — the card's top line */}
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-          <span style={{ display: "flex", fontSize: 24, fontWeight: 700, color: ACCENT }}>
+          <span style={{ display: "flex", fontSize: 22, fontWeight: 700, color: ACCENT }}>
             {d.league || d.sportLabel}
           </span>
-          {d.kickoff && <span style={{ display: "flex", fontSize: 24, color: MUTED }}>{d.kickoff}</span>}
+          {d.kickoff && <span style={{ display: "flex", fontSize: 22, color: MUTED }}>{d.kickoff}</span>}
         </div>
 
-        {/* The fixture, with a crest either side */}
-        <div style={{ display: "flex", alignItems: "center", marginTop: 14 }}>
+        {/* The fixture, centred between its crests, as on the site */}
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "center", marginTop: 12 }}>
           <Crest src={d.awayLogoDataUri} />
           <span
             style={{
               display: "flex",
-              fontSize: 36,
+              fontSize: 34,
               fontWeight: 700,
               color: FG,
               marginLeft: d.awayLogoDataUri ? 14 : 0,
-              marginRight: 14,
+              marginRight: d.homeLogoDataUri ? 14 : 0,
             }}
           >
             {d.matchup}
@@ -469,81 +488,40 @@ export function pickCard(d: PickCardData): ReactElement {
           <Crest src={d.homeLogoDataUri} />
         </div>
 
-        {/* The player, when it is a player prop */}
-        {hasPlayer && (
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 18 }}>
-            <div style={{ display: "flex", alignItems: "center" }}>
+        {/*
+          Two columns, because this frame is twice as wide as it is tall. The
+          site stacks its labelled rows down a narrow card; four of them
+          stacked here would not fit beside the player, and spreading them
+          across the width is what the shape of a 1200x630 image is for.
+        */}
+        <div style={{ display: "flex", flex: 1, marginTop: 22 }}>
+          {hasPlayer && (
+            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", width: 300 }}>
               <PlayerAvatar src={d.playerPhotoDataUri} name={d.playerName ?? ""} />
-              <div style={{ display: "flex", flexDirection: "column", marginLeft: 22 }}>
-                <span style={{ display: "flex", fontSize: 38, fontWeight: 700, color: FG }}>{d.playerName}</span>
-                {d.playerTeam && (
-                  <span style={{ display: "flex", fontSize: 24, color: MUTED, marginTop: 4 }}>{d.playerTeam}</span>
-                )}
+              <span style={{ display: "flex", fontSize: 30, fontWeight: 700, color: FG, marginTop: 12 }}>
+                {d.playerName}
+              </span>
+              {d.playerTeam && (
+                <span style={{ display: "flex", fontSize: 20, color: MUTED, marginTop: 2 }}>{d.playerTeam}</span>
+              )}
+            </div>
+          )}
+
+          <div style={{ display: "flex", flexDirection: "column", flex: 1, marginLeft: hasPlayer ? 40 : 0 }}>
+            {d.betTypeLabel && <ShareDetail label="Bet Type">{d.betTypeLabel}</ShareDetail>}
+            <ShareDetail label="Selection">{d.selection}</ShareDetail>
+            <div style={{ display: "flex" }}>
+              <div style={{ display: "flex", flexDirection: "column", flex: 1 }}>
+                <ShareDetail label="Odds">{americanOdds(d.odds)}</ShareDetail>
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", flex: 1 }}>
+                <ShareDetail label="Units">{`${d.units}u risk`}</ShareDetail>
               </div>
             </div>
-            {d.betTypeLabel && (
-              <div
-                style={{
-                  display: "flex",
-                  background: RAISED,
-                  border: `1px solid ${BORDER}`,
-                  borderRadius: 999,
-                  padding: "8px 20px",
-                  fontSize: 22,
-                  color: MUTED,
-                }}
-              >
-                {d.betTypeLabel}
-              </div>
-            )}
-          </div>
-        )}
-
-        {/*
-          The bet on one line — selection, price, stake — because that is how
-          the site card reads it, and because stacking them cost a whole row of
-          a 430px body and left the bottom three lines squeezed together.
-          flexWrap is the safety net for a selection long enough to need it.
-        */}
-        <div
-          style={{
-            display: "flex",
-            flexWrap: "wrap",
-            alignItems: "center",
-            marginTop: hasPlayer ? 24 : 28,
-          }}
-        >
-          <span
-            style={{
-              display: "flex",
-              fontSize: hasPlayer ? 50 : 58,
-              fontWeight: 800,
-              color: FG,
-              lineHeight: 1.1,
-              marginRight: 24,
-            }}
-          >
-            {d.selection}
-          </span>
-          <span style={{ display: "flex", fontSize: 38, fontWeight: 800, color: FG, marginRight: 20 }}>
-            {americanOdds(d.odds)}
-          </span>
-          <div
-            style={{
-              display: "flex",
-              alignItems: "baseline",
-              background: "rgba(22,163,74,0.10)",
-              border: "1px solid rgba(22,163,74,0.35)",
-              borderRadius: 12,
-              padding: "6px 16px",
-            }}
-          >
-            <span style={{ display: "flex", fontSize: 32, fontWeight: 800, color: ACCENT }}>{`${d.units}u`}</span>
-            <span style={{ display: "flex", fontSize: 19, fontWeight: 700, color: ACCENT, marginLeft: 8 }}>RISK</span>
           </div>
         </div>
 
-        <div style={{ display: "flex", marginTop: "auto", paddingTop: 18, fontSize: 22, color: MUTED }}>
+        <div style={{ display: "flex", marginTop: "auto", paddingTop: 10, fontSize: 20, color: MUTED }}>
           <span>{`${d.displayName} · @${d.handle} · tracked & graded on Blitz.tips`}</span>
         </div>
       </div>

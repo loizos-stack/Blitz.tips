@@ -5,7 +5,7 @@ import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { getHandicapperByHandle } from "@/lib/handicappers";
 import { summarizeRatings } from "@/lib/reviews";
-import { isPickLocked } from "@/lib/pick-visibility";
+import { isPickLocked, redactLockedPick } from "@/lib/pick-visibility";
 import { canBypassPickPaywall } from "@/lib/permissions";
 import { ClvBanner } from "@/components/clv-banner";
 import { ReviewsList, type ReviewItem } from "@/components/reviews-list";
@@ -249,14 +249,21 @@ export default async function HandicapperProfilePage({
           </span>
         </h2>
         <div className="grid gap-4 sm:grid-cols-2">
-          {pendingPicks.map((pick) => (
-            <PickCard
-              key={pick.id}
-              pick={pick}
-              locked={isPickLocked(pick, unlocked)}
-              book={book}
-            />
-          ))}
+          {pendingPicks.map((pick) => {
+            // Redacted here, not in the card. A locked pick's real matchup,
+            // selection and price must never reach the browser at all — the
+            // card used to receive them and merely blur them, which hid
+            // nothing from view-source.
+            const locked = isPickLocked(pick, unlocked);
+            return (
+              <PickCard
+                key={pick.id}
+                pick={locked ? redactLockedPick(pick) : pick}
+                locked={locked}
+                book={book}
+              />
+            );
+          })}
         </div>
       </>
     ),
