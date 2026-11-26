@@ -1,6 +1,6 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "buildCommand": "prisma generate && prisma migrate deploy && next build",
+  "buildCommand": "prisma generate && sh scripts/migrate-deploy.sh && next build",
   "crons": [
     {
       "path": "/api/cron/auto-settle",

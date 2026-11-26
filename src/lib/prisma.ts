@@ -3,15 +3,22 @@ import { Prisma, PrismaClient } from "@prisma/client";
 /**
  * The Prisma client, with one retry wrapped around it.
  *
- * The retry is not defensive padding — it is the fix for a specific failure
- * this site has served to real visitors three times. Neon scales the compute
- * to zero after a few minutes of no traffic, and the first query to arrive
- * afterwards does not wait for the instance to wake: it comes straight back as
- * P1001, "Can't reach database server". Rendering a page that happens to be
- * the first request in a quiet hour therefore throws, and the visitor sees
- * "A server error occurred" on a site that is working perfectly a second
- * later. The runtime errors show exactly that — a burst of P1001s inside two
- * minutes, every route at once, nothing before and nothing after.
+ * The retry is not defensive padding. Neon scales the compute to zero after a
+ * few minutes of no traffic, and the first query to arrive afterwards does not
+ * wait for the instance to wake: it comes straight back as P1001, "Can't reach
+ * database server". Rendering a page that happens to be the first request in a
+ * quiet hour therefore throws, and the visitor sees "A server error occurred"
+ * on a site that works perfectly on reload. That was observed directly on
+ * 2026-11-20: /leaderboard returned a 500 with P1001 and the identical request
+ * succeeded immediately afterwards.
+ *
+ * This covers a wake-up, and only a wake-up. It is NOT an answer to the
+ * database being unreachable for minutes at a time — two retries buy about a
+ * second and a half, and nothing here would have saved the 2026-11-26 outage,
+ * where build machines and lambdas alike were refused for a quarter of an hour.
+ * Those two failures look the same in the logs and are not the same problem;
+ * the warnings below are how you tell them apart, because a wake-up logs one
+ * retry and recovers while an outage logs every attempt and still fails.
  *
  * Only the errors that mean the query never reached Postgres are retried:
  *
