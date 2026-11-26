@@ -1,5 +1,4 @@
 import { Lock, Layers, Clock } from "lucide-react";
-import { TailButtons } from "@/components/tail-buttons";
 import { PlayerTag } from "@/components/player-tag";
 import {
   PickDetails,
@@ -16,7 +15,6 @@ import { SportIcon } from "@/components/sport-icon";
 import { TeamLogo } from "@/components/team-logo";
 import { getTeamLogoUrl } from "@/lib/team-logos";
 import { Odds } from "@/components/odds-format";
-import { TranslateAnalysis } from "@/components/translate-analysis";
 import { SPORT_LABELS, BET_TYPE_LABELS, usesVsSeparator, cn } from "@/lib/utils";
 import type { PickSport } from "@prisma/client";
 
@@ -90,17 +88,11 @@ export function PickCard({
   pick,
   locked = false,
   book = null,
-  tail,
 }: {
   pick: PickWithLegs;
   locked?: boolean;
   /** Renders the Stake partner link. Caller must have geo-gated to non-US. */
   book?: Sportsbook | null;
-  /**
-   * Tail/fade counts and the reader's own position. Omitted where the control
-   * doesn't belong — a signed-out visitor, or the capper's own dashboard.
-   */
-  tail?: { tails: number; fades: number; mine: boolean | null; canTail: boolean; reason?: string };
 }) {
   const isParlay = pick.betType === "PARLAY";
   const legs = pick.parlayLegs ?? [];
@@ -254,34 +246,12 @@ export function PickCard({
           // against PickDetails' closing rule and drew two lines a few pixels
           // apart.
           <PickDetailRow label="Analysis">
-            <TranslateAnalysis
-              flush
-              pickId={pick.id}
-              analysis={pick.analysis}
-              analysisLang={pick.analysisLang}
-            />
+            <span className="whitespace-pre-line text-muted">{pick.analysis}</span>
           </PickDetailRow>
         )}
       </PickDetails>
 
       {betCta && <div className="mt-4 flex">{betCta}</div>}
-
-      {/* Under the analysis, above the result: it belongs with the decision,
-          not with the outcome. No top border — the detail group above already
-          closes with one, and the two drew as a pair of rules a few pixels
-          apart. */}
-      {tail && (
-        <div className="mt-4">
-          <TailButtons
-            pickId={pick.id}
-            tails={tail.tails}
-            fades={tail.fades}
-            mine={tail.mine}
-            disabled={!tail.canTail}
-            disabledReason={tail.reason}
-          />
-        </div>
-      )}
 
       <div className="mt-4 flex items-center justify-between gap-3">
         {/* No grading state here: the pill already says PENDING or the result,

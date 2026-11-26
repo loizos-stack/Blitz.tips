@@ -7,7 +7,6 @@ import { getHandicapperByHandle } from "@/lib/handicappers";
 import { summarizeRatings } from "@/lib/reviews";
 import { isPickLocked } from "@/lib/pick-visibility";
 import { canBypassPickPaywall } from "@/lib/permissions";
-import { tailStates } from "@/lib/pick-tails";
 import { ClvBanner } from "@/components/clv-banner";
 import { ReviewsList, type ReviewItem } from "@/components/reviews-list";
 import { Stars } from "@/components/stars";
@@ -162,12 +161,6 @@ export default async function HandicapperProfilePage({
   const filtered = sport !== undefined || period !== "all";
   const stats = filtered ? computeStats(settledPicks) : handicapper.stats;
 
-  // Tail/fade lives on the pending tips — the ones a reader can still act on.
-  const tails = await tailStates(pendingPicks, session?.user?.id ?? null, {
-    isOwner: Boolean(isOwner),
-    unlocked,
-  });
-
   // Reviews are display-only here (writing happens in the subscriber dashboard).
   // Only APPROVED reviews are loaded, so the summary reflects the public set.
   const ratingSummary = summarizeRatings(handicapper.reviews.map((r) => r.rating));
@@ -262,7 +255,6 @@ export default async function HandicapperProfilePage({
               pick={pick}
               locked={isPickLocked(pick, unlocked)}
               book={book}
-              tail={tails.get(pick.id)}
             />
           ))}
         </div>
