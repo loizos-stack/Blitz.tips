@@ -1,6 +1,11 @@
 import { NextResponse } from "next/server";
 import { requirePermission } from "@/lib/permissions";
-import { SYNC_LEAGUES, syncPlayersForSport, type SyncReport } from "@/lib/player-sync";
+import {
+  SYNC_LEAGUES,
+  refreshSportsDbPhotos,
+  syncPlayersForSport,
+  type SyncReport,
+} from "@/lib/player-sync";
 import type { PickSport } from "@prisma/client";
 
 export const maxDuration = 60;
@@ -17,6 +22,10 @@ export const maxDuration = 60;
  * dozen requests, and a quiet half-failure in a nightly job would show up as
  * photos silently disappearing rather than as an alert.
  *
+ * ?refresh=sportsdb instead re-resolves the picks still showing a TheSportsDB
+ * match photo, moving them onto that service's cut-out portraits. It touches
+ * no ESPN league, so it is its own mode rather than another flag on the sweep.
+ *
  * One league per request, chosen with ?sport=NBA. Doing all five in one
  * invocation risks the 60s budget — the NFL list alone is 21 pages — and a
  * timeout halfway through would leave some leagues synced and others not, with
@@ -31,7 +40,13 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const requested = new URL(request.url).searchParams.get("sport")?.toUpperCase();
+  const params = new URL(request.url).searchParams;
+
+  if (params.get("refresh") === "sportsdb") {
+    return NextResponse.json({ refresh: await refreshSportsDbPhotos() });
+  }
+
+  const requested = params.get("sport")?.toUpperCase();
   const known = Object.keys(SYNC_LEAGUES) as PickSport[];
 
   if (requested && !known.includes(requested as PickSport)) {

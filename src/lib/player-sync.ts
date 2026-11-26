@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { normalizePlayerName } from "@/lib/player-photos";
 import { resolvePlayer } from "@/lib/player-lookup";
+import { SPORTSDB_THUMB_MARKER } from "@/lib/player-photo-sportsdb";
 import type { PickSport } from "@prisma/client";
 
 /**
@@ -205,4 +206,78 @@ export async function backfillPickPlayers(sport: PickSport): Promise<number> {
   }
 
   return filled;
+}
+
+
+export type RefreshReport = {
+  /** Distinct player names still carrying a TheSportsDB match photo. */
+  scanned: number;
+  /** Picks moved onto a cut-out portrait. */
+  updated: number;
+  /** Names left for a follow-up run, because this one hit its cap. */
+  remaining: number;
+};
+
+/**
+ * How many names one invocation will re-resolve.
+ *
+ * The route has a 60s budget and each name is one TheSportsDB search with a
+ * 3s timeout, so this leaves room to spare even if every call is slow. Soccer
+ * and EuroLeague props are rare enough that one run should finish the job;
+ * `remaining` says plainly when it has not, rather than leaving the caller to
+ * guess from a count.
+ */
+const REFRESH_LIMIT = 40;
+
+/**
+ * Move picks off TheSportsDB's match photos onto its cut-out portraits.
+ *
+ * These picks are not broken — they have a photo, and the ordinary backfill
+ * only fills blanks, so nothing else would ever revisit them. But the photo is
+ * the wrong KIND of picture: `strThumb` is usually an in-game action shot with
+ * the arena still in it, which in a 48px circle is a fragment of crowd beside
+ * the clean cut-outs on the ESPN sports. player-photo-sportsdb now prefers
+ * `strCutout`, and this is what applies that preference to what is already
+ * stored.
+ *
+ * Idempotent and safe to re-run: it only looks at rows whose photo is still a
+ * thumb, and only writes when the resolver comes back with something different.
+ * A name that genuinely has no cutout resolves to the same thumb and is left
+ * exactly as it was, so re-running does not churn it.
+ */
+export async function refreshSportsDbPhotos(): Promise<RefreshReport> {
+  const pending = await prisma.pick.findMany({
+    where: {
+      playerName: { not: null },
+      playerPhotoUrl: { contains: SPORTSDB_THUMB_MARKER },
+    },
+    select: { sport: true, playerName: true },
+    distinct: ["sport", "playerName"],
+  });
+
+  const batch = pending.slice(0, REFRESH_LIMIT);
+  let updated = 0;
+
+  for (const { sport, playerName } of batch) {
+    if (!playerName) continue;
+
+    const resolved = await resolvePlayer(sport, playerName);
+    // No match now, or the same thumb back because this player has no cutout:
+    // either way there is nothing better to store.
+    if (!resolved || resolved.photoUrl.includes(SPORTSDB_THUMB_MARKER)) continue;
+
+    const { count } = await prisma.pick.updateMany({
+      // Still scoped to the thumb, so a pick corrected by an admin while this
+      // was running keeps the correction.
+      where: { sport, playerName, playerPhotoUrl: { contains: SPORTSDB_THUMB_MARKER } },
+      data: {
+        playerEspnId: resolved.espnId,
+        playerPhotoUrl: resolved.photoUrl,
+        playerTeamAbbr: resolved.teamAbbr,
+      },
+    });
+    updated += count;
+  }
+
+  return { scanned: batch.length, updated, remaining: Math.max(0, pending.length - batch.length) };
 }

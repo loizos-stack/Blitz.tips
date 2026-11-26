@@ -66,11 +66,15 @@ export function PlayerHeadshot({
       loading="lazy"
       decoding="async"
       onError={() => setFailed(true)}
-      // A disc behind the image, not decoration. Both sources hand back
-      // cut-out portraits on a transparent background, so on a white card the
-      // player floats with no edge — and the ring that should define him is
-      // white-on-white. The tinted disc gives every headshot the same silhouette
-      // whatever the source did with its background.
+      // A disc behind the image, not decoration. The portraits are cut out on
+      // a transparent background, so on a white card the player would float
+      // with no edge and the ring that should define him would be
+      // white-on-white. The tinted disc gives every headshot the same
+      // silhouette whatever the source did with its background.
+      //
+      // It only helps where the source actually is transparent, which is why
+      // player-photo-sportsdb prefers strCutout over strThumb: an opaque JPEG
+      // covers this disc completely and brings its own background with it.
       className={cn("shrink-0 rounded-full bg-surface-raised object-cover", className)}
     />
   );

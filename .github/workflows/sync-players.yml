@@ -23,6 +23,11 @@ on:
         default: ""
         type: choice
         options: ["", "NFL", "NBA", "WNBA", "MLB", "NHL"]
+      refresh_sportsdb:
+        description: "Instead, move soccer/EuroLeague picks onto cut-out portraits"
+        required: false
+        default: false
+        type: boolean
 
 jobs:
   sync:
@@ -33,10 +38,31 @@ jobs:
           CRON_SECRET: ${{ secrets.CRON_SECRET }}
           SITE_URL: ${{ secrets.SITE_URL || 'https://blitz.tips' }}
           SPORT: ${{ inputs.sport }}
+          REFRESH: ${{ inputs.refresh_sportsdb }}
         run: |
           if [ -z "$CRON_SECRET" ]; then
             echo "::error::CRON_SECRET repository secret is not set — see the header of this file."
             exit 1
+          fi
+
+          # A different job sharing the same secret and route: it re-resolves
+          # picks already holding a TheSportsDB match photo onto that service's
+          # cut-out portraits. Capped per run, so `remaining` above zero in the
+          # response means run it again.
+          if [ "$REFRESH" = "true" ]; then
+            status=$(curl -sS -o response.json -w '%{http_code}' \
+              --max-time 120 \
+              -H "Authorization: Bearer $CRON_SECRET" \
+              "$SITE_URL/api/cron/sync-players?refresh=sportsdb")
+            echo "HTTP $status"; cat response.json; echo
+            {
+              echo "### Cut-out photo refresh — HTTP $status"
+              echo '```json'
+              cat response.json
+              echo '```'
+            } >> "$GITHUB_STEP_SUMMARY"
+            [ "$status" = "200" ] || { echo "::error::refresh returned HTTP $status"; exit 1; }
+            exit 0
           fi
 
           if [ -n "$SPORT" ]; then LEAGUES="$SPORT"; else LEAGUES="NFL NBA WNBA MLB NHL"; fi

@@ -19,6 +19,13 @@ import type { PickSport } from "@prisma/client";
 
 const DEFAULT_BASE = "https://www.thesportsdb.com/api/v1/json";
 
+/**
+ * The path segment that identifies a stored photo as a `strThumb` rather than
+ * a `strCutout`. Exported so the refresh job can find the picks still carrying
+ * one without re-implementing this knowledge of the URL shape.
+ */
+export const SPORTSDB_THUMB_MARKER = "/images/media/player/thumb/";
+
 /** The `strSport` a result must carry to be accepted for one of our sports. */
 const EXPECTED_SPORT: Partial<Record<PickSport, string>> = {
   SOCCER: "Soccer",
@@ -43,7 +50,36 @@ interface SearchResult {
   strPlayer?: string;
   strSport?: string;
   strTeam?: string;
+  /** Cut-out portrait on a transparent background. Preferred — see below. */
+  strCutout?: string;
+  /** Usually a match photograph, background and all. The fallback. */
   strThumb?: string;
+}
+
+/**
+ * The small variant of a TheSportsDB image, and which field to take it from.
+ *
+ * `strCutout` first, and not as a matter of taste. The two fields are
+ * different KINDS of picture: a cutout is a front-facing studio portrait with
+ * the background removed, the same thing ESPN serves, while `strThumb` is
+ * typically an in-game action shot — Durant's is him mid-game, looking off to
+ * one side, against a blurred arena. Clipped into the card's 48px circle that
+ * becomes a fragment of crowd and stadium lighting sitting next to the clean
+ * cutouts on the NBA picks, and the tinted disc behind the avatar cannot help
+ * because the background is baked into the JPEG.
+ *
+ * The cost of preferring it, measured on Durant: 40.6KB for the cutout against
+ * 16.9KB for the thumb. Both are far below the un-resized originals, which are
+ * 234KB and 166KB — the "/preview" suffix is what keeps either affordable, and
+ * it is why a board of props is not megabytes of portraits.
+ *
+ * `strThumb` remains the fallback because a player can have one and not the
+ * other. Of nine soccer and EuroLeague players checked, every one had both,
+ * so this path should be rare.
+ */
+function previewUrl(hit: SearchResult): string | null {
+  const image = hit.strCutout || hit.strThumb;
+  return image ? `${image}/preview` : null;
 }
 
 /**
@@ -88,7 +124,7 @@ export async function sportsDbPlayerPhoto(
   const expectedSport = EXPECTED_SPORT[sport];
 
   const matches = players.filter((p) => {
-    if (!p.strPlayer || !p.strThumb) return false;
+    if (!p.strPlayer || !(p.strCutout || p.strThumb)) return false;
     if (normalizePlayerName(p.strPlayer) !== wanted) return false;
     return !expectedSport || p.strSport === expectedSport;
   });
@@ -98,8 +134,7 @@ export async function sportsDbPlayerPhoto(
   if (matches.length !== 1) return null;
 
   const hit = matches[0];
-  // "/preview" is the small variant: 15KB against 76KB for the full image, the
-  // same band the team crests occupy. Without it a board of props would carry
-  // megabytes of portraits.
-  return { photoUrl: `${hit.strThumb}/preview`, team: hit.strTeam?.trim() || null };
+  const photoUrl = previewUrl(hit);
+  if (!photoUrl) return null;
+  return { photoUrl, team: hit.strTeam?.trim() || null };
 }
