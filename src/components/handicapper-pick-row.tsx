@@ -10,6 +10,7 @@ import { TeamLogo } from "@/components/team-logo";
 import { PlayerTag } from "@/components/player-tag";
 import { PickShareButton } from "@/components/pick-share-button";
 import {
+  AccessBadge,
   PickDetails,
   PickDetailRow,
   PickHeader,
@@ -95,7 +96,6 @@ export function HandicapperPickRow({
   // favicon next to the bet type.
   const isPlayerPick = Boolean(pick.playerName);
 
-  const settled = pick.result !== "PENDING";
 
   return (
     <div className={cn("card p-5", pick.isPremium && "card-premium")}>
@@ -138,8 +138,7 @@ export function HandicapperPickRow({
 
       <PickDetails>
         <PickDetailRow label="Bet Type">
-          {BET_TYPE_LABELS[pick.betType]}
-          {pick.isPremium && <span className="ml-2 text-xs text-muted">· Premium</span>}
+          <span className="font-semibold">{BET_TYPE_LABELS[pick.betType]}</span>
         </PickDetailRow>
         {pick.betType !== "PARLAY" && (
           <PickDetailRow label="Selection">
@@ -159,8 +158,17 @@ export function HandicapperPickRow({
         )}
       </PickDetails>
 
+      {/* Left: whether this pick is behind the paywall — the thing a capper
+          scanning their own dashboard most wants to see and previously could
+          not, since "· Premium" hid at the end of the bet type and a free pick
+          said nothing at all.
+
+          Right: where the pick is in its lifecycle. The result pill moved over
+          to join it, because a pending pick printed "Pending" on the left and
+          "PENDING" on the right, which is the same word twice. Once settled the
+          two are different facts — Win, and final — so both are shown. */}
       <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-border pt-4">
-        <ResultPill result={pick.result} />
+        <AccessBadge isPremium={pick.isPremium} />
         {pick.result === "PENDING" && !gradable ? (
           // Nothing to grade yet. Saying so beats offering buttons the server
           // will refuse.
@@ -184,9 +192,12 @@ export function HandicapperPickRow({
         ) : (
           // A grade is final — no re-grading once settled. Corrections go through
           // an admin, keeping records tamper-proof.
-          <span className="inline-flex items-center gap-1.5">
-            <Lock className="h-3.5 w-3.5 text-muted" />
-            <GradingState settled />
+          <span className="inline-flex items-center gap-2">
+            <ResultPill result={pick.result} />
+            <span className="inline-flex items-center gap-1.5">
+              <Lock className="h-3.5 w-3.5 text-muted" />
+              <GradingState settled />
+            </span>
           </span>
         )}
       </div>

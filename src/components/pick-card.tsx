@@ -1,6 +1,7 @@
 import { Lock, Layers, Clock } from "lucide-react";
 import { PlayerTag } from "@/components/player-tag";
 import {
+  AccessBadge,
   PickDetails,
   PickDetailRow,
   PickHeader,
@@ -212,7 +213,12 @@ export function PickCard({
       )}
 
       <PickDetails>
-        <PickDetailRow label="Bet Type">{BET_TYPE_LABELS[pick.betType]}</PickDetailRow>
+        {/* Bold, like Selection and Odds. It was the only value in the column
+            set at normal weight, which read as a caption for the rows under it
+            rather than one of them. */}
+        <PickDetailRow label="Bet Type">
+          <span className="font-semibold">{BET_TYPE_LABELS[pick.betType]}</span>
+        </PickDetailRow>
         <PickDetailRow label="Selection">
           {isParlay ? (
             // A parlay's "selection" is its legs, so they are the value of this
@@ -267,15 +273,7 @@ export function PickCard({
             handicapper's own row keeps it, because there it replaces the
             "Gradable after kickoff" line rather than repeating the pill. */}
         <ResultPill result={pick.result} />
-        {pick.isPremium ? (
-          <span className="rounded-full bg-gold/15 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-gold">
-            Premium
-          </span>
-        ) : (
-          <span className="rounded-full bg-accent/10 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-accent">
-            Free
-          </span>
-        )}
+        <AccessBadge isPremium={pick.isPremium} />
       </div>
     </div>
   );

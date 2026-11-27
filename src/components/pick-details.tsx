@@ -101,3 +101,24 @@ export function PickMatchup({
     </div>
   );
 }
+
+/**
+ * Free or Premium, as a badge.
+ *
+ * Shared, because both cards say it and they said it differently: the public
+ * card had a badge in its footer, the handicapper's own row had "· Premium"
+ * trailing the bet type and nothing at all for a free pick — so a capper
+ * reading their own dashboard could not tell at a glance which of their picks
+ * were behind the paywall, which is the one thing that row is for.
+ */
+export function AccessBadge({ isPremium }: { isPremium: boolean }) {
+  return isPremium ? (
+    <span className="rounded-full bg-gold/15 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-gold">
+      Premium
+    </span>
+  ) : (
+    <span className="rounded-full bg-accent/10 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-accent">
+      Free
+    </span>
+  );
+}
