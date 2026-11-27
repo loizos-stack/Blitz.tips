@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { ChevronDown, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { formatOdds } from "@/lib/odds";
+import { Odds } from "@/components/odds-format";
 import type { MarketOption, UpcomingEvent } from "@/lib/odds-api";
 
 interface Section {
@@ -43,7 +43,7 @@ function defaultOpen(groups: Group[]) {
 }
 
 /**
- * Nested market picker shown under an expanded game: Game Lines / Player Props
+ * Nested market picker shown under an expanded game: Game Lines / Player Prop
  * → per-market subsection → individual lines. The board's game lines render
  * instantly; opening the game fetches the full per-event set (props for US
  * sports, non-player markets for soccer) and replaces the tree.
@@ -174,7 +174,7 @@ export function EventMarkets({
                                   >
                                     <span className="font-display">{market.selection}</span>
                                     <span className="shrink-0 font-display font-medium tabular-nums">
-                                      {formatOdds(market.odds)}
+                                      <Odds value={market.odds} />
                                     </span>
                                   </button>
                                 </li>

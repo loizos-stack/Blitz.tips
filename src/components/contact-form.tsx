@@ -2,12 +2,17 @@
 
 import { useState } from "react";
 import { Send } from "lucide-react";
-import { TICKET_CATEGORIES, DEFAULT_TICKET_CATEGORY } from "@/lib/ticket-categories";
+import { TICKET_CATEGORIES, DEFAULT_TICKET_CATEGORY, type TicketCategory } from "@/lib/ticket-categories";
 
-export function ContactForm() {
+export function ContactForm({
+  /** Pre-selects the category — e.g. contest pages link in with "Contests". */
+  defaultCategory = DEFAULT_TICKET_CATEGORY,
+}: {
+  defaultCategory?: TicketCategory;
+} = {}) {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
-  const [category, setCategory] = useState<string>(DEFAULT_TICKET_CATEGORY);
+  const [category, setCategory] = useState<string>(defaultCategory);
   const [subject, setSubject] = useState("");
   const [message, setMessage] = useState("");
   const [website, setWebsite] = useState(""); // honeypot
@@ -32,7 +37,7 @@ export function ContactForm() {
     setState("sent");
     setName("");
     setEmail("");
-    setCategory(DEFAULT_TICKET_CATEGORY);
+    setCategory(defaultCategory);
     setSubject("");
     setMessage("");
   }

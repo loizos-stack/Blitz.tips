@@ -1,8 +1,64 @@
-# Contest marketing graphics
+# Marketing graphics
 
-Rendered by `scripts/build-marketing-graphics.mjs`. Don't hand-edit the PNGs —
-change the script and re-run, so the exports stay in step with the site's own
-logo and colours.
+Don't hand-edit the PNGs — change the script and re-run, so the exports stay in
+step with the site's own logo and colours.
+
+Two sets live here. **The Telegram ad set below is site branding** and is the
+one to reach for right now; everything else on this page is Supercapper, and
+**the contest is currently hidden from the public site**
+(`NEXT_PUBLIC_SUPERCAPPER_VISIBLE` is unset), so an ad pointing at
+`/supercapper` lands on a 404. Don't post the contest artwork until that flag is
+back on.
+
+## Telegram ads
+
+Rendered by `scripts/build-telegram-graphics.mjs`.
+
+```bash
+PLAYWRIGHT_CHROMIUM=/path/to/chromium \
+  node scripts/build-telegram-graphics.mjs      # env var optional
+```
+
+Unlike the contest set, this one **does not need `npm run build` first**. It
+falls back to `fonts/space-grotesk-latin.woff2`, committed beside these images —
+the same Google Fonts latin subset `next/font` downloads, so there's no
+rendering drift. A build is a fifteen-minute detour for a 22 KB file that
+doesn't change.
+
+| File | Size | Use |
+|---|---|---|
+| `blitz-telegram-ad-1280x720.png` | 1280×720 | **The default.** 16:9 renders full-width in a channel post and in a link preview |
+| `blitz-telegram-ad-1080x1080.png` | 1080×1080 | Square — takes more height in a phone feed, and closest to how Telegram's own ad slots crop |
+| `blitz-telegram-cappers-1280x720.png` | 1280×720 | Recruiting handicappers rather than bettors — leads with the $500/month leaderboard |
+
+All three ship at their named size (rendered at 2× and downscaled with lanczos,
+so the type is supersampled rather than rasterised small).
+
+**Every figure on these is checked against code, not copy.** `$500 / $250 /
+$150 / $100` and the ten-pick qualifying floor are `PRIZE_CENTS` and
+`MIN_SETTLED_PICKS` in `src/lib/monthly-prizes.ts`; "keep 80–90%" is the
+`commissionPercent` spread across Free/Silver/Gold in `src/lib/plans.ts`. Change
+either file and these need re-rendering by hand — the script can't import a
+`server-only` module, so the constants are mirrored at the top of it.
+
+There is **no subscriber count, no "join 10,000 bettors", no win rate**, and
+that is deliberate rather than an omission to fill in later. The site's entire
+pitch is verified records; an unverifiable number in the advert is the one thing
+that can't be walked back.
+
+The bet slip is **illustrative and carries no handle**. It shows the mechanism —
+a price, a stake, a timestamp before kick-off, a result that can't be softened —
+without pinning an invented record on a real handicapper.
+
+"Never editable after" is literal: `src/app/api/picks/[id]/route.ts` exposes no
+way for a handicapper to change a pick's terms at all, refuses a re-grade once
+`result !== "PENDING"`, and `src/app/api/picks/route.ts` rejects anything posted
+at or after `eventStartsAt`. Corrections go through an admin.
+
+## Contest marketing graphics
+
+Rendered by `scripts/build-marketing-graphics.mjs`. **Contest branding — see the
+visibility warning at the top of this file before posting any of it.**
 
 ```bash
 npm run build                                    # supplies the brand webfont
@@ -14,35 +70,141 @@ All exports are 2× for retina.
 
 | File | Size | Use |
 |---|---|---|
+| `supercapper-promo-640x360.png` | 640×360 | Small ad slots and embeds. The only file here that ships at its named size rather than @2x — it is rendered at 2x and downscaled, so it stays sharp without needing anyone to resize it |
 | `supercapper-hero-1600x900.png` | 1600×900 | Pinned post, link preview, in-feed on X |
 | `supercapper-howitworks-1600x900.png` | 1600×900 | Thread post 2, or a standalone explainer |
 | `supercapper-square-1080.png` | 1080×1080 | Instagram feed, X in-feed square |
 | `supercapper-vertical-1080x1350.png` | 1080×1350 | Instagram portrait (most feed space) |
 | `supercapper-banner-1500x500.png` | 1500×500 | X profile header |
-| `supercapper-starts-1600x900.png` | 1600×900 | "Starts Aug 3" — the pre-launch push |
+| `supercapper-starts-1600x900.png` | 1600×900 | "Starts Sep 7" — the pre-launch push |
 | `supercapper-dates-1600x900.png` | 1600×900 | Key dates, both ends, with the enter-anytime caveat |
-| `supercapper-starts-square-1080.png` | 1080×1080 | "Starts Aug 3", square |
+| `supercapper-starts-square-1080.png` | 1080×1080 | "Starts Sep 7", square |
 | `supercapper-countdown-1080x1350.png` | 1080×1350 | Season run, portrait |
 | `supercapper-x-money-dates-1600x900.png` | 1600×900 | Money + dates, the default X post |
 | `supercapper-x-payout-1600x900.png` | 1600×900 | How the pool pays — answers "will I actually get paid" |
 | `supercapper-x-money-dates-1080x1350.png` | 1080×1350 | Money + dates, portrait (more mobile feed space) |
 | `supercapper-x-bold-1600x900.png` | 1600×900 | Type-only, no wordmark lockup — stands out in a scroll |
 
+## Video
+
+| File | Size | Length | Use |
+|---|---|---|---|
+| `blitz-telegram-1920x1080.mp4` | 1920×1080 | 4.5s | Telegram ads and channel posts. Blitz.tips logo sting — a bolt strikes, detonates, and the blast resolves into the lockup. Site branding, not the contest's. Silent, which is what Telegram autoplays inline, and it fades out at the end so the loop restarts cleanly. Rebuild with `node scripts/build-telegram-ad.mjs` |
+| `supercapper-promo-1080x1920.mp4` | 1080×1920 | 13s | TikTok, Reels, Shorts, Stories |
+| `supercapper-x-16x9-1920x1080.mp4` | 1920×1080 | 12s | X in-feed — full width on desktop, never letterboxed |
+| `supercapper-x-square-1080.mp4` | 1080×1080 | 9s | X in-feed, mobile-first — square takes more timeline height than 16:9 |
+| `supercapper-x-9x16-1080x1920.mp4` | 1080×1920 | 10s | X vertical — fills a phone screen; also fine for Stories |
+| `supercapper-motion-slip-1920x1080.mp4` | 1920×1080 | 12s | The graded slip — a pick lands, ticks, gets stamped WIN |
+| `supercapper-motion-climb-1080x1920.mp4` | 1080×1920 | 12s | The climb — a live board reorders and @you walks to first |
+| `supercapper-motion-wall-1080x1080.mp4` | 1080×1080 | 10s | The odds wall — prices flicker, then collapse into the mark |
+| `supercapper-tiktok-receipt-1080x1920.mp4` | 1080×1920 | 13s | TikTok — the argument, statement type only |
+| `supercapper-tiktok-slip-1080x1920.mp4` | 1080×1920 | 14s | TikTok — a pick lands, ticks, gets stamped WIN |
+| `supercapper-tiktok-ladder-1080x1920.mp4` | 1080×1920 | 13s | TikTok — "what's the catch", answered with the payout ladder |
+| `supercapper-tiktok-steps-1080x1920.mp4` | 1080×1920 | 12s | TikTok — the three-step explainer |
+
+## The TikTok set
+
+Built by `scripts/build-tiktok-videos.mjs`. Pass a name fragment to render one
+(`node scripts/build-tiktok-videos.mjs ladder`).
+
+**These are not the X vertical cut re-encoded**, even though both are 1080×1920.
+TikTok covers different parts of the frame and rewards a different opening:
+
+- **Safe box.** TikTok's action rail sits in the right ~180px from y≈900 down,
+  and the caption block eats the bottom ~380px. Everything stays inside
+  x 60–1020, y 200–1120. The script's `SAFE` constant explains why the bottom
+  inset is far bigger than the caption alone needs — the rail is the binding
+  constraint for anything *wide*, like the bet slip or the payout ladder.
+- **Hook on frame one.** Every cut is legible at t=0, no fade from black and no
+  logo sting. On a For You page the first frame is the thumbnail.
+- **Bigger type**, because TikTok overlays its own UI text on the frame.
+
+Silent, like the rest of the set, but for a different reason: TikTok is
+sound-on and expects you to add a trending track in the app. A baked-in track
+is a licensing problem and the first thing a creator mutes. Every claim is on
+screen, so the cuts still read muted.
+
+The four are deliberately different arguments, not four edits of one: `receipt`
+picks the fight, `slip` shows the mechanic, `ladder` handles the "free contest,
+$10,000, what's the catch" objection, and `steps` is the plain explainer. Post
+them in that order — the explainer converts best once someone has a reason to
+care.
+
+`ladder` never names a first prize, on purpose. The payout is computed from the
+field size, so any fixed figure is wrong; see the claims table in
+`docs/supercapper-twitter-kit.md`.
+
+The three `motion-*` cuts are the animation-led set, built by
+`scripts/build-motion-videos.mjs`. Pass a name fragment to render just one
+(`node scripts/build-motion-videos.mjs slip`) — a full pass is three browsers
+and ~1,000 frames.
+
+They animate rather than fade: a digit-column odometer for the pool, a stamp
+that overshoots and kicks the card, a seeded confetti burst (fixed seed, so the
+same particles every render), rows that interpolate between orderings, and a
+price wall that arrives and leaves on a diagonal wave.
+
+**The handles and ROI figures in the climb are illustrative.** They're invented
+placeholders, deliberately not the seeded demo accounts, so nothing reads as a
+claim about a named account's real record. Once the board has a real field, a
+screen recording of the actual standings beats this — see "Not included" below.
+
+**Two 9:16 files, on purpose.** `supercapper-promo` is the TikTok/Reels cut,
+where you land on one video at a time and 13 seconds is a normal ask.
+`supercapper-x-9x16` is three seconds shorter and leads with the prize instead
+of the logo, because X is a scroll. The X one also keeps every element inside
+the middle band: X doesn't always show a vertical video at full height in the
+timeline, so anything near the top or bottom edge can be cropped before someone
+taps.
+
+```bash
+npm run build
+node scripts/build-promo-video.mjs      # the 9:16 cut
+node scripts/build-x-videos.mjs         # both X cuts
+# both need ffmpeg; they fall back to imageio-ffmpeg
+```
+
+All three are H.264 / yuv420p with `+faststart`, and all are **silent by
+design** — see the note below.
+
+The two X cuts are deliberately short. The timeline is a scroll: a loop that
+comes back around beats one that runs long enough to be swiped past. They're
+also entirely text-driven, because X autoplays muted and a video that needs
+sound to make sense makes no sense to most of the people who see it.
+
+Frames are driven by an explicit clock rather than CSS animations, so frame N is
+identical on every run regardless of machine speed.
+
+**No audio, deliberately.** TikTok and Reels expect you to add trending sound in
+the app — a baked-in track is a licensing problem and the first thing a creator
+would mute. Post it and pick audio on the platform. On X the reason is
+different but the answer is the same: it autoplays muted, so every claim is on
+screen and nothing depends on sound.
+
+9:16 covers TikTok, Reels, Shorts and Stories. Keep the important content away
+from the top and bottom ~15%, where the platform UI sits — the current cut keeps
+everything in the middle band for that reason.
+
 ## Dates
 
 `STARTS` / `ENDS` at the top of the script are the seeded contest window —
-**August 3, 2026 → January 10, 2027** — taken from the `Contest` row's `startsAt`
+**September 7, 2026 → January 10, 2027** — taken from the `Contest` row's `startsAt`
 and `endsAt`.
 
 Verify against the live row before publishing. An admin can change these in the
-contests panel without a migration, and no migration since the original one has
-touched them — so the seeded values are the best available source here, not
-proof of what production currently holds. The prize pool has already been edited
-once, which is exactly how these drift.
+contests panel without a migration, so the values here are the best available
+source, not proof of what production currently holds. The pool has been edited
+once ($25,000 → $10,000) and the start three times (Aug 3 → Aug 10 → Aug 16 →
+Sep 7), which is exactly how these drift. Two of those start moves happened
+*after* the contest had already gone live, so treat any artwork you can't date
+as suspect.
 
-`registrationClosesAt` is null, so entries stay open until `endsAt`. That's why
-the dates card says "enter any time" rather than advertising a registration
-deadline — there isn't one.
+`registrationClosesAt` is **September 27, 2026**, set by the dynamic-payouts
+migration. (This section previously said it was null and that entries stayed
+open until `endsAt` — that stopped being true when the column was populated.)
+The dates card's "enter any time" copy is therefore about the start, not the
+close: you can join after the contest begins, but not after registration
+shuts.
 
 ## Notes
 

@@ -35,6 +35,15 @@ export async function POST(request: Request) {
 
   const currentPeriodEnd = new Date(Date.now() + days * 24 * 60 * 60 * 1000);
 
+  // Stamped as given, not bought, so the financials tab can leave it out of
+  // the revenue figures. The granting admin's email rides along so the comped
+  // table still names someone once that admin's account is gone.
+  const comped = {
+    compedAt: new Date(),
+    compedById: ctx.userId,
+    compedByEmail: ctx.session.user.email ?? "unknown",
+  };
+
   await prisma.subscription.upsert({
     where: { subscriberId_handicapperId: { subscriberId: user.id, handicapperId: handicapper.id } },
     create: {
@@ -43,8 +52,9 @@ export async function POST(request: Request) {
       status: "ACTIVE",
       currentPeriodEnd,
       cancelAtPeriodEnd: true,
+      ...comped,
     },
-    update: { status: "ACTIVE", currentPeriodEnd, cancelAtPeriodEnd: true },
+    update: { status: "ACTIVE", currentPeriodEnd, cancelAtPeriodEnd: true, ...comped },
   });
 
   await logAdmin(

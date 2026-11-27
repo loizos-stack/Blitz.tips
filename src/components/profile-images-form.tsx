@@ -125,7 +125,7 @@ export function ProfileImagesForm({
           className="group relative -mt-10 h-20 w-20 shrink-0 overflow-hidden rounded-full border-4 border-surface bg-surface-raised"
           aria-label="Change profile photo"
         >
-          <Avatar src={avatar} name={displayName} className="h-full w-full text-lg" />
+          <Avatar src={avatar} name={displayName} fallback="logo" className="h-full w-full text-lg" />
           <span className="absolute inset-0 flex items-center justify-center bg-black/0 text-white/0 transition group-hover:bg-black/40 group-hover:text-white">
             {busy === "avatar" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Camera className="h-4 w-4" />}
           </span>

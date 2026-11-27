@@ -4,6 +4,7 @@ import Google from "next-auth/providers/google";
 import { PrismaAdapter } from "@auth/prisma-adapter";
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
+import { verifyTelegramAuth } from "@/lib/telegram-login";
 
 // Lock an account for 15 minutes after 8 consecutive failed password attempts.
 const MAX_LOGIN_ATTEMPTS = 8;
@@ -72,6 +73,38 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
             .update({ where: { id: user.id }, data: { failedLoginCount: 0, lockedUntil: null } })
             .catch(() => undefined);
         }
+
+        return { id: user.id, email: user.email, name: user.name, image: user.image };
+      },
+    }),
+    // Telegram Login Widget. Signs in an account that already has this Telegram
+    // identity linked; it never creates one, because Telegram gives us no email
+    // and `User.email` is required. Signing up runs through
+    // /api/telegram-login/complete, which collects the address first.
+    Credentials({
+      id: "telegram",
+      name: "Telegram",
+      credentials: { payload: { label: "Telegram payload", type: "text" } },
+      authorize: async (credentials) => {
+        const raw = credentials?.payload;
+        if (typeof raw !== "string") return null;
+
+        // The payload is signed by Telegram, so verification is what makes any
+        // of it trustworthy — nothing below reads a field before this passes.
+        let parsed: unknown;
+        try {
+          parsed = JSON.parse(raw);
+        } catch {
+          return null;
+        }
+        const identity = verifyTelegramAuth(parsed);
+        if (!identity) return null;
+
+        const user = await prisma.user.findFirst({
+          where: { telegramChatId: identity.telegramId },
+          select: { id: true, email: true, name: true, image: true, suspendedAt: true },
+        });
+        if (!user || user.suspendedAt) return null;
 
         return { id: user.id, email: user.email, name: user.name, image: user.image };
       },

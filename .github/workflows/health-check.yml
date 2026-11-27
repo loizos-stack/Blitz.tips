@@ -1,0 +1,88 @@
+name: Health check
+
+# Hourly: is the site serving, and can it reach the database?
+#
+# Added after the 2026-11-26 outage. Neon suspended the compute for exhausting
+# its monthly CU-hours; the site returned errors for four hours and the first
+# anyone knew of it was a person opening the page. The Vercel compute allowance
+# had run out the same silent way on 18 November. Nothing was watching either
+# time.
+#
+# A failing scheduled workflow emails the repository owner by default, so this
+# needs no alerting service, no extra secret and no account anywhere. It uses
+# CRON_SECRET, which auto-settle already relies on.
+#
+# WHY HOURLY, and why not more often: each check wakes Neon's compute, which
+# then stays up for its idle timeout — about five minutes. Hourly is roughly
+# 18 CU-hours a month against an allowance of 300. Every five minutes would
+# hold the compute open permanently and cost the whole allowance, which is
+# exactly the failure this exists to catch. Do not tighten this schedule
+# without doing that arithmetic again.
+#
+# What it will NOT catch: anything lasting under an hour, and anything that
+# leaves both Next.js and Postgres answering while the site is still wrong.
+# It is a floor, not a guarantee.
+
+on:
+  schedule:
+    # :41 past the hour — off the hour, where scheduled runs queue up.
+    - cron: "41 * * * *"
+  workflow_dispatch:
+
+# A slow run should not stack up behind the previous one.
+concurrency:
+  group: health-check
+  cancel-in-progress: false
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Probe
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+          SITE_URL: ${{ secrets.SITE_URL || 'https://blitz.tips' }}
+        run: |
+          if [ -z "$CRON_SECRET" ]; then
+            echo "::error::CRON_SECRET repository secret is not set."
+            exit 1
+          fi
+
+          # One retry, thirty seconds apart. A single failed request is not an
+          # outage — a cold start, a deploy swapping instances or one dropped
+          # connection all produce it, and waking the owner for those is how a
+          # check gets ignored. Two failures a minute apart is a real signal.
+          for attempt in 1 2; do
+            status=$(curl -sS -o response.json -w '%{http_code}' \
+              --max-time 20 \
+              -H "Authorization: Bearer $CRON_SECRET" \
+              "$SITE_URL/api/health" || echo "000")
+
+            echo "attempt $attempt: HTTP $status"
+            cat response.json 2>/dev/null; echo
+
+            if [ "$status" = "200" ]; then
+              {
+                echo "### Health check — OK"
+                echo '```json'
+                cat response.json
+                echo '```'
+              } >> "$GITHUB_STEP_SUMMARY"
+              exit 0
+            fi
+
+            [ "$attempt" = "1" ] && sleep 30
+          done
+
+          {
+            echo "### Health check — FAILED"
+            echo ""
+            echo "Two probes a minute apart both failed. Last status: $status"
+            echo '```json'
+            cat response.json 2>/dev/null || echo "(no response body)"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          echo "::error::$SITE_URL/api/health failed twice — last status $status"
+          exit 1

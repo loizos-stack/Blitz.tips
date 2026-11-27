@@ -3,6 +3,7 @@ import { PostTipForms } from "@/components/post-tip-forms";
 import { HandicapperPickList } from "@/components/handicapper-pick-list";
 import { enrichPickCrests } from "@/lib/pick-logos";
 import { loadDashboardHandicapper } from "@/lib/handicapper-dashboard";
+import { sportsFromPicks } from "@/lib/handicappers";
 import { siteUrl } from "@/lib/site";
 
 export const dynamic = "force-dynamic";
@@ -17,7 +18,12 @@ export default async function HandicapperPicksPage() {
     <div className="flex flex-col gap-10">
       <div className="flex flex-col gap-3">
         <h2 className="font-semibold">Post a tip</h2>
-        <PostTipForms handicapperSports={handicapper.sports} hasPosted={handicapper.picks.length > 0} />
+        {/* Only used to preselect the parlay form's sport, so the sports they
+            already post in are a better default than a list they once ticked. */}
+        <PostTipForms
+          handicapperSports={sportsFromPicks(handicapper.picks)}
+          hasPosted={handicapper.picks.length > 0}
+        />
       </div>
 
       <div>

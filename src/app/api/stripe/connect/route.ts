@@ -1,29 +1,68 @@
 import { NextResponse } from "next/server";
+import type Stripe from "stripe";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { stripe } from "@/lib/stripe";
 import { isMissingAccountError } from "@/lib/connect";
+import { canStripePayout, countryCode, countryName } from "@/lib/countries";
 import { ensureSubscriberPrices } from "@/lib/subscriber-pricing";
 import { siteUrl } from "@/lib/site";
 
 const appUrl = siteUrl();
 
-export async function POST() {
+/** What to tell someone whose country Stripe can't reach from this platform. */
+function noStripeInCountry(label: string) {
+  return NextResponse.json(
+    {
+      error: `Stripe payouts aren't available in ${label}. Add a BTC or ETH payout address below instead — crypto payouts have no country restrictions, and your subscribers can still pay by card.`,
+      cryptoOnly: true,
+    },
+    { status: 400 }
+  );
+}
+
+export async function POST(request: Request) {
   const session = await auth();
   if (!session) return NextResponse.json({ error: "Sign in required" }, { status: 401 });
 
   const handicapper = await prisma.handicapperProfile.findUnique({ where: { userId: session.user.id } });
   if (!handicapper) return NextResponse.json({ error: "No handicapper profile" }, { status: 404 });
 
+  // The country of the connected account. Stripe fixes this at creation and
+  // never lets it change, so it has to be right the first time — and left to
+  // itself Stripe defaults it to the *platform's* country (Cyprus), which is
+  // how every account on the platform ended up Cypriot and unfinishable. The
+  // handicapper confirms it in the dashboard before we create anything; their
+  // self-reported signup country only prefills that box.
+  const body = await request.json().catch(() => ({}));
+  const requested = typeof body?.country === "string" ? body.country.trim().toUpperCase() : "";
+  const country = requested || countryCode(
+    (await prisma.user.findUnique({
+      where: { id: session.user.id },
+      select: { country: true },
+    }))?.country
+  );
+
+  if (!country) {
+    return NextResponse.json(
+      { error: "Choose the country your bank account is in before connecting Stripe.", needsCountry: true },
+      { status: 400 }
+    );
+  }
+  if (!canStripePayout(country)) {
+    return noStripeInCountry(countryName(country));
+  }
+
   let accountId = handicapper.stripeAccountId;
 
-  // A stored account that no longer exists for the current key (e.g. a test-mode
-  // account after switching to live keys) would make the link creation below
-  // fail. Verify it first and drop it so a fresh account is created instead.
   if (accountId) {
+    let existing: Stripe.Account | null = null;
     try {
-      await stripe.accounts.retrieve(accountId);
+      existing = await stripe.accounts.retrieve(accountId);
     } catch (error) {
+      // A stored account that no longer exists for the current key (e.g. a
+      // test-mode account after switching to live keys) would make the link
+      // creation below fail. Drop it so a fresh account is created instead.
       if (isMissingAccountError(error)) {
         accountId = null;
         await prisma.handicapperProfile.update({
@@ -32,12 +71,36 @@ export async function POST() {
         });
       }
     }
+
+    // An account in the wrong country is a dead end: the handicapper is asked
+    // for an ID and a bank account from a country they aren't in, and country
+    // is immutable, so no amount of resuming fixes it. Replace it — but only
+    // while it is still empty, so a finished account is never touched.
+    const untouched =
+      existing &&
+      !existing.details_submitted &&
+      !existing.charges_enabled &&
+      !existing.payouts_enabled;
+    if (existing && existing.country !== country && untouched) {
+      // Best-effort: Stripe refuses to delete an account holding a balance,
+      // and an orphan left behind in the dashboard is harmless. What matters
+      // is that the profile stops pointing at it.
+      await stripe.accounts.del(accountId!).catch((error) => {
+        console.error("Could not delete the wrong-country Connect account:", error);
+      });
+      accountId = null;
+      await prisma.handicapperProfile.update({
+        where: { id: handicapper.id },
+        data: { stripeAccountId: null, stripeAccountReady: false },
+      });
+    }
   }
 
   try {
     if (!accountId) {
       const account = await stripe.accounts.create({
         type: "express",
+        country,
         email: session.user.email ?? undefined,
         business_type: "individual",
         // Request both card_payments and transfers. We use destination charges
@@ -60,7 +123,7 @@ export async function POST() {
   } catch (error) {
     // Surface the real reason (e.g. "Connect is not enabled" or a missing key)
     // so it's actionable rather than a generic failure.
-    console.error("Stripe Connect account creation failed:", error);
+    console.error(`Stripe Connect account creation failed (country=${country}):`, error);
     const message =
       error instanceof Error ? error.message : "Couldn't start Stripe onboarding.";
     return NextResponse.json({ error: message }, { status: 500 });

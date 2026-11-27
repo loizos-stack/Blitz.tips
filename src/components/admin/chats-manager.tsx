@@ -1,5 +1,7 @@
 "use client";
 
+import { useVisibleInterval } from "@/lib/use-visible-interval";
+import { LocalTime } from "@/components/local-time";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { MessageSquare, Send, Trash2, CheckCircle2, RotateCcw, Hand } from "lucide-react";
@@ -28,13 +30,15 @@ const HEARTBEAT_MS = 20_000;
 const POLL_MS = 4000;
 // How often to pull fresh server data so the chat LIST (new chats, status
 // changes, ordering) updates on its own — the open thread already polls faster.
-const LIST_REFRESH_MS = 10_000;
+// Widened from 10s: a chat list that lags by half a minute is fine, and the
+// previous rate was a request every ten seconds for as long as a tab existed.
+const LIST_REFRESH_MS = 30_000;
 
 function ref(id: string) {
   return id.slice(-6).toUpperCase();
 }
 function when(iso: string) {
-  return new Date(iso).toLocaleString();
+  return <LocalTime iso={iso} withZone />;
 }
 
 const STATUS_STYLES: Record<Status, string> = {
@@ -55,17 +59,34 @@ export function ChatsManager({ initialChats, onlineAgents }: { initialChats: Cha
   const selected = chats.find((c) => c.id === selectedId) ?? null;
   const scrollRef = useRef<HTMLDivElement | null>(null);
 
-  // Presence heartbeat: while this tab is open the agent counts as online, so
-  // visitors are offered live chat. Best-effort offline signal on unmount.
+  /**
+   * Presence heartbeat: while this tab is WATCHED the agent counts as online,
+   * so visitors are offered live chat. Best-effort offline signal on unmount.
+   *
+   * Tied to visibility rather than to the tab merely existing, and that is a
+   * correctness fix as much as a cost one. An agent whose console is buried
+   * behind other windows is not there to answer, so a heartbeat from a hidden
+   * tab was telling visitors someone was waiting when nobody was. It also hit
+   * the database every 20 seconds for as long as the tab lived — one of the
+   * three pollers that kept Neon's compute from ever suspending until it
+   * burned the monthly CU-hour allowance on 2026-11-26.
+   *
+   * No catch-up tick: the interval's own first beat on return is soon enough,
+   * and the mount is already covered below.
+   */
+  const beat = useCallback(
+    () => void fetch("/api/admin/presence", { method: "POST" }).catch(() => {}),
+    []
+  );
+
   useEffect(() => {
-    const beat = () => void fetch("/api/admin/presence", { method: "POST" }).catch(() => {});
     beat();
-    const handle = setInterval(beat, HEARTBEAT_MS);
     return () => {
-      clearInterval(handle);
       void fetch("/api/admin/presence", { method: "DELETE", keepalive: true }).catch(() => {});
     };
-  }, []);
+  }, [beat]);
+
+  useVisibleInterval(beat, HEARTBEAT_MS, { catchUpOnReturn: false });
 
   // Live-poll the selected chat for new visitor messages.
   const mergeInto = useCallback((chatId: string, status: Status, incoming: Msg[]) => {
@@ -80,30 +101,33 @@ export function ChatsManager({ initialChats, onlineAgents }: { initialChats: Cha
     );
   }, []);
 
-  useEffect(() => {
+  /**
+   * Live-poll the selected chat, four seconds apart, while the tab is watched.
+   *
+   * Four seconds is 900 requests an hour, so this console left open in a
+   * background tab was by far the heaviest of the three pollers. The guard
+   * sits inside the callback rather than around the hook because the hook has
+   * no enabled flag; with nothing selected the tick is a no-op that costs
+   * nothing. The hook always calls the latest callback, so there is no stale
+   * closure to race and no `active` flag to carry.
+   */
+  const pollSelected = useCallback(async () => {
     if (!selected) return;
     const id = selected.id;
-    let active = true;
-    const tick = async () => {
-      try {
-        const last = selected.messages[selected.messages.length - 1]?.createdAt;
-        const params = new URLSearchParams();
-        if (last) params.set("after", last);
-        const res = await fetch(`/api/admin/chats/${id}?${params.toString()}`);
-        if (!res.ok || !active) return;
-        const data = await res.json();
-        mergeInto(id, data.status as Status, (data.messages ?? []) as Msg[]);
-      } catch {
-        /* transient */
-      }
-    };
-    const handle = setInterval(tick, POLL_MS);
-    return () => {
-      active = false;
-      clearInterval(handle);
-    };
-    // Re-arm when the selection or its latest message changes.
-  }, [selectedId, selected?.messages.length, mergeInto]); // eslint-disable-line react-hooks/exhaustive-deps
+    try {
+      const last = selected.messages[selected.messages.length - 1]?.createdAt;
+      const params = new URLSearchParams();
+      if (last) params.set("after", last);
+      const res = await fetch(`/api/admin/chats/${id}?${params.toString()}`);
+      if (!res.ok) return;
+      const data = await res.json();
+      mergeInto(id, data.status as Status, (data.messages ?? []) as Msg[]);
+    } catch {
+      /* transient */
+    }
+  }, [selected, mergeInto]);
+
+  useVisibleInterval(pollSelected, POLL_MS);
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight });
@@ -130,11 +154,12 @@ export function ChatsManager({ initialChats, onlineAgents }: { initialChats: Cha
     return () => clearTimeout(t);
   }, [initialChats]);
 
-  // Pull fresh server data periodically so new/updated chats surface on their own.
-  useEffect(() => {
-    const id = setInterval(() => router.refresh(), LIST_REFRESH_MS);
-    return () => clearInterval(id);
-  }, [router]);
+  // Pull fresh server data periodically so new/updated chats surface on their
+  // own. Paused while the tab is hidden — see useVisibleInterval. The presence
+  // heartbeat above is deliberately NOT paused: it is what tells visitors an
+  // agent is available, and an agent who has flipped to another tab for a
+  // moment has not gone offline.
+  useVisibleInterval(() => router.refresh(), LIST_REFRESH_MS);
 
   async function call(id: string, init: RequestInit) {
     setBusy(true);

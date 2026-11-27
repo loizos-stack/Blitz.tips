@@ -23,7 +23,7 @@ export function PaginatedTrackRecord({
 
   return (
     <>
-      <div className="grid gap-4 sm:grid-cols-2">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {visible.map((pick) => (
           <PickCard key={pick.id} pick={pick} locked={isPickLocked(pick, unlocked)} />
         ))}

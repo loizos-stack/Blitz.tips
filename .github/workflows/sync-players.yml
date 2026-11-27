@@ -1,0 +1,98 @@
+name: Sync player photos
+
+# Refills the Player table from ESPN, which is what lets a player prop card
+# show the player's face. Run it when a season's rosters turn over.
+#
+# Deliberately manual — no schedule. Rosters move slowly, and a nightly job
+# that half-failed would show up as photos quietly disappearing rather than as
+# anything anyone would notice.
+#
+# Uses the same two secrets as auto-settle (CRON_SECRET, optional SITE_URL), so
+# if that workflow runs, this one will too with no extra setup.
+#
+# One league per request on purpose: the route has a 60s budget and the NFL
+# list alone is 21 pages of athletes. Each is a separate, idempotent call, so a
+# league that fails can simply be re-run.
+
+on:
+  workflow_dispatch:
+    inputs:
+      sport:
+        description: "Which league (blank = all five, one at a time)"
+        required: false
+        default: ""
+        type: choice
+        options: ["", "NFL", "NBA", "WNBA", "MLB", "NHL"]
+      refresh_sportsdb:
+        description: "Instead, move existing picks onto cut-out portraits"
+        required: false
+        default: false
+        type: boolean
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Sync players
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+          SITE_URL: ${{ secrets.SITE_URL || 'https://blitz.tips' }}
+          SPORT: ${{ inputs.sport }}
+          REFRESH: ${{ inputs.refresh_sportsdb }}
+        run: |
+          if [ -z "$CRON_SECRET" ]; then
+            echo "::error::CRON_SECRET repository secret is not set — see the header of this file."
+            exit 1
+          fi
+
+          # A different job sharing the same secret and route: it re-resolves
+          # picks already holding a TheSportsDB match photo onto that service's
+          # cut-out portraits. Capped per run, so `remaining` above zero in the
+          # response means run it again.
+          if [ "$REFRESH" = "true" ]; then
+            status=$(curl -sS -o response.json -w '%{http_code}' \
+              --max-time 120 \
+              -H "Authorization: Bearer $CRON_SECRET" \
+              "$SITE_URL/api/cron/sync-players?refresh=sportsdb")
+            echo "HTTP $status"; cat response.json; echo
+            {
+              echo "### Cut-out photo refresh — HTTP $status"
+              echo '```json'
+              cat response.json
+              echo '```'
+            } >> "$GITHUB_STEP_SUMMARY"
+            [ "$status" = "200" ] || { echo "::error::refresh returned HTTP $status"; exit 1; }
+            exit 0
+          fi
+
+          if [ -n "$SPORT" ]; then LEAGUES="$SPORT"; else LEAGUES="NFL NBA WNBA MLB NHL"; fi
+
+          echo "### Player photo sync" >> "$GITHUB_STEP_SUMMARY"
+          failed=0
+
+          for league in $LEAGUES; do
+            echo "--- $league ---"
+            status=$(curl -sS -o response.json -w '%{http_code}' \
+              --max-time 120 \
+              -H "Authorization: Bearer $CRON_SECRET" \
+              "$SITE_URL/api/cron/sync-players?sport=$league")
+
+            echo "HTTP $status"
+            cat response.json; echo
+
+            {
+              echo "**$league** — HTTP $status"
+              echo '```json'
+              cat response.json
+              echo '```'
+            } >> "$GITHUB_STEP_SUMMARY"
+
+            # Keep going after a failure so one bad league doesn't skip the
+            # rest; the job still fails at the end so it can't look green.
+            if [ "$status" != "200" ]; then
+              echo "::error::$league returned HTTP $status"
+              failed=1
+            fi
+          done
+
+          exit $failed

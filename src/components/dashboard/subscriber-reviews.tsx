@@ -36,6 +36,7 @@ export function SubscriberReviews({ handicappers }: { handicappers: ReviewableHa
               <Avatar
                 src={h.avatarUrl}
                 name={h.displayName}
+                fallback="logo"
                 className="h-9 w-9 shrink-0 rounded-full text-xs"
               />
               <span className="min-w-0">

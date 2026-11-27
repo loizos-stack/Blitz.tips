@@ -3,7 +3,7 @@ import { EntrantAvatar } from "@/components/contest/entrant-avatar";
 import { entrantAvatar } from "@/lib/contest-avatar";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { format } from "date-fns";
+import { formatDate } from "@/lib/date-format";
 import { ArrowLeft, Trophy } from "lucide-react";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
@@ -21,15 +21,30 @@ import { RankChart } from "@/components/contest/rank-chart";
 import { resolveTeamLogo } from "@/lib/sportsdb";
 import { parseMatchupSides } from "@/lib/utils";
 import { cappersBeating } from "@/lib/contest-funnel";
+import { supercapperVisible } from "@/lib/supercapper-visibility";
 
 export const dynamic = "force-dynamic";
 
-export const metadata: Metadata = {
+/**
+ * Metadata is resolved separately from the component, so the page's
+ * notFound() does not suppress it: while the contest was hidden the
+ * title, description and canonical for a $10,000 contest were still
+ * being served in the payload of a 404.
+ */
+export async function generateMetadata(): Promise<Metadata> {
+  if (!supercapperVisible()) return {};
+  return {
   title: "Contest entrant",
   robots: { index: false, follow: false },
 };
+}
 
 export default async function EntrantPage({ params }: { params: Promise<{ entryId: string }> }) {
+  // The layout's gate returns the 404, but a layout and its page render
+  // together: without this the page still ran and its whole output — title,
+  // prize pool, standings, contest id — was serialised into the Flight payload
+  // of a page that claims not to exist. Checked here so nothing renders.
+  if (!supercapperVisible()) notFound();
   const { entryId } = await params;
 
   const [session, contest] = await Promise.all([
@@ -104,7 +119,7 @@ export default async function EntrantPage({ params }: { params: Promise<{ entryI
   return (
     <div className="container-page py-10">
       <Link
-        href="/supercapper"
+        href="/supercapper/standings"
         className="inline-flex items-center gap-1.5 text-sm font-medium text-muted hover:text-foreground"
       >
         <ArrowLeft className="h-4 w-4" /> Standings
@@ -128,7 +143,7 @@ export default async function EntrantPage({ params }: { params: Promise<{ entryI
             )}
           </h1>
           <p className="mt-1 text-sm text-muted">
-            {contest.name} · {format(contest.startsAt, "MMM d")}–{format(contest.endsAt, "MMM d, yyyy")}
+            {contest.name} · {formatDate(contest.startsAt)}–{formatDate(contest.endsAt)}
           </p>
         </div>
         </div>

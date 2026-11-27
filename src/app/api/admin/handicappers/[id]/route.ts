@@ -29,13 +29,20 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     data.isVerified = body.isVerified;
     actions.push(body.isVerified ? "verify" : "unverify");
   }
+  // Plan changes are NOT accepted here any more — see ./comp/route.ts.
+  //
+  // This used to set `plan` directly and call it a comp. It had no end date, it
+  // told the handicapper nothing, and it would overwrite a live Stripe
+  // subscription, leaving someone paying for a plan they had been given. A comp
+  // is now a gift with a date on it, granted through the route that enforces
+  // those rules. Refusing loudly rather than ignoring the field, so an old
+  // client or a bookmarked script doesn't appear to succeed while changing
+  // nothing.
   if (typeof body.plan === "string" && PLANS.includes(body.plan)) {
-    // Admin plan changes are comps — set directly with ACTIVE status, outside
-    // Stripe billing. Any real plan subscription keeps billing until the
-    // handicapper cancels it from their dashboard.
-    data.plan = body.plan as Plan;
-    data.planStatus = "ACTIVE";
-    actions.push(`plan=${body.plan}`);
+    return NextResponse.json(
+      { error: "Plans are granted as timed comps now — use the Give control on the Handicappers tab." },
+      { status: 410 }
+    );
   }
   if (typeof body.suspended === "boolean") {
     data.suspendedAt = body.suspended ? new Date() : null;

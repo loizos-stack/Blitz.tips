@@ -27,8 +27,13 @@ export type AdminPermission =
   | "picks"
   | "subscriptions"
   | "financials"
+  | "traffic"
+  | "recaps"
   | "emails"
   | "promos"
+  | "ads"
+  | "telegram"
+  | "x"
   | "media"
   | "system"
   | "tickets"
@@ -36,6 +41,7 @@ export type AdminPermission =
   | "reviews"
   | "blog"
   | "contests"
+  | "prizes"
   | "integrity"
   | "audit"
   | "permissions";
@@ -58,8 +64,13 @@ export const ADMIN_PERMISSIONS: PermissionDef[] = [
   { key: "picks", label: "Picks", href: "/admin/picks", description: "Review picks and settlement integrity" },
   { key: "subscriptions", label: "Subscriptions", href: "/admin/subscriptions", description: "Cancel or refund subscriptions" },
   { key: "financials", label: "Financials", href: "/admin/financials", description: "Revenue, MRR and payout figures" },
+  { key: "traffic", label: "Traffic", href: "/admin/traffic", description: "Visitors, countries, referrers and the pages they land on" },
+  { key: "recaps", label: "Recaps", href: "/admin/recaps", description: "Download the nightly results video for TikTok, Reels and Shorts" },
   { key: "emails", label: "Emails", href: "/admin/emails", description: "Send mass email to users and handicappers" },
   { key: "promos", label: "Promos", href: "/admin/promos", description: "Create and manage promo codes" },
+  { key: "ads", label: "Ads", href: "/admin/ads", description: "Create and track Meta (Facebook/Instagram) ad campaigns" },
+  { key: "telegram", label: "Telegram", href: "/admin/telegram", description: "Broadcast to Telegram channels and log ad spend from networks with no API" },
+  { key: "x", label: "X", href: "/admin/x", description: "Post to the connected X (Twitter) account and manage the connection" },
   { key: "media", label: "Media", href: "/admin/media", description: "Moderate profile and cover images" },
   { key: "system", label: "System", href: "/admin/system", description: "Announcements, odds quota, auto-settlement" },
   { key: "tickets", label: "Tickets", href: "/admin/tickets", description: "View and reply to support tickets from the contact form" },
@@ -67,6 +78,7 @@ export const ADMIN_PERMISSIONS: PermissionDef[] = [
   { key: "reviews", label: "Reviews", href: "/admin/reviews", description: "Moderate subscriber reviews before they appear on public profiles" },
   { key: "blog", label: "Blog", href: "/admin/blog", description: "Write, edit, and publish blog posts" },
   { key: "contests", label: "Contests", href: "/admin/contests", description: "Manage contests, grade picks, settle winners and mark prizes paid" },
+  { key: "prizes", label: "Prizes", href: "/admin/prizes", description: "Record each month's winning handicappers and mark their prizes paid" },
   { key: "integrity", label: "Integrity", href: "/admin/integrity", description: "Anti-fraud: IP/device logs, shared-IP clusters, and flagged or disqualified contest entries" },
   { key: "audit", label: "Logs", href: "/admin/logs", description: "Search and filter the site-wide activity log" },
   { key: "permissions", label: "Permissions", href: "/admin/permissions", description: "Create admins and grant them permissions", superOnly: true },
@@ -146,6 +158,27 @@ export async function requireAnyPermission(keys: AdminPermission[]): Promise<Adm
   if (!ctx) return null;
   if (ctx.isSuperAdmin || keys.some((k) => ctx.permissions.has(k))) return ctx;
   return null;
+}
+
+/**
+ * Whether the signed-in viewer may read premium picks they have not paid for.
+ *
+ * An admin browsing the public site is still a visitor to it, so the paywall
+ * used to show them the same teaser as anyone else — which makes the one
+ * person responsible for moderating a pick the one person who cannot read it.
+ * The admin Picks tab already lists every selection in full; this only stops
+ * the rest of the site disagreeing with it.
+ *
+ * Scoped to the "picks" permission rather than to admins generally: an admin
+ * who only handles ads has no more business reading paid selections than any
+ * other subscriber would.
+ *
+ * NOT applied to surfaces that render for someone else or are cached publicly
+ * — share cards, digest emails, Telegram autoposts, the contest funnel's
+ * deliberate teaser. Those take an explicit `unlocked: false` and must keep it.
+ */
+export async function canBypassPickPaywall(): Promise<boolean> {
+  return (await requirePermission("picks")) !== null;
 }
 
 /** Guard for superadmin-only surfaces (managing other admins). */

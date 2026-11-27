@@ -13,6 +13,7 @@ import {
   effectivePrizeLadderCents,
 } from "@/lib/contest";
 import { cappersBeating } from "@/lib/contest-funnel";
+import { supercapperVisible } from "@/lib/supercapper-visibility";
 import type { CapperRow } from "@/components/contest/capper-list";
 
 /**
@@ -26,8 +27,18 @@ import type { CapperRow } from "@/components/contest/capper-list";
  * marketplace pitch — the handicappers currently beating their number — which is
  * the honest version of "why subscribe": these people are ahead of you.
  *
- * Only sends while the contest is live, only to entrants who have a verified
- * address and haven't opted out of email, and never to a disqualified entry.
+ * Only sends while the contest is both VISIBLE and live, only to entrants who
+ * have a verified address and haven't opted out of email, and never to a
+ * disqualified entry.
+ *
+ * The visibility check is not belt-and-braces, it is the gap this had. Every
+ * public trace of the contest is behind supercapperVisible() — the pages, the
+ * nav, the home strip, the pop-up, the sitemap — and this email was not. So
+ * while the contest was postponed, entrants kept getting a weekly message
+ * telling them how many graded picks they still owed, with links to pages that
+ * answer 404. The whole point of that flag is that one switch hides the
+ * contest; an email is a more intrusive trace than a nav link, not a lesser
+ * one, so it belongs behind the same switch and comes back with it.
  */
 
 const DIGEST_WINDOW_DAYS = 7;
@@ -50,6 +61,12 @@ export async function runContestDigest(
   opts: { dryRun?: boolean } = {}
 ): Promise<ContestDigestReport> {
   const dryRun = Boolean(opts.dryRun);
+
+  // Checked before the query, so a hidden contest costs nothing to skip. The
+  // schedule that calls this keeps firing either way; it just has nothing to do.
+  if (!supercapperVisible()) {
+    return { contest: null, phase: "hidden", eligible: 0, sent: 0, skipped: 0, failed: 0, dryRun };
+  }
 
   const contest = await prisma.contest.findUnique({
     where: { slug: "supercapper" },

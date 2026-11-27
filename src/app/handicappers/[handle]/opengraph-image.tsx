@@ -2,7 +2,9 @@ import { ImageResponse } from "next/og";
 import { prisma } from "@/lib/prisma";
 import { computeStats } from "@/lib/odds";
 import { computeStreaks, lastNStats } from "@/lib/analytics";
+import { sportsFromPicks } from "@/lib/handicappers";
 import { SPORT_LABELS } from "@/lib/utils";
+import { toDataUri } from "@/lib/og-image";
 import { recordCard, SHARE_CARD_SIZE } from "@/lib/share-cards";
 
 // A handicapper's verified-record card, doubling as the profile's social-share
@@ -18,25 +20,6 @@ export const contentType = "image/png";
 // pre-cached image is far more reliable than a per-request dynamic render.
 // Records only move as picks settle, so an hour is plenty fresh.
 export const revalidate = 3600;
-
-// Fetch an image (avatar/cover) and inline it as a data URI so Satori never has
-// to fetch it itself (a failed Satori fetch throws and breaks the whole card).
-// Any failure — bad URL, non-image, oversized, network — degrades to null so the
-// card falls back to the monogram/gradient.
-async function toDataUri(url: string | null): Promise<string | null> {
-  if (!url) return null;
-  try {
-    const res = await fetch(url);
-    if (!res.ok) return null;
-    const type = res.headers.get("content-type") ?? "";
-    if (!type.startsWith("image/")) return null;
-    const buf = Buffer.from(await res.arrayBuffer());
-    if (buf.byteLength === 0 || buf.byteLength > 3_000_000) return null;
-    return `data:${type};base64,${buf.toString("base64")}`;
-  } catch {
-    return null;
-  }
-}
 
 const fallback = {
   displayName: "Blitz.tips",
@@ -62,12 +45,13 @@ export default async function Image({ params }: { params: Promise<{ handle: stri
       select: {
         displayName: true,
         handle: true,
-        sports: true,
         suspendedAt: true,
         avatarUrl: true,
         coverUrl: true,
         picks: {
-          select: { odds: true, units: true, result: true, eventStartsAt: true, settledAt: true },
+          // `sport` is here because the pills are derived from the picks
+          // rather than read off the profile — see sportsFromPicks.
+          select: { odds: true, units: true, result: true, eventStartsAt: true, settledAt: true, sport: true },
         },
       },
     })
@@ -95,7 +79,7 @@ export default async function Image({ params }: { params: Promise<{ handle: stri
       streak: computeStreaks(profile.picks).current,
       l10: lastNStats(profile.picks, 10).record,
       totalPicks: stats.totalPicks,
-      sports: profile.sports.map((s) => SPORT_LABELS[s] ?? s),
+      sports: sportsFromPicks(profile.picks).map((s) => SPORT_LABELS[s] ?? s),
       avatarDataUri,
       coverDataUri,
     }),

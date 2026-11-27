@@ -206,7 +206,7 @@ export async function seedTestData(prisma: PrismaClient): Promise<{ handicappers
     }
 
     // Player props for ~half the cappers (idempotent top-up so existing cappers
-    // get them on a re-run). Powers the finder's "Player Props" filter.
+    // get them on a re-run). Powers the finder's "Player Prop" filter.
     if (c % 2 === 0 && (await prisma.pick.count({ where: { handicapperId: profile.id, betType: "PROP" } })) === 0) {
       const stats = PROP_STATS[h.sports[0]] ?? ["Points"];
       const propRows = [];

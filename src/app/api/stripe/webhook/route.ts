@@ -3,7 +3,9 @@ import Stripe from "stripe";
 import { stripe } from "@/lib/stripe";
 import { prisma } from "@/lib/prisma";
 import { logActivity } from "@/lib/audit";
-import type { BillingInterval, HandicapperPlan, SubscriptionStatus } from "@prisma/client";
+import { notifyAdmins } from "@/lib/admin-alerts";
+import type { BillingInterval, BillingIntervalPass, HandicapperPlan, SubscriptionStatus } from "@prisma/client";
+import { priceCurrencyOf, splitCents, subscriptionIdFromInvoice } from "@/lib/platform-collect";
 
 const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
 
@@ -32,6 +34,14 @@ async function syncSubscription(subscription: Stripe.Subscription) {
 
   const periodEndUnix = subscription.items.data[0]?.current_period_end;
 
+  // Read before the write so the alert can tell a NEW subscription from the
+  // stream of updates Stripe sends for the same one. Without this every
+  // renewal, card update and cancellation would announce itself as a sale.
+  const before = await prisma.subscription.findUnique({
+    where: { subscriberId_handicapperId: { subscriberId, handicapperId } },
+    select: { status: true },
+  });
+
   await prisma.subscription.upsert({
     where: { subscriberId_handicapperId: { subscriberId, handicapperId } },
     create: {
@@ -59,6 +69,38 @@ async function syncSubscription(subscription: Stripe.Subscription) {
     targetId: subscription.id,
     detail: `subscriber ${subscriberId} → handicapper ${handicapperId}`,
   });
+
+  // A sale is the first time this pair becomes ACTIVE. Coming back from
+  // past_due counts as one too — the money arrived either way — but a renewal
+  // of an already-active subscription does not.
+  if (mapStatus(subscription.status) === "ACTIVE" && before?.status !== "ACTIVE") {
+    const [subscriber, handicapper] = await Promise.all([
+      prisma.user.findUnique({ where: { id: subscriberId }, select: { email: true, name: true } }),
+      prisma.handicapperProfile.findUnique({
+        where: { id: handicapperId },
+        select: { handle: true, monthlyPriceCents: true, priceCurrency: true },
+      }),
+    ]);
+    await notifyAdmins({
+      kind: "subscription.new",
+      title: `New subscription to @${handicapper?.handle ?? handicapperId}`,
+      details: [
+        ["Customer", subscriber?.email ?? subscriberId],
+        ["Handicapper", `@${handicapper?.handle ?? handicapperId}`],
+        ...(handicapper
+          ? ([
+              [
+                "Price",
+                `${(handicapper.monthlyPriceCents / 100).toFixed(2)} ${handicapper.priceCurrency}/mo`,
+              ],
+            ] as [string, string][])
+          : []),
+        ["Paid with", "Stripe"],
+        ...(before ? ([["Previously", before.status]] as [string, string][]) : []),
+      ],
+      path: "/admin/subscriptions",
+    });
+  }
 }
 
 /** A handicapper's own plan subscription with the platform — separate revenue stream from syncSubscription above. */
@@ -94,6 +136,86 @@ async function syncHandicapperPlanSubscription(subscription: Stripe.Subscription
       },
     })
     .catch(() => undefined);
+}
+
+
+/**
+ * Record one month (or week, or year) of a platform-collected subscription.
+ *
+ * Only for subscriptions the platform collects itself — a Connect destination
+ * charge needs no ledger entry, because Stripe has already moved the
+ * handicapper's share and there is nothing left to settle. The marker is
+ * `collect: "platform"` in the subscription's metadata, written at checkout.
+ *
+ * Driven by the invoice rather than the subscription because the subscription
+ * fires `updated` for all sorts of reasons that are not money arriving — a
+ * card change, a cancellation scheduled, a trial ending. An invoice that is
+ * paid is money, once, and `stripeInvoiceId` is unique on the row, so a
+ * webhook redelivery (Stripe guarantees at least once, not exactly once)
+ * cannot record the same month twice.
+ *
+ * `amount_paid` rather than the subscription's price: it is what Stripe
+ * actually collected, which is what a proration, a coupon, or a partially
+ * credited period leaves behind. Owing the handicapper a share of a number
+ * nobody paid would be a slow, quiet accounting error.
+ */
+async function recordPlatformEarning(invoice: Stripe.Invoice) {
+  if (invoice.amount_paid <= 0) return;
+
+  const subId = subscriptionIdFromInvoice(invoice);
+  if (!subId) return;
+
+  const subscription = await stripe.subscriptions.retrieve(subId);
+  const meta = subscription.metadata ?? {};
+  if (meta.collect !== "platform") return;
+
+  const subscriberId = meta.subscriberId;
+  const handicapperId = meta.handicapperId;
+  if (!subscriberId || !handicapperId) return;
+
+  const handicapper = await prisma.handicapperProfile.findUnique({
+    where: { id: handicapperId },
+    select: { plan: true, handle: true },
+  });
+  if (!handicapper) return;
+
+  const { commissionCents, netCents } = splitCents(invoice.amount_paid, handicapper.plan);
+  const interval: BillingIntervalPass =
+    meta.interval === "WEEKLY" || meta.interval === "ANNUAL"
+      ? (meta.interval as BillingIntervalPass)
+      : "MONTHLY";
+
+  // createMany + skipDuplicates rather than create: a redelivered webhook
+  // should be a no-op, not a unique-constraint error that makes Stripe retry
+  // it forever.
+  const { count } = await prisma.platformEarning.createMany({
+    data: [
+      {
+        stripeInvoiceId: invoice.id!,
+        stripeSubscriptionId: subId,
+        subscriberId,
+        handicapperId,
+        interval,
+        amountCents: invoice.amount_paid,
+        currency: priceCurrencyOf(invoice.currency),
+        commissionCents,
+        netCents,
+        paidAt: new Date((invoice.status_transitions?.paid_at ?? invoice.created) * 1000),
+      },
+    ],
+    skipDuplicates: true,
+  });
+  if (count === 0) return;
+
+  await logActivity({
+    actorId: subscriberId,
+    action: "subscription.platform_collected",
+    targetType: "PlatformEarning",
+    targetId: invoice.id ?? subId,
+    detail:
+      `@${handicapper.handle}: collected ${(invoice.amount_paid / 100).toFixed(2)} ` +
+      `${invoice.currency.toUpperCase()}, ${(netCents / 100).toFixed(2)} owed to the handicapper`,
+  });
 }
 
 export async function POST(request: Request) {
@@ -133,6 +255,15 @@ export async function POST(request: Request) {
       } else {
         await syncSubscription(subscription);
       }
+      break;
+    }
+    // Money actually arriving on a platform-collected subscription. Both the
+    // first payment and every renewal, which is why it is here and not folded
+    // into checkout.session.completed — that one fires once, a subscription
+    // bills forever.
+    case "invoice.payment_succeeded":
+    case "invoice.paid": {
+      await recordPlatformEarning(event.data.object);
       break;
     }
     case "account.updated": {

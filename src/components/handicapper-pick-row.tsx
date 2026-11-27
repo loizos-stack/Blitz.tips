@@ -2,22 +2,47 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { format } from "date-fns";
-import { Lock } from "lucide-react";
-import type { Pick as PickModel, PickResult } from "@prisma/client";
+import { LocalTime } from "@/components/local-time";
+import { Lock, Clock } from "lucide-react";
+import type { Pick as PickModel, PickResult, PickSport } from "@prisma/client";
 import { ResultPill } from "@/components/result-pill";
 import { TeamLogo } from "@/components/team-logo";
+import { PlayerTag } from "@/components/player-tag";
 import { PickShareButton } from "@/components/pick-share-button";
-import { isPickLocked } from "@/lib/pick-visibility";
+import {
+  AccessBadge,
+  PickDetails,
+  PickDetailRow,
+  PickHeader,
+  PickMatchup,
+  GradingState,
+} from "@/components/pick-details";
+import { SportIcon } from "@/components/sport-icon";
+import { isPickLocked, isGradableByHandicapper } from "@/lib/pick-visibility";
 import { pickShareInfo } from "@/lib/pick-share";
-import { formatOdds } from "@/lib/odds";
-import { SPORT_LABELS, BET_TYPE_LABELS, usesVsSeparator } from "@/lib/utils";
+import { Odds } from "@/components/odds-format";
+import { SPORT_LABELS, BET_TYPE_LABELS, usesVsSeparator, cn } from "@/lib/utils";
+import { UnitsRisk } from "@/components/units-risk";
 
 const SETTLE_OPTIONS: PickResult[] = ["WIN", "LOSS", "PUSH", "VOID"];
 
 // Crests are attached server-side (enrichPickCrests) before the pick reaches
 // this client row; a parlay's placeholder matchup resolves to neither side.
 type RowPick = PickModel & { awayTeamLogo?: string | null; homeTeamLogo?: string | null };
+
+/**
+ * "NFL", or "Basketball · EuroLeague".
+ *
+ * The league is only worth printing when it says something the sport does not.
+ * For the US leagues the two strings are identical, and the header read
+ * "NFL · NFL".
+ */
+function sportLine(sport: PickSport, league: string | null): string {
+  const label = SPORT_LABELS[sport] ?? sport;
+  const extra = league?.trim();
+  if (!extra || extra.toLowerCase() === label.toLowerCase()) return label;
+  return `${label} · ${extra}`;
+}
 
 export function HandicapperPickRow({
   pick,
@@ -28,17 +53,31 @@ export function HandicapperPickRow({
 }) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   async function settle(result: PickResult) {
     setLoading(true);
-    await fetch(`/api/picks/${pick.id}`, {
+    setError(null);
+    const res = await fetch(`/api/picks/${pick.id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ result }),
     });
     setLoading(false);
+    // A refusal used to be discarded, so a rejected grade looked exactly like
+    // an accepted one until the page came back unchanged.
+    if (!res.ok) {
+      const body = await res.json().catch(() => null);
+      setError(body?.error ?? "Couldn't grade this tip. Please try again.");
+      return;
+    }
     router.refresh();
   }
+
+  // Mirrors the server's rule. Evaluated at render, so a row left open across
+  // kickoff keeps hiding the buttons until the page refreshes — the endpoint is
+  // what actually decides, and it re-checks on every attempt.
+  const gradable = isGradableByHandicapper(pick);
 
   // Order crests to match the matchup text: "Home vs Away" sports show the home
   // crest first; "Away @ Home" sports show the away crest first.
@@ -52,60 +91,120 @@ export function HandicapperPickRow({
     ? pickShareInfo({ ...share, pick, locked: isPickLocked(pick, false) })
     : null;
 
+  // A prop is about a person; everything else is about a fixture. Giving the
+  // two the same flat row of chips was what made the photo look like a stray
+  // favicon next to the bet type.
+  const isPlayerPick = Boolean(pick.playerName);
+
+
   return (
-    <div className="card p-5">
-      <div className="flex items-center justify-between text-sm text-muted">
-        <span>
-          {SPORT_LABELS[pick.sport]}
-          {pick.league ? ` · ${pick.league}` : ""}
-        </span>
-        <span>{format(pick.eventStartsAt, "MMM d, h:mm a")}</span>
-      </div>
+    <div className={cn("card p-5", pick.isPremium && "card-premium")}>
+      <PickHeader
+        sportIcon={<SportIcon sport={pick.sport} className="h-4 w-4" />}
+        sportLabel={sportLine(pick.sport, pick.league)}
+        time={
+          <>
+            <Clock className="h-4 w-4" />
+            <LocalTime iso={new Date(pick.eventStartsAt).toISOString()} withZone />
+          </>
+        }
+      />
 
-      <div className="mt-3 flex items-center gap-2">
-        {startLogo && (
-          <TeamLogo sport={pick.sport} logoUrl={startLogo} className="h-6 w-6 shrink-0 rounded-full ring-2 ring-surface" />
+      <PickMatchup
+        startLogo={
+          startLogo ? (
+            <TeamLogo sport={pick.sport} logoUrl={startLogo} className="h-6 w-6 shrink-0 rounded-full ring-2 ring-surface" />
+          ) : undefined
+        }
+        endLogo={
+          endLogo ? (
+            <TeamLogo sport={pick.sport} logoUrl={endLogo} className="h-6 w-6 shrink-0 rounded-full ring-2 ring-surface" />
+          ) : undefined
+        }
+      >
+        {pick.matchup}
+      </PickMatchup>
+
+      {isPlayerPick && (
+        <div className="mt-4 flex justify-center">
+          <PlayerTag
+            size="lg"
+            playerName={pick.playerName}
+            photoUrl={pick.playerPhotoUrl}
+            team={pick.playerTeam}
+          />
+        </div>
+      )}
+
+      <PickDetails>
+        <PickDetailRow label="Bet Type">
+          <span className="font-semibold">{BET_TYPE_LABELS[pick.betType]}</span>
+        </PickDetailRow>
+        {pick.betType !== "PARLAY" && (
+          <PickDetailRow label="Selection">
+            <span className="font-display font-semibold">{pick.selection}</span>
+          </PickDetailRow>
         )}
-        <p className="font-display font-semibold">{pick.matchup}</p>
-        {endLogo && (
-          <TeamLogo sport={pick.sport} logoUrl={endLogo} className="h-6 w-6 shrink-0 rounded-full ring-2 ring-surface" />
+        <PickDetailRow label="Odds">
+          <span className="font-semibold tabular-nums"><Odds value={pick.odds} /></span>
+        </PickDetailRow>
+        <PickDetailRow label="Units">
+          <UnitsRisk units={pick.units} />
+        </PickDetailRow>
+        {pick.analysis && (
+          <PickDetailRow label="Analysis">
+            <span className="whitespace-pre-line text-muted">{pick.analysis}</span>
+          </PickDetailRow>
         )}
-      </div>
+      </PickDetails>
 
-      <div className="mt-2 flex flex-wrap items-center gap-3 text-sm">
-        <span className="rounded-full bg-surface-raised px-2.5 py-1">{BET_TYPE_LABELS[pick.betType]}</span>
-        {pick.betType !== "PARLAY" && <span className="font-display font-semibold">{pick.selection}</span>}
-        <span className="font-semibold tabular-nums">{formatOdds(pick.odds)}</span>
-        <span className="inline-flex items-baseline gap-1 rounded-lg border border-accent/30 bg-accent/10 px-2 py-0.5">
-          <span className="font-bold tabular-nums text-accent">{pick.units}u</span>
-          <span className="text-[10px] font-semibold uppercase tracking-wide text-accent/80">risk</span>
-        </span>
-        {pick.isPremium && <span className="text-xs text-muted">Premium</span>}
-      </div>
+      {/* Left: whether this pick is behind the paywall — the thing a capper
+          scanning their own dashboard most wants to see and previously could
+          not, since "· Premium" hid at the end of the bet type and a free pick
+          said nothing at all.
 
+          Right: where the pick is in its lifecycle, and what can be done about
+          it. The clock stays put whether or not the pick can be graded yet —
+          it used to be swapped out for the settle buttons, which left a
+          gradable pick saying nothing at all about being pending. The buttons
+          are an addition to that line, not a replacement for it. */}
       <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-border pt-4">
-        <ResultPill result={pick.result} />
+        <AccessBadge isPremium={pick.isPremium} />
         {pick.result === "PENDING" ? (
-          <div className="flex flex-wrap gap-2">
-            {SETTLE_OPTIONS.map((option) => (
-              <button
-                key={option}
-                disabled={loading}
-                onClick={() => settle(option)}
-                className="rounded-full border border-border px-3 py-1 text-xs font-medium text-muted hover:text-foreground disabled:opacity-50"
-              >
-                {option}
-              </button>
-            ))}
-          </div>
+          <span className="inline-flex flex-wrap items-center justify-end gap-2">
+            {gradable && (
+              <span className="flex flex-wrap gap-2">
+                {SETTLE_OPTIONS.map((option) => (
+                  <button
+                    key={option}
+                    disabled={loading}
+                    onClick={() => settle(option)}
+                    className="rounded-full border border-border px-3 py-1 text-xs font-medium text-muted hover:text-foreground disabled:opacity-50"
+                  >
+                    {option}
+                  </button>
+                ))}
+              </span>
+            )}
+            <span className="inline-flex items-center gap-1.5">
+              <Clock className="h-3.5 w-3.5 text-muted" />
+              <GradingState settled={false} />
+            </span>
+          </span>
         ) : (
           // A grade is final — no re-grading once settled. Corrections go through
           // an admin, keeping records tamper-proof.
-          <span className="inline-flex items-center gap-1.5 text-xs font-medium text-muted">
-            <Lock className="h-3.5 w-3.5" /> Graded — final
+          <span className="inline-flex items-center gap-2">
+            <ResultPill result={pick.result} />
+            <span className="inline-flex items-center gap-1.5">
+              <Lock className="h-3.5 w-3.5 text-muted" />
+              <GradingState settled />
+            </span>
           </span>
         )}
       </div>
+
+      {error && <p className="mt-3 text-xs text-danger">{error}</p>}
 
       {shareInfo && (
         <div className="mt-3 flex items-center justify-between border-t border-border pt-3">

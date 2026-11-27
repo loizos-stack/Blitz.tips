@@ -12,6 +12,7 @@ import {
 } from "@/lib/subscriber-pricing";
 import { siteUrl } from "@/lib/site";
 import { isSubscriptionActive } from "@/lib/subscription-status";
+import { collectsOnPlatform, platformCollectEnabled } from "@/lib/platform-collect";
 
 const appUrl = siteUrl();
 
@@ -42,12 +43,25 @@ export async function POST(request: Request) {
   if (handicapper.suspendedAt) {
     return NextResponse.json({ error: "This handicapper isn't accepting subscribers" }, { status: 400 });
   }
-  if (!handicapper.stripeAccountReady || !handicapper.stripeAccountId) {
+  // Two ways a card subscription can work, and the handicapper's Connect
+  // status picks between them:
+  //
+  //   connected    -> destination charge. Stripe splits the money as it takes
+  //                   it and pays the handicapper directly. Always preferred.
+  //   not connected-> the platform collects the whole charge and owes the
+  //                   handicapper their share, settled by hand. See
+  //                   lib/platform-collect.
+  //
+  // Before this, the second case was simply refused, which is why a site with
+  // one connected handicapper had one handicapper anybody could subscribe to.
+  const onPlatform = collectsOnPlatform(handicapper, await platformCollectEnabled());
+  if (!onPlatform && (!handicapper.stripeAccountReady || !handicapper.stripeAccountId)) {
     return NextResponse.json({ error: "This handicapper hasn't enabled subscriptions yet" }, { status: 400 });
   }
   // Captured before the ensureSubscriberPrices reassignment below, which
   // widens `handicapper` back to a nullable-fields type.
   const stripeAccountId = handicapper.stripeAccountId;
+  const handicapperPlan = handicapper.plan;
   if (packageCents(handicapper, interval) == null) {
     return NextResponse.json({ error: "That package isn't offered by this handicapper" }, { status: 400 });
   }
@@ -94,9 +108,26 @@ export async function POST(request: Request) {
     allow_promotion_codes: true,
     line_items: [{ price: priceId, quantity: 1 }],
     subscription_data: {
-      application_fee_percent: commissionPercentForPlan(handicapper.plan),
-      transfer_data: { destination: stripeAccountId },
-      metadata: { subscriberId: session.user.id, handicapperId: handicapper.id },
+      // No application fee and no transfer when the platform is collecting:
+      // both of those tell Stripe to move money to a connected account, and
+      // there isn't one. The split is recorded in our own ledger instead, off
+      // `collect` below.
+      ...(onPlatform
+        ? {}
+        : {
+            application_fee_percent: commissionPercentForPlan(handicapperPlan),
+            transfer_data: { destination: stripeAccountId! },
+          }),
+      // `collect` and `interval` travel on the SUBSCRIPTION, not just the
+      // checkout session, because the thing that records each month's money is
+      // an invoice webhook — and an invoice knows its subscription, not the
+      // session that started it a year ago.
+      metadata: {
+        subscriberId: session.user.id,
+        handicapperId: handicapper.id,
+        collect: onPlatform ? "platform" : "connect",
+        interval,
+      },
       ...(trialDays ? { trial_period_days: trialDays } : {}),
     },
     metadata: { subscriberId: session.user.id, handicapperId: handicapper.id },
