@@ -44,10 +44,16 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Install a current pg_dump
-        # The runner ships the PostgreSQL 16 client. pg_dump refuses to dump a
-        # server newer than itself, so a Neon upgrade to 17 would break this
-        # with a version-mismatch error rather than anything obvious. Installing
-        # 17 from PGDG covers both, and costs about fifteen seconds.
+        # pg_dump refuses to dump a server newer than itself, and the runner
+        # ships an older client than Neon runs. The first version of this step
+        # pinned postgresql-client-17, on the reasoning that it covered "a Neon
+        # upgrade to 17" — Neon was already on 18.7, so the very first run died
+        # with a version mismatch.
+        #
+        # Pinning a number was the mistake, not the number. PGDG's bare
+        # `postgresql-client` always pulls the newest major, and the PATH line
+        # below reads whichever one landed rather than naming it, so Postgres 19
+        # needs no edit here.
         run: |
           sudo install -d /usr/share/postgresql-common/pgdg
           sudo curl -fsSL -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc \
@@ -55,14 +61,21 @@ jobs:
           echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" \
             | sudo tee /etc/apt/sources.list.d/pgdg.list >/dev/null
           sudo apt-get update -qq
-          sudo apt-get install -y -qq postgresql-client-17
-          echo "/usr/lib/postgresql/17/bin" >> "$GITHUB_PATH"
+          sudo apt-get install -y -qq postgresql-client
+          ls -d /usr/lib/postgresql/*/bin | sort -V | tail -1 >> "$GITHUB_PATH"
 
       - name: Dump
         id: dump
         env:
           DIRECT_URL: ${{ secrets.DIRECT_URL }}
         run: |
+          # pipefail, because the next line pipes the script into `tail`: without
+          # it the pipeline reports tail's exit code, a failed dump looks like a
+          # success, and the step carries on to fail further down with something
+          # unrelated. That is exactly what happened on the first run — the real
+          # error was a server version mismatch and the reported one was `stat:
+          # cannot statx 'Dumping to backups/...'`.
+          set -o pipefail
           if [ -z "$DIRECT_URL" ]; then
             echo "::error::DIRECT_URL repository secret is not set — see the header of this file."
             exit 1
