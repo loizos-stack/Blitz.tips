@@ -31,10 +31,21 @@ name: Database backup
 # Verified end to end on 2026-11-26: a dump of 51 tables restored into an empty
 # database as 51 tables with all 68 migrations recorded.
 
+# STARTED BY VERCEL, not by GitHub. The schedule lives in vercel.json
+# (/api/cron/backup at 03:17 UTC), which pokes this workflow's
+# workflow_dispatch endpoint.
+#
+# This file used to carry `schedule: - cron: "17 3 * * *"` and that is why
+# there were no backups for a day. GitHub deprioritises scheduled workflows on
+# quiet repositories and skips slots silently: the 03:17 run never happened,
+# and the "hourly" health check managed two runs in eighteen hours. A failed
+# run emails somebody; a skipped run tells nobody, which is the worse of the
+# two failure modes and the one a backup cannot afford.
+#
+# The GitHub schedule is gone rather than kept as a belt-and-braces second
+# trigger, because two schedulers that both sometimes fire means two dumps on
+# the days they agree.
 on:
-  schedule:
-    # 03:17 UTC — off the hour, because everything else in the world runs at :00.
-    - cron: "17 3 * * *"
   workflow_dispatch:
 
 jobs:
