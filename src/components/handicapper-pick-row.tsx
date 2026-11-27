@@ -163,32 +163,34 @@ export function HandicapperPickRow({
           not, since "· Premium" hid at the end of the bet type and a free pick
           said nothing at all.
 
-          Right: where the pick is in its lifecycle. The result pill moved over
-          to join it, because a pending pick printed "Pending" on the left and
-          "PENDING" on the right, which is the same word twice. Once settled the
-          two are different facts — Win, and final — so both are shown. */}
+          Right: where the pick is in its lifecycle, and what can be done about
+          it. The clock stays put whether or not the pick can be graded yet —
+          it used to be swapped out for the settle buttons, which left a
+          gradable pick saying nothing at all about being pending. The buttons
+          are an addition to that line, not a replacement for it. */}
       <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-border pt-4">
         <AccessBadge isPremium={pick.isPremium} />
-        {pick.result === "PENDING" && !gradable ? (
-          // Nothing to grade yet. Saying so beats offering buttons the server
-          // will refuse.
-          <span className="inline-flex items-center gap-1.5">
-            <Clock className="h-3.5 w-3.5 text-muted" />
-            <GradingState settled={false} />
+        {pick.result === "PENDING" ? (
+          <span className="inline-flex flex-wrap items-center justify-end gap-2">
+            {gradable && (
+              <span className="flex flex-wrap gap-2">
+                {SETTLE_OPTIONS.map((option) => (
+                  <button
+                    key={option}
+                    disabled={loading}
+                    onClick={() => settle(option)}
+                    className="rounded-full border border-border px-3 py-1 text-xs font-medium text-muted hover:text-foreground disabled:opacity-50"
+                  >
+                    {option}
+                  </button>
+                ))}
+              </span>
+            )}
+            <span className="inline-flex items-center gap-1.5">
+              <Clock className="h-3.5 w-3.5 text-muted" />
+              <GradingState settled={false} />
+            </span>
           </span>
-        ) : pick.result === "PENDING" ? (
-          <div className="flex flex-wrap gap-2">
-            {SETTLE_OPTIONS.map((option) => (
-              <button
-                key={option}
-                disabled={loading}
-                onClick={() => settle(option)}
-                className="rounded-full border border-border px-3 py-1 text-xs font-medium text-muted hover:text-foreground disabled:opacity-50"
-              >
-                {option}
-              </button>
-            ))}
-          </div>
         ) : (
           // A grade is final — no re-grading once settled. Corrections go through
           // an admin, keeping records tamper-proof.
