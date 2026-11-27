@@ -3,6 +3,8 @@ import { ConnectOnboardingBanner, StripePayoutsCard } from "@/components/connect
 import { PayoutWalletsCard } from "@/components/payout-wallets-card";
 import { connectBannerState } from "@/lib/connect";
 import { loadDashboardHandicapper } from "@/lib/handicapper-dashboard";
+import { handicapperBalance } from "@/lib/handicapper-balance";
+import { ManualPayoutCard } from "@/components/manual-payout-card";
 
 export const dynamic = "force-dynamic";
 
@@ -17,8 +19,20 @@ export default async function HandicapperPayoutsPage() {
   // decides which country the picker starts on.
   const connect = await connectBannerState(handicapper);
 
+  // What the platform is holding for them. Shown above the Connect banner
+  // when there is anything outstanding, because "you are owed 180.00" is more
+  // useful to someone opening this page than "connect your account" — and
+  // until they connect, this page was the one place that said nothing about
+  // the money their subscribers had already paid.
+  const balance = await handicapperBalance(handicapper.id);
+
   return (
     <div className="flex flex-col gap-4">
+      <ManualPayoutCard
+        balance={balance}
+        currency={handicapper.priceCurrency}
+        connected={connect.ready}
+      />
       {connect.ready ? (
         <StripePayoutsCard />
       ) : (

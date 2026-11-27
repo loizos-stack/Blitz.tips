@@ -714,6 +714,49 @@ model CryptoPayment {
   @@index([subscriberId])
 }
 
+/// A Stripe subscription payment the PLATFORM collected, for a handicapper who
+/// has no Stripe Connect account of their own.
+///
+/// The normal path is a destination charge: Stripe splits the money at the
+/// moment it is taken, sends the handicapper's share straight to their own
+/// Stripe account, and the platform never holds it. That requires the
+/// handicapper to have finished Connect onboarding, and most have not — which
+/// meant most handicappers on the site could not be paid at all.
+///
+/// On this path the whole charge lands in the platform's balance and the
+/// handicapper's share is a debt the platform settles by hand, recorded here
+/// and discharged by a HandicapperPayout. Same shape as CryptoPayment and
+/// DirectPayment, and summed with them on the financials tab, because it is
+/// the same kind of money: ours to hold, theirs to receive.
+///
+/// One row per PAID INVOICE, not per subscription — a monthly subscription
+/// earns twelve of these a year, and each one is owed separately.
+model PlatformEarning {
+  id String @id @default(cuid())
+
+  /// The Stripe invoice. Unique, and that is the point: webhooks are delivered
+  /// at least once, so without this a redelivery would record the same month's
+  /// money twice and overstate what is owed.
+  stripeInvoiceId      String  @unique
+  stripeSubscriptionId String?
+
+  subscriberId  String
+  handicapperId String
+
+  interval        BillingIntervalPass
+  amountCents     Int // what Stripe actually collected
+  currency        PriceCurrency       @default(USD)
+  commissionCents Int // platform's cut at the time of payment
+  netCents        Int // owed to the handicapper
+
+  /// When Stripe took the money, which is not always when this row was written.
+  paidAt    DateTime
+  createdAt DateTime @default(now())
+
+  @@index([handicapperId])
+  @@index([subscriberId])
+}
+
 enum CryptoPaymentStatus {
   PENDING
   CONFIRMED

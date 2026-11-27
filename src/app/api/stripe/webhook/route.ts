@@ -4,7 +4,8 @@ import { stripe } from "@/lib/stripe";
 import { prisma } from "@/lib/prisma";
 import { logActivity } from "@/lib/audit";
 import { notifyAdmins } from "@/lib/admin-alerts";
-import type { BillingInterval, HandicapperPlan, SubscriptionStatus } from "@prisma/client";
+import type { BillingInterval, BillingIntervalPass, HandicapperPlan, SubscriptionStatus } from "@prisma/client";
+import { priceCurrencyOf, splitCents, subscriptionIdFromInvoice } from "@/lib/platform-collect";
 
 const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
 
@@ -137,6 +138,86 @@ async function syncHandicapperPlanSubscription(subscription: Stripe.Subscription
     .catch(() => undefined);
 }
 
+
+/**
+ * Record one month (or week, or year) of a platform-collected subscription.
+ *
+ * Only for subscriptions the platform collects itself — a Connect destination
+ * charge needs no ledger entry, because Stripe has already moved the
+ * handicapper's share and there is nothing left to settle. The marker is
+ * `collect: "platform"` in the subscription's metadata, written at checkout.
+ *
+ * Driven by the invoice rather than the subscription because the subscription
+ * fires `updated` for all sorts of reasons that are not money arriving — a
+ * card change, a cancellation scheduled, a trial ending. An invoice that is
+ * paid is money, once, and `stripeInvoiceId` is unique on the row, so a
+ * webhook redelivery (Stripe guarantees at least once, not exactly once)
+ * cannot record the same month twice.
+ *
+ * `amount_paid` rather than the subscription's price: it is what Stripe
+ * actually collected, which is what a proration, a coupon, or a partially
+ * credited period leaves behind. Owing the handicapper a share of a number
+ * nobody paid would be a slow, quiet accounting error.
+ */
+async function recordPlatformEarning(invoice: Stripe.Invoice) {
+  if (invoice.amount_paid <= 0) return;
+
+  const subId = subscriptionIdFromInvoice(invoice);
+  if (!subId) return;
+
+  const subscription = await stripe.subscriptions.retrieve(subId);
+  const meta = subscription.metadata ?? {};
+  if (meta.collect !== "platform") return;
+
+  const subscriberId = meta.subscriberId;
+  const handicapperId = meta.handicapperId;
+  if (!subscriberId || !handicapperId) return;
+
+  const handicapper = await prisma.handicapperProfile.findUnique({
+    where: { id: handicapperId },
+    select: { plan: true, handle: true },
+  });
+  if (!handicapper) return;
+
+  const { commissionCents, netCents } = splitCents(invoice.amount_paid, handicapper.plan);
+  const interval: BillingIntervalPass =
+    meta.interval === "WEEKLY" || meta.interval === "ANNUAL"
+      ? (meta.interval as BillingIntervalPass)
+      : "MONTHLY";
+
+  // createMany + skipDuplicates rather than create: a redelivered webhook
+  // should be a no-op, not a unique-constraint error that makes Stripe retry
+  // it forever.
+  const { count } = await prisma.platformEarning.createMany({
+    data: [
+      {
+        stripeInvoiceId: invoice.id!,
+        stripeSubscriptionId: subId,
+        subscriberId,
+        handicapperId,
+        interval,
+        amountCents: invoice.amount_paid,
+        currency: priceCurrencyOf(invoice.currency),
+        commissionCents,
+        netCents,
+        paidAt: new Date((invoice.status_transitions?.paid_at ?? invoice.created) * 1000),
+      },
+    ],
+    skipDuplicates: true,
+  });
+  if (count === 0) return;
+
+  await logActivity({
+    actorId: subscriberId,
+    action: "subscription.platform_collected",
+    targetType: "PlatformEarning",
+    targetId: invoice.id ?? subId,
+    detail:
+      `@${handicapper.handle}: collected ${(invoice.amount_paid / 100).toFixed(2)} ` +
+      `${invoice.currency.toUpperCase()}, ${(netCents / 100).toFixed(2)} owed to the handicapper`,
+  });
+}
+
 export async function POST(request: Request) {
   if (!webhookSecret) {
     return NextResponse.json({ error: "Webhook secret not configured" }, { status: 500 });
@@ -174,6 +255,15 @@ export async function POST(request: Request) {
       } else {
         await syncSubscription(subscription);
       }
+      break;
+    }
+    // Money actually arriving on a platform-collected subscription. Both the
+    // first payment and every renewal, which is why it is here and not folded
+    // into checkout.session.completed — that one fires once, a subscription
+    // bills forever.
+    case "invoice.payment_succeeded":
+    case "invoice.paid": {
+      await recordPlatformEarning(event.data.object);
       break;
     }
     case "account.updated": {

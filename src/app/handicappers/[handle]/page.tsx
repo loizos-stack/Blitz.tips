@@ -31,6 +31,7 @@ import { DASHBOARD_ORDER_SETTING, resolveSectionOrder } from "@/lib/dashboard-se
 import { isSubscriptionActive } from "@/lib/subscription-status";
 import { nowPaymentsConfigured } from "@/lib/nowpayments";
 import { directPaymentSettings } from "@/lib/direct-payments";
+import { collectsOnPlatform, platformCollectEnabled } from "@/lib/platform-collect";
 import { enrichPickCrests } from "@/lib/pick-logos";
 import { MIN_INDEXABLE_PICKS } from "@/lib/seo";
 import type { ReactNode } from "react";
@@ -101,6 +102,15 @@ export default async function HandicapperProfilePage({
   // to show. Empty list means the option simply isn't offered.
   const direct = await directPaymentSettings();
   const directMethods = direct.enabled ? direct.methods : [];
+
+  // Card checkout is offered either because the handicapper is connected to
+  // Stripe, or because the platform will collect on their behalf. Before this
+  // the button appeared only in the first case, so a handicapper who had not
+  // finished Connect onboarding had no way to be paid by card at all — which
+  // was all but one of them.
+  const canTakeCards =
+    handicapper.stripeAccountReady ||
+    collectsOnPlatform(handicapper, await platformCollectEnabled());
 
   // Suspended profiles disappear from the public site; the owner and admins
   // can still open them (the owner sees the suspension notice below).
@@ -390,7 +400,7 @@ export default async function HandicapperProfilePage({
                 ANNUAL: handicapper.annualPriceCents,
               }}
               isSignedIn={Boolean(session)}
-              isReady={handicapper.stripeAccountReady}
+              isReady={canTakeCards}
               isOwner={Boolean(isOwner)}
               cryptoEnabled={nowPaymentsConfigured()}
               directMethods={directMethods}

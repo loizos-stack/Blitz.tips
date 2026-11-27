@@ -7,8 +7,10 @@ import { guardAdminPage } from "@/lib/permissions";
 import { hasActiveComp, isPlanPaidFor } from "@/lib/comped-plans";
 import { formatDate } from "@/lib/date-format";
 import { directPaymentSettings, SUGGESTED_METHODS } from "@/lib/direct-payments";
+import { platformCollectEnabled } from "@/lib/platform-collect";
 import {
   DirectPaymentSettings,
+  PlatformCollectSettings,
   PendingDirectPayments,
   RecordPayout,
 } from "@/components/admin/direct-payments-admin";
@@ -43,6 +45,7 @@ export default async function AdminFinancialsPage() {
     handicappers,
     activeSubs,
     cryptoPayments,
+    platformEarnings,
     compedSubs,
     directConfirmed,
     directPending,
@@ -57,6 +60,7 @@ export default async function AdminFinancialsPage() {
     }),
     prisma.subscription.count({ where: PAID_SUBSCRIPTION }),
     prisma.cryptoPayment.findMany({ where: { status: "CONFIRMED" } }),
+    prisma.platformEarning.findMany(),
     prisma.subscription.findMany({
       where: { compedAt: { not: null }, stripeSubscriptionId: null },
       orderBy: { compedAt: "desc" },
@@ -80,11 +84,19 @@ export default async function AdminFinancialsPage() {
     prisma.handicapperPayout.findMany({ orderBy: { paidAt: "desc" } }),
     directPaymentSettings(),
   ]);
+  const platformCollect = await platformCollectEnabled();
 
-  // What is owed, and what has gone out. Both crypto and direct transfers are
-  // money the platform received on a handicapper's behalf, so they belong in
-  // one figure; payouts come off it. Stripe is absent on purpose — Stripe
-  // pays the handicapper itself, so there is nothing to settle by hand.
+  // What is owed, and what has gone out. Crypto, direct transfers and
+  // platform-collected card payments are all money the platform received on a
+  // handicapper's behalf, so they belong in one figure; payouts come off it.
+  //
+  // Stripe used to be absent here, on the grounds that Stripe pays the
+  // handicapper itself — true of a Connect destination charge, and no longer
+  // true of every card sale. A handicapper with no Connect account is now
+  // charged through the platform's own account (see lib/platform-collect), and
+  // that money is owed exactly like the other two. PlatformEarning holds only
+  // those; connected handicappers still generate no row, because there is
+  // nothing to settle.
   const owedByHandicapper = new Map<
     string,
     { gross: number; cut: number; net: number; paid: number; count: number }
@@ -94,7 +106,7 @@ export default async function AdminFinancialsPage() {
     if (!row) owedByHandicapper.set(id, (row = { gross: 0, cut: 0, net: 0, paid: 0, count: 0 }));
     return row;
   };
-  for (const p of [...cryptoPayments, ...directConfirmed]) {
+  for (const p of [...cryptoPayments, ...directConfirmed, ...platformEarnings]) {
     const row = bucket(p.handicapperId);
     row.count += 1;
     row.gross += p.amountCents;
@@ -440,6 +452,7 @@ export default async function AdminFinancialsPage() {
       </div>
 
       <div className="mt-8">
+        <PlatformCollectSettings initialEnabled={platformCollect} />
         <DirectPaymentSettings
           initial={{
             enabled: directSettings.enabled,

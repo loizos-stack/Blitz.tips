@@ -396,3 +396,76 @@ export function DirectPaymentSettings({
     </div>
   );
 }
+
+/**
+ * Collecting card payments for handicappers who have no Stripe account.
+ *
+ * Deliberately its own card rather than a line in "Pay us directly", because
+ * the two are different arrangements that happen to end in the same manual
+ * transfer: there, the subscriber pays you and no processor is involved; here,
+ * Stripe takes the card payment normally and the money simply lands with you
+ * instead of being split at source.
+ */
+export function PlatformCollectSettings({ initialEnabled }: { initialEnabled: boolean }) {
+  const router = useRouter();
+  const [enabled, setEnabled] = useState(initialEnabled);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [saved, setSaved] = useState(false);
+
+  async function save(next: boolean) {
+    setSaving(true);
+    setError(null);
+    setSaved(false);
+    const res = await fetch("/api/admin/payments/platform-collect", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ enabled: next }),
+    });
+    const body = await res.json().catch(() => ({}));
+    setSaving(false);
+    if (!res.ok) {
+      setError(body.error ?? "Could not save that.");
+      setEnabled(!next);
+      return;
+    }
+    setSaved(true);
+    router.refresh();
+  }
+
+  return (
+    <div className="card space-y-3 p-5">
+      <div>
+        <h2 className="font-semibold">Collect card payments on their behalf</h2>
+        <p className="mt-1 text-sm text-muted">
+          Lets a handicapper who hasn&apos;t connected Stripe still sell subscriptions. The whole
+          charge lands in your Stripe balance and their share is recorded as owed above, to be sent
+          by hand like a crypto or direct payment. A handicapper who <em>has</em> connected is never
+          routed this way — Stripe keeps paying them directly.
+        </p>
+      </div>
+
+      <label className="flex items-center gap-2 text-sm">
+        <input
+          type="checkbox"
+          checked={enabled}
+          disabled={saving}
+          onChange={(e) => {
+            setEnabled(e.target.checked);
+            void save(e.target.checked);
+          }}
+          className="h-4 w-4 rounded border-border"
+        />
+        <span className="font-medium">Show a card button on unconnected profiles</span>
+      </label>
+
+      <p className="text-xs text-muted">
+        Turning this off leaves existing subscriptions billing and still owed — it only stops new
+        ones starting this way.
+      </p>
+
+      {error && <p className="text-xs text-danger">{error}</p>}
+      {saved && !error && <p className="text-xs text-accent">Saved.</p>}
+    </div>
+  );
+}
