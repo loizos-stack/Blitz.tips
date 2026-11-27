@@ -28,7 +28,15 @@ export function ManualPayoutCard({
   /** True once Stripe Connect is live — then this is history, not the future. */
   connected: boolean;
 }) {
-  if (balance.count === 0 && balance.paidCents === 0) return null;
+  const history = balance.count > 0 || balance.paidCents > 0;
+
+  // Hidden only for a handicapper Stripe already pays, with nothing ever
+  // collected on the manual rail — for them this card has nothing to say.
+  // Everyone else sees it from day one, empty included: someone with no sales
+  // yet is exactly the person who needs to know the arrangement exists and
+  // which day the money moves. Hiding it until the first payment meant the
+  // schedule only appeared once it no longer needed explaining.
+  if (connected && !history) return null;
 
   const due = balance.outstandingCents > 0;
   const payday = nextPayoutDate();
@@ -54,7 +62,7 @@ export function ManualPayoutCard({
       <div className="rounded-xl border border-accent/30 bg-accent/5 p-4">
         <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
           <p className="text-xs uppercase tracking-wide text-muted">
-            {due ? "Next payment" : "Nothing due"}
+            {due ? "Next payment" : history ? "Nothing due" : "Nothing yet"}
           </p>
           <p className="inline-flex items-center gap-1.5 text-xs font-medium text-muted">
             <CalendarClock className="h-3.5 w-3.5" />
@@ -69,11 +77,13 @@ export function ManualPayoutCard({
           {formatCents(due ? balance.outstandingCents : 0, currency)}
         </p>
         <p className="mt-1 text-xs text-muted">
-          {!due
-            ? "Everything you have earned so far has been sent. New subscriptions land here."
-            : today
+          {due
+            ? today
               ? "Going out in today's payout run."
-              : "Sent by transfer on the next Tuesday payout run."}
+              : "Sent by transfer on the next Tuesday payout run."
+            : history
+              ? "Everything you have earned so far has been sent. New subscriptions land here."
+              : "Your share of every subscription lands here, and goes out on the next Tuesday."}
         </p>
       </div>
 
@@ -85,10 +95,16 @@ export function ManualPayoutCard({
       </div>
 
       <p className="text-xs text-muted">
-        From {balance.count} {balance.count === 1 ? "payment" : "payments"}
-        {balance.firstEarnedAt && ` since ${formatDate(balance.firstEarnedAt)}`}, after the
-        platform commission on your plan.
-        {balance.lastPaidAt && ` Last transfer ${formatDate(balance.lastPaidAt)}.`}
+        {history ? (
+          <>
+            From {balance.count} {balance.count === 1 ? "payment" : "payments"}
+            {balance.firstEarnedAt && ` since ${formatDate(balance.firstEarnedAt)}`}, after the
+            platform commission on your plan.
+            {balance.lastPaidAt && ` Last transfer ${formatDate(balance.lastPaidAt)}.`}
+          </>
+        ) : (
+          "Figures are your share, after the platform commission on your plan."
+        )}
       </p>
     </div>
   );
